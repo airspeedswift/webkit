@@ -232,6 +232,9 @@ WK_AUDIT_SPI[sdk=iphoneos*] = $(WK_AND_$(WK_DEFAULT_WK_AUDIT_SPI)_$(WK_NOT_$(WK_
 WK_AUDIT_SPI_ALLOWLISTS = $(SRCROOT)/Configurations/AllowedSPI.toml $(SRCROOT)/Configurations/AllowedSPI-legacy.toml $(WK_AUDIT_SPI_ALLOWLISTS_$(USE_INTERNAL_SDK));
 WK_AUDIT_SPI_ALLOWLISTS_YES = $(WK_WEBKITADDITIONS_HEADERS_FOLDER_PATH)/AllowedSPI/AllowedSPI-WebCore.toml;
 
+// Without it, a call to a generic function in another Swift file is never specialized.
+SWIFT_COMPILATION_MODE = wholemodule;
+
 SWIFT_INSTALL_OBJC_HEADER = NO;
 // FIXME: Set `BUILD_LIBRARY_FOR_DISTRIBUTION` to `NO` when possible.
 BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
