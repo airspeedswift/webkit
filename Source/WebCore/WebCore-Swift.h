@@ -46,4 +46,8 @@
 #include "Element.h"
 #include "HTMLFastPathParserTypes.h"
 
+#include "HTMLEntityParser.h"
+#include "HTMLTokenizer.h"
+#include "SegmentedString.h"
+
 #include "WebCoreSwift-Generated.h"

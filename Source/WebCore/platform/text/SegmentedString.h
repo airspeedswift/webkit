@@ -75,10 +75,6 @@ public:
     SWIFT_UNSAFE void advancePastMultiple16(unsigned count);
     void advancePastMultiple(unsigned count);
 
-    enum AdvancePastResult { DidNotMatch, DidMatch, NotEnoughCharacters };
-    AdvancePastResult advancePast(ASCIILiteral literal) { return advancePast<false>(literal); }
-    AdvancePastResult advancePastLettersIgnoringASCIICase(ASCIILiteral literal) { return advancePast<true>(literal); }
-
     unsigned numberOfCharactersConsumed() const;
 
     String toString() const;
@@ -143,10 +139,6 @@ private:
     NODELETE void updateAdvanceFunctionPointersForSingleCharacterSubstring();
 
     void updateAdvanceFunctionPointersIfNecessary();
-
-    template<typename CharacterType> static bool characterMismatch(CharacterType, char, bool lettersIgnoringASCIICase);
-    template<bool lettersIgnoringASCIICase> AdvancePastResult advancePast(ASCIILiteral);
-    AdvancePastResult advancePastSlowCase(ASCIILiteral, bool lettersIgnoringASCIICase);
 
     Substring m_currentSubstring;
     Deque<Substring> m_otherSubstrings;
@@ -391,37 +383,6 @@ inline void SegmentedString::advancePastMultiple(unsigned count)
 inline unsigned SegmentedString::numberOfCharactersConsumed() const
 {
     return m_numberOfCharactersConsumedPriorToCurrentSubstring + m_currentSubstring.numberOfCharactersConsumed();
-}
-
-template<typename CharacterType> ALWAYS_INLINE bool SegmentedString::characterMismatch(CharacterType a, char b, bool lettersIgnoringASCIICase)
-{
-    return lettersIgnoringASCIICase ? !isASCIIAlphaCaselessEqual(a, b) : a != b;
-}
-
-template<bool lettersIgnoringASCIICase> SegmentedString::AdvancePastResult SegmentedString::advancePast(ASCIILiteral literal)
-{
-    unsigned length = literal.length();
-    ASSERT(!literal[length]);
-    ASSERT(!WTF::contains(literal.span(), '\n'));
-    if (length + 1 < m_currentSubstring.length()) {
-        if (m_currentSubstring.is8Bit) {
-            for (unsigned i = 0; i < length; ++i) {
-                if (characterMismatch(m_currentSubstring.s.currentCharacter8[i], literal[i], lettersIgnoringASCIICase))
-                    return DidNotMatch;
-            }
-            skip(m_currentSubstring.s.currentCharacter8, length);
-            m_currentCharacter = m_currentSubstring.s.currentCharacter8[0];
-        } else {
-            for (unsigned i = 0; i < length; ++i) {
-                if (characterMismatch(m_currentSubstring.s.currentCharacter16[i], literal[i], lettersIgnoringASCIICase))
-                    return DidNotMatch;
-            }
-            skip(m_currentSubstring.s.currentCharacter16, length);
-            m_currentCharacter = m_currentSubstring.s.currentCharacter16[0];
-        }
-        return DidMatch;
-    }
-    return advancePastSlowCase(literal, lettersIgnoringASCIICase);
 }
 
 inline void SegmentedString::updateAdvanceFunctionPointers()

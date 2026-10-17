@@ -143,7 +143,6 @@ public:
 
     void beginComment();
     void appendToComment(char);
-    void appendToComment(ASCIILiteral);
     void appendToComment(std::span<const Latin1Character>);
     void appendToComment(char16_t);
 
@@ -154,6 +153,7 @@ public:
     using TargetVector = Vector<Latin1Character, 16>;
 
     const TargetVector& processingInstructionTarget() const LIFETIME_BOUND;
+    std::span<const Latin1Character> processingInstructionTargetCharacters() const LIFETIME_BOUND { return m_processingInstructionTarget ? m_processingInstructionTarget->span() : std::span<const Latin1Character> { }; }
     const DataVector& processingInstructionData() const LIFETIME_BOUND;
 
     void beginProcessingInstruction();
@@ -478,12 +478,6 @@ inline void HTMLToken::appendToComment(char character)
     ASSERT(character);
     ASSERT(m_type == Type::Comment);
     m_data.append(character);
-}
-
-inline void HTMLToken::appendToComment(ASCIILiteral literal)
-{
-    ASSERT(m_type == Type::Comment);
-    m_data.append(literal.span8());
 }
 
 inline void HTMLToken::appendToComment(std::span<const Latin1Character> characters)

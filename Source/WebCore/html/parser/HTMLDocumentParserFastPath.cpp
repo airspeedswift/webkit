@@ -114,19 +114,6 @@ static_assert(NewlineThenWhitespaceStringsTable::maxSpaceCount == 32);
     return NewlineThenWhitespaceStringsTable::getCachedWhitespace(spaceCount);
 }
 
-// Each Swift caller passes an empty span for the width it does not use.
-[[clang::always_inline]] uint64_t consumeHTMLEntityForFastPath(HTMLFastPathLatin1Span latin1Source NOESCAPE, HTMLFastPathUTF16Span utf16Source NOESCAPE, char16_t additionalAllowedCharacter, std::span<char16_t> decoded NOESCAPE, size_t decodedOffset)
-{
-    auto consume = [&]<typename CharacterType>(std::span<const CharacterType> source) {
-        StringParsingBuffer<CharacterType> buffer { source };
-        auto entity = consumeHTMLEntity(buffer, additionalAllowedCharacter);
-        auto characters = entity.span();
-        std::ranges::copy(characters, decoded.subspan(decodedOffset, characters.size()).begin());
-        return static_cast<uint64_t>(source.size() - buffer.lengthRemaining()) << 2 | characters.size();
-    };
-    return latin1Source.empty() ? consume(utf16Source) : consume(latin1Source);
-}
-
 enum class FragmentReuseResult : uint8_t {
     Success,
     CannotReuse,

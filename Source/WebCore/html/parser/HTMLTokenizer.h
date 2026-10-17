@@ -30,9 +30,13 @@
 #include "HTMLToken.h"
 #include "InputStreamPreprocessor.h"
 
+#include <wtf/SwiftBridging.h>
+
 namespace WebCore {
 
 class SegmentedString;
+
+class SWIFT_PRIVATE_FILEID("WebCore/HTMLTokenizer.swift") HTMLTokenizer;
 
 class WEBCORE_EXPORT HTMLTokenizer {
 public:
@@ -156,40 +160,6 @@ private:
     };
 
     bool processToken(SegmentedString&);
-    bool processEntity(SegmentedString&);
-
-    NODELETE void parseError();
-
-    void bufferASCIICharacter(char16_t);
-    void bufferCharacter(char16_t);
-    template<typename CharacterType> void bufferCharacters(std::span<const CharacterType>);
-    void bufferCharacters(ASCIILiteral literal) { bufferCharacters(literal.span8()); }
-
-    bool emitAndResumeInDataState(SegmentedString&);
-    bool emitProcessingInstruction(SegmentedString&);
-    void rewindToBogusCommentForProcessingInstructionTarget();
-    bool emitAndReconsumeInDataState();
-    bool emitEndOfFile(SegmentedString&);
-    bool emitReplacedNullCharacter(SegmentedString&, State);
-
-    // Return true if we wil emit a character token before dealing with the buffered end tag.
-    void flushBufferedEndTag();
-    bool commitToPartialEndTag(SegmentedString&, char16_t, State);
-    bool commitToCompleteEndTag(SegmentedString&);
-
-    void appendToTemporaryBuffer(char16_t);
-    NODELETE bool temporaryBufferIs(ASCIILiteral);
-
-    // Sometimes we speculatively consume input characters and we don't know whether they represent
-    // end tags or RCDATA, etc. These functions help manage these state.
-    NODELETE bool inEndTagBufferingState() const;
-    void appendToPossibleEndTag(char16_t);
-    void saveEndTagNameIfNeeded();
-    NODELETE bool isAppropriateEndTag() const;
-
-    NODELETE bool haveBufferedCharacterToken() const;
-
-    NODELETE bool shouldSkipNullCharacters(State) const;
 
     State m_state { DataState };
     bool m_forceNullCharacterReplacement { false };
@@ -340,11 +310,6 @@ inline void HTMLTokenizer::setRCDATAState()
 inline void HTMLTokenizer::setScriptDataState()
 {
     m_state = ScriptDataState;
-}
-
-inline bool HTMLTokenizer::shouldSkipNullCharacters(State state) const
-{
-    return state == DataState && !m_forceNullCharacterReplacement;
 }
 
 } // namespace WebCore

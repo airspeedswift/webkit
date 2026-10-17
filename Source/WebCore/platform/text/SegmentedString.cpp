@@ -243,28 +243,6 @@ void SegmentedString::setCurrentPosition(OrdinalNumber line, OrdinalNumber colum
     m_numberOfCharactersConsumedPriorToCurrentLine = numberOfCharactersConsumed() + prologLength - columnAftreProlog.zeroBasedInt();
 }
 
-SegmentedString::AdvancePastResult SegmentedString::advancePastSlowCase(ASCIILiteral literal, bool lettersIgnoringASCIICase)
-{
-    constexpr unsigned maxLength = 10;
-    ASSERT(!WTF::contains(literal.span(), '\n'));
-    auto length = literal.length();
-    ASSERT(length <= maxLength);
-    if (length > this->length())
-        return NotEnoughCharacters;
-    std::array<char16_t, maxLength> consumedCharacters;
-    for (unsigned i = 0; i < length; ++i) {
-        auto character = m_currentCharacter;
-        if (characterMismatch(character, literal[i], lettersIgnoringASCIICase)) {
-            if (i)
-                pushBack(String(std::span { consumedCharacters }.first(i)));
-            return DidNotMatch;
-        }
-        advancePastNonNewline();
-        consumedCharacters[i] = character;
-    }
-    return DidMatch;
-}
-
 void SegmentedString::updateAdvanceFunctionPointersForEmptyString()
 {
     ASSERT(!m_currentSubstring.length());
