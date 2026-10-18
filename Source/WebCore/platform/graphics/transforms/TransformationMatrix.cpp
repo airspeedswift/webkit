@@ -46,6 +46,9 @@
 
 #include "WebCore-Swift.h"
 
+// The functions below that multiply by a matrix with constant entries (a rotation about an axis, a skew, a perspective)
+// call a Swift entry point for each shape, in which the constant entries fold.
+
 namespace WebCore {
 
 //
@@ -658,73 +661,19 @@ TransformationMatrix& TransformationMatrix::rotate3d(double x, double y, double 
     double sinTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(angle)) : sin(angle);
     double cosTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(angle)) : cos(angle);
 
-    TransformationMatrix mat;
-
-    // Optimize cases where the axis is along a major axis
-    // Since we've already normalized the vector we don't need to check that the
-    // other two dimensions are zero
-    if (x == 1.0) {
-        mat.m_matrix[0][0] = 1.0;
-        mat.m_matrix[0][1] = 0.0;
-        mat.m_matrix[0][2] = 0.0;
-        mat.m_matrix[1][0] = 0.0;
-        mat.m_matrix[1][1] = cosTheta;
-        mat.m_matrix[1][2] = sinTheta;
-        mat.m_matrix[2][0] = 0.0;
-        mat.m_matrix[2][1] = -sinTheta;
-        mat.m_matrix[2][2] = cosTheta;
-        mat.m_matrix[0][3] = mat.m_matrix[1][3] = mat.m_matrix[2][3] = 0.0;
-        mat.m_matrix[3][0] = mat.m_matrix[3][1] = mat.m_matrix[3][2] = 0.0;
-        mat.m_matrix[3][3] = 1.0;
-    } else if (y == 1.0) {
-        mat.m_matrix[0][0] = cosTheta;
-        mat.m_matrix[0][1] = 0.0;
-        mat.m_matrix[0][2] = -sinTheta;
-        mat.m_matrix[1][0] = 0.0;
-        mat.m_matrix[1][1] = 1.0;
-        mat.m_matrix[1][2] = 0.0;
-        mat.m_matrix[2][0] = sinTheta;
-        mat.m_matrix[2][1] = 0.0;
-        mat.m_matrix[2][2] = cosTheta;
-        mat.m_matrix[0][3] = mat.m_matrix[1][3] = mat.m_matrix[2][3] = 0.0;
-        mat.m_matrix[3][0] = mat.m_matrix[3][1] = mat.m_matrix[3][2] = 0.0;
-        mat.m_matrix[3][3] = 1.0;
-    } else if (z == 1.0) {
-        mat.m_matrix[0][0] = cosTheta;
-        mat.m_matrix[0][1] = sinTheta;
-        mat.m_matrix[0][2] = 0.0;
-        mat.m_matrix[1][0] = -sinTheta;
-        mat.m_matrix[1][1] = cosTheta;
-        mat.m_matrix[1][2] = 0.0;
-        mat.m_matrix[2][0] = 0.0;
-        mat.m_matrix[2][1] = 0.0;
-        mat.m_matrix[2][2] = 1.0;
-        mat.m_matrix[0][3] = mat.m_matrix[1][3] = mat.m_matrix[2][3] = 0.0;
-        mat.m_matrix[3][0] = mat.m_matrix[3][1] = mat.m_matrix[3][2] = 0.0;
-        mat.m_matrix[3][3] = 1.0;
-    } else {
-        // This case is the rotation about an arbitrary unit vector.
-        //
-        // Formula is adapted from Wikipedia article on Rotation matrix,
-        // http://en.wikipedia.org/wiki/Rotation_matrix#Rotation_matrix_from_axis_and_angle
-        //
-        // An alternate resource with the same matrix: http://www.fastgraph.com/makegames/3drotation/
-        //
+    if (x == 1.0)
+        transformationMatrixRotateX(*this, sinTheta, cosTheta);
+    else if (y == 1.0)
+        transformationMatrixRotateY(*this, sinTheta, cosTheta);
+    else if (z == 1.0)
+        transformationMatrixRotateZ(*this, sinTheta, cosTheta);
+    else {
         double oneMinusCosTheta = 1 - cosTheta;
-        mat.m_matrix[0][0] = cosTheta + x * x * oneMinusCosTheta;
-        mat.m_matrix[0][1] = y * x * oneMinusCosTheta + z * sinTheta;
-        mat.m_matrix[0][2] = z * x * oneMinusCosTheta - y * sinTheta;
-        mat.m_matrix[1][0] = x * y * oneMinusCosTheta - z * sinTheta;
-        mat.m_matrix[1][1] = cosTheta + y * y * oneMinusCosTheta;
-        mat.m_matrix[1][2] = z * y * oneMinusCosTheta + x * sinTheta;
-        mat.m_matrix[2][0] = x * z * oneMinusCosTheta + y * sinTheta;
-        mat.m_matrix[2][1] = y * z * oneMinusCosTheta - x * sinTheta;
-        mat.m_matrix[2][2] = cosTheta + z * z * oneMinusCosTheta;
-        mat.m_matrix[0][3] = mat.m_matrix[1][3] = mat.m_matrix[2][3] = 0.0;
-        mat.m_matrix[3][0] = mat.m_matrix[3][1] = mat.m_matrix[3][2] = 0.0;
-        mat.m_matrix[3][3] = 1.0;
+        transformationMatrixMultiplyLinear(*this,
+            cosTheta + x * x * oneMinusCosTheta, y * x * oneMinusCosTheta + z * sinTheta, z * x * oneMinusCosTheta - y * sinTheta,
+            x * y * oneMinusCosTheta - z * sinTheta, cosTheta + y * y * oneMinusCosTheta, z * y * oneMinusCosTheta + x * sinTheta,
+            x * z * oneMinusCosTheta + y * sinTheta, y * z * oneMinusCosTheta - x * sinTheta, cosTheta + z * z * oneMinusCosTheta);
     }
-    multiply(mat);
     return *this;
 }
 
@@ -740,7 +689,7 @@ TransformationMatrix& TransformationMatrix::rotateRadians(double angle, Rotation
 {
     double sinZ = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(angle)) : sin(angle);
     double cosZ = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(angle)) : cos(angle);
-    multiply({ cosZ, sinZ, -sinZ, cosZ, 0, 0 });
+    transformationMatrixRotateZ(*this, sinZ, cosZ);
     return *this;
 }
 
@@ -774,38 +723,12 @@ TransformationMatrix& TransformationMatrix::rotate3d(double rx, double ry, doubl
     sinTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(ry)) : sin(ry);
     cosTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(ry)) : cos(ry);
 
-    mat.m_matrix[0][0] = cosTheta;
-    mat.m_matrix[0][1] = 0.0;
-    mat.m_matrix[0][2] = -sinTheta;
-    mat.m_matrix[1][0] = 0.0;
-    mat.m_matrix[1][1] = 1.0;
-    mat.m_matrix[1][2] = 0.0;
-    mat.m_matrix[2][0] = sinTheta;
-    mat.m_matrix[2][1] = 0.0;
-    mat.m_matrix[2][2] = cosTheta;
-    mat.m_matrix[0][3] = mat.m_matrix[1][3] = mat.m_matrix[2][3] = 0.0;
-    mat.m_matrix[3][0] = mat.m_matrix[3][1] = mat.m_matrix[3][2] = 0.0;
-    mat.m_matrix[3][3] = 1.0;
-
-    rmat.multiply(mat);
+    transformationMatrixRotateY(rmat, sinTheta, cosTheta);
 
     sinTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(rx)) : sin(rx);
     cosTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(rx)) : cos(rx);
 
-    mat.m_matrix[0][0] = 1.0;
-    mat.m_matrix[0][1] = 0.0;
-    mat.m_matrix[0][2] = 0.0;
-    mat.m_matrix[1][0] = 0.0;
-    mat.m_matrix[1][1] = cosTheta;
-    mat.m_matrix[1][2] = sinTheta;
-    mat.m_matrix[2][0] = 0.0;
-    mat.m_matrix[2][1] = -sinTheta;
-    mat.m_matrix[2][2] = cosTheta;
-    mat.m_matrix[0][3] = mat.m_matrix[1][3] = mat.m_matrix[2][3] = 0.0;
-    mat.m_matrix[3][0] = mat.m_matrix[3][1] = mat.m_matrix[3][2] = 0.0;
-    mat.m_matrix[3][3] = 1.0;
-
-    rmat.multiply(mat);
+    transformationMatrixRotateX(rmat, sinTheta, cosTheta);
 
     multiply(rmat);
     return *this;
@@ -867,21 +790,15 @@ TransformationMatrix& TransformationMatrix::skew(double sx, double sy)
     sx = deg2rad(sx);
     sy = deg2rad(sy);
 
-    TransformationMatrix mat;
-    mat.m_matrix[0][1] = tan(sy); // note that the y shear goes in the first row
-    mat.m_matrix[1][0] = tan(sx); // and the x shear in the second row
-
-    multiply(mat);
+    double tanY = tan(sy);
+    double tanX = tan(sx);
+    transformationMatrixSkew(*this, tanY, tanX);
     return *this;
 }
 
 TransformationMatrix& TransformationMatrix::applyPerspective(double p)
 {
-    TransformationMatrix mat;
-    if (p != 0)
-        mat.m_matrix[2][3] = -1/p;
-
-    multiply(mat);
+    transformationMatrixApplyPerspective(*this, p != 0 ? -1 / p : 0.0);
     return *this;
 }
 
