@@ -147,6 +147,12 @@ NODELETE static double determinant4x4(const TransformationMatrix::Matrix4& m)
 // Returns false if the matrix is not invertible
 static bool inverse(const TransformationMatrix::Matrix4& matrix, TransformationMatrix::Matrix4& result)
 {
+#if OS(WINDOWS) && CPU(X86_64)
+    // One call, with the determinant in Swift too. Computed here, determinant4x4() makes TransformationMatrix::inverse()
+    // save and restore all ten of the Windows x64 callee-saved xmm6-xmm15 on every call, including the identity,
+    // translation and affine ones, which use two; and kept out of line, it puts a second frame before the Swift.
+    return transformationMatrixInverse(matrix, result);
+#else
     // Calculate the 4x4 determinant
     // If the determinant is zero,
     // then the inverse matrix is not unique.
@@ -162,6 +168,7 @@ static bool inverse(const TransformationMatrix::Matrix4& matrix, TransformationM
         transformationMatrixScaledAdjoint(matrix, inverseDeterminant, result);
     }(matrix, inverseDeterminant, result);
     return true;
+#endif
 }
 
 // End of code adapted from Matrix Inversion by Richard Carling
