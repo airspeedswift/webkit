@@ -367,6 +367,7 @@
 		C55D00000000000000000010 /* CSSPropertyConsumerSwiftSmall.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D0000000000000000000F /* CSSPropertyConsumerSwiftSmall.swift */; };
 		C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */; };
 		C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55A00000000000000000003 /* CSSTokenizerSwift.swift */; };
+		F4FD8A7220C64FDA7BA4884D /* TransformationMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = E726A6625648494E4377EAC9 /* TransformationMatrix.swift */; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
 		5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000007 /* SIMDHighBitMask.swift */; };
@@ -8274,6 +8275,7 @@
 		07DB47062BC27E0A00B5A958 /* WritingSuggestionData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WritingSuggestionData.h; sourceTree = "<group>"; };
 		07E047C2305A9DB000DFCC4B /* SwiftStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftStub.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000001 /* SIMDHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHelpers.swift; sourceTree = "<group>"; };
+		E726A6625648494E4377EAC9 /* TransformationMatrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransformationMatrix.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000003 /* SIMDTableLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDTableLookup.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDSaturatingSubtract.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000007 /* SIMDHighBitMask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHighBitMask.swift; sourceTree = "<group>"; };
@@ -28841,6 +28843,7 @@
 				49E911BD0EF86D47009D0CAF /* SkewTransformOperation.h */,
 				49E911B30EF86D47009D0CAF /* TransformationMatrix.cpp */,
 				49E911B40EF86D47009D0CAF /* TransformationMatrix.h */,
+				E726A6625648494E4377EAC9 /* TransformationMatrix.swift */,
 				0FE95F1C1CD543DF00D2F45A /* TransformOperation.cpp */,
 				49E911BE0EF86D47009D0CAF /* TransformOperation.h */,
 				49E911BF0EF86D47009D0CAF /* TransformOperations.cpp */,
@@ -51539,6 +51542,7 @@
 				C55D0000000000000000000C /* CSSPropertyConsumerSwiftValues.swift in Sources */,
 				C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */,
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
+				F4FD8A7220C64FDA7BA4884D /* TransformationMatrix.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,
 				5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */,

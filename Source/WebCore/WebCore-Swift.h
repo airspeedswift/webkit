@@ -73,4 +73,6 @@
 #include "ImageDecoderSwiftTypes.h"
 #endif
 
+#include "TransformationMatrix.h"
+
 #include "WebCoreSwift-Generated.h"
