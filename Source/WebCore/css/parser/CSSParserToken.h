@@ -122,15 +122,15 @@ public:
     CSSParserTokenType type() const { return static_cast<CSSParserTokenType>(m_type); }
     StringView value() const { return { m_valueDataCharRaw, m_valueLength, m_valueIs8Bit }; }
 
-    NODELETE char16_t delimiter() const;
-    NODELETE NumericSign numericSign() const;
-    NODELETE NumericValueType numericValueType() const;
-    NODELETE double numericValue() const;
+    NODELETE WEBCORE_EXPORT char16_t delimiter() const;
+    NODELETE WEBCORE_EXPORT NumericSign numericSign() const;
+    NODELETE WEBCORE_EXPORT NumericValueType numericValueType() const;
+    NODELETE WEBCORE_EXPORT double numericValue() const;
     NODELETE StringView originalText() const;
     HashTokenType getHashTokenType() const { ASSERT(m_type == HashToken); return m_hashTokenType; }
     BlockType getBlockType() const { return static_cast<BlockType>(m_blockType); }
     CSSUnitType unitType() const { return static_cast<CSSUnitType>(m_unit); }
-    NODELETE StringView unitString() const;
+    NODELETE WEBCORE_EXPORT StringView unitString() const;
     CSSValueID id() const;
     CSSValueID functionId() const;
 
@@ -148,7 +148,7 @@ public:
         // https://drafts.csswg.org/css-variables-2/#serializing-custom-props
         CustomProperty
     };
-    void serialize(StringBuilder&, const CSSParserToken* nextToken = nullptr, SerializationMode = SerializationMode::Normal) const;
+    WEBCORE_EXPORT void serialize(StringBuilder&, const CSSParserToken* nextToken = nullptr, SerializationMode = SerializationMode::Normal) const;
 
     template<typename CharacterType>
     void updateCharacters(std::span<const CharacterType> characters);
