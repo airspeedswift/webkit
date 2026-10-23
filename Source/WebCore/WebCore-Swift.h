@@ -50,4 +50,6 @@
 #include "HTMLTokenizer.h"
 #include "SegmentedString.h"
 
+#include "CSSTokenizerSwiftTypes.h"
+
 #include "WebCoreSwift-Generated.h"
