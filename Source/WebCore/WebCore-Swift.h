@@ -60,4 +60,11 @@
 #include "SegmentedString.h"
 #endif
 
+#if !defined(USE_SWIFT_CSS_TOKENIZER)
+#define USE_SWIFT_CSS_TOKENIZER 0
+#endif
+#if USE_SWIFT_CSS_TOKENIZER
+#include "CSSTokenizerSwiftTypes.h"
+#endif
+
 #include "WebCoreSwift-Generated.h"
