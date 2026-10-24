@@ -50,6 +50,12 @@ namespace JSC {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(JSONCache);
 
+#if USE_SWIFT_JSON_PARSER
+// LiteralParserSwift.swift spells this constant as a literal.
+static_assert(numberOfDigitsForSafeInt32 == 9);
+#endif
+
+#if !USE_SWIFT_JSON_PARSER
 template<typename CharType, JSONReviverMode reviverMode>
 inline const CharType* LiteralParser<CharType, reviverMode>::Lexer::currentTokenStart() const
 {
@@ -2388,6 +2394,7 @@ template class LiteralParser<Latin1Character, JSONReviverMode::Enabled>;
 template class LiteralParser<char16_t, JSONReviverMode::Enabled>;
 template class LiteralParser<Latin1Character, JSONReviverMode::Disabled>;
 template class LiteralParser<char16_t, JSONReviverMode::Disabled>;
+#endif // !USE_SWIFT_JSON_PARSER
 
 }
 
