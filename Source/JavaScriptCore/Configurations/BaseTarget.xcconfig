@@ -34,6 +34,7 @@ WK_SWIFT_PGO_GEN_FLAGS_YES = -Xfrontend -ir-profile-generate;
 
 GCC_PREFIX_HEADER = JavaScriptCorePrefix.h;
 GCC_PREPROCESSOR_DEFINITIONS = $(inherited) $(ENABLE_LLVM_PROFILE_GENERATION_DEFINES);
+
 GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 // JSC_SUPPORTS_SWIFT for the C++ compiles of every target that includes this file: the framework, which
 // compiles JavaScriptCore's Swift, and libJavaScriptCore, which compiles most of its C++. A header that chooses
