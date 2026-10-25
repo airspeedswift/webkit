@@ -55,7 +55,11 @@ bool HTMLTokenizer::processToken(SegmentedString& source)
     return processHTMLTokenizerToken(*this, source, m_additionalAllowedCharacter);
 }
 
+#if OS(WINDOWS)
+constinit thread_local HTMLTokenAttributes* s_tokenAttributes { nullptr };
+#else
 thread_local HTMLTokenAttributes* HTMLTokenizer::s_tokenAttributes { nullptr };
+#endif
 
 bool HTMLTokenizer::processToken(SegmentedString& source, HTMLTokenAttributes& attributes)
 {
