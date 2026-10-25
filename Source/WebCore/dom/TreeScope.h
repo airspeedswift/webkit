@@ -73,8 +73,8 @@ public:
     TreeScope* parentTreeScope() const { return m_parentTreeScope.get(); }
     void setParentTreeScope(TreeScope&);
 
-    WEBCORE_EXPORT void LEGACY_NODELETE ref() const;
-    WEBCORE_EXPORT void deref() const;
+    SWIFT_UNSAFE WEBCORE_EXPORT void LEGACY_NODELETE ref() const;
+    SWIFT_UNSAFE WEBCORE_EXPORT void deref() const;
 
     uint32_t checkedPtrCount() const;
     uint32_t checkedPtrCountWithoutThreadCheck() const;
