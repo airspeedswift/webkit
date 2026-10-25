@@ -556,6 +556,7 @@ macro(WEBKIT_OPTION_END)
     endif ()
 
     option(WK_BUILD_WEBCORE_SWIFT "Build WebCore's Swift sources, as the Xcode project does" OFF)
+    set(WK_BUILD_WEBCORE_SWIFT ON)
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
