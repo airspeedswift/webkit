@@ -583,8 +583,9 @@ public:
     // https://dom.spec.whatwg.org/#eventtarget-activation-behavior
     virtual bool hasActivationBehavior() const;
 
-    ALWAYS_INLINE void ref() const;
-    ALWAYS_INLINE void deref() const;
+    // Swift retains and releases a Node itself, so ref() and deref() are unsafe there.
+    SWIFT_UNSAFE ALWAYS_INLINE void ref() const;
+    SWIFT_UNSAFE ALWAYS_INLINE void deref() const;
     ALWAYS_INLINE bool hasOneRef() const;
     ALWAYS_INLINE unsigned refCount() const;
     void applyRefDuringDestructionCheck() const;
@@ -627,7 +628,7 @@ public:
     void setContainsSelectionEndPoint(bool value) { setStateFlag(StateFlag::ContainsSelectionEndPoint, value); }
 
     WEBCORE_EXPORT NodeIdentifier nodeIdentifier() const;
-    NODELETE WEBCORE_EXPORT static Node* fromIdentifier(NodeIdentifier);
+    NODELETE SWIFT_MAIN_ACTOR WEBCORE_EXPORT static Node* fromIdentifier(NodeIdentifier);
 
 protected:
     enum class TypeFlag : uint16_t {
