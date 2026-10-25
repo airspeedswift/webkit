@@ -74,7 +74,7 @@ public:
     bool isDetached() const { return m_state == ParserState::Detached; }
 
     // FIXME: Is this necessary? Does XMLDocumentParserLibxml2 really need to set this?
-    NODELETE virtual void startParsing();
+    NODELETE SWIFT_UNSAFE virtual void startParsing();
 
     // prepareToStop() is used when the EOF token is encountered and parsing is to be
     // stopped normally.
