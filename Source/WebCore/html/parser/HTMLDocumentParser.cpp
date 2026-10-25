@@ -297,7 +297,7 @@ bool HTMLDocumentParser::pumpTokenizerLoop(SynchronousMode mode, bool parsingFra
         if (mode == SynchronousMode::AllowYield && parserScheduler->shouldYieldBeforeToken(session)) [[unlikely]]
             return true;
 
-        auto token = m_tokenizer.nextToken(m_input.current());
+        auto token = m_tokenizer.nextToken(m_input.current(), m_tokenAttributes);
         if (!token)
             return false;
 
@@ -355,7 +355,7 @@ void HTMLDocumentParser::pumpTokenizer(SynchronousMode mode)
 
 void HTMLDocumentParser::constructTreeFromHTMLToken(HTMLTokenizer::TokenPtr& rawToken)
 {
-    AtomHTMLToken token(*rawToken);
+    AtomHTMLToken token(*rawToken, WTF::move(m_tokenAttributes));
 
     // We clear the rawToken in case constructTree
     // synchronously re-enters the parser. We don't clear the token immedately

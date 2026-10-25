@@ -143,6 +143,8 @@ private:
     HTMLInputStream m_input;
 
     HTMLTokenizer m_tokenizer;
+    // m_tokenizer fills this for each tag token; constructTreeFromHTMLToken moves it into the AtomHTMLToken.
+    HTMLTokenAttributes m_tokenAttributes;
     const std::unique_ptr<HTMLScriptRunner> m_scriptRunner;
     const UniqueRef<HTMLTreeBuilder> m_treeBuilder;
     std::unique_ptr<HTMLPreloadScanner> m_preloadScanner;

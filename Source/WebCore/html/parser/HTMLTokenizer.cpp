@@ -37,6 +37,8 @@
 
 #include "WebCore-Swift.h"
 
+#include <wtf/SetForScope.h>
+
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -51,6 +53,17 @@ bool HTMLTokenizer::processToken(SegmentedString& source)
     // HTMLTokenizer.swift's TokenizerState lists these states in this order.
     static_assert(CDATASectionDoubleRightSquareBracketState == 75);
     return processHTMLTokenizerToken(*this, source, m_additionalAllowedCharacter);
+}
+
+thread_local HTMLTokenAttributes* HTMLTokenizer::s_tokenAttributes { nullptr };
+
+bool HTMLTokenizer::processToken(SegmentedString& source, HTMLTokenAttributes& attributes)
+{
+    static_assert(makesTokenAttributesBit == 0x8000, "HTMLTokenizer.swift has the same value");
+    ASSERT(!(m_additionalAllowedCharacter & makesTokenAttributesBit));
+    ASSERT(!s_tokenAttributes);
+    SetForScope scope { s_tokenAttributes, &attributes };
+    return processHTMLTokenizerToken(*this, source, m_additionalAllowedCharacter | makesTokenAttributesBit);
 }
 
 String HTMLTokenizer::bufferedCharacters() const

@@ -33,13 +33,15 @@
 #include <wtf/HashSet.h>
 #include <wtf/text/AtomStringHash.h>
 
+#include "HTMLTokenizer.h"
+
 namespace WebCore {
 
 class AtomHTMLToken {
 public:
     using Type = HTMLToken::Type;
 
-    explicit AtomHTMLToken(HTMLToken&);
+    AtomHTMLToken(HTMLToken&, HTMLTokenAttributes&&);
     AtomHTMLToken(Type, TagName, const AtomString& name, Vector<Attribute>&& = { }); // Only StartTag or EndTag.
     AtomHTMLToken(Type, TagName, Vector<Attribute>&& = { }); // Only StartTag or EndTag.
 
@@ -88,7 +90,6 @@ public:
     bool hasDuplicateAttribute() const { return m_hasDuplicateAttribute; }
 
 private:
-    void initializeAttributes(const HTMLToken::AttributeList& attributes);
 
     AtomString m_name; // StartTag, EndTag, DOCTYPE, ProcessingInstruction.
     String m_data; // Comment, ProcessingInstruction.
@@ -247,29 +248,7 @@ inline bool hasAttribute(const Vector<Attribute>& attributes, const AtomString& 
     return false;
 }
 
-inline void AtomHTMLToken::initializeAttributes(const HTMLToken::AttributeList& attributes)
-{
-    unsigned size = attributes.size();
-    if (!size)
-        return;
-
-    Vector<AtomStringImpl*, 8> addedAttributes(ReserveCapacityTag { }, size);
-
-    m_attributes = WTF::compactMap(attributes, [&](auto& attribute) -> std::optional<Attribute> {
-        if (attribute.name.isEmpty())
-            return std::nullopt;
-
-        auto qualifiedName = HTMLNameCache::makeAttributeQualifiedName(attribute.name);
-        if (!insertInUniquedSortedVector(addedAttributes, qualifiedName.localName().impl())) [[unlikely]] {
-            m_hasDuplicateAttribute = true;
-            return std::nullopt;
-        }
-
-        return Attribute(WTF::move(qualifiedName), HTMLNameCache::makeAttributeValue(attribute.value));
-    });
-}
-
-inline AtomHTMLToken::AtomHTMLToken(HTMLToken& token)
+inline AtomHTMLToken::AtomHTMLToken(HTMLToken& token, HTMLTokenAttributes&& attributes)
     : m_type(token.type())
 {
     switch (m_type) {
@@ -288,10 +267,13 @@ inline AtomHTMLToken::AtomHTMLToken(HTMLToken& token)
     case Type::StartTag:
     case Type::EndTag:
         m_selfClosing = token.selfClosing();
-        m_tagName = findTagName(token.name());
-        if (m_tagName == TagName::Unknown) [[unlikely]]
-            m_name = AtomString(token.name().span());
-        initializeAttributes(token.attributes());
+        m_tagName = attributes.tagName;
+        m_name = WTF::move(attributes.name);
+        m_attributes = WTF::move(attributes.attributes);
+        // As initializeAttributes does when it drops an attribute, keep no spare capacity.
+        if (m_attributes.size() < m_attributes.capacity()) [[unlikely]]
+            m_attributes.shrinkToFit();
+        m_hasDuplicateAttribute = std::exchange(attributes.hasDuplicateAttribute, false);
         return;
     case Type::Comment: {
         if (token.commentIsAll8BitData())

@@ -100,6 +100,9 @@ public:
 
     bool selfClosing() const;
     const AttributeList& attributes() const LIFETIME_BOUND;
+    size_t attributeCount() const { return m_attributes.size(); }
+    std::span<const char16_t> attributeName(size_t i) const LIFETIME_BOUND { return m_attributes[i].name.span(); }
+    std::span<const char16_t> attributeValue(size_t i) const LIFETIME_BOUND { return m_attributes[i].value.span(); }
 
     void beginStartTag(Latin1Character);
 
