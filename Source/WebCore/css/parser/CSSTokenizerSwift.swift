@@ -22,12 +22,14 @@
 // THE POSSIBILITY OF SUCH DAMAGE.
 
 // Without these, no operator in this file type-checks: WebCore's C++ operators name types these modules define.
+#if canImport(JavaScriptCore_Private) // Not a module outside Apple platforms, where the headers are textual.
 internal import JavaScriptCore_Private.Cxx.Snippet
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.WasmInstanceAnchor
 internal import JavaScriptCore_Private.Cxx.WasmCalleeGroup
 internal import JavaScriptCore_Private.Cxx.WasmModule
 internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
+#endif
 internal import wtf.Core.Stopwatch
 
 internal import WebCore_Private.Core.CSSParserToken
@@ -91,7 +93,12 @@ private func code(_ sign: WebCore.NumericSign) -> UInt8 {
 /// Nothing here looks above U+007F except to ask whether a code unit is ASCII, which is all the name code
 /// point rule needs, so scanning by code unit is right for 16-bit input too: surrogates are name code
 /// points, and preprocessing has replaced unpaired ones.
-private protocol CSSCodeUnit: FixedWidthInteger & UnsignedInteger {
+///
+/// FIXME: Make this and its witnesses private again once a private protocol links under LTO on Windows. With more
+/// than one object file per module (the CMake build's -num-threads), a private protocol's requirement descriptors are
+/// linkonce_odr aliases to offsets into the protocol descriptor, which LLVM's COFF bitcode symbol table rejects as an
+/// "Invalid weak external" (IRSymtab.cpp), so WebCore.dll does not link.
+protocol CSSCodeUnit: FixedWidthInteger & UnsignedInteger {
     /// The index of the first of the first sixteen code units of `units`, which holds seventeen, that is a
     /// `*` followed by a `/`; 16 when there is none.
     static func commentEndIndex(_ units: Span<Self>) -> Int
@@ -99,11 +106,20 @@ private protocol CSSCodeUnit: FixedWidthInteger & UnsignedInteger {
     /// The number of leading code units of `units`, which holds sixteen, that are a space or a tab; 16 when
     /// all are.
     static func leadingSpaceOrTabCount(_ units: Span<Self>) -> Int
+
+    // The skip below takes 8-bit input to the first code unit at or after `start` that the scalar loop it precedes
+    // stops on, sixteen code units at a time, or to the first of the fewer than sixteen left before the end, which the
+    // scalar loop scans; every code unit skipped is one that loop steps over. For 16-bit input it returns `start`.
+
+    /// The skip for the plain-string loop of `consumeStringTokenUntil`, which stops on `quote`, `\`, `\n`, `\r`,
+    /// `\f` and the end-of-file marker.
+    static func plainStringEnd(_ data: Span<Self>, from start: Int, quote: Self) -> Int
+
 }
 
 extension UInt8: CSSCodeUnit {
     @inline(always)
-    fileprivate static func commentEndIndex(_ units: Span<UInt8>) -> Int {
+    static func commentEndIndex(_ units: Span<UInt8>) -> Int {
         // A lane of `pair` is zero where the code unit is `*` and the next is `/`; `(pair - 1) & ~pair` sets
         // the top bit of exactly those lanes.
         let pair = (load16(units, at: 0) ^ 0x2A) | (load16(units, at: 1) ^ 0x2F)
@@ -113,7 +129,7 @@ extension UInt8: CSSCodeUnit {
     }
 
     @inline(always)
-    fileprivate static func leadingSpaceOrTabCount(_ units: Span<UInt8>) -> Int {
+    static func leadingSpaceOrTabCount(_ units: Span<UInt8>) -> Int {
         // `x | (0 - x)` has its top bit set exactly when `x` is not zero, so a lane of `other` has its top bit
         // set exactly when the code unit is neither a space nor a tab.
         let v = load16(units, at: 0)
@@ -122,11 +138,50 @@ extension UInt8: CSSCodeUnit {
         let other = bitCast((space | (0 &- space)) & (tab | (0 &- tab)), to: SIMD2<UInt64>.self)
         return leadingClearLanes(other[0] & 0x8080_8080_8080_8080, other[1] & 0x8080_8080_8080_8080)
     }
+
+    @inline(always)
+    static func plainStringEnd(_ data: Span<UInt8>, from start: Int, quote: UInt8) -> Int {
+        firstStop(data, from: start) { v in
+            let quoteOrBackslash = zeroLanes(v ^ quote) | zeroLanes(v ^ 0x5C)
+            let newline = zeroLanes(v ^ 0x0A) | zeroLanes(v ^ 0x0C) | zeroLanes(v ^ 0x0D)
+            // The end-of-file marker: preprocessing leaves no NUL in the input, but the scalar loop stops on one.
+            return quoteOrBackslash | newline | zeroLanes(v)
+        }
+    }
+}
+
+/// The index of the first code unit at or after `start` whose lane of `stop` has its top bit set, testing sixteen code
+/// units at a time while sixteen remain; otherwise the index of the first of the fewer than sixteen left, or `start`
+/// when that is past the end.
+@inline(always)
+private func firstStop(
+    _ data: Span<UInt8>,
+    from start: Int,
+    _ stop: (SIMD16<UInt8>) -> SIMD16<UInt8>
+) -> Int {
+    var i = start
+    // `start` is at most a few code units past the end, so the difference does not overflow.
+    while data.count &- i >= 16 {
+        let found = stop(load16(data, at: i))
+        if anyHighBit(found) {
+            // At most the input's length.
+            return i &+ highBitMask(found).trailingZeroBitCount
+        }
+        // At most the input's length.
+        i &+= 16
+    }
+    return i
+}
+
+/// The top bit set in each lane of `x` that is zero, clear in the others.
+@inline(always)
+private func zeroLanes(_ x: SIMD16<UInt8>) -> SIMD16<UInt8> {
+    (x &- 1) & ~x
 }
 
 extension UInt16: CSSCodeUnit {
     @inline(always)
-    fileprivate static func commentEndIndex(_ units: Span<UInt16>) -> Int {
+    static func commentEndIndex(_ units: Span<UInt16>) -> Int {
         // As for 8-bit input, comparing whole code units, so that U+012A is not a `*`.
         let bytes = units.bytes
         let low =
@@ -141,7 +196,7 @@ extension UInt16: CSSCodeUnit {
     }
 
     @inline(always)
-    fileprivate static func leadingSpaceOrTabCount(_ units: Span<UInt16>) -> Int {
+    static func leadingSpaceOrTabCount(_ units: Span<UInt16>) -> Int {
         // As for 8-bit input, comparing whole code units, so that U+0120 is not a space; then the top bit of
         // each lane's high byte, gathered into eight bits per lane.
         let bytes = units.bytes
@@ -158,6 +213,9 @@ extension UInt16: CSSCodeUnit {
         let words = bitCast(other, to: SIMD2<UInt64>.self)
         return leadingClearLanes(words[0] & 0x8080_8080_8080_8080, words[1] & 0x8080_8080_8080_8080)
     }
+
+    @inline(always)
+    static func plainStringEnd(_ data: Span<UInt16>, from start: Int, quote: UInt16) -> Int { start }
 }
 
 /// The number of eight-bit lanes before the first set bit of the 128-bit value `low`, `high`; 16 when there is none.
@@ -1112,7 +1170,8 @@ private struct CSSTokenizerScanner<Unit: CSSCodeUnit> {
         _ sink: inout WebCore.CSSTokenizerSink
     ) -> Step {
         // Strings closed by their quote, without an escape, are ranges of the input.
-        var size = 0
+        // The skip returns at least `offset`.
+        var size = Unit.plainStringEnd(data, from: offset, quote: endingCodePoint) &- offset
         while true {
             let cc = peek(data, size)
             if cc == endingCodePoint {

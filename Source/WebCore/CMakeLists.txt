@@ -3301,6 +3301,7 @@ list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES
     "(^|/)HTMLTokenizer\\.cpp( |$)"
     "(^|/)WebVTTTokenizer\\.cpp( |$)"
     "(^|/)XMLDocumentParserLibxml2\\.cpp( |$)")
+list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSTokenizer\\.cpp( |$)")
 
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
@@ -3431,6 +3432,9 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
     list(APPEND _webcore_swift_core_submodules
         platform/text/SegmentedString.h html/parser/HTMLToken.h html/parser/HTMLTokenizer.h
         html/parser/HTMLEntityParser.h html/parser/HTMLEntityTable.h css/parser/CSSTokenizerInputStream.h)
+
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSTokenizer.cpp)
+    list(APPEND _webcore_swift_core_submodules css/parser/CSSParserToken.h css/parser/CSSTokenizerSwiftTypes.h)
 
     webkit_target_add_swift_options(WebCore
         "-library-level spi"
