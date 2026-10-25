@@ -284,7 +284,10 @@ MODULE_VERIFIER_KIND = builtin;
 // straight to the next state.
 WK_SWIFT_IMPORTED_CXX_OPTIMIZATION_FLAGS = -Xcc -O2;
 WK_SWIFT_IMPORTED_CXX_OPTIMIZATION_FLAGS[config=Debug] = ;
-OTHER_SWIFT_FLAGS = $(inherited) -Xcc -std=c++2b -Xcc -fno-exceptions -Xcc -fignore-exceptions $(WK_SWIFT_IMPORTED_CXX_OPTIMIZATION_FLAGS) -Xllvm -enable-dfa-jump-thread -Xfrontend -clang-header-expose-decls=has-expose-attr-or-stdlib -Xfrontend -emit-clang-header-min-access -Xfrontend internal $(WK_SWIFT_PGO_USE_FLAGS) $(WK_SWIFT_PGO_GEN_FLAGS);
+OTHER_SWIFT_FLAGS = $(inherited) -Xcc -std=c++2b -Xcc -fno-exceptions -Xcc -fignore-exceptions $(WK_SWIFT_IMPORTED_CXX_OPTIMIZATION_FLAGS) -Xllvm -enable-dfa-jump-thread -Xfrontend -clang-header-expose-decls=has-expose-attr-or-stdlib -Xfrontend -emit-clang-header-min-access -Xfrontend internal -Werror SendableClosureCaptures $(WK_SWIFT_PGO_USE_FLAGS) $(WK_SWIFT_PGO_GEN_FLAGS);
+// Swift that holds C++ state must not let it reach another thread. Several of the diagnostics that catch that
+// are warnings in Swift 6 mode outside any diagnostic group, so warnings are errors too.
+SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 // The compile cache drops -Xcc options, so it is off for WebCore's Swift.
 SWIFT_ENABLE_COMPILE_CACHE = NO;
 
