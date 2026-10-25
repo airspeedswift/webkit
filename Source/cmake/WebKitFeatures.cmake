@@ -576,6 +576,12 @@ macro(WEBKIT_OPTION_END)
     if (WK_USE_SWIFT_HTML_PER_TOKEN AND NOT WK_USE_SWIFT_HTML_TOKENIZER)
         message(FATAL_ERROR "WK_USE_SWIFT_HTML_PER_TOKEN needs WK_USE_SWIFT_HTML_TOKENIZER, whose HTMLTokenizer.swift makes them")
     endif ()
+    # The counterpart of the WebCore.xcconfig setting of the same name: CSSTokenizer's scanner is
+    # CSSTokenizerSwift.swift.
+    option(WK_USE_SWIFT_CSS_TOKENIZER "Tokenize CSS with WebCore's CSSTokenizerSwift.swift" OFF)
+    if (WK_USE_SWIFT_CSS_TOKENIZER)
+        set(WK_BUILD_WEBCORE_SWIFT ON)
+    endif ()
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
