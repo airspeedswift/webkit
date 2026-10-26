@@ -981,7 +981,7 @@ public:
     bool usesStyleBasedEditability() const;
     NODELETE void setHasElementUsingStyleBasedEditability();
     
-    virtual Ref<DocumentParser> createParser();
+    SWIFT_UNSAFE virtual Ref<DocumentParser> createParser();
     DocumentParser* parser() const { return m_parser.get(); }
     ScriptableDocumentParser* scriptableDocumentParser() const;
     HTMLDocumentParser* htmlDocumentParser() const;
