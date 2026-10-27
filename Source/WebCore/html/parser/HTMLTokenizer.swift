@@ -45,6 +45,9 @@ internal import WebCore_Private.Core.Attribute
 internal import WebCore_Private.Core.HTMLNameCache
 internal import WebCore_Private.Core.QualifiedName
 #endif
+#if USE_SWIFT_HTML_PRELOAD_SCANNER
+internal import WebCore_Private.Core.HTMLPreloadScanner
+#endif
 
 #if os(Windows)
 // FIXME: With the MSVC standard library, Swift does not import SegmentedString's span accessors (SegmentedString.h),
@@ -4027,5 +4030,31 @@ extension WebCore.HTMLTokenizer {
         }
     }
 }
+
+#if USE_SWIFT_HTML_PRELOAD_SCANNER
+extension WebCore.HTMLTokenizer {
+    /// HTMLTokenizer::nextToken for HTMLPreloadScanner.swift, which approximates the tree builder with
+    /// updateStateFor on each start tag before it scans the tag.
+    ///
+    /// Returns false if no token is ready. Otherwise runs `body` on the token and clears it.
+    @inline(always)
+    internal mutating func nextPreloadScannerToken(
+        _ source: inout WebCore.SegmentedString,
+        _ body: (borrowing WebCore.HTMLToken) -> Void
+    ) -> Bool {
+        let additionalAllowedCharacter = m_additionalAllowedCharacter
+        guard processHTMLTokenizerToken(&self, &source, additionalAllowedCharacter) else {
+            return false
+        }
+        if m_token.type() == .StartTag,
+            let state = stateForTagName(WebCore.htmlTokenName(m_token), scriptingFlag: m_options.scriptingFlag) {
+            m_state = State(rawValue: State.RawValue(state.rawValue))
+        }
+        body(m_token)
+        m_token.clear()
+        return true
+    }
+}
+#endif
 
 #endif // USE_SWIFT_HTML_TOKENIZER
