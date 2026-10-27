@@ -32,6 +32,15 @@
 #include <memory>
 #include <wtf/TZoneMalloc.h>
 
+#include "HTMLImageElement.h"
+#include "LinkIconType.h"
+#include "LinkRelAttribute.h"
+#include "ReferrerPolicy.h"
+#include "RequestPriority.h"
+#include "ScriptElement.h"
+#include "ShadowRootMode.h"
+#include <wtf/SwiftBridging.h>
+
 namespace WebCore {
 
 // Per-<picture> state used by the preload scanner. The matched <source>
@@ -42,22 +51,41 @@ namespace WebCore {
 // viewport.
 struct PreloadScannerPictureState {
     bool sourceMatched { false };
-    std::unique_ptr<PreloadRequest> bufferedSourceRequest;
+    // The matched <source>'s request, made at the <img>: its URL (null if there is none), and the base URL and media
+    // it was seen with.
+    String bufferedSourceURL;
+    URL bufferedSourceBaseURL;
+    String bufferedSourceMedia;
 };
+
+class SWIFT_PRIVATE_FILEID("WebCore/HTMLPreloadScanner.swift") TokenPreloadScanner;
+class SWIFT_PRIVATE_FILEID("WebCore/HTMLPreloadScanner.swift") HTMLPreloadScanner;
 
 class TokenPreloadScanner {
     WTF_MAKE_TZONE_ALLOCATED(TokenPreloadScanner);
     WTF_MAKE_NONCOPYABLE(TokenPreloadScanner);
 public:
     NODELETE explicit TokenPreloadScanner(const URL& documentURL, float deviceScaleFactor = 1.0);
-
-    void scan(const HTMLToken&, PreloadRequestStream&, Document&);
+    // Swift imports a class only if it can be moved.
+    TokenPreloadScanner(TokenPreloadScanner&&) = default;
 
     void setPredictedBaseElementURL(const URL& url) { m_predictedBaseElementURL = url; }
 
     bool inPicture() { return !m_pictureSourceState.isEmpty(); }
 
+    // For HTMLPreloadScanner.swift: the attribute parsers and checks a start tag's scan uses.
+    static bool mediaMatches(Document&, const String& media);
+    static bool hasLazyLoadableAttributeValue(const String&);
+    // The URL of the image candidate the source set selects, trimmed, or a null String if it is empty.
+    static String bestFitImageURL(Document&, float deviceScaleFactor, const String& url, const String& srcset, const String& sizes, bool& hasCandidate);
+    static ALWAYS_INLINE std::optional<ScriptType> determineScriptType(const String& type, const String& language) { return ScriptElement::determineScriptType(type, language); }
+    static ALWAYS_INLINE bool isDataOrAboutURL(const String& url) { return protocolIs(url, "data"_s) || protocolIs(url, "about"_s); }
+
 private:
+    // For HTMLPreloadScanner.swift: append the request for a tag (a TagId's value; Style for an @import in a <style>)
+    // to the requests of the scan in progress.
+    static void appendRequest(uint8_t tagId, const String& url, const URL& baseURL, CachedResource::Type, const String& media, ScriptType, ReferrerPolicy, RequestPriority, const String& crossOriginMode, const String& nonce, const String& integrity, bool scriptIsAsync, const String& charset);
+
     enum class TagId {
         // These tags are scanned by the StartTagScanner.
         Img,
@@ -77,32 +105,42 @@ private:
         Svg
     };
 
-    class StartTagScanner;
-
-    static TagId tagIdFor(const HTMLToken::DataVector&);
-
     static ASCIILiteral initiatorFor(TagId);
 
     void updatePredictedBaseURL(const HTMLToken&, bool shouldRestrictBaseURLSchemes);
 
     CSSPreloadScanner m_cssScanner;
     const URL m_documentURL;
-    const float m_deviceScaleFactor { 1 };
+    // The members from here on are read and written by HTMLPreloadScanner.swift, which clang does not see.
+    [[maybe_unused]] const float m_deviceScaleFactor { 1 };
 
     URL m_predictedBaseElementURL;
-    bool m_inStyle { false };
+    [[maybe_unused]] bool m_inStyle { false };
     
     Vector<PreloadScannerPictureState> m_pictureSourceState;
 
-    unsigned m_templateCount { 0 };
-    unsigned m_foreignContentCount { 0 };
+    [[maybe_unused]] unsigned m_templateCount { 0 };
+    [[maybe_unused]] unsigned m_foreignContentCount { 0 };
 };
+
+// For HTMLPreloadScanner.swift: the parsers of attribute values a start tag's scan uses.
+ALWAYS_INLINE LinkRelAttribute preloadScannerLinkRel(Document& document, const String& value) { return { document, value }; }
+RequestPriority preloadScannerFetchPriority(std::span<const char16_t> value NOESCAPE);
+ALWAYS_INLINE ReferrerPolicy preloadScannerReferrerPolicy(const String& value) { return parseReferrerPolicy(value, ReferrerPolicySource::ReferrerPolicyAttribute).value_or(ReferrerPolicy::EmptyString); }
+ALWAYS_INLINE bool preloadScannerIsShadowRootMode(std::span<const char16_t> value NOESCAPE) { return !!parseShadowRootMode(StringView(value)); }
+using PreloadScannerResourceType = CachedResource::Type;
+
+// The token's tag name and characters, for HTMLPreloadScanner.swift.
+inline std::span<const char16_t> htmlTokenName(const HTMLToken& token LIFETIME_BOUND) { return token.name().span(); }
+inline std::span<const char16_t> htmlTokenCharacters(const HTMLToken& token LIFETIME_BOUND) { return token.characters().span(); }
 
 class HTMLPreloadScanner {
     WTF_MAKE_TZONE_ALLOCATED(HTMLPreloadScanner);
 public:
     WEBCORE_EXPORT HTMLPreloadScanner(const HTMLParserOptions&, const URL& documentURL, float deviceScaleFactor = 1.0);
     WEBCORE_EXPORT ~HTMLPreloadScanner();
+    // Swift imports a class only if it can be moved.
+    HTMLPreloadScanner(HTMLPreloadScanner&&) = default;
 
     WEBCORE_EXPORT void appendToEnd(const SegmentedString&);
     void scan(HTMLResourcePreloader&, Document&);

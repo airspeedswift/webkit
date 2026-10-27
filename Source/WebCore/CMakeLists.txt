@@ -3301,6 +3301,7 @@ list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES
     "(^|/)HTMLTokenizer\\.cpp( |$)"
     "(^|/)WebVTTTokenizer\\.cpp( |$)"
     "(^|/)XMLDocumentParserLibxml2\\.cpp( |$)")
+list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)HTMLPreloadScanner\\.cpp( |$)")
 
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
@@ -3397,6 +3398,7 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/SIMDTableLookup.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
         ${WEBCORE_DIR}/html/parser/HTMLFastPathParser.swift
+        ${WEBCORE_DIR}/html/parser/HTMLPreloadScanner.swift
         ${WEBCORE_DIR}/html/parser/HTMLTokenizer.swift
     )
 
@@ -3431,6 +3433,11 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
     list(APPEND _webcore_swift_core_submodules
         platform/text/SegmentedString.h html/parser/HTMLToken.h html/parser/HTMLTokenizer.h
         html/parser/HTMLEntityParser.h html/parser/HTMLEntityTable.h css/parser/CSSTokenizerInputStream.h)
+
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES html/parser/HTMLPreloadScanner.cpp)
+    list(APPEND _webcore_swift_core_submodules
+        html/parser/HTMLResourcePreloader.h html/parser/CSSPreloadScanner.h html/parser/HTMLPreloadScanner.h
+        html/HTMLImageElement.h loader/LinkLoader.h)
 
     webkit_target_add_swift_options(WebCore
         "-library-level spi"

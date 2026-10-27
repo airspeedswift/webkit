@@ -50,4 +50,7 @@
 #include "HTMLTokenizer.h"
 #include "SegmentedString.h"
 
+#include "Document.h"
+#include "HTMLPreloadScanner.h"
+
 #include "WebCoreSwift-Generated.h"
