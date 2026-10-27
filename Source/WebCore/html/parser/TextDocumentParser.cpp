@@ -53,18 +53,7 @@ void TextDocumentParser::insertFakeFormattingElements()
     // sending fake bytes through the front-end of the parser to avoid
     // distrubing the line/column number calculations.
 
-    Attribute nameAttribute(nameAttr, "color-scheme"_s);
-    Attribute contentAttribute(contentAttr, "light dark"_s);
-    AtomHTMLToken fakeMeta(HTMLToken::Type::StartTag, TagName::meta, { WTF::move(nameAttribute), WTF::move(contentAttribute) });
-    treeBuilder().constructTree(WTF::move(fakeMeta));
-
-    Attribute attribute(styleAttr, "word-wrap: break-word; white-space: pre-wrap;"_s);
-    AtomHTMLToken fakePre(HTMLToken::Type::StartTag, TagName::pre, { WTF::move(attribute) });
-    treeBuilder().constructTree(WTF::move(fakePre));
-
-    // Normally we would skip the first \n after a <pre> element, but we don't
-    // want to skip the first \n for text documents!
-    treeBuilder().setShouldSkipLeadingNewline(false);
+    insertTextDocumentFakeElements();
 
     // Although Text Documents expose a "pre" element in their DOM, they
     // act like a <plaintext> tag, so we have to force plaintext mode.

@@ -26,15 +26,18 @@
 
 #pragma once
 
-#include "HTMLConstructionSite.h"
+#include "ContainerNodeInlines.h"
+#include "Document.h"
 #include "HTMLDocumentParser.h"
 #include "HTMLParserOptions.h"
+#include "ParserContentPolicy.h"
 #include <wtf/TZoneMalloc.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/TextPosition.h>
 
 namespace WebCore {
 
+class CustomElementRegistry;
 class JSCustomElementInterface;
 class HTMLDocumentParser;
 class ScriptElement;
@@ -52,220 +55,5 @@ struct CustomElementConstructionData {
     AtomString name;
     Vector<Attribute> attributes;
 };
-
-class HTMLTreeBuilder {
-    WTF_MAKE_TZONE_ALLOCATED(HTMLTreeBuilder);
-public:
-    HTMLTreeBuilder(HTMLDocumentParser&, HTMLDocument&, OptionSet<ParserContentPolicy>, const HTMLParserOptions&);
-    HTMLTreeBuilder(HTMLDocumentParser&, DocumentFragment&, Element& contextElement, OptionSet<ParserContentPolicy>, const HTMLParserOptions&, CustomElementRegistry*);
-    void setShouldSkipLeadingNewline(bool);
-
-    ~HTMLTreeBuilder();
-
-    bool isParsingFragment() const;
-
-    void constructTree(AtomHTMLToken&&);
-
-    NODELETE bool isParsingTemplateContents() const;
-    bool hasParserBlockingScriptWork() const;
-
-    // Must be called to take the parser-blocking script before calling the parser again.
-    NODELETE RefPtr<ScriptElement> takeScriptToProcess(TextPosition& scriptStartPosition);
-    const ScriptElement* scriptToProcess() const { return m_scriptToProcess.get(); }
-
-    std::unique_ptr<CustomElementConstructionData> takeCustomElementConstructionData() { return WTF::move(m_customElementToConstruct); }
-    void didCreateCustomOrFallbackElement(Ref<Element>&&, CustomElementConstructionData&);
-
-    // Done, close any open tags, etc.
-    void finished();
-
-    NODELETE bool isOnStackOfOpenElements(Element&) const;
-
-private:
-    class ExternalCharacterTokenBuffer;
-
-    // Represents HTML5 "insertion mode"
-    // http://www.whatwg.org/specs/web-apps/current-work/multipage/parsing.html#insertion-mode
-    enum class InsertionMode {
-        Initial,
-        BeforeHTML,
-        BeforeHead,
-        InHead,
-        InHeadNoscript,
-        AfterHead,
-        TemplateContents,
-        InBody,
-        Text,
-        InTable,
-        InTableText,
-        InCaption,
-        InColumnGroup,
-        InTableBody,
-        InRow,
-        InCell,
-        AfterBody,
-        InFrameset,
-        AfterFrameset,
-        AfterAfterBody,
-        AfterAfterFrameset,
-    };
-
-    NODELETE bool isParsingFragmentOrTemplateContents() const;
-
-#if ENABLE(TELEPHONE_NUMBER_DETECTION) && PLATFORM(IOS_FAMILY)
-    void insertPhoneNumberLink(const String&);
-    void linkifyPhoneNumbers(const String&);
-#endif
-
-    void processToken(AtomHTMLToken&&);
-
-    void processDoctypeToken(AtomHTMLToken&&);
-    void processStartTag(AtomHTMLToken&&);
-    void processEndTag(AtomHTMLToken&&);
-    void processComment(AtomHTMLToken&&);
-    void processProcessingInstruction(AtomHTMLToken&&);
-    void processCharacter(AtomHTMLToken&&);
-    void processEndOfFile(AtomHTMLToken&&);
-
-    bool processStartTagForInHead(AtomHTMLToken&&);
-    void processStartTagForInBody(AtomHTMLToken&&);
-    void processStartTagForInTable(AtomHTMLToken&&);
-    void processEndTagForInBody(AtomHTMLToken&&);
-    void processEndTagForInTable(AtomHTMLToken&&);
-    void processEndTagForInTableBody(AtomHTMLToken&&);
-    void processEndTagForInRow(AtomHTMLToken&&);
-    void processEndTagForInCell(AtomHTMLToken&&);
-
-    void processHtmlStartTagForInBody(AtomHTMLToken&&);
-    NODELETE bool processBodyEndTagForInBody(AtomHTMLToken&&);
-    bool processTableEndTagForInTable();
-    bool processCaptionEndTagForInCaption();
-    bool processColgroupEndTagForInColumnGroup();
-    bool processTrEndTagForInRow();
-
-    void processAnyOtherEndTagForInBody(AtomHTMLToken&&);
-
-    inline bool consumeAndInsertWhitespace(ExternalCharacterTokenBuffer&);
-    void processCharacterBuffer(ExternalCharacterTokenBuffer&);
-    inline void processCharacterBufferForInBody(ExternalCharacterTokenBuffer&);
-
-    void processFakeStartTag(TagName, Vector<Attribute>&& attributes = Vector<Attribute>());
-    void processFakeEndTag(TagName);
-    void processFakeEndTag(const HTMLStackItem&);
-    void processFakeCharacters(const String&);
-    void processFakePEndTagIfPInButtonScope();
-
-    void processGenericRCDATAStartTag(AtomHTMLToken&&);
-    void processGenericRawTextStartTag(AtomHTMLToken&&);
-    void processScriptStartTag(AtomHTMLToken&&);
-
-    // Default processing for the different insertion modes.
-    void defaultForInitial();
-    void defaultForBeforeHTML();
-    void defaultForBeforeHead();
-    void defaultForInHead();
-    void defaultForInHeadNoscript();
-    void defaultForAfterHead();
-    void defaultForInTableText();
-
-    bool shouldProcessTokenInForeignContent(const AtomHTMLToken&);
-    void processTokenInForeignContent(AtomHTMLToken&&);
-
-    NODELETE HTMLStackItem& adjustedCurrentStackItem() LIFETIME_BOUND;
-
-    ALWAYS_INLINE void updateTokenizerForAdjustedCurrentNode();
-
-    void callTheAdoptionAgency(AtomHTMLToken&);
-
-    void closeTheCell();
-
-    template <bool shouldClose(const HTMLStackItem&)> void processCloseWhenNestedTag(AtomHTMLToken&&);
-
-    NODELETE void parseError(const AtomHTMLToken&);
-
-    void resetInsertionModeAppropriately();
-
-    void insertGenericHTMLElement(AtomHTMLToken&&);
-
-    void processTemplateStartTag(AtomHTMLToken&&);
-    bool processTemplateEndTag(AtomHTMLToken&&);
-    bool processEndOfFileForInTemplateContents(AtomHTMLToken&&);
-
-    class FragmentParsingContext {
-    public:
-        NODELETE FragmentParsingContext();
-        NODELETE FragmentParsingContext(DocumentFragment&, Element& contextElement);
-
-        DocumentFragment* fragment() const;
-        NODELETE Element& contextElement();
-        NODELETE HTMLStackItem& contextElementStackItem() LIFETIME_BOUND;
-        NODELETE bool contextElementIsTemplate() const;
-
-    private:
-        WeakPtr<DocumentFragment, WeakPtrImplWithEventTargetData> m_fragment;
-        HTMLStackItem m_contextElementStackItem;
-    };
-
-    WeakRef<HTMLDocumentParser> m_parser;
-    const HTMLParserOptions m_options;
-    FragmentParsingContext m_fragmentContext;
-
-    HTMLConstructionSite m_tree;
-
-    // https://html.spec.whatwg.org/multipage/syntax.html#the-insertion-mode
-    InsertionMode m_insertionMode { InsertionMode::Initial };
-    InsertionMode m_originalInsertionMode { InsertionMode::Initial };
-    Vector<InsertionMode, 1> m_templateInsertionModes;
-
-    // https://html.spec.whatwg.org/multipage/syntax.html#concept-pending-table-char-tokens
-    StringBuilder m_pendingTableCharacters;
-
-    RefPtr<ScriptElement> m_scriptToProcess; // <script> tag which needs processing before resuming the parser.
-    TextPosition m_scriptToProcessStartPosition; // Starting line number of the script tag needing processing.
-
-    std::unique_ptr<CustomElementConstructionData> m_customElementToConstruct;
-
-    bool m_shouldSkipLeadingNewline { false };
-
-    bool m_framesetOk { true };
-
-#if ASSERT_ENABLED
-    bool m_destroyed { false };
-    bool m_destructionProhibited { true };
-#endif
-};
-
-inline HTMLTreeBuilder::~HTMLTreeBuilder()
-{
-#if ASSERT_ENABLED
-    ASSERT(!m_destroyed);
-    ASSERT(!m_destructionProhibited);
-    m_destroyed = true;
-#endif
-}
-
-inline void HTMLTreeBuilder::setShouldSkipLeadingNewline(bool shouldSkip)
-{
-    ASSERT(!m_destroyed);
-    m_shouldSkipLeadingNewline = shouldSkip;
-}
-
-inline bool HTMLTreeBuilder::isParsingFragment() const
-{
-    ASSERT(!m_destroyed);
-    return !!m_fragmentContext.fragment();
-}
-
-inline bool HTMLTreeBuilder::hasParserBlockingScriptWork() const
-{
-    ASSERT(!m_destroyed);
-    ASSERT(!(m_scriptToProcess && m_customElementToConstruct));
-    return m_scriptToProcess || m_customElementToConstruct;
-}
-
-inline DocumentFragment* HTMLTreeBuilder::FragmentParsingContext::fragment() const
-{
-    return m_fragment.get();
-}
 
 } // namespace WebCore

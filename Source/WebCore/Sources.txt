@@ -1912,8 +1912,6 @@ html/parser/CSSPreloadScanner.cpp
 html/parser/HTMLConstructionSite.cpp
 html/parser/HTMLDocumentParser.cpp
 html/parser/HTMLDocumentParserFastPath.cpp
-html/parser/HTMLElementStack.cpp
-html/parser/HTMLFormattingElementList.cpp
 html/parser/HTMLMetaCharsetParser.cpp
 html/parser/HTMLNameCache.cpp
 html/parser/HTMLParserIdioms.cpp
