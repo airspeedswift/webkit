@@ -103,6 +103,9 @@ public:
     size_t attributeCount() const { return m_attributes.size(); }
     std::span<const char16_t> attributeName(size_t i) const LIFETIME_BOUND { return m_attributes[i].name.span(); }
     std::span<const char16_t> attributeValue(size_t i) const LIFETIME_BOUND { return m_attributes[i].value.span(); }
+    // The characters, the comment, a processing instruction's data, or a DOCTYPE's name.
+    std::span<const char16_t> data() const LIFETIME_BOUND { return m_data.span(); }
+    String dataString() const { return m_data8BitCheck <= 0xFF ? String::make8Bit(m_data.span()) : String(m_data.span()); }
 
     void beginStartTag(Latin1Character);
 

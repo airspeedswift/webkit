@@ -50,4 +50,11 @@
 #include "HTMLTokenizer.h"
 #include "SegmentedString.h"
 
+#include "CustomElementRegistry.h"
+#include "DocumentFragment.h"
+#include "HTMLDocument.h"
+#include "HTMLDocumentParser.h"
+#include "HTMLParserOptions.h"
+#include "HTMLTreeBuilderSwiftSupport.h"
+
 #include "WebCoreSwift-Generated.h"
