@@ -35,7 +35,9 @@ public:
     unsigned size() const { return m_size; }
     const CSSValue& operator[](unsigned index) const LIFETIME_BOUND;
 
-    struct iterator {
+    // The iterator holds a raw pointer to its vector, so it is unsafe in Swift, which reads elements through
+    // size() and item() or operator[].
+    struct SWIFT_UNSAFE iterator {
         using iterator_category = std::forward_iterator_tag;
         using value_type = const CSSValue&;
         using difference_type = ptrdiff_t;
@@ -58,8 +60,8 @@ public:
     };
     using const_iterator = iterator;
 
-    iterator begin() const LIFETIME_BOUND { return { this, 0 }; }
-    iterator end() const LIFETIME_BOUND { return { this, size() }; }
+    SWIFT_UNSAFE iterator begin() const LIFETIME_BOUND { return { this, 0 }; }
+    SWIFT_UNSAFE iterator end() const LIFETIME_BOUND { return { this, size() }; }
 
     bool hasValue(CSSValue&) const;
     NODELETE bool hasValue(CSSValueID) const;
@@ -146,12 +148,11 @@ inline CSSValueContainingVector::~CSSValueContainingVector()
 
 inline const CSSValue& CSSValueContainingVector::operator[](unsigned index) const LIFETIME_BOUND
 {
+    // The inline storage past m_size is uninitialized, so an index past the end must not reach it.
+    RELEASE_ASSERT(index < m_size);
     unsigned maxInlineSize = m_inlineStorage.size();
-    if (index < maxInlineSize) {
-        ASSERT(index < m_size);
+    if (index < maxInlineSize)
         return *m_inlineStorage[index];
-    }
-    ASSERT(index < m_size);
     return *m_additionalStorage[index - maxInlineSize];
 }
 
