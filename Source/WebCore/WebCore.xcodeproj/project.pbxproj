@@ -1877,6 +1877,7 @@
 		5A1F0000000000000000000C /* HTMLTreeBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0000000000000000000B /* HTMLTreeBuilder.swift */; };
 		5A1F0000000000000000000E /* HTMLElementStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0000000000000000000D /* HTMLElementStack.swift */; };
 		5A1F00000000000000000010 /* HTMLConstructionSite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1F0000000000000000000F /* HTMLConstructionSite.swift */; };
+		BE86BB9BE458E20FF4CB0D5E /* HTMLPreloadScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F590E3F8F3A2554F1989F3D /* HTMLPreloadScanner.swift */; };
 		46DA4A0227AB039300E375A8 /* TransferredMessagePort.h in Headers */ = {isa = PBXBuildFile; fileRef = 46DA4A0027AB038D00E375A8 /* TransferredMessagePort.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		46DBB6501AB8C96F00D9A813 /* PowerObserverMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 46DBB64E1AB8C96F00D9A813 /* PowerObserverMac.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		46DC53BF28EB3D65005376B0 /* ScreenOrientationManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 46DC53BE28EB3D64005376B0 /* ScreenOrientationManager.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -12141,6 +12142,7 @@
 		5A1F0000000000000000000B /* HTMLTreeBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLTreeBuilder.swift; sourceTree = "<group>"; };
 		5A1F0000000000000000000D /* HTMLElementStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLElementStack.swift; sourceTree = "<group>"; };
 		5A1F0000000000000000000F /* HTMLConstructionSite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLConstructionSite.swift; sourceTree = "<group>"; };
+		0F590E3F8F3A2554F1989F3D /* HTMLPreloadScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLPreloadScanner.swift; sourceTree = "<group>"; };
 		46D95AF9CD2A75B2267ECDF9 /* CanvasImageSource+Usability.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CanvasImageSource+Usability.h"; sourceTree = "<group>"; };
 		46DA4A0027AB038D00E375A8 /* TransferredMessagePort.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TransferredMessagePort.h; sourceTree = "<group>"; };
 		46DBB64E1AB8C96F00D9A813 /* PowerObserverMac.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PowerObserverMac.h; sourceTree = "<group>"; };
@@ -34400,6 +34402,7 @@
 				BC4A5332256059830028C592 /* HTMLParserScriptingFlagPolicy.h */,
 				977B3859122883E900B81FF8 /* HTMLPreloadScanner.cpp */,
 				977B385A122883E900B81FF8 /* HTMLPreloadScanner.h */,
+				0F590E3F8F3A2554F1989F3D /* HTMLPreloadScanner.swift */,
 				A8D223FB16B52E4E00157288 /* HTMLResourcePreloader.cpp */,
 				A8D223FC16B52E4E00157288 /* HTMLResourcePreloader.h */,
 				977B385B122883E900B81FF8 /* HTMLScriptRunner.cpp */,
@@ -51422,6 +51425,7 @@
 				7C3E510B18DF8F3500C112F7 /* HTMLConverter.mm in Sources */,
 				5A1F00000000000000000004 /* HTMLFastPathParser.swift in Sources */,
 				5A1F00000000000000000006 /* HTMLEntityParser.swift in Sources */,
+				BE86BB9BE458E20FF4CB0D5E /* HTMLPreloadScanner.swift in Sources */,
 				5A1F00000000000000000008 /* HTMLTokenizer.swift in Sources */,
 				5A1F0000000000000000000C /* HTMLTreeBuilder.swift in Sources */,
 				5A1F0000000000000000000E /* HTMLElementStack.swift in Sources */,

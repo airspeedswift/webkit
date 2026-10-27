@@ -65,4 +65,7 @@
 #include "HTMLParserOptions.h"
 #include "HTMLTreeBuilderSwiftSupport.h"
 
+#include "Document.h"
+#include "HTMLPreloadScanner.h"
+
 #include "WebCoreSwift-Generated.h"
