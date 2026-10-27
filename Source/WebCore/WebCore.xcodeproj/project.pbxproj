@@ -6005,7 +6005,7 @@
 		CD1F9B43270CED9D00617EB6 /* JSMediaKeyMessageEventInit.h in Headers */ = {isa = PBXBuildFile; fileRef = CD1F9B41270CED8600617EB6 /* JSMediaKeyMessageEventInit.h */; };
 		CD1F9B45270CF1CE00617EB6 /* ElementInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = CD1F9B44270CF1CB00617EB6 /* ElementInlines.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		CD1F9B47270CFC1600617EB6 /* EventOptions.h in Headers */ = {isa = PBXBuildFile; fileRef = CD1F9B46270CFC1600617EB6 /* EventOptions.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		CD1F9B4D270D03A900617EB6 /* ScrollExtents.h in Headers */ = {isa = PBXBuildFile; fileRef = CD1F9B4C270D03A900617EB6 /* ScrollExtents.h */; };
+		CD1F9B4D270D03A900617EB6 /* ScrollExtents.h in Headers */ = {isa = PBXBuildFile; fileRef = CD1F9B4C270D03A900617EB6 /* ScrollExtents.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		CD1F9B7D270E667800617EB6 /* HTMLAnchorElementInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = CD1F9B7C270E667800617EB6 /* HTMLAnchorElementInlines.h */; };
 		CD1F9B80270E671A00617EB6 /* SVGElementInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = CD1F9B7F270E671A00617EB6 /* SVGElementInlines.h */; };
 		CD20ED3C27878FFB0038BE44 /* QueuedVideoOutput.h in Headers */ = {isa = PBXBuildFile; fileRef = CD20ED3A27878FFB0038BE44 /* QueuedVideoOutput.h */; };
