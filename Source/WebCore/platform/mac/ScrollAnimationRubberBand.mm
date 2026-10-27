@@ -29,6 +29,7 @@
 
 #import "FloatPoint.h"
 #import "GeometryUtilities.h"
+#import "ScrollingEffectsClock.h"
 #import <pal/spi/mac/NSScrollViewSPI.h>
 #import <wtf/TZoneMallocInlines.h>
 
@@ -68,7 +69,7 @@ bool ScrollAnimationRubberBand::startRubberBandAnimation(const FloatSize& initia
     m_initialOverscroll = initialOverscroll;
     m_targetOverscroll = targetOverscroll;
 
-    didStart(MonotonicTime::now());
+    didStart(scrollingEffectsClockNow());
     return true;
 }
 
@@ -78,7 +79,7 @@ bool ScrollAnimationRubberBand::startRubberBandAnimationWithElapsedTime(const Fl
     m_initialOverscroll = initialOverscroll;
     m_targetOverscroll = targetOverscroll;
 
-    didStart(MonotonicTime::now() - alreadyElapsed);
+    didStart(scrollingEffectsClockNow() - alreadyElapsed);
     return true;
 }
 

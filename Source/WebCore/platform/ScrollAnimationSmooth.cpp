@@ -33,6 +33,7 @@
 #include "KeyboardScroll.h"
 #include "ScrollExtents.h"
 #include "ScrollableArea.h"
+#include "ScrollingEffectsClock.h"
 #include "SpringSolver.h"
 #include "TimingFunction.h"
 #include "UnitBezier.h"
@@ -75,7 +76,7 @@ bool ScrollAnimationSmooth::startAnimatedScrollToDestination(const FloatPoint& f
     downcast<CubicBezierTimingFunction>(*m_timingFunction).setTimingFunctionPreset(CubicBezierTimingFunction::TimingFunctionPreset::EaseInOut);
 
     if (!isActive())
-        didStart(MonotonicTime::now());
+        didStart(scrollingEffectsClockNow());
 
     return true;
 }
@@ -93,7 +94,7 @@ bool ScrollAnimationSmooth::retargetActiveAnimation(const FloatPoint& newOffset,
     auto extents = m_client.scrollExtentsForAnimation(*this);
 
     m_curve = curve;
-    m_startTime = MonotonicTime::now();
+    m_startTime = scrollingEffectsClockNow();
     m_startOffset = m_currentOffset;
     m_destinationOffset = newOffset.constrainedBetween(extents.minimumScrollOffset(), extents.maximumScrollOffset());
     m_duration = durationFromDistance(m_destinationOffset - m_startOffset);
