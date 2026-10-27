@@ -26,6 +26,7 @@
 #include "ScrollAnimationMomentum.h"
 
 #include "Logging.h"
+#include "ScrollingEffectsClock.h"
 #include "ScrollingMomentumCalculator.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
@@ -66,7 +67,7 @@ bool ScrollAnimationMomentum::startAnimatedScrollWithInitialVelocity(const Float
         return false;
     }
 
-    didStart(MonotonicTime::now());
+    didStart(scrollingEffectsClockNow());
     return true;
 }
 
