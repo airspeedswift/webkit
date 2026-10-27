@@ -30,6 +30,7 @@
 #include "GeometryUtilities.h"
 #include "ScrollExtents.h"
 #include "ScrollableArea.h"
+#include "ScrollingEffectsClock.h"
 #include "TimingFunction.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
@@ -108,7 +109,7 @@ void ScrollAnimationKeyboard::serviceAnimation(MonotonicTime currentTime)
 
 bool ScrollAnimationKeyboard::startKeyboardScroll(const KeyboardScroll& scrollData)
 {
-    m_timeAtLastFrame = MonotonicTime::now();
+    m_timeAtLastFrame = scrollingEffectsClockNow();
     m_currentKeyboardScroll = scrollData;
     m_scrollTriggeringKeyIsPressed = true;
     m_currentOffset = m_client.scrollOffset(*this);
@@ -117,7 +118,7 @@ bool ScrollAnimationKeyboard::startKeyboardScroll(const KeyboardScroll& scrollDa
         (m_currentOffset + m_currentKeyboardScroll->offset).y() };
 
     if (!isActive())
-        didStart(MonotonicTime::now());
+        didStart(scrollingEffectsClockNow());
 
     return true;
 }
