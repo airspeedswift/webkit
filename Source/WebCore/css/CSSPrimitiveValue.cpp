@@ -168,7 +168,9 @@ CSSPrimitiveValue::~CSSPrimitiveValue()
         break;
     }
     if (m_hasCachedCSSText) {
-        ASSERT(isMainThread());
+        // The cache is the main thread's alone. A value whose text was cached there and whose last reference is
+        // released on another thread would remove its entry concurrently with the main thread's use of the map.
+        RELEASE_ASSERT(isMainThread());
         ASSERT(serializedPrimitiveValues().contains(this));
         serializedPrimitiveValues().remove(this);
     }
