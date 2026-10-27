@@ -54,7 +54,7 @@ class WheelEventTestMonitor;
 struct ScrollExtents;
 
 class ScrollingEffectsControllerTimer : public RunLoop::TimerBase {
-    WTF_MAKE_TZONE_ALLOCATED(ScrollingEffectsControllerTimer);
+    WTF_MAKE_TZONE_ALLOCATED_EXPORT(ScrollingEffectsControllerTimer, WEBCORE_EXPORT);
 public:
     ScrollingEffectsControllerTimer(RunLoop& runLoop, Function<void()>&& callback)
         : RunLoop::TimerBase(runLoop, "ScrollingEffectsControllerTimer"_s)
@@ -141,7 +141,7 @@ public:
     virtual ScrollingNodeID scrollingNodeIDForTesting() const = 0;
 };
 
-class ScrollingEffectsController : public ScrollAnimationClient {
+class WEBCORE_EXPORT ScrollingEffectsController : public ScrollAnimationClient {
     WTF_MAKE_NONCOPYABLE(ScrollingEffectsController);
 
 public:
