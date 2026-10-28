@@ -27,6 +27,7 @@
 #include <WebCore/ScrollAnimation.h>
 #include <wtf/TZoneMalloc.h>
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WebCore {
 
 class ScrollingMomentumCalculator;
@@ -54,3 +55,4 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_SCROLL_ANIMATION(WebCore::ScrollAnimationMomentum, type() == WebCore::ScrollAnimation::Type::Momentum)
+#endif // !USE_SWIFT_SCROLL_PHYSICS
