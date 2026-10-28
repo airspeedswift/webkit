@@ -33,6 +33,7 @@
 #import <pal/spi/mac/NSScrollViewSPI.h>
 #import <wtf/TZoneMallocInlines.h>
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 static float elasticDeltaForTimeDelta(float initialPosition, float initialVelocity, Seconds elapsedTime)
 {
     return _NSElasticDeltaForTimeDelta(initialPosition, initialVelocity, elapsedTime.seconds());
@@ -129,5 +130,6 @@ String ScrollAnimationRubberBand::debugDescription() const
 }
 
 } // namespace WebCore
+#endif // !USE_SWIFT_SCROLL_PHYSICS
 
 #endif // HAVE(RUBBER_BANDING)
