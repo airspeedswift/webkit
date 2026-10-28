@@ -28,6 +28,7 @@
 #include "ScrollingMomentumCalculator.h"
 #include <wtf/RetainPtr.h>
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 @class _NSScrollingMomentumCalculator;
 
 namespace WebCore {
@@ -51,3 +52,4 @@ private:
 };
 
 } // namespace WebCore
+#endif // !USE_SWIFT_SCROLL_PHYSICS

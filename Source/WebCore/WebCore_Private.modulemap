@@ -28,8 +28,17 @@ framework module WebCore_Private [system] {
         // on iOS, so it needs the definition of the class excluded above.
         exclude header "WebCoreView.h"
 
+        // WebCore's Swift imports it as WebCore_Private.ScrollPhysicsTypes.
+        exclude header "ScrollPhysicsTypes.h"
+
         module * {
             export *
         }
+    }
+
+    explicit module ScrollPhysicsTypes {
+        header "ScrollPhysicsTypes.h"
+        requires cplusplus
+        export *
     }
 }
