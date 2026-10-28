@@ -328,6 +328,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/IPAddressTests.cpp
         Tests/WebCore/ImageBackingStoreTests.cpp
         Tests/WebCore/ImageBufferTests.cpp
+        Tests/WebCore/ImageDecoderBench.cpp
         Tests/WebCore/IntPointTests.cpp
         Tests/WebCore/IntRectTests.cpp
         Tests/WebCore/IntSizeTests.cpp
