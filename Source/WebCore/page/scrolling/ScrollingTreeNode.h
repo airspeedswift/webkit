@@ -101,9 +101,10 @@ public:
     FrameIdentifier frameIdentifier() const { return *m_parentFrameIdentifier; }
     void setFrameIdentifier(FrameIdentifier frameID) { m_parentFrameIdentifier = frameID; }
 
+    RefPtr<ScrollingTree> scrollingTree() const { return m_scrollingTree; }
+
 protected:
     ScrollingTreeNode(ScrollingTree&, ScrollingNodeType, ScrollingNodeID);
-    RefPtr<ScrollingTree> scrollingTree() const { return m_scrollingTree; }
 
     virtual void applyLayerPositions() = 0;
 
