@@ -38,10 +38,71 @@ using RubberBandingEdges = RectEdges<bool>;
 // For Swift, which cannot name std::pair<LayoutUnit, std::optional<unsigned>>.
 using ClosestSnapOffset = std::pair<LayoutUnit, std::optional<unsigned>>;
 
+// The snap offsets and the discrete scroll snap timer that a scroll physics client gives Swift. Derived provides
+// snapOffsetsInfo(), createSnapTimer(), and snapTimerOwner(), which holds m_discreteSnapTransitionTimer and whose
+// discreteSnapTransitionTimerFired() the timer calls.
+template<typename Derived>
+class ScrollSnapPhysicsClient {
+public:
+    unsigned snapOffsetCount(ScrollEventAxis axis) { return snapOffsets(axis).size(); }
+    LayoutUnit snapOffset(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].offset; }
+    bool snapOffsetIsFocused(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].isFocused; }
+    bool snapOffsetIsTarget(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].isTarget; }
+    uint64_t snapOffsetTargetID(ScrollEventAxis axis, unsigned index)
+    {
+        auto identifier = snapOffsets(axis)[index].snapTargetID.asOptional();
+        return identifier ? identifier->toUInt64() : 0;
+    }
+    unsigned snapOffsetAreaIndexCount(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].snapAreaIndices.size(); }
+    size_t snapOffsetAreaIndex(ScrollEventAxis axis, unsigned index, unsigned areaIndex) { return snapOffsets(axis)[index].snapAreaIndices[areaIndex]; }
+    unsigned snapAreaCount() { return snapOffsetsInfo().snapAreas.size(); }
+    LayoutRect snapArea(unsigned index) { return snapOffsetsInfo().snapAreas[index]; }
+    unsigned snapAreaIDCount() { return snapOffsetsInfo().snapAreasIDs.size(); }
+    uint64_t snapAreaID(unsigned index) { return snapOffsetsInfo().snapAreasIDs[index].toUInt64(); }
+    bool scrollerHasVerticalWritingMode() { return snapOffsetsInfo().scrollerHasVerticalWritingMode; }
+    ClosestSnapOffset closestSnapOffset(ScrollEventAxis axis, const LayoutSize& viewportSize, LayoutPoint destination, float velocity, bool hasOriginalPosition, float originalPosition, ScrollSnapPointSelectionMethod method) { return snapOffsetsInfo().closestSnapOffset(axis, viewportSize, destination, velocity, hasOriginalPosition ? std::make_optional(LayoutUnit(originalPosition)) : std::nullopt, method); }
+
+    // The discrete scroll snap timer.
+    bool isDiscreteSnapTimerActive()
+    {
+        auto& timer = derived().snapTimerOwner().m_discreteSnapTransitionTimer;
+        return timer && timer->isActive();
+    }
+
+    void startDiscreteSnapTimer()
+    {
+        auto& owner = derived().snapTimerOwner();
+        owner.m_discreteSnapTransitionTimer = derived().createSnapTimer([owner = &owner] {
+            owner->discreteSnapTransitionTimerFired();
+        });
+        static constexpr Seconds discreteScrollSnapDelay = 100_ms;
+        owner.m_discreteSnapTransitionTimer->startOneShot(discreteScrollSnapDelay);
+    }
+
+    // Returns whether there was a timer to stop.
+    bool stopDiscreteSnapTimer()
+    {
+        auto& timer = derived().snapTimerOwner().m_discreteSnapTransitionTimer;
+        if (!timer)
+            return false;
+        timer->stop();
+        timer = nullptr;
+        return true;
+    }
+
+protected:
+    ScrollSnapPhysicsClient() = default;
+
+private:
+    Derived& derived() { return static_cast<Derived&>(*this); }
+    const LayoutScrollSnapOffsetsInfo& snapOffsetsInfo() { return derived().snapOffsetsInfo(); }
+    const Vector<SnapOffset<LayoutUnit>>& snapOffsets(ScrollEventAxis axis) { return axis == ScrollEventAxis::Horizontal ? snapOffsetsInfo().horizontalSnapOffsets : snapOffsetsInfo().verticalSnapOffsets; }
+};
+
 // What ScrollingEffectsController's Swift implementation calls back into: the controller's client,
 // and the timers the controller owns. Only ScrollPhysicsClientState makes one, on the stack of a
 // ScrollingEffectsController member, for one call into Swift.
-class __attribute__((swift_attr("~Sendable"))) ScrollPhysicsClient {
+class __attribute__((swift_attr("~Sendable"))) ScrollPhysicsClient : public ScrollSnapPhysicsClient<ScrollPhysicsClient> {
 public:
     // Swift takes this only inout, and must not copy, move or relocate it. Swift imports the class only if it has a
     // move constructor, so one is declared; it is never called.
@@ -83,30 +144,7 @@ public:
     float pageScaleFactor() { return client().pageScaleFactor(); }
     ScrollExtents scrollExtents() { return client().scrollExtents(); }
 
-    // The snap offsets ScrollingEffectsController::snapOffsetsInfo() returns.
-    unsigned snapOffsetCount(ScrollEventAxis axis) { return snapOffsets(axis).size(); }
-    LayoutUnit snapOffset(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].offset; }
-    bool snapOffsetIsFocused(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].isFocused; }
-    bool snapOffsetIsTarget(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].isTarget; }
-    uint64_t snapOffsetTargetID(ScrollEventAxis axis, unsigned index)
-    {
-        auto identifier = snapOffsets(axis)[index].snapTargetID.asOptional();
-        return identifier ? identifier->toUInt64() : 0;
-    }
-    unsigned snapOffsetAreaIndexCount(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].snapAreaIndices.size(); }
-    size_t snapOffsetAreaIndex(ScrollEventAxis axis, unsigned index, unsigned areaIndex) { return snapOffsets(axis)[index].snapAreaIndices[areaIndex]; }
-    unsigned snapAreaCount() { return snapOffsetsInfo().snapAreas.size(); }
-    LayoutRect snapArea(unsigned index) { return snapOffsetsInfo().snapAreas[index]; }
-    unsigned snapAreaIDCount() { return snapOffsetsInfo().snapAreasIDs.size(); }
-    uint64_t snapAreaID(unsigned index) { return snapOffsetsInfo().snapAreasIDs[index].toUInt64(); }
-    bool scrollerHasVerticalWritingMode() { return snapOffsetsInfo().scrollerHasVerticalWritingMode; }
-    ClosestSnapOffset closestSnapOffset(ScrollEventAxis axis, const LayoutSize& viewportSize, LayoutPoint destination, float velocity, bool hasOriginalPosition, float originalPosition, ScrollSnapPointSelectionMethod method) { return snapOffsetsInfo().closestSnapOffset(axis, viewportSize, destination, velocity, hasOriginalPosition ? std::make_optional(LayoutUnit(originalPosition)) : std::nullopt, method); }
-
-    // The controller's discrete scroll snap and scrollend timers.
-    bool isDiscreteSnapTimerActive();
-    void startDiscreteSnapTimer();
-    // Returns whether there was a timer to stop.
-    bool stopDiscreteSnapTimer();
+    // The controller's scrollend timer.
     void startScrollendTimer() { controller().scheduleScrollendTimer(); }
 
     static bool platformMomentumScrollingPredictionEnabled();
@@ -122,10 +160,13 @@ protected:
     ScrollPhysicsClient() = default;
 
 private:
+    friend class ScrollSnapPhysicsClient<ScrollPhysicsClient>;
+
     ScrollingEffectsControllerClient& client();
     ScrollingEffectsController& controller();
     const LayoutScrollSnapOffsetsInfo& snapOffsetsInfo();
-    const Vector<SnapOffset<LayoutUnit>>& snapOffsets(ScrollEventAxis axis) { return axis == ScrollEventAxis::Horizontal ? snapOffsetsInfo().horizontalSnapOffsets : snapOffsetsInfo().verticalSnapOffsets; }
+    ScrollingEffectsController& snapTimerOwner() { return controller(); }
+    std::unique_ptr<ScrollingEffectsControllerTimer> createSnapTimer(Function<void()>&& function) { return client().createTimer(WTF::move(function)); }
 };
 
 class ScrollPhysicsClientState final : public ScrollPhysicsClient {

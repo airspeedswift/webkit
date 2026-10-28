@@ -302,32 +302,6 @@ bool ScrollingEffectsController::restoreRubberbandingState(const RubberbandingSt
     return m_physics->controller.restoreRubberbandingState(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), state);
 }
 
-bool ScrollPhysicsClient::isDiscreteSnapTimerActive()
-{
-    auto& timer = controller().m_discreteSnapTransitionTimer;
-    return timer && timer->isActive();
-}
-
-void ScrollPhysicsClient::startDiscreteSnapTimer()
-{
-    auto& controller = this->controller();
-    controller.m_discreteSnapTransitionTimer = client().createTimer([controller = &controller] {
-        controller->discreteSnapTransitionTimerFired();
-    });
-    static constexpr Seconds discreteScrollSnapDelay = 100_ms;
-    controller.m_discreteSnapTransitionTimer->startOneShot(discreteScrollSnapDelay);
-}
-
-bool ScrollPhysicsClient::stopDiscreteSnapTimer()
-{
-    auto& timer = controller().m_discreteSnapTransitionTimer;
-    if (!timer)
-        return false;
-    timer->stop();
-    timer = nullptr;
-    return true;
-}
-
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 void ScrollPhysicsClient::momentumScrollBegan()
 {

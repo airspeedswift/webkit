@@ -245,6 +245,7 @@ private:
     ScrollingEffectsControllerClient& m_client;
 
     friend class ScrollPhysicsClient;
+    template<typename> friend class ScrollSnapPhysicsClient;
     std::unique_ptr<ScrollPhysicsControllerHolder> m_physics;
     std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
 
