@@ -485,6 +485,191 @@ TEST(ImageDecoder, GIFSubRectFrameWithEvictedPreviousFrame)
     decoder->createFrameImageAtIndex(2);
 }
 
+// A 2x1 GIF with a global colour table of four entries, whose two pixels have the colour indices
+// `first` and `second` (below 8, the LZW clear code), and an optional transparent index.
+static Ref<SharedBuffer> makeTwoPixelGIF(uint8_t first, uint8_t second, std::optional<uint8_t> transparentIndex)
+{
+    Vector<uint8_t> data;
+    for (auto c : { 'G', 'I', 'F', '8', '9', 'a' })
+        data.append(static_cast<uint8_t>(c));
+
+    // Logical screen descriptor: 2x1, global colour table of four entries.
+    data.appendList({ 2, 0, 1, 0, 0x81, 0, 0 });
+    data.appendList({ 0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0x20, 0x40, 0x60 });
+
+    if (transparentIndex) {
+        data.appendList({ 0x21, 0xf9, 0x04, 0x01, 0, 0 }); // graphic control extension, transparent
+        data.append(*transparentIndex);
+        data.append(0); // block terminator
+    }
+
+    data.append(0x2c); // image separator
+    data.appendList({ 0, 0, 0, 0, 2, 0, 1, 0, 0 }); // 2x1 at the origin, no local colour table
+
+    // CLEAR(8), first, second, END(9) as 4-bit LZW codes packed low bit first.
+    data.append(3); // LZW minimum code size
+    data.append(2); // sub-block length
+    data.append(static_cast<uint8_t>(8 | first << 4));
+    data.append(static_cast<uint8_t>(second | 9 << 4));
+    data.append(0); // block terminator
+
+    data.append(0x3b); // trailer
+    return SharedBuffer::create(WTF::move(data));
+}
+
+static bool twoPixelGIFHasAlpha(uint8_t first, uint8_t second, std::optional<uint8_t> transparentIndex = std::nullopt)
+{
+    auto buffer = makeTwoPixelGIF(first, second, transparentIndex);
+    RefPtr decoder = ImageDecoder::create(buffer.get(), "image/gif"_s, AlphaOption::Premultiplied, GammaAndColorProfileOption::Applied);
+    EXPECT_TRUE(decoder);
+    if (!decoder)
+        return false;
+    decoder->setData(buffer.get(), true);
+    EXPECT_EQ(1u, decoder->frameCount());
+    EXPECT_TRUE(decoder->createFrameImageAtIndex(0));
+    EXPECT_TRUE(decoder->frameIsCompleteAtIndex(0));
+    return decoder->frameHasAlphaAtIndex(0);
+}
+
+// A colour index past the end of the colour table is drawn as a transparent pixel, as is the
+// transparent index. See GIFImageDecoder::haveDecodedRow().
+TEST(ImageDecoder, GIFColorIndexPastColorTableIsTransparent)
+{
+    EXPECT_FALSE(twoPixelGIFHasAlpha(0, 3));
+    EXPECT_TRUE(twoPixelGIFHasAlpha(3, 4));
+    EXPECT_TRUE(twoPixelGIFHasAlpha(7, 0));
+    EXPECT_FALSE(twoPixelGIFHasAlpha(3, 3, 4));
+    EXPECT_TRUE(twoPixelGIFHasAlpha(2, 3, 3));
+}
+
+// A 2x1 GIF of two frames: the first has the global colour table of four entries, the colour
+// indices 0 and 1 and is restored to the background, and the second has a local colour table of
+// two entries and the colour indices `first` and `second` (below 8).
+static Ref<SharedBuffer> makeTwoFrameGIFWithSmallerLocalColorTable(uint8_t first, uint8_t second)
+{
+    Vector<uint8_t> data;
+    for (auto c : { 'G', 'I', 'F', '8', '9', 'a' })
+        data.append(static_cast<uint8_t>(c));
+
+    // Logical screen descriptor: 2x1, global colour table of four entries.
+    data.appendList({ 2, 0, 1, 0, 0x81, 0, 0 });
+    data.appendList({ 0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0x20, 0x40, 0x60 });
+
+    auto appendFrame = [&](uint8_t firstIndex, uint8_t secondIndex) {
+        // CLEAR(8), firstIndex, secondIndex, END(9) as 4-bit LZW codes packed low bit first.
+        data.append(3); // LZW minimum code size
+        data.append(2); // sub-block length
+        data.append(static_cast<uint8_t>(8 | firstIndex << 4));
+        data.append(static_cast<uint8_t>(secondIndex | 9 << 4));
+        data.append(0); // block terminator
+    };
+
+    data.appendList({ 0x21, 0xf9, 0x04, 0x08, 0, 0, 0, 0 }); // graphic control extension, restore to background
+    data.append(0x2c); // image separator
+    data.appendList({ 0, 0, 0, 0, 2, 0, 1, 0, 0 }); // 2x1 at the origin, no local colour table
+    appendFrame(0, 1);
+
+    data.append(0x2c); // image separator
+    data.appendList({ 0, 0, 0, 0, 2, 0, 1, 0, 0x80 }); // 2x1 at the origin, local colour table of two entries
+    data.appendList({ 0x10, 0x20, 0x30, 0x40, 0x50, 0x60 });
+    appendFrame(first, second);
+
+    data.append(0x3b); // trailer
+    return SharedBuffer::create(WTF::move(data));
+}
+
+static bool secondFrameOfTwoFrameGIFHasAlpha(uint8_t first, uint8_t second)
+{
+    auto buffer = makeTwoFrameGIFWithSmallerLocalColorTable(first, second);
+    RefPtr decoder = ImageDecoder::create(buffer.get(), "image/gif"_s, AlphaOption::Premultiplied, GammaAndColorProfileOption::Applied);
+    EXPECT_TRUE(decoder);
+    if (!decoder)
+        return false;
+    decoder->setData(buffer.get(), true);
+    EXPECT_EQ(2u, decoder->frameCount());
+    EXPECT_TRUE(decoder->createFrameImageAtIndex(0));
+    EXPECT_FALSE(decoder->frameHasAlphaAtIndex(0));
+    EXPECT_TRUE(decoder->createFrameImageAtIndex(1));
+    EXPECT_TRUE(decoder->frameIsCompleteAtIndex(1));
+    return decoder->frameHasAlphaAtIndex(1);
+}
+
+// A colour index past the end of a frame's colour table is transparent even where an earlier
+// frame's larger colour table had a colour for it.
+TEST(ImageDecoder, GIFColorIndexPastSmallerLocalColorTableIsTransparent)
+{
+    EXPECT_FALSE(secondFrameOfTwoFrameGIFHasAlpha(0, 1));
+    EXPECT_TRUE(secondFrameOfTwoFrameGIFHasAlpha(1, 2));
+    EXPECT_TRUE(secondFrameOfTwoFrameGIFHasAlpha(3, 0));
+    EXPECT_TRUE(secondFrameOfTwoFrameGIFHasAlpha(0, 4));
+    EXPECT_TRUE(secondFrameOfTwoFrameGIFHasAlpha(7, 1));
+}
+
+// A 2x1 GIF of two frames on the global colour table of four entries, each with the colour indices
+// 1 and 2 and an optional transparent index. The first frame is restored to the background.
+static Ref<SharedBuffer> makeTwoFrameGIFWithTransparentIndices(std::optional<uint8_t> firstTransparentIndex, std::optional<uint8_t> secondTransparentIndex)
+{
+    Vector<uint8_t> data;
+    for (auto c : { 'G', 'I', 'F', '8', '9', 'a' })
+        data.append(static_cast<uint8_t>(c));
+
+    // Logical screen descriptor: 2x1, global colour table of four entries.
+    data.appendList({ 2, 0, 1, 0, 0x81, 0, 0 });
+    data.appendList({ 0xff, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0xff, 0x20, 0x40, 0x60 });
+
+    auto appendFrame = [&](uint8_t disposalBits, std::optional<uint8_t> transparentIndex) {
+        // Graphic control extension.
+        data.appendList({ 0x21, 0xf9, 0x04 });
+        data.append(static_cast<uint8_t>(disposalBits | (transparentIndex ? 1 : 0)));
+        data.appendList({ 0, 0 }); // delay time
+        data.append(transparentIndex.value_or(0));
+        data.append(0); // block terminator
+
+        data.append(0x2c); // image separator
+        data.appendList({ 0, 0, 0, 0, 2, 0, 1, 0, 0 }); // 2x1 at the origin, no local colour table
+
+        // CLEAR(8), 1, 2, END(9) as 4-bit LZW codes packed low bit first.
+        data.append(3); // LZW minimum code size
+        data.append(2); // sub-block length
+        data.append(static_cast<uint8_t>(8 | 1 << 4));
+        data.append(static_cast<uint8_t>(2 | 9 << 4));
+        data.append(0); // block terminator
+    };
+
+    appendFrame(0x08, firstTransparentIndex); // restore to background
+    appendFrame(0, secondTransparentIndex);
+
+    data.append(0x3b); // trailer
+    return SharedBuffer::create(WTF::move(data));
+}
+
+// Decodes both frames with one request and returns whether the second has alpha.
+static bool secondFrameWithTransparentIndicesHasAlpha(std::optional<uint8_t> firstTransparentIndex, std::optional<uint8_t> secondTransparentIndex)
+{
+    auto buffer = makeTwoFrameGIFWithTransparentIndices(firstTransparentIndex, secondTransparentIndex);
+    RefPtr decoder = ImageDecoder::create(buffer.get(), "image/gif"_s, AlphaOption::Premultiplied, GammaAndColorProfileOption::Applied);
+    EXPECT_TRUE(decoder);
+    if (!decoder)
+        return false;
+    decoder->setData(buffer.get(), true);
+    EXPECT_EQ(2u, decoder->frameCount());
+    EXPECT_TRUE(decoder->createFrameImageAtIndex(1));
+    EXPECT_TRUE(decoder->frameIsCompleteAtIndex(0));
+    EXPECT_TRUE(decoder->frameIsCompleteAtIndex(1));
+    EXPECT_EQ(firstTransparentIndex && *firstTransparentIndex >= 1 && *firstTransparentIndex <= 2, decoder->frameHasAlphaAtIndex(0));
+    return decoder->frameHasAlphaAtIndex(1);
+}
+
+// Each frame's transparent index applies to that frame only, also when the frames share a colour table.
+TEST(ImageDecoder, GIFTransparentIndexPerFrameOnSharedColorTable)
+{
+    EXPECT_TRUE(secondFrameWithTransparentIndicesHasAlpha(0, 1));
+    EXPECT_TRUE(secondFrameWithTransparentIndicesHasAlpha(std::nullopt, 2));
+    EXPECT_FALSE(secondFrameWithTransparentIndicesHasAlpha(1, std::nullopt));
+    EXPECT_FALSE(secondFrameWithTransparentIndicesHasAlpha(2, 0));
+    EXPECT_FALSE(secondFrameWithTransparentIndicesHasAlpha(0, 3));
+}
+
 // --- WebP ---------------------------------------------------------------------------------------
 
 // LayoutTests/fast/images/resources/awebp00.webp, byte for byte. The demuxer has to accept the

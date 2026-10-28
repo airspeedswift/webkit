@@ -14,6 +14,7 @@ list(APPEND TestWebCore_SOURCES
     ${test_main_SOURCES}
 
     Tests/WebCore/CryptoDigest.cpp
+    Tests/WebCore/ImageDecoderTests.cpp
 
     Tests/WebCore/curl/Cookies.cpp
     Tests/WebCore/curl/CurlMultipartHandleTests.cpp

@@ -33,21 +33,16 @@
 
 #include <algorithm>
 
-#include "BMPImageReader.h"
+#include "ImageDecoderSwiftFrames.h"
+#include "WebCore-Swift.h"
 #include "PNGImageDecoder.h"
 #include <wtf/StdLibExtras.h>
 
 namespace WebCore {
 
-// Number of bits in .ICO/.CUR used to store the directory and its entries,
-// respectively (doesn't match sizeof values for member structs since we omit
-// some fields).
-static const size_t sizeOfDirectory = 6;
-static const size_t sizeOfDirEntry = 16;
-
 ICOImageDecoder::ICOImageDecoder(AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
     : ScalableImageDecoder(alphaOption, gammaAndColorProfileOption)
-    , m_decodedOffset(0)
+    , m_swift(makeUniqueWithoutFastMallocCheck<ICOImageDecoderState>(ICOImageDecoderState::init(m_premultiplyAlpha)))
 {
 }
 
@@ -60,30 +55,15 @@ void ICOImageDecoder::setData(const FragmentedSharedBuffer& data, bool allDataRe
 
     ScalableImageDecoder::setData(data, allDataReceived);
 
-    for (auto& reader : m_bmpReaders) {
-        if (reader)
-            reader->setData(*m_data);
-    }
-
     for (size_t i = 0; i < m_pngDecoders.size(); ++i)
         setDataForPNGDecoderAtIndex(i);
 }
 
-IntSize ICOImageDecoder::size() const
-{
-    return m_frameSize.isEmpty() ? ScalableImageDecoder::size() : m_frameSize;
-}
-
 IntSize ICOImageDecoder::frameSizeAtIndex(size_t index, SubsamplingLevel) const
 {
-    return (index && (index < m_dirEntries.size())) ? m_dirEntries[index].m_size : size();
-}
-
-bool ICOImageDecoder::setSize(const IntSize& size)
-{
-    // The size calculated inside the BMPImageReader had better match the one in
-    // the icon directory.
-    return m_frameSize.isEmpty() ? ScalableImageDecoder::setSize(size) : ((size == m_frameSize) || setFailed());
+    Locker locker { m_lock };
+    auto size = icoImageDecoderFrameSizeAtIndex(*m_swift, index, { this->size().width(), this->size().height() });
+    return { size.width, size.height };
 }
 
 size_t ICOImageDecoder::decodeIfNeededAndGetFrameCount() const
@@ -103,12 +83,13 @@ ScalableImageDecoderFrame* ICOImageDecoder::frameBufferAtIndex(size_t index)
     auto* buffer = &m_frameBufferCache[index];
     if (!buffer->isComplete())
         decode(index, false, isAllDataReceived());
+    // The decode can resize m_frameBufferCache.
+    buffer = &m_frameBufferCache[index];
     return buffer;
 }
 
 bool ICOImageDecoder::setFailed()
 {
-    m_bmpReaders.clear();
     m_pngDecoders.clear();
     return ScalableImageDecoder::setFailed();
 }
@@ -118,17 +99,12 @@ std::optional<IntPoint> ICOImageDecoder::hotSpot() const
     // When unspecified, the default frame is always frame 0. This is consistent with
     // BitmapImage where currentFrame() starts at 0 and only increases when animation is
     // requested.
-    return hotSpotAtIndex(0);
-}
-
-std::optional<IntPoint> ICOImageDecoder::hotSpotAtIndex(size_t index) const
-{
-    if (index >= m_dirEntries.size() || m_fileType != CURSOR)
+    Locker locker { m_lock };
+    auto hotSpot = icoImageDecoderHotSpot(*m_swift);
+    if (!hotSpot.hasValue)
         return std::nullopt;
-
-    return m_dirEntries[index].m_hotSpot;
+    return IntPoint { hotSpot.x, hotSpot.y };
 }
-
 
 // static
 bool ICOImageDecoder::compareEntries(const IconDirectoryEntry& a, const IconDirectoryEntry& b)
@@ -144,192 +120,78 @@ void ICOImageDecoder::setDataForPNGDecoderAtIndex(size_t index)
     if (!m_pngDecoders[index])
         return;
 
-    const IconDirectoryEntry& dirEntry = m_dirEntries[index];
-    // Copy out PNG data to a separate vector and send to the PNG decoder.
-    // FIXME: Save this copy by making the PNG decoder able to take an
-    // optional offset.
-    auto pngData = SharedBuffer::create(m_data->span().subspan(dirEntry.m_imageOffset));
+    auto data = m_data ? m_data->span() : std::span<const uint8_t> { };
+    size_t imageOffset = m_pngImageOffsets[index];
+    auto pngData = SharedBuffer::create(imageOffset <= data.size() ? data.subspan(imageOffset) : std::span<const uint8_t> { });
     m_pngDecoders[index]->setData(pngData.get(), isAllDataReceived());
 }
 
 void ICOImageDecoder::decode(size_t index, bool onlySize, bool allDataReceived)
 {
     assertIsHeld(m_lock);
-    if (failed())
-        return;
-
-    // If we couldn't decode the image but we've received all the data, decoding
-    // has failed.
-    if ((!decodeDirectory() || (!onlySize && !decodeAtIndex(index))) && allDataReceived)
-        setFailed();
-    // If we're done decoding this frame, we don't need the BMPImageReader or
-    // PNGImageDecoder anymore.  (If we failed, these have already been
-    // cleared.)
-    else if ((m_frameBufferCache.size() > index) && m_frameBufferCache[index].isComplete()) {
-        m_bmpReaders[index] = nullptr;
-        m_pngDecoders[index] = nullptr;
-    }
-    
-    if (m_frameBufferCache.isEmpty())
-        m_frameBufferCache.grow(m_dirEntries.size());
-    // CAUTION: We must not resize m_frameBufferCache again after this, as
-    // decodeAtIndex() may give a BMPImageReader a pointer to one of the
-    // entries.
+    ImageDecoderFramesState frames { *this, m_frameBufferCache };
+    frames.ico = this;
+    icoImageDecoderDecode(*m_swift, frames, m_data ? m_data->span() : std::span<const uint8_t> { }, index, onlySize, allDataReceived);
+    m_sortedDirEntries.clear();
 }
 
-bool ICOImageDecoder::decodeDirectory()
+static ICOImageDecoder& icoImageDecoder(ScalableImageDecoderFrames& frames)
 {
-    // Read and process directory.
-    if ((m_decodedOffset < sizeOfDirectory) && !processDirectory())
-        return false;
-
-    // Read and process directory entries.
-    return (m_decodedOffset >= (sizeOfDirectory + (m_dirEntries.size() * sizeOfDirEntry))) || processDirectoryEntries();
+    auto* decoder = static_cast<ImageDecoderFramesState&>(frames).ico;
+    RELEASE_ASSERT(decoder);
+    return *decoder;
 }
 
-bool ICOImageDecoder::decodeAtIndex(size_t index)
+void ScalableImageDecoderFrames::setPNGDecoderCount(size_t count)
 {
-    assertIsHeld(m_lock);
-    ASSERT_WITH_SECURITY_IMPLICATION(index < m_dirEntries.size());
-    const IconDirectoryEntry& dirEntry = m_dirEntries[index];
-    const ImageType imageType = imageTypeAtIndex(index);
-    if (imageType == Unknown)
-        return false; // Not enough data to determine image type yet.
+    auto& decoder = icoImageDecoder(*this);
+    decoder.m_pngDecoders.resize(count);
+    decoder.m_pngImageOffsets.resize(count);
+}
 
-    if (imageType == BMP) {
-        if (!m_bmpReaders[index]) {
-            // We need to have already sized m_frameBufferCache before this, and
-            // we must not resize it again later (see caution in decodeIfNeededAndGetFrameCount()).
-            ASSERT(m_frameBufferCache.size() == m_dirEntries.size());
-            m_bmpReaders[index] = makeUnique<BMPImageReader>(this, dirEntry.m_imageOffset, 0, true);
-            m_bmpReaders[index]->setData(*m_data);
-            m_bmpReaders[index]->setBuffer(&m_frameBufferCache[index]);
-        }
-        m_frameSize = dirEntry.m_size;
-        bool result = m_bmpReaders[index]->decodeBMP(false);
-        m_frameSize = IntSize();
-        return result;
-    }
+void ScalableImageDecoderFrames::clearPNGDecoder(size_t index)
+{
+    icoImageDecoder(*this).m_pngDecoders[index] = nullptr;
+}
 
-    if (!m_pngDecoders[index]) {
-        m_pngDecoders[index] = PNGImageDecoder::create(m_premultiplyAlpha ? AlphaOption::Premultiplied : AlphaOption::NotPremultiplied, m_ignoreGammaAndColorProfile ? GammaAndColorProfileOption::Ignored : GammaAndColorProfileOption::Applied);
-        setDataForPNGDecoderAtIndex(index);
+bool ScalableImageDecoderFrames::decodePNGEntry(size_t index, uint32_t imageOffset, ImageDecoderSize entrySize)
+{
+    auto& decoder = icoImageDecoder(*this);
+    if (!decoder.m_pngDecoders[index]) {
+        decoder.m_pngDecoders[index] = PNGImageDecoder::create(decoder.m_premultiplyAlpha ? AlphaOption::Premultiplied : AlphaOption::NotPremultiplied, decoder.m_ignoreGammaAndColorProfile ? GammaAndColorProfileOption::Ignored : GammaAndColorProfileOption::Applied);
+        decoder.m_pngImageOffsets[index] = imageOffset;
+        decoder.setDataForPNGDecoderAtIndex(index);
     }
-    // Fail if the size the PNGImageDecoder calculated does not match the size
-    // in the directory.
-    if (m_pngDecoders[index]->encodedDataStatus() >= EncodedDataStatus::SizeAvailable && (m_pngDecoders[index]->size() != dirEntry.m_size))
+    Ref pngDecoder = *decoder.m_pngDecoders[index];
+    if (pngDecoder->encodedDataStatus() >= EncodedDataStatus::SizeAvailable && pngDecoder->size() != IntSize { entrySize.width, entrySize.height })
         return setFailed();
 
-    // firstFrameBuffer() is null until the sub-decoder has parsed its own header, which has not
-    // happened yet when only part of the embedded PNG has arrived.
-    auto* frameBuffer = static_cast<PNGImageDecoder*>(m_pngDecoders[index].get())->firstFrameBuffer();
+    auto* frameBuffer = static_cast<PNGImageDecoder&>(pngDecoder.get()).firstFrameBuffer();
     if (!frameBuffer)
         return false;
 
-    m_frameBufferCache[index] = *frameBuffer;
-    return !m_pngDecoders[index]->failed() || setFailed();
+    static_cast<ImageDecoderFramesState&>(*this).frames[index] = *frameBuffer;
+    return !pngDecoder->failed() || setFailed();
 }
 
-bool ICOImageDecoder::processDirectory()
+void ScalableImageDecoderFrames::appendDirectoryEntry(ImageDecoderSize size, uint16_t bitCount)
 {
-    // Read directory.
-    ASSERT(!m_decodedOffset);
-    if (m_data->size() < sizeOfDirectory)
-        return false;
-    const uint16_t fileType = readUint16(2);
-    const uint16_t idCount = readUint16(4);
-    m_decodedOffset = sizeOfDirectory;
-
-    // See if this is an icon filetype we understand, and make sure we have at
-    // least one entry in the directory.
-    if (((fileType != ICON) && (fileType != CURSOR)) || (!idCount))
-        return setFailed();
-
-    m_fileType = static_cast<FileType>(fileType);
-
-    // Enlarge member vectors to hold all the entries.
-    m_dirEntries.resize(idCount);
-    m_bmpReaders.resize(idCount);
-    m_pngDecoders.resize(idCount);
-    return true;
+    RELEASE_ASSERT(size.width > 0 && size.width <= 256 && size.height > 0 && size.height <= 256);
+    auto& entries = icoImageDecoder(*this).m_sortedDirEntries;
+    entries.append({ ICOImageDecoder::IconDirectoryEntry { IntSize { size.width, size.height }, bitCount, IntPoint { }, 0 }, static_cast<uint32_t>(entries.size()) });
 }
 
-bool ICOImageDecoder::processDirectoryEntries()
+void ScalableImageDecoderFrames::sortDirectoryEntries()
 {
-    // Read directory entries.
-    ASSERT(m_decodedOffset == sizeOfDirectory);
-    if ((m_decodedOffset > m_data->size()) || ((m_data->size() - m_decodedOffset) < (m_dirEntries.size() * sizeOfDirEntry)))
-        return false;
-    for (auto& entry : m_dirEntries)
-        entry = readDirectoryEntry(); // Updates m_decodedOffset.
-
-    // Make sure the specified image offsets are past the end of the directory
-    // entries.
-    for (auto& entry : m_dirEntries) {
-        if (entry.m_imageOffset < m_decodedOffset)
-            return setFailed();
-    }
-
-    // Arrange frames in decreasing quality order.
-    std::sort(m_dirEntries.begin(), m_dirEntries.end(), compareEntries);
-
-    // The image size is the size of the largest entry.
-    const IconDirectoryEntry& dirEntry = m_dirEntries.first();
-    // Technically, this next call shouldn't be able to fail, since the width
-    // and height here are each <= 256, and |m_frameSize| is empty.
-    return setSize(dirEntry.m_size);
+    auto& entries = icoImageDecoder(*this).m_sortedDirEntries;
+    std::sort(entries.begin(), entries.end(), [](auto& a, auto& b) {
+        return ICOImageDecoder::compareEntries(a.first, b.first);
+    });
 }
 
-ICOImageDecoder::IconDirectoryEntry ICOImageDecoder::readDirectoryEntry()
+uint32_t ScalableImageDecoderFrames::sortedDirectoryEntryIndex(size_t index)
 {
-    // Read icon data.
-    // The casts to uint8_t in the next few lines are because that's the on-disk
-    // type of the width and height values.  Storing them in ints (instead of
-    // matching uint8_ts) is so we can record dimensions of size 256 (which is
-    // what a zero byte really means).
-    auto dataSpan = m_data->span();
-    int width = dataSpan[m_decodedOffset];
-    if (!width)
-        width = 256;
-    int height = dataSpan[m_decodedOffset + 1];
-    if (!height)
-        height = 256;
-    IconDirectoryEntry entry;
-    entry.m_size = IntSize(width, height);
-    if (m_fileType == CURSOR) {
-        entry.m_bitCount = 0;
-        entry.m_hotSpot = IntPoint(readUint16(4), readUint16(6));
-    } else {
-        entry.m_bitCount = readUint16(6);
-        entry.m_hotSpot = IntPoint();
-    }
-    entry.m_imageOffset = readUint32(12);
-
-    // Some icons don't have a bit depth, only a color count.  Convert the
-    // color count to the minimum necessary bit depth.  It doesn't matter if
-    // this isn't quite what the bitmap info header says later, as we only use
-    // this value to determine which icon entry is best.
-    if (!entry.m_bitCount) {
-        int colorCount = dataSpan[m_decodedOffset + 2];
-        if (!colorCount)
-            colorCount = 256;  // Vague in the spec, needed by real-world icons.
-        for (--colorCount; colorCount; colorCount >>= 1)
-            ++entry.m_bitCount;
-    }
-
-    m_decodedOffset += sizeOfDirEntry;
-    return entry;
-}
-
-ICOImageDecoder::ImageType ICOImageDecoder::imageTypeAtIndex(size_t index)
-{
-    // Check if this entry is a BMP or a PNG; we need 4 bytes to check the magic
-    // number.
-    ASSERT_WITH_SECURITY_IMPLICATION(index < m_dirEntries.size());
-    const uint32_t imageOffset = m_dirEntries[index].m_imageOffset;
-    if ((imageOffset > m_data->size()) || ((m_data->size() - imageOffset) < 4))
-        return Unknown;
-    return spanHasPrefix(m_data->span().subspan(imageOffset), unsafeMakeSpan("\x89PNG", 4)) ? PNG : BMP;
+    return icoImageDecoder(*this).m_sortedDirEntries[index].second;
 }
 
 }

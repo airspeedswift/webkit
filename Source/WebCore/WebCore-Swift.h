@@ -68,4 +68,9 @@
 #include "Document.h"
 #include "HTMLPreloadScanner.h"
 
+// The GIF, BMP and ICO decoders are Swift where they are built: the CMake ports that do not decode through ImageIO.
+#if !PLATFORM(COCOA)
+#include "ImageDecoderSwiftTypes.h"
+#endif
+
 #include "WebCoreSwift-Generated.h"

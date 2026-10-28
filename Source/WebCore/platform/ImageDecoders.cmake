@@ -11,6 +11,7 @@ list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
 )
 
 list(APPEND WebCore_SOURCES
+    platform/image-decoders/ImageDecoderSwiftFrames.cpp
     platform/image-decoders/ScalableImageDecoder.cpp
     platform/image-decoders/ScalableImageDecoderFrame.cpp
 
@@ -18,10 +19,8 @@ list(APPEND WebCore_SOURCES
     platform/image-decoders/avif/AVIFImageReader.cpp
 
     platform/image-decoders/bmp/BMPImageDecoder.cpp
-    platform/image-decoders/bmp/BMPImageReader.cpp
 
     platform/image-decoders/gif/GIFImageDecoder.cpp
-    platform/image-decoders/gif/GIFImageReader.cpp
 
     platform/image-decoders/ico/ICOImageDecoder.cpp
 
