@@ -5128,7 +5128,7 @@
 		BC23BAB12D6E38870069A80B /* StyleCornerShapeValue.h in Headers */ = {isa = PBXBuildFile; fileRef = BC23BAB02D6E38870069A80B /* StyleCornerShapeValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC23BAB52D6E47AC0069A80B /* RectCorners.h in Headers */ = {isa = PBXBuildFile; fileRef = BC23BAB42D6E47AC0069A80B /* RectCorners.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC26505E2D9315E10027337D /* CSSPropertyParserConsumer+Color.h in Headers */ = {isa = PBXBuildFile; fileRef = BC7C5E652BE2A8FB00AE645C /* CSSPropertyParserConsumer+Color.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		BC26505F2D93174E0027337D /* CSSPropertyParserState.h in Headers */ = {isa = PBXBuildFile; fileRef = BC27C2E12D8F0EEB00E4600B /* CSSPropertyParserState.h */; };
+		BC26505F2D93174E0027337D /* CSSPropertyParserState.h in Headers */ = {isa = PBXBuildFile; fileRef = BC27C2E12D8F0EEB00E4600B /* CSSPropertyParserState.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC274B2F140EBEB200EADFA6 /* CSSBorderImageSliceValue.h in Headers */ = {isa = PBXBuildFile; fileRef = BC274B2E140EBEB200EADFA6 /* CSSBorderImageSliceValue.h */; };
 		BC292C212F90E5EC001165EB /* CSSKeywordValueInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = BC292C192F90E0C5001165EB /* CSSKeywordValueInlines.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC292C222F90E5FF001165EB /* CSSKeywordValue.h in Headers */ = {isa = PBXBuildFile; fileRef = BC292C172F90E0C5001165EB /* CSSKeywordValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
