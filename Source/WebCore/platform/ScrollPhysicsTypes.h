@@ -35,6 +35,8 @@ namespace WebCore {
 
 // For Swift, which cannot name RectEdges<bool>.
 using RubberBandingEdges = RectEdges<bool>;
+// For Swift, which cannot name std::pair<LayoutUnit, std::optional<unsigned>>.
+using ClosestSnapOffset = std::pair<LayoutUnit, std::optional<unsigned>>;
 
 // What ScrollingEffectsController's Swift implementation calls back into: the controller's client,
 // and the timers the controller owns. Only ScrollPhysicsClientState makes one, on the stack of a
@@ -98,7 +100,7 @@ public:
     unsigned snapAreaIDCount() { return snapOffsetsInfo().snapAreasIDs.size(); }
     uint64_t snapAreaID(unsigned index) { return snapOffsetsInfo().snapAreasIDs[index].toUInt64(); }
     bool scrollerHasVerticalWritingMode() { return snapOffsetsInfo().scrollerHasVerticalWritingMode; }
-    std::pair<LayoutUnit, std::optional<unsigned>> closestSnapOffset(ScrollEventAxis axis, const LayoutSize& viewportSize, LayoutPoint destination, float velocity, bool hasOriginalPosition, float originalPosition, ScrollSnapPointSelectionMethod method) { return snapOffsetsInfo().closestSnapOffset(axis, viewportSize, destination, velocity, hasOriginalPosition ? std::make_optional(LayoutUnit(originalPosition)) : std::nullopt, method); }
+    ClosestSnapOffset closestSnapOffset(ScrollEventAxis axis, const LayoutSize& viewportSize, LayoutPoint destination, float velocity, bool hasOriginalPosition, float originalPosition, ScrollSnapPointSelectionMethod method) { return snapOffsetsInfo().closestSnapOffset(axis, viewportSize, destination, velocity, hasOriginalPosition ? std::make_optional(LayoutUnit(originalPosition)) : std::nullopt, method); }
 
     // The controller's discrete scroll snap and scrollend timers.
     bool isDiscreteSnapTimerActive();

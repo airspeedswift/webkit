@@ -54,18 +54,18 @@ protocol ScrollPhysicsAnimationBase: AnyObject {
 }
 
 extension ScrollPhysicsAnimationBase {
-    func didStart(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController, _ currentTime: Double) {
+    func didStart<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ controller: ScrollPhysicsController, _ currentTime: Double) {
         startTime = currentTime
         isActive = true
         controller.scrollAnimationWillStart(&c, Self.animationType)
     }
 
-    func didEnd(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController) {
+    func didEnd<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ controller: ScrollPhysicsController) {
         isActive = false
         controller.scrollAnimationDidEnd(&c, Self.animationType)
     }
 
-    func stopIfActive(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController) {
+    func stopIfActive<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ controller: ScrollPhysicsController) {
         if !isActive {
             return
         }
@@ -78,6 +78,235 @@ extension ScrollPhysicsAnimationBase {
 private let animationSpeed: Float = 1000
 private let maxAnimationDuration = 0.2
 
+// The end of the spring is imperceptible, so finish once the remaining distance is a fraction of a pixel.
+private let springAnimationCompletionDistance: Float = 0.25
+
+// DocumentEdgeScrollSpring (KeyboardScroll.h).
+private let documentEdgeScrollSpringMass = WebCore.DocumentEdgeScrollSpring.mass
+private let documentEdgeScrollSpringStiffness = WebCore.DocumentEdgeScrollSpring.stiffness
+private let documentEdgeScrollSpringDuration = WebCore.DocumentEdgeScrollSpring.duration.value()
+// DocumentEdgeScrollSpring::timingFunctionControlPoints, a std::array, which Swift cannot index.
+private let documentEdgeScrollSpringTimingFunctionControlPoints: (Double, Double, Double, Double) = (0, 0.2, 1, 1)
+
+extension Double {
+    // self + b * c, rounded as clang compiles the same C++ expression: fused on arm64, where -ffp-contract=on contracts
+    // it, and with the product rounded where the target has no fused multiply-add.
+    @inline(always)
+    fileprivate func addingProductAsCompiled(_ b: Double, _ c: Double) -> Double {
+#if arch(arm64)
+        addingProduct(b, c)
+#else
+        self + b * c
+#endif
+    }
+}
+
+// UnitBezier (UnitBezier.h), with its arithmetic rounded as the C++ is compiled.
+private struct UnitBezier {
+    static let bezierEpsilon = 1e-7
+    static let bisectionEpsilon = 1e-10
+    static let maxNewtonIterations = 4
+    static let splineSampleCount = 11
+
+    private let ax: Double
+    private let bx: Double
+    private let cx: Double
+
+    private let ay: Double
+    private let by: Double
+    private let cy: Double
+
+    private let startGradient: Double
+    private let endGradient: Double
+
+    private var splineSamples = InlineArray<11, Double>(repeating: 0)
+
+    init(_ p1x: Double, _ p1y: Double, _ p2x: Double, _ p2y: Double) {
+        // Calculate the polynomial coefficients, implicit first and last control points are (0,0) and (1,1).
+        cx = 3.0 * p1x
+        bx = (-cx).addingProductAsCompiled(3.0, p2x - p1x)
+        ax = 1.0 - cx - bx
+
+        cy = 3.0 * p1y
+        by = (-cy).addingProductAsCompiled(3.0, p2y - p1y)
+        ay = 1.0 - cy - by
+
+        // End-point gradients are used to calculate timing function results outside the range [0, 1].
+        if p1x > 0 {
+            startGradient = p1y / p1x
+        } else if p1y == 0 && p2x > 0 {
+            startGradient = p2y / p2x
+        } else if p1y == 0 && p2y == 0 {
+            startGradient = 1
+        } else {
+            startGradient = 0
+        }
+        if p2x < 1 {
+            endGradient = (p2y - 1) / (p2x - 1)
+        } else if p2y == 1 && p1x < 1 {
+            endGradient = (p1y - 1) / (p1x - 1)
+        } else if p2y == 1 && p1y == 1 {
+            endGradient = 1
+        } else {
+            endGradient = 0
+        }
+
+        let deltaT = 1.0 / Double(Self.splineSampleCount - 1)
+        for i in 0..<Self.splineSampleCount {
+            splineSamples[i] = sampleCurveX(Double(i) * deltaT)
+        }
+    }
+
+    func sampleCurveX(_ t: Double) -> Double {
+        // `ax t^3 + bx t^2 + cx t' expanded using Horner's rule.
+        cx.addingProductAsCompiled(bx.addingProductAsCompiled(ax, t), t) * t
+    }
+
+    func sampleCurveY(_ t: Double) -> Double {
+        cy.addingProductAsCompiled(by.addingProductAsCompiled(ay, t), t) * t
+    }
+
+    func sampleCurveDerivativeX(_ t: Double) -> Double {
+        cx.addingProductAsCompiled((2.0 * bx).addingProductAsCompiled(3.0 * ax, t), t)
+    }
+
+    // Given an x value, find a parametric value it came from.
+    func solveCurveX(_ x: Double, _ epsilon: Double) -> Double {
+        var t0 = 0.0
+        var t1 = 0.0
+        var t2 = x
+        var x2 = 0.0
+        var d2 = 0.0
+
+        // Linear interpolation of spline curve for initial guess.
+        let deltaT = 1.0 / Double(Self.splineSampleCount - 1)
+        for i in 1..<Self.splineSampleCount where x <= splineSamples[i] {
+            t1 = deltaT * Double(i)
+            t0 = t1 - deltaT
+            t2 = t0 + (t1 - t0) * (x - splineSamples[i - 1]) / (splineSamples[i] - splineSamples[i - 1])
+            break
+        }
+
+        // Perform a few iterations of Newton's method -- normally very fast.
+        let newtonEpsilon = stdMin(Self.bezierEpsilon, epsilon)
+        for _ in 0..<Self.maxNewtonIterations {
+            x2 = sampleCurveX(t2) - x
+            if abs(x2) < newtonEpsilon {
+                return t2
+            }
+            d2 = sampleCurveDerivativeX(t2)
+            if abs(d2) < Self.bezierEpsilon {
+                break
+            }
+            t2 = t2 - x2 / d2
+        }
+        if abs(x2) < epsilon {
+            return t2
+        }
+
+        // Fall back to the bisection method for reliability.
+        let bisectionEpsilon = stdMax(Self.bisectionEpsilon, epsilon)
+        while t0 < t1 {
+            x2 = sampleCurveX(t2)
+            if abs(x2 - x) < bisectionEpsilon {
+                return t2
+            }
+            if x > x2 {
+                t0 = t2
+            } else {
+                t1 = t2
+            }
+            t2 = libcxxMidpoint(t0, t1)
+        }
+
+        // Failure.
+        return t2
+    }
+
+    func solve(_ x: Double, _ epsilon: Double) -> Double {
+        if x < 0.0 {
+            return (0.0).addingProductAsCompiled(startGradient, x)
+        }
+        if x > 1.0 {
+            return (1.0).addingProductAsCompiled(endGradient, x - 1.0)
+        }
+        return sampleCurveY(solveCurveX(x, epsilon))
+    }
+}
+
+// std::midpoint() for double, as libc++ implements it.
+private func libcxxMidpoint(_ a: Double, _ b: Double) -> Double {
+    let lo = Double.leastNormalMagnitude * 2
+    let hi = Double.greatestFiniteMagnitude / 2
+    if abs(a) <= hi && abs(b) <= hi {
+        return (a + b) / 2
+    }
+    if abs(a) < lo {
+        return a + b / 2
+    }
+    if abs(b) < lo {
+        return a / 2 + b
+    }
+    return a / 2 + b / 2
+}
+
+// SpringSolver (SpringSolver.h), with its arithmetic rounded as the C++ is compiled.
+private struct SpringSolver {
+    private let w0: Double
+    private let zeta: Double
+    private let wd: Double
+    private let a: Double
+    private let b: Double
+
+    init(_ mass: Double, _ stiffness: Double, _ damping: Double, _ initialVelocity: Double) {
+        w0 = (stiffness / mass).squareRoot()
+        zeta = damping / (2 * (stiffness * mass).squareRoot())
+
+        if zeta < 1 {
+            // Under-damped.
+            wd = w0 * (1.0).addingProductAsCompiled(-zeta, zeta).squareRoot()
+            a = 1
+            b = (-initialVelocity).addingProductAsCompiled(zeta, w0) / wd
+        } else {
+            // Critically damped (ignoring over-damped case for now). The damped frequency is not used.
+            wd = 0
+            a = 1
+            b = -initialVelocity + w0
+        }
+    }
+
+    func solve(_ time: Double) -> Double {
+        let t: Double
+        if zeta < 1 {
+            // Under-damped
+            t = exp(-time * zeta * w0) * (b * sin(wd * time)).addingProductAsCompiled(a, cos(wd * time))
+        } else {
+            // Critically damped (ignoring over-damped case for now).
+            t = a.addingProductAsCompiled(b, time) * exp(-time * w0)
+        }
+
+        // Map range from [1..0] to [0..1].
+        return 1 - t
+    }
+}
+
+// Progress of the spring curve, from 0 to 1, at the given time in seconds since the start of the animation.
+private func documentEdgeScrollSpringProgress(_ elapsedTime: Double) -> Double {
+    // Computed the same way SpringSolver computes the damping ratio, so that the ratio is exactly 1.
+    let damping = 2 * (documentEdgeScrollSpringStiffness * documentEdgeScrollSpringMass).squareRoot()
+
+    // Like a CAMediaTimingFunction, the bezier warps time before the spring is evaluated. It removes the
+    // initial ease-in of the spring, so that the curve resembles exponential decay.
+    let controlPoints = documentEdgeScrollSpringTimingFunctionControlPoints
+    let ratio = elapsedTime / documentEdgeScrollSpringDuration
+    // std::clamp().
+    let fractionComplete = ratio < 0.0 ? 0.0 : 1.0 < ratio ? 1.0 : ratio
+    let bezier = UnitBezier(controlPoints.0, controlPoints.1, controlPoints.2, controlPoints.3)
+    let warpedTime = bezier.solve(fractionComplete, UnitBezier.bezierEpsilon) * documentEdgeScrollSpringDuration
+
+    return SpringSolver(documentEdgeScrollSpringMass, documentEdgeScrollSpringStiffness, damping, 0).solve(warpedTime)
+}
+
 final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
     static var animationType: ScrollPhysicsAnimationType { .smooth }
 
@@ -88,6 +317,7 @@ final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
     private var duration: Double = 0
     private var startOffset = ScrollPoint.zero
     private(set) var destinationOffset = ScrollPoint.zero
+    private(set) var curve = WebCore.ScrollAnimationCurve.Default
     private var timingFunction: WebCore.CubicBezierTimingFunction
 
     init() {
@@ -102,17 +332,20 @@ final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
         duration = 0
         startOffset = .zero
         destinationOffset = .zero
+        curve = .Default
         timingFunction = WebCore.CubicBezierTimingFunction.create().get()
     }
 
-    func startAnimatedScrollToDestination(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func startAnimatedScrollToDestination<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ fromOffset: ScrollPoint,
-        _ destination: ScrollPoint
+        _ destination: ScrollPoint,
+        _ curve: WebCore.ScrollAnimationCurve
     ) -> Bool {
         let extents = ScrollPhysicsExtents(c.scrollExtents())
 
+        self.curve = curve
         currentOffset = fromOffset
         startOffset = fromOffset
         destinationOffset = destination.constrainedBetween(extents.minimumScrollOffset, extents.maximumScrollOffset)
@@ -136,10 +369,11 @@ final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
     }
 
     // Moves the start time and offset and replaces the timing function even when it returns false.
-    func retargetActiveAnimation(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func retargetActiveAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
-        _ newOffset: ScrollPoint
+        _ newOffset: ScrollPoint,
+        _ curve: WebCore.ScrollAnimationCurve
     ) -> Bool {
         if !isActive {
             return false
@@ -147,6 +381,7 @@ final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
 
         let extents = ScrollPhysicsExtents(c.scrollExtents())
 
+        self.curve = curve
         startTime = scrollPhysicsClockNow()
         startOffset = currentOffset
         destinationOffset = newOffset.constrainedBetween(extents.minimumScrollOffset, extents.maximumScrollOffset)
@@ -161,7 +396,7 @@ final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
         return true
     }
 
-    func updateScrollExtents(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController) {
+    func updateScrollExtents<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ controller: ScrollPhysicsController) {
         let extents = ScrollPhysicsExtents(c.scrollExtents())
         // FIXME: Ideally fix up startOffset so currentOffset doesn't go backwards.
         destinationOffset = destinationOffset.constrainedBetween(extents.minimumScrollOffset, extents.maximumScrollOffset)
@@ -169,11 +404,14 @@ final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
 
     private func durationFromDistance(_ delta: ScrollSize) -> Double {
         let distance = hypotf(delta.width, delta.height)
+        if curve == .Spring {
+            return distance != 0 ? documentEdgeScrollSpringDuration : 0
+        }
         return stdMin(Double(distance / animationSpeed), maxAnimationDuration)
     }
 
-    func serviceAnimation(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func serviceAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ currentTime: Double,
         _ generation: UInt64
@@ -192,13 +430,26 @@ final class SmoothScrollAnimation: ScrollPhysicsAnimationBase {
         let endTime = startTime + duration
         let currentTime = stdMin(time, endTime)
 
-        let fractionComplete = (currentTime - startTime) / duration
-        let progress = Float(timingFunction.transformProgress(fractionComplete, duration, .No))
+        let progress: Float
+        if curve == .Spring {
+            progress = Float(documentEdgeScrollSpringProgress(currentTime - startTime))
+        } else {
+            let fractionComplete = (currentTime - startTime) / duration
+            progress = Float(timingFunction.transformProgress(fractionComplete, duration, .No))
+        }
 
         currentOffset = ScrollPoint(
             x: libcxxLerp(startOffset.x, destinationOffset.x, progress),
             y: libcxxLerp(startOffset.y, destinationOffset.y, progress)
         )
+
+        if curve == .Spring {
+            let remaining = destinationOffset - currentOffset
+            if currentTime == endTime || hypotf(remaining.width, remaining.height) < springAnimationCompletionDistance {
+                currentOffset = destinationOffset
+                return false
+            }
+        }
 
         return currentTime < endTime
     }
@@ -274,8 +525,8 @@ final class KeyboardScrollAnimation: ScrollPhysicsAnimationBase {
         }
     }
 
-    func serviceAnimation(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func serviceAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ currentTime: Double,
         _ generation: UInt64
@@ -283,8 +534,8 @@ final class KeyboardScrollAnimation: ScrollPhysicsAnimationBase {
         animateScroll(&c, controller, currentTime, generation)
     }
 
-    func startKeyboardScroll(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func startKeyboardScroll<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ scrollData: WebCore.KeyboardScroll
     ) -> Bool {
@@ -302,7 +553,7 @@ final class KeyboardScrollAnimation: ScrollPhysicsAnimationBase {
         return true
     }
 
-    private func stopKeyboardScrollAnimation(_ c: inout WebCore.ScrollPhysicsClient) {
+    private func stopKeyboardScrollAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         guard let currentKeyboardScroll else {
             return
         }
@@ -335,7 +586,11 @@ final class KeyboardScrollAnimation: ScrollPhysicsAnimationBase {
         self.currentKeyboardScroll = nil
     }
 
-    func finishKeyboardScroll(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController, _ immediate: Bool) {
+    func finishKeyboardScroll<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
+        _ controller: ScrollPhysicsController,
+        _ immediate: Bool
+    ) {
         if !scrollTriggeringKeyIsPressed && !immediate {
             return
         }
@@ -352,8 +607,8 @@ final class KeyboardScrollAnimation: ScrollPhysicsAnimationBase {
         }
     }
 
-    private func animateScroll(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    private func animateScroll<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ currentTime: Double,
         _ generation: UInt64
@@ -450,8 +705,8 @@ final class MomentumScrollAnimation: ScrollPhysicsAnimationBase {
         momentumCalculator = nil
     }
 
-    func startAnimatedScrollWithInitialVelocity(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func startAnimatedScrollWithInitialVelocity<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ initialOffset: ScrollPoint,
         _ initialVelocity: ScrollSize,
@@ -484,8 +739,8 @@ final class MomentumScrollAnimation: ScrollPhysicsAnimationBase {
     }
 
     // Ends the animation when the retargeted animation still has time to run, and returns false then.
-    func retargetActiveAnimation(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func retargetActiveAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ newDestination: ScrollPoint
     ) -> Bool {
@@ -503,15 +758,15 @@ final class MomentumScrollAnimation: ScrollPhysicsAnimationBase {
         return false
     }
 
-    func stop(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController) {
+    func stop<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ controller: ScrollPhysicsController) {
         momentumCalculator = nil
         stopIfActive(&c, controller)
     }
 
     // Out of line, so the registers the calculator needs are saved only on momentum frames.
     @inline(never)
-    func serviceAnimation(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func serviceAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ currentTime: Double,
         _ generation: UInt64
@@ -536,7 +791,7 @@ final class MomentumScrollAnimation: ScrollPhysicsAnimationBase {
     }
 
     // Traps when the animation has stopped and has no calculator.
-    func updateScrollExtents(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController) {
+    func updateScrollExtents<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ controller: ScrollPhysicsController) {
         let extents = ScrollPhysicsExtents(c.scrollExtents())
         let predictedScrollOffset = momentumCalculator!.destinationScrollOffset
         let constrainedOffset = predictedScrollOffset.constrainedBetween(extents.minimumScrollOffset, extents.maximumScrollOffset)
@@ -749,8 +1004,8 @@ final class RubberBandScrollAnimation: ScrollPhysicsAnimationBase {
     }
 
     // targetOverscroll is where the animation snaps to, which an NSRefreshController can move.
-    func startRubberBandAnimation(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func startRubberBandAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ initialVelocity: ScrollSize,
         _ initialOverscroll: ScrollSize,
@@ -764,8 +1019,8 @@ final class RubberBandScrollAnimation: ScrollPhysicsAnimationBase {
         return true
     }
 
-    func startRubberBandAnimationWithElapsedTime(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func startRubberBandAnimationWithElapsedTime<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ initialVelocity: ScrollSize,
         _ initialOverscroll: ScrollSize,
@@ -780,8 +1035,8 @@ final class RubberBandScrollAnimation: ScrollPhysicsAnimationBase {
         return true
     }
 
-    func serviceAnimation(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func serviceAnimation<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ currentTime: Double,
         _ generation: UInt64

@@ -144,15 +144,15 @@ final class ScrollSnapAnimationState {
     private var lastViewportWidth: Int32 = 0
     private var lastViewportHeight: Int32 = 0
 
-    init(_ c: inout WebCore.ScrollPhysicsClient) {
+    init<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         readSnapOffsetsInfo(&c)
     }
 
-    func setSnapOffsetInfo(_ c: inout WebCore.ScrollPhysicsClient) {
+    func setSnapOffsetInfo<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         readSnapOffsetsInfo(&c)
     }
 
-    private func readSnapOffsetsInfo(_ c: inout WebCore.ScrollPhysicsClient) {
+    private func readSnapOffsetsInfo<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         horizontalSnapOffsets = snapOffsetValues(&c, .Horizontal)
         verticalSnapOffsets = snapOffsetValues(&c, .Vertical)
 
@@ -183,7 +183,10 @@ final class ScrollSnapAnimationState {
         scrollerHasVerticalWritingMode = c.scrollerHasVerticalWritingMode()
     }
 
-    private func snapOffsetValues(_ c: inout WebCore.ScrollPhysicsClient, _ axis: WebCore.ScrollEventAxis) -> [SnapOffsetValue] {
+    private func snapOffsetValues<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
+        _ axis: WebCore.ScrollEventAxis
+    ) -> [SnapOffsetValue] {
         let count = c.snapOffsetCount(axis)
         var values: [SnapOffsetValue] = []
         values.reserveCapacity(Int(count))
@@ -243,8 +246,8 @@ final class ScrollSnapAnimationState {
     // MARK: Animations
 
     // These return true if they start a new animation.
-    func transitionToSnapAnimationState(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func transitionToSnapAnimationState<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ extents: ScrollPhysicsExtents,
         _ pageScale: Float,
@@ -253,8 +256,8 @@ final class ScrollSnapAnimationState {
         setupAnimationForState(&c, controller, .snapping, extents, pageScale, initialOffset, .zero, .zero)
     }
 
-    func transitionToGlideAnimationState(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func transitionToGlideAnimationState<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ extents: ScrollPhysicsExtents,
         _ pageScale: Float,
@@ -265,8 +268,8 @@ final class ScrollSnapAnimationState {
         setupAnimationForState(&c, controller, .gliding, extents, pageScale, initialOffset, initialVelocity, initialDelta)
     }
 
-    private func setupAnimationForState(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    private func setupAnimationForState<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ controller: ScrollPhysicsController,
         _ state: State,
         _ extents: ScrollPhysicsExtents,
@@ -297,8 +300,8 @@ final class ScrollSnapAnimationState {
 
     // The momentum animation's destination modifier: the snap offset in each axis, which also becomes
     // the active snap index.
-    func modifiedDestination(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func modifiedDestination<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ input: ScrollSnapModifierInput,
         _ targetOffset: ScrollPoint
     ) -> ScrollPoint {
@@ -325,15 +328,22 @@ final class ScrollSnapAnimationState {
         return ScrollPoint(x: targetOffsetX, y: targetOffsetY)
     }
 
-    func transitionToUserInteractionState(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController) {
+    func transitionToUserInteractionState<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ controller: ScrollPhysicsController) {
         teardownAnimationForState(&c, controller, .userInteraction)
     }
 
-    func transitionToDestinationReachedState(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController) {
+    func transitionToDestinationReachedState<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
+        _ controller: ScrollPhysicsController
+    ) {
         teardownAnimationForState(&c, controller, .destinationReached)
     }
 
-    private func teardownAnimationForState(_ c: inout WebCore.ScrollPhysicsClient, _ controller: ScrollPhysicsController, _ state: State) {
+    private func teardownAnimationForState<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
+        _ controller: ScrollPhysicsController,
+        _ state: State
+    ) {
         if currentState == state {
             return
         }
@@ -344,15 +354,16 @@ final class ScrollSnapAnimationState {
 
     // MARK: Snap offsets
 
-    private func closestSnapOffset(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    private func closestSnapOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ axis: WebCore.ScrollEventAxis,
         _ viewportSize: ScrollSize,
         _ scrollDestinationOffset: ScrollPoint,
         _ velocity: Float,
         _ originalPosition: Float?,
-        _ selectionMethod: WebCore.ScrollSnapPointSelectionMethod
-    ) -> (offset: Int32, index: UInt32?) {
+        _ selectionMethod: WebCore.ScrollSnapPointSelectionMethod ) -> (offset: Int32,
+        index: UInt32?
+    ) {
         let layoutViewportSize = WebCore.LayoutSize(viewportSize.floatSize)
         let layoutDestinationOffset = WebCore.LayoutPoint(scrollDestinationOffset.floatPoint)
         let result = c.closestSnapOffset(
@@ -367,8 +378,8 @@ final class ScrollSnapAnimationState {
         return (result.first.rawValue(), Optional(fromCxx: result.second))
     }
 
-    private func closestSnapPointForOffset(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    private func closestSnapPointForOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ axis: WebCore.ScrollEventAxis,
         _ scrollOffset: ScrollIntPoint,
         _ extents: ScrollPhysicsExtents,
@@ -384,8 +395,8 @@ final class ScrollSnapAnimationState {
         return activeIndex
     }
 
-    func adjustedScrollDestination(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func adjustedScrollDestination<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ axis: WebCore.ScrollEventAxis,
         _ destinationOffset: ScrollPoint,
         _ velocity: Float,
@@ -724,8 +735,8 @@ final class ScrollSnapAnimationState {
     }
 
     // Returns true if an active snap index changed.
-    func resnapAfterLayout(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func resnapAfterLayout<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ scrollOffset: ScrollIntPoint,
         _ extents: ScrollPhysicsExtents,
         _ pageScale: Float
@@ -817,8 +828,8 @@ final class ScrollSnapAnimationState {
         return snapPointChanged
     }
 
-    private func setNearestScrollSnapIndexForAxisAndOffsetInternal(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    private func setNearestScrollSnapIndexForAxisAndOffsetInternal<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ axis: WebCore.ScrollEventAxis,
         _ scrollOffset: ScrollIntPoint,
         _ extents: ScrollPhysicsExtents,
@@ -833,8 +844,8 @@ final class ScrollSnapAnimationState {
         return true
     }
 
-    func setNearestScrollSnapIndexForOffset(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    func setNearestScrollSnapIndexForOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ scrollOffset: ScrollIntPoint,
         _ extents: ScrollPhysicsExtents,
         _ pageScale: Float
@@ -852,15 +863,16 @@ final class ScrollSnapAnimationState {
     }
 
     // The target is rounded to a LayoutUnit before it is returned.
-    private func targetOffsetForStartOffset(
-        _ c: inout WebCore.ScrollPhysicsClient,
+    private func targetOffsetForStartOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
         _ axis: WebCore.ScrollEventAxis,
         _ extents: ScrollPhysicsExtents,
         _ startOffset: Float,
         _ predictedOffset: ScrollPoint,
         _ pageScale: Float,
-        _ initialDelta: Float
-    ) -> (Float, UInt32?) {
+        _ initialDelta: Float ) -> (Float,
+        UInt32?
+    ) {
         let minScrollOffset = valueForAxis(extents.minimumScrollOffset, axis)
         let maxScrollOffset = valueForAxis(extents.maximumScrollOffset, axis)
 
