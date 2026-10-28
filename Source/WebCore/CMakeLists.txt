@@ -3432,6 +3432,28 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         platform/text/SegmentedString.h html/parser/HTMLToken.h html/parser/HTMLTokenizer.h
         html/parser/HTMLEntityParser.h html/parser/HTMLEntityTable.h css/parser/CSSTokenizerInputStream.h)
 
+    target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/platform/image-decoders/ImageFrameBuffer.swift
+        ${WEBCORE_DIR}/platform/image-decoders/bmp/BMPImageDecoder.swift
+        ${WEBCORE_DIR}/platform/image-decoders/bmp/BMPImageReader.swift
+        ${WEBCORE_DIR}/platform/image-decoders/gif/GIFImageDecoder.swift
+        ${WEBCORE_DIR}/platform/image-decoders/gif/GIFImageReader.swift
+        ${WEBCORE_DIR}/platform/image-decoders/ico/ICODirectory.swift
+        ${WEBCORE_DIR}/platform/image-decoders/ico/ICOImageDecoder.swift
+    )
+    set(_webcore_swift_image_decoder_sources
+        platform/image-decoders/bmp/BMPImageDecoder.cpp
+        platform/image-decoders/gif/GIFImageDecoder.cpp
+        platform/image-decoders/ico/ICOImageDecoder.cpp)
+    list(REMOVE_ITEM WebCore_SOURCES ${_webcore_swift_image_decoder_sources})
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_swift_image_decoder_sources})
+    string(APPEND _webcore_swift_modules
+        "    explicit module ImageDecoderSwiftTypes {\n"
+        "        header \"${WEBCORE_DIR}/platform/image-decoders/ImageDecoderSwiftTypes.h\"\n"
+        "        requires cplusplus\n"
+        "        export *\n"
+        "    }\n")
+
     webkit_target_add_swift_options(WebCore
         "-library-level spi"
         # For the vendored SIMD operations in SIMD*.swift, until the standard library has them.
