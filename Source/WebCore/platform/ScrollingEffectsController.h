@@ -334,6 +334,7 @@ private:
 
 #if USE_SWIFT_SCROLL_PHYSICS
     friend class ScrollPhysicsClient;
+    template<typename> friend class ScrollSnapPhysicsClient;
     std::unique_ptr<ScrollPhysicsControllerHolder> m_physics;
     std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
 #else
