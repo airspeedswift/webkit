@@ -30,6 +30,7 @@
 #include "ScrollAnimation.h"
 #include <wtf/TZoneMalloc.h>
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WebCore {
 
 class FloatPoint;
@@ -71,3 +72,4 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_SCROLL_ANIMATION(WebCore::ScrollAnimationKeyboard, type() == WebCore::ScrollAnimation::Type::Keyboard)
+#endif // !USE_SWIFT_SCROLL_PHYSICS

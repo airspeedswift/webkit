@@ -38,6 +38,7 @@
 #include <wtf/MonotonicTime.h>
 #include <wtf/TZoneMalloc.h>
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WTF {
 class TextStream;
 }
@@ -181,3 +182,4 @@ private:
 WTF::TextStream& operator<<(WTF::TextStream&, const ScrollSnapAnimatorState&);
 
 } // namespace WebCore
+#endif // !USE_SWIFT_SCROLL_PHYSICS

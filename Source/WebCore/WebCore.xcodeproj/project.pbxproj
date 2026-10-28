@@ -2582,6 +2582,12 @@
 		5B30695E18B3D3450099D5E8 /* WebGLDrawBuffers.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B30695B18B3D3450099D5E8 /* WebGLDrawBuffers.h */; };
 		5B416B5E29C4F1F4002ECA1B /* FontSizeAdjust.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B416B5D29C4F1F3002ECA1B /* FontSizeAdjust.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		1D345737494ECF6CB328807A /* ScrollingEffectsClock.h in Headers */ = {isa = PBXBuildFile; fileRef = F7E9EB0035992A8FE989EEE4 /* ScrollingEffectsClock.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A11000000000000000002 /* ScrollPhysicsTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000001 /* ScrollPhysicsTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A11000000000000000004 /* ScrollPhysicsControllerHolder.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000003 /* ScrollPhysicsControllerHolder.h */; };
+		5C0A11000000000000000006 /* ScrollPhysicsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000005 /* ScrollPhysicsController.swift */; };
+		5C0A11000000000000000008 /* ScrollPhysicsAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000007 /* ScrollPhysicsAnimations.swift */; };
+		5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */; };
+		5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */; };
 		5B46656325D14C0A000CFE14 /* ScrollingEffectsController.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5B46656425D14C0A000CFE14 /* ScrollSnapAnimatorState.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B46656025D14C0A000CFE14 /* ScrollSnapAnimatorState.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5B4C7CA9D949D424F9683D2F /* UnifiedSource41-header-RenderStyleGetters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FBCE61FFFCC0A29F0D842C51 /* UnifiedSource41-header-RenderStyleGetters.cpp */; };
@@ -13520,6 +13526,12 @@
 		5B46655D25D14C09000CFE14 /* ScrollSnapAnimatorState.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollSnapAnimatorState.cpp; sourceTree = "<group>"; };
 		5B46655E25D14C09000CFE14 /* ScrollingEffectsController.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollingEffectsController.cpp; sourceTree = "<group>"; };
 		F7E9EB0035992A8FE989EEE4 /* ScrollingEffectsClock.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingEffectsClock.h; sourceTree = "<group>"; };
+		5C0A11000000000000000001 /* ScrollPhysicsTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollPhysicsTypes.h; sourceTree = "<group>"; };
+		5C0A11000000000000000003 /* ScrollPhysicsControllerHolder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollPhysicsControllerHolder.h; sourceTree = "<group>"; };
+		5C0A11000000000000000005 /* ScrollPhysicsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsController.swift; sourceTree = "<group>"; };
+		5C0A11000000000000000007 /* ScrollPhysicsAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsAnimations.swift; sourceTree = "<group>"; };
+		5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsGeometry.swift; sourceTree = "<group>"; };
+		5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollSnapAnimationState.swift; sourceTree = "<group>"; };
 		5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollingEffectsController.h; sourceTree = "<group>"; };
 		5B46656025D14C0A000CFE14 /* ScrollSnapAnimatorState.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollSnapAnimatorState.h; sourceTree = "<group>"; };
 		5B7AB9F62567DB7E006592D0 /* ScrollSnapOffsetsInfo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollSnapOffsetsInfo.cpp; sourceTree = "<group>"; };
@@ -39854,6 +39866,12 @@
 				BC1402890E83680800319717 /* ScrollbarThemeComposite.h */,
 				CD1F9B4C270D03A900617EB6 /* ScrollExtents.h */,
 				F7E9EB0035992A8FE989EEE4 /* ScrollingEffectsClock.h */,
+				5C0A11000000000000000001 /* ScrollPhysicsTypes.h */,
+				5C0A11000000000000000003 /* ScrollPhysicsControllerHolder.h */,
+				5C0A11000000000000000005 /* ScrollPhysicsController.swift */,
+				5C0A11000000000000000007 /* ScrollPhysicsAnimations.swift */,
+				5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */,
+				5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */,
 				5B46655E25D14C09000CFE14 /* ScrollingEffectsController.cpp */,
 				5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */,
 				0F99059826F6BE7F0054FBE0 /* ScrollingMomentumCalculator.cpp */,
@@ -48901,6 +48919,8 @@
 				9391A991162746CB00297330 /* ScrollingCoordinatorMac.h in Headers */,
 				712DBA4921F8AD83008F36B2 /* ScrollingCoordinatorTypes.h in Headers */,
 				1D345737494ECF6CB328807A /* ScrollingEffectsClock.h in Headers */,
+				5C0A11000000000000000002 /* ScrollPhysicsTypes.h in Headers */,
+				5C0A11000000000000000004 /* ScrollPhysicsControllerHolder.h in Headers */,
 				5B46656325D14C0A000CFE14 /* ScrollingEffectsController.h in Headers */,
 				0F99059A26F6BE850054FBE0 /* ScrollingMomentumCalculator.h in Headers */,
 				0F99059D26F6BE9A0054FBE0 /* ScrollingMomentumCalculatorMac.h in Headers */,
@@ -51283,6 +51303,10 @@
 				A833C7CA0A2CF06B00D57664 /* SVGNames.cpp in Sources */,
 				07E047C3305A9DB000DFCC4B /* SwiftStub.swift in Sources */,
 				5A1E00000000000000000002 /* SIMDHelpers.swift in Sources */,
+				5C0A11000000000000000006 /* ScrollPhysicsController.swift in Sources */,
+				5C0A11000000000000000008 /* ScrollPhysicsAnimations.swift in Sources */,
+				5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */,
+				5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,
 				5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */,
