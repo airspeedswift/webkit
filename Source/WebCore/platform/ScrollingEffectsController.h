@@ -53,6 +53,11 @@ class ScrollableArea;
 class WheelEventTestMonitor;
 struct ScrollExtents;
 
+#if USE_SWIFT_SCROLL_PHYSICS
+class ScrollPhysicsClient;
+struct ScrollPhysicsControllerHolder;
+#endif
+
 class ScrollingEffectsControllerTimer : public RunLoop::TimerBase {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(ScrollingEffectsControllerTimer, WEBCORE_EXPORT);
 public:
@@ -141,7 +146,11 @@ public:
     virtual ScrollingNodeID scrollingNodeIDForTesting() const = 0;
 };
 
+#if USE_SWIFT_SCROLL_PHYSICS
+class WEBCORE_EXPORT ScrollingEffectsController {
+#else
 class WEBCORE_EXPORT ScrollingEffectsController : public ScrollAnimationClient {
+#endif
     WTF_MAKE_NONCOPYABLE(ScrollingEffectsController);
 
 public:
@@ -163,10 +172,12 @@ public:
 
     void stopKeyboardScrolling();
 
+#if !USE_SWIFT_SCROLL_PHYSICS
     bool startMomentumScrollWithInitialVelocity(const FloatPoint& initialOffset, const FloatSize& initialVelocity, const FloatSize& initialDelta, NOESCAPE const Function<FloatPoint(const FloatPoint&)>& destinationModifier);
 
     void willBeginKeyboardScrolling();
     void didStopKeyboardScrolling();
+#endif
 
     bool startKeyboardScroll(const KeyboardScroll&);
 
@@ -188,9 +199,13 @@ public:
     std::optional<unsigned> LEGACY_NODELETE activeScrollSnapIndexForAxis(ScrollEventAxis) const;
     float adjustedScrollDestination(ScrollEventAxis, FloatPoint destinationOffset, float velocity, std::optional<float> originalOffset, ScrollSnapPointSelectionMethod = ScrollSnapPointSelectionMethod::Closest) const;
 
+#if USE_SWIFT_SCROLL_PHYSICS
+    bool activeScrollSnapIndexDidChange() const;
+#else
     bool activeScrollSnapIndexDidChange() const { return m_activeScrollSnapIndexDidChange; }
     // FIXME: This is never called. We never set m_activeScrollSnapIndexDidChange back to false.
     void setScrollSnapIndexDidChange(bool state) { m_activeScrollSnapIndexDidChange = state; }
+#endif
 
     // Returns true if handled.
     bool handleWheelEvent(const PlatformWheelEvent&);
@@ -213,24 +228,33 @@ public:
     void startRubberBandSnapBack();
     void rubberBandTargetOffsetDidChange();
     bool LEGACY_NODELETE isRubberBandInProgress() const;
+#if USE_SWIFT_SCROLL_PHYSICS
+    RectEdges<bool> rubberBandingEdges() const;
+#else
     RectEdges<bool> rubberBandingEdges() const { return m_rubberBandingEdges; }
+#endif
 
     std::optional<RubberbandingState> captureRubberbandingState() const;
     bool restoreRubberbandingState(const RubberbandingState&);
+#if !USE_SWIFT_SCROLL_PHYSICS
     bool LEGACY_NODELETE shouldAttemptRubberbandingRestoration(const RubberbandingState&);
+#endif
 #if HAVE(APPKIT_GESTURES_SUPPORT)
     FloatSize LEGACY_NODELETE computeDampedStretchDelta(FloatSize delta, bool horizontalDeltaOpposesStretch, bool verticalDeltaOpposesStretch);
     float LEGACY_NODELETE deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch);
 
     float rubberbandHyperbolicCoefficientForTesting() const { return m_rubberbandHyperbolicCoefficient; }
 #else
+#if !USE_SWIFT_SCROLL_PHYSICS
     FloatSize LEGACY_NODELETE deltaAdjustedForRefreshController(const FloatSize& adjustedDelta, bool);
+#endif
 #endif
 #endif
 
 private:
     bool isSpringAnimationRunning() const;
 
+#if !USE_SWIFT_SCROLL_PHYSICS
     void updateRubberBandAnimatingState();
 
     void setIsAnimatingRubberBand(bool);
@@ -239,13 +263,19 @@ private:
 
     void startScrollSnapAnimation();
     void stopScrollSnapAnimation();
+#endif
 
 #if PLATFORM(MAC)
+#if !USE_SWIFT_SCROLL_PHYSICS
     bool LEGACY_NODELETE shouldOverrideMomentumScrolling() const;
+#endif
     void discreteSnapTransitionTimerFired();
+#if !USE_SWIFT_SCROLL_PHYSICS
     void scheduleDiscreteScrollSnap(const FloatSize& delta);
+#endif
     void scrollendTimerFired();
     void scheduleScrollendTimer();
+#if !USE_SWIFT_SCROLL_PHYSICS
 
     bool modifyScrollDeltaForStretching(const PlatformWheelEvent&, FloatSize&, bool isHorizontallyStretched, bool isVerticallyStretched);
     bool applyScrollDeltaWithStretching(const PlatformWheelEvent&, FloatSize, bool isHorizontallyStretched, bool isVerticallyStretched);
@@ -266,7 +296,9 @@ private:
     void updateRubberBandingState();
     void LEGACY_NODELETE updateRubberBandingEdges(IntSize clientStretch);
 #endif
+#endif
 
+#if !USE_SWIFT_SCROLL_PHYSICS
     void startOrStopAnimationCallbacks();
 
     void startDeferringWheelEventTestCompletion(WheelEventTestMonitor::DeferReason);
@@ -283,6 +315,7 @@ private:
     void adjustDeltaForSnappingIfNeeded(float& deltaX, float& deltaY);
 
     void clampDeltaForAllowedAxes(const PlatformWheelEvent&, FloatSize&);
+#endif
 
 #if ENABLE(KINETIC_SCROLLING) && !PLATFORM(MAC)
     // Returns true if handled.
@@ -299,6 +332,11 @@ private:
 
     ScrollingEffectsControllerClient& m_client;
 
+#if USE_SWIFT_SCROLL_PHYSICS
+    friend class ScrollPhysicsClient;
+    std::unique_ptr<ScrollPhysicsControllerHolder> m_physics;
+    std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
+#else
     std::unique_ptr<ScrollAnimation> m_currentAnimation;
 
     std::unique_ptr<ScrollSnapAnimatorState> m_scrollSnapState;
@@ -309,8 +347,10 @@ private:
     bool m_isAnimatingScrollSnap { false };
     bool m_isAnimatingKeyboardScrolling { false };
     bool m_inScrollGesture { false };
+#endif
 
 #if PLATFORM(MAC)
+#if !USE_SWIFT_SCROLL_PHYSICS
     MonotonicTime m_lastMomentumScrollTimestamp;
     FloatSize m_unappliedOverscrollDelta;
     FloatSize m_stretchScrollForce;
@@ -324,20 +364,27 @@ private:
 
     FloatSize m_cumulativeGestureDelta;
     MonotonicTime m_lastGestureEventTime;
+#endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
     float m_rubberbandHyperbolicCoefficient { 0 };
     bool m_gestureBeganAtTop { false };
 #elif HAVE(NSREFRESHCONTROLLER)
+#if !USE_SWIFT_SCROLL_PHYSICS
     bool m_skipAdditionalDeltaAdjustments { false };
 #endif
+#endif
 
+#if !USE_SWIFT_SCROLL_PHYSICS
     Deque<FloatSize> m_recentDiscreteWheelDeltas;
+#endif
     std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
     std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
 
 #if HAVE(RUBBER_BANDING)
+#if !USE_SWIFT_SCROLL_PHYSICS
     RectEdges<bool> m_rubberBandingEdges;
+#endif
 #endif
 
 #if ASSERT_ENABLED

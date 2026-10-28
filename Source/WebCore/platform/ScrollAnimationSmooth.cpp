@@ -40,6 +40,29 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
+#if USE_SWIFT_SCROLL_PHYSICS
+#include "WebCore-Swift.h"
+
+namespace WebCore {
+
+// ScrollPhysicsAnimations.swift uses these values of UnitBezier.h, which it cannot import.
+static_assert(UnitBezier::kBezierEpsilon == 1e-7);
+static_assert(UnitBezier::kBisectionEpsilon == 1e-10);
+static_assert(UnitBezier::kMaxNewtonIterations == 4);
+static_assert(CUBIC_BEZIER_SPLINE_SAMPLES == 11);
+
+// ScrollPhysicsAnimations.swift copies this std::array, which it cannot index.
+static_assert(DocumentEdgeScrollSpring::timingFunctionControlPoints == std::array<double, 4> { 0, 0.2, 1, 1 });
+
+double ScrollAnimationSmooth::springProgress(Seconds elapsedTime)
+{
+    return documentEdgeScrollSpringProgress(elapsedTime.value());
+}
+
+} // namespace WebCore
+#endif
+
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollAnimationSmooth);
@@ -178,3 +201,4 @@ String ScrollAnimationSmooth::debugDescription() const
 }
 
 } // namespace WebCore
+#endif // !USE_SWIFT_SCROLL_PHYSICS

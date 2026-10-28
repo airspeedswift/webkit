@@ -28,22 +28,31 @@
 
 #if PLATFORM(MAC)
 
+#import "ScrollPhysicsTypes.h"
 #import <pal/spi/mac/NSScrollingMomentumCalculatorSPI.h>
 
 namespace WebCore {
 
 static bool gEnablePlatformMomentumScrollingPrediction = true;
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 std::unique_ptr<ScrollingMomentumCalculator> ScrollingMomentumCalculator::create(const ScrollExtents& scrollExtents, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity)
 {
     return makeUnique<ScrollingMomentumCalculatorMac>(scrollExtents, initialOffset, initialDelta, initialVelocity);
 }
+#endif
 
 void ScrollingMomentumCalculator::setPlatformMomentumScrollingPredictionEnabled(bool enabled)
 {
     gEnablePlatformMomentumScrollingPrediction = enabled;
 }
 
+#if USE_SWIFT_SCROLL_PHYSICS
+bool ScrollPhysicsClient::platformMomentumScrollingPredictionEnabled()
+{
+    return gEnablePlatformMomentumScrollingPrediction;
+}
+#else
 ScrollingMomentumCalculatorMac::ScrollingMomentumCalculatorMac(const ScrollExtents& scrollExtents, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity)
     : ScrollingMomentumCalculator(scrollExtents, initialOffset, initialDelta, initialVelocity)
 {
@@ -114,6 +123,7 @@ _NSScrollingMomentumCalculator *ScrollingMomentumCalculatorMac::ensurePlatformMo
     m_initialDestinationOffset = [m_platformMomentumCalculator destinationOrigin];
     return m_platformMomentumCalculator.get();
 }
+#endif
 
 } // namespace WebCore
 

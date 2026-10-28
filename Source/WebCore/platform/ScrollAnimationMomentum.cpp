@@ -31,6 +31,7 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollAnimationMomentum);
@@ -130,3 +131,4 @@ String ScrollAnimationMomentum::debugDescription() const
 }
 
 } // namespace WebCore
+#endif // !USE_SWIFT_SCROLL_PHYSICS

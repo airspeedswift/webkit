@@ -37,10 +37,13 @@ class FloatPoint;
 class FloatSize;
 
 class ScrollingMomentumCalculator {
+#if !USE_SWIFT_SCROLL_PHYSICS
     WTF_MAKE_TZONE_ALLOCATED(ScrollingMomentumCalculator);
+#endif
 public:
     WEBCORE_EXPORT static void LEGACY_NODELETE setPlatformMomentumScrollingPredictionEnabled(bool);
 
+#if !USE_SWIFT_SCROLL_PHYSICS
     static std::unique_ptr<ScrollingMomentumCalculator> create(const ScrollExtents&, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity);
 
     ScrollingMomentumCalculator(const ScrollExtents&, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity);
@@ -66,8 +69,10 @@ protected:
 
 private:
     std::optional<FloatPoint> m_retargetedScrollOffset;
+#endif
 };
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 class BasicScrollingMomentumCalculator final : public ScrollingMomentumCalculator {
 public:
     BasicScrollingMomentumCalculator(const ScrollExtents&, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity);
@@ -89,5 +94,6 @@ private:
     bool m_forceLinearAnimationCurve { false };
     bool m_momentumCalculatorRequiresInitialization { true };
 };
+#endif
 
 } // namespace WebCore
