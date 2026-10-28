@@ -42,5 +42,6 @@
 // relevant headers must be included here.
 
 #include "ScrollPhysicsTypes.h"
+#include "ScrollingTreeScrollPhysicsClient.h"
 
 #include "WebCoreSwift-Generated.h"
