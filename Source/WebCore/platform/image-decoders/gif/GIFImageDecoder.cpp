@@ -26,14 +26,31 @@
 #include "config.h"
 #include "GIFImageDecoder.h"
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "GIFImageReader.h"
+#else
+#include "ImageDecoderSwiftFrames.h"
+#include "WebCore-Swift.h"
+#endif
 #include <limits>
 #include <wtf/text/ParsingUtilities.h>
 
 namespace WebCore {
 
+#if USE_SWIFT_IMAGE_DECODERS
+// GIFImageDecoder.swift uses these values.
+static_assert(RepetitionCountOnce == 1 && RepetitionCountInfinite == -1);
+#endif
+
 GIFImageDecoder::GIFImageDecoder(AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
     : ScalableImageDecoder(alphaOption, gammaAndColorProfileOption)
+#if USE_SWIFT_IMAGE_DECODERS
+    , m_swift(makeUniqueWithoutFastMallocCheck<GIFImageDecoderState>(GIFImageDecoderState::init(m_premultiplyAlpha)))
+#endif
 {
 }
 
@@ -45,10 +62,17 @@ void GIFImageDecoder::setData(const FragmentedSharedBuffer& data, bool allDataRe
         return;
 
     ScalableImageDecoder::setData(data, allDataReceived);
+#if !USE_SWIFT_IMAGE_DECODERS
     if (m_reader)
         m_reader->setData(*m_data);
+#else
+    Locker locker { m_lock };
+    if (m_hasReader)
+        m_readerData = m_data;
+#endif
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 bool GIFImageDecoder::setSize(const IntSize& size)
 {
     if (ScalableImageDecoder::encodedDataStatus() >= EncodedDataStatus::SizeAvailable && this->size() == size)
@@ -56,6 +80,7 @@ bool GIFImageDecoder::setSize(const IntSize& size)
 
     return ScalableImageDecoder::setSize(size);
 }
+#endif
 
 size_t GIFImageDecoder::decodeIfNeededAndGetFrameCount() const
 {
@@ -90,13 +115,21 @@ RepetitionCount GIFImageDecoder::repetitionCount() const
     // see the loop count and then encounter a decoding error which happens
     // later in the stream. It is also possible that no frames are in the
     // stream. In these cases we should just loop once.
+#if !USE_SWIFT_IMAGE_DECODERS
     if (failed() || (m_reader && (!m_reader->imagesCount())))
         m_repetitionCount = RepetitionCountOnce;
     else if (m_reader && m_reader->loopCount() != cLoopCountNotSeen)
         m_repetitionCount = m_reader->loopCount() > 0 ? m_reader->loopCount() + 1 : m_reader->loopCount();
+#else
+    if (failed())
+        m_repetitionCount = RepetitionCountOnce;
+    else if (m_readerRepetitionCount)
+        m_repetitionCount = m_readerRepetitionCount;
+#endif
     return m_repetitionCount;
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 size_t GIFImageDecoder::findFirstRequiredFrameToDecode(size_t frameIndex)
 {
     assertIsHeld(m_lock);
@@ -132,10 +165,12 @@ size_t GIFImageDecoder::findFirstRequiredFrameToDecode(size_t frameIndex)
 
     return 0;
 }
+#endif
 
 ScalableImageDecoderFrame* GIFImageDecoder::frameBufferAtIndex(size_t index)
 {
     assertIsHeld(m_lock);
+#if !USE_SWIFT_IMAGE_DECODERS
     if (index >= decodeIfNeededAndGetFrameCount())
         return 0;
 
@@ -146,17 +181,25 @@ ScalableImageDecoderFrame* GIFImageDecoder::frameBufferAtIndex(size_t index)
     }
 
     return &frame;
+#else
+    if (!decodeInSwift(ImageDecoderRequest::Frame, index, isAllDataReceived()))
+        return nullptr;
+    return &m_frameBufferCache[index];
+#endif
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 bool GIFImageDecoder::setFailed()
 {
     m_reader = nullptr;
     return ScalableImageDecoder::setFailed();
 }
+#endif
 
 void GIFImageDecoder::clearDecodedPixelDataIfNeeded(size_t clearBeforeFrame)
 {
     assertIsHeld(m_lock);
+#if !USE_SWIFT_IMAGE_DECODERS
     // In some cases, like if the decoder was destroyed while animating, we
     // can be asked to clear more frames than we currently have.
     if (m_frameBufferCache.isEmpty())
@@ -209,8 +252,13 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
         if (!j->isInvalid())
             j->clear();
     }
+#else
+    ImageDecoderFramesState frames { *this, m_frameBufferCache };
+    gifImageDecoderClearFrameBufferCache(*m_swift, frames, clearBeforeFrame);
+#endif
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 bool GIFImageDecoder::haveDecodedRow(unsigned frameIndex, const Vector<unsigned char>& rowBuffer, size_t width, size_t rowNumber, unsigned repeatCount, bool writeTransparentPixels)
 {
     assertIsHeld(m_lock);
@@ -441,5 +489,25 @@ bool GIFImageDecoder::initFrameBuffer(unsigned frameIndex)
     m_currentBufferSawAlpha = false;
     return true;
 }
+#else
+void GIFImageDecoder::decode(unsigned haltAtFrame, GIFQuery query, bool allDataReceived)
+{
+    assertIsHeld(m_lock);
+    decodeInSwift(query == GIFSizeQuery ? ImageDecoderRequest::Size : ImageDecoderRequest::FrameCount, haltAtFrame, allDataReceived);
+}
+
+bool GIFImageDecoder::decodeInSwift(ImageDecoderRequest request, size_t index, bool allDataReceived)
+{
+    assertIsHeld(m_lock);
+    RefPtr readerData = m_hasReader ? m_readerData : m_data;
+    ImageDecoderFramesState frames { *this, m_frameBufferCache };
+    auto result = gifImageDecoderDecode(*m_swift, frames, readerData ? readerData->span() : std::span<const uint8_t> { }, request, index, allDataReceived, m_repetitionCount);
+    m_hasReader = result.hasReader;
+    m_readerData = m_hasReader ? std::move(readerData) : nullptr;
+    m_repetitionCount = result.repetitionCount;
+    m_readerRepetitionCount = result.readerRepetitionCount;
+    return result.frameAvailable;
+}
+#endif
 
 } // namespace WebCore

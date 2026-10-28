@@ -31,18 +31,33 @@
 #include "config.h"
 #include "BMPImageDecoder.h"
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "BMPImageReader.h"
+#else
+#include "ImageDecoderSwiftFrames.h"
+#include "WebCore-Swift.h"
+#endif
 
 namespace WebCore {
 
+#if !USE_SWIFT_IMAGE_DECODERS
 // Number of bits in .BMP used to store the file header (doesn't match
 // "sizeof(BMPImageDecoder::BitmapFileHeader)" since we omit some fields and
 // don't pack).
 static const size_t sizeOfFileHeader = 14;
+#endif
 
 BMPImageDecoder::BMPImageDecoder(AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
     : ScalableImageDecoder(alphaOption, gammaAndColorProfileOption)
+#if !USE_SWIFT_IMAGE_DECODERS
     , m_decodedOffset(0)
+#else
+    , m_swift(makeUniqueWithoutFastMallocCheck<BMPImageDecoderState>(BMPImageDecoderState::init(m_premultiplyAlpha)))
+#endif
 {
 }
 
@@ -52,8 +67,14 @@ void BMPImageDecoder::setData(const FragmentedSharedBuffer& data, bool allDataRe
         return;
 
     ScalableImageDecoder::setData(data, allDataReceived);
+#if !USE_SWIFT_IMAGE_DECODERS
     if (m_reader)
         m_reader->setData(*m_data);
+#else
+    Locker locker { m_lock };
+    if (m_hasReader)
+        m_readerData = m_data;
+#endif
 }
 
 ScalableImageDecoderFrame* BMPImageDecoder::frameBufferAtIndex(size_t index)
@@ -68,18 +89,27 @@ ScalableImageDecoderFrame* BMPImageDecoder::frameBufferAtIndex(size_t index)
     auto* buffer = &m_frameBufferCache.first();
     if (!buffer->isComplete())
         decode(false, isAllDataReceived());
+#if USE_SWIFT_IMAGE_DECODERS
+    // The decode can resize m_frameBufferCache.
+    buffer = &m_frameBufferCache.first();
+#endif
     return buffer;
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 bool BMPImageDecoder::setFailed()
 {
     m_reader = nullptr;
     return ScalableImageDecoder::setFailed();
 }
+#else
+BMPImageDecoder::~BMPImageDecoder() = default;
+#endif
 
 void BMPImageDecoder::decode(bool onlySize, bool allDataReceived)
 {
     assertIsHeld(m_lock);
+#if !USE_SWIFT_IMAGE_DECODERS
     if (failed())
         return;
 
@@ -140,5 +170,12 @@ bool BMPImageDecoder::processFileHeader(size_t* imgDataOffset)
     };
     return (fileType == BMAP) || setFailed();
 }
+#else
+    RefPtr readerData = m_hasReader ? m_readerData : m_data;
+    ImageDecoderFramesState frames { *this, m_frameBufferCache };
+    m_hasReader = bmpImageDecoderDecode(*m_swift, frames, readerData ? readerData->span() : std::span<const uint8_t> { }, onlySize, allDataReceived);
+    m_readerData = m_hasReader ? std::move(readerData) : nullptr;
+}
+#endif
 
 } // namespace WebCore

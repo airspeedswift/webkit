@@ -60,4 +60,11 @@
 #include "SegmentedString.h"
 #endif
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+#if USE_SWIFT_IMAGE_DECODERS
+#include "ImageDecoderSwiftTypes.h"
+#endif
+
 #include "WebCoreSwift-Generated.h"

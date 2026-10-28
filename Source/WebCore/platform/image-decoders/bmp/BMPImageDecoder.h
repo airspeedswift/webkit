@@ -30,9 +30,22 @@
 
 #pragma once
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "BMPImageReader.h"
+#else
+#include "ImageDecoderSwiftTypes.h"
+#include "ScalableImageDecoder.h"
+#endif
 
 namespace WebCore {
+
+#if USE_SWIFT_IMAGE_DECODERS
+class BMPImageDecoderState;
+#endif
 
 // This class decodes the BMP image format.
 class BMPImageDecoder final : public ScalableImageDecoder {
@@ -46,25 +59,32 @@ public:
     String filenameExtension() const final { return "bmp"_s; }
     void setData(const FragmentedSharedBuffer&, bool allDataReceived) final;
     ScalableImageDecoderFrame* frameBufferAtIndex(size_t index) final;
+#if !USE_SWIFT_IMAGE_DECODERS
     // CAUTION: setFailed() deletes |m_reader|. Be careful to avoid
     // accessing deleted memory, especially when calling this from inside
     // BMPImageReader!
     bool setFailed() final;
+#else
+    ~BMPImageDecoder();
+#endif
 
 private:
     BMPImageDecoder(AlphaOption, GammaAndColorProfileOption);
     void tryDecodeSize(bool allDataReceived) final { decode(true, allDataReceived); }
 
+#if !USE_SWIFT_IMAGE_DECODERS
     inline uint32_t readUint32(int offset) const
     {
         return BMPImageReader::readUint32(*m_data, m_decodedOffset + offset);
     }
+#endif
 
     // Decodes the image. If |onlySize| is true, stops decoding after
     // calculating the image size. If decoding fails but there is no more
     // data coming, sets the "decode failure" flag.
     void decode(bool onlySize, bool allDataReceived);
 
+#if !USE_SWIFT_IMAGE_DECODERS
     // Decodes the image. If |onlySize| is true, stops decoding after
     // calculating the image size. Returns whether decoding succeeded.
     bool decodeHelper(bool onlySize);
@@ -81,6 +101,11 @@ private:
 
     // The reader used to do most of the BMP decoding.
     std::unique_ptr<BMPImageReader> m_reader;
+#else
+    std::unique_ptr<BMPImageDecoderState> m_swift;
+    RefPtr<const SharedBuffer> m_readerData;
+    bool m_hasReader { false };
+#endif
 };
 
 } // namespace WebCore
