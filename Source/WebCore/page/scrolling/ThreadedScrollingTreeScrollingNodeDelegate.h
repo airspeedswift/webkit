@@ -40,8 +40,10 @@ class IntPoint;
 class ScrollingStateScrollingNode;
 class ScrollingTreeScrollingNode;
 class ScrollingTree;
+class ScrollingTreeScrollPhysicsClient;
+struct ScrollingTreeScrollPhysicsDelegateHolder;
 
-class ThreadedScrollingTreeScrollingNodeDelegate : public ScrollingTreeScrollingNodeDelegate, private ScrollingEffectsControllerClient {
+class ThreadedScrollingTreeScrollingNodeDelegate : public ScrollingTreeScrollingNodeDelegate {
     WTF_MAKE_TZONE_ALLOCATED(ThreadedScrollingTreeScrollingNodeDelegate);
 public:
     void updateSnapScrollState();
@@ -54,8 +56,6 @@ protected:
     explicit ThreadedScrollingTreeScrollingNodeDelegate(ScrollingTreeScrollingNode&);
     virtual ~ThreadedScrollingTreeScrollingNodeDelegate();
 
-    void updateUserScrollInProgressForEvent(const PlatformWheelEvent&);
-
     void updateFromStateNode(const ScrollingStateScrollingNode&) override;
 
     bool startAnimatedScrollToPosition(FloatPoint, ScrollAnimationCurve) override;
@@ -63,42 +63,21 @@ protected:
     void stopSpringAnimation() override;
     void serviceScrollAnimation(MonotonicTime) override;
 
-    // ScrollingEffectsControllerClient.
-    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&) override;
-    void destroyTimer(std::unique_ptr<ScrollingEffectsControllerTimer>) override;
-    void startAnimationCallback(ScrollingEffectsController&) override;
-    void stopAnimationCallback(ScrollingEffectsController&) override;
-
-    bool allowsHorizontalScrolling() const override;
-    bool allowsVerticalScrolling() const override;
-
-    void immediateScrollBy(const FloatSize&, ScrollClamping = ScrollClamping::Clamped) override;
-    void adjustScrollPositionToBoundsIfNecessary() override;
-
-    bool scrollPositionIsNotRubberbandingEdge(const FloatPoint&) const;
-
-    FloatPoint scrollOffset() const override;
-    float pageScaleFactor() const override;
-
-    void willStartAnimatedScroll() override;
-    void didStopAnimatedScroll() override;
-    void willStartWheelEventScroll() override;
-    void didStopWheelEventScroll() override;
-    void willStartScrollSnapAnimation() override;
-    void didStopScrollSnapAnimation() override;
-
-    ScrollExtents scrollExtents() const override;
-
-    void deferWheelEventTestCompletionForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) const override;
-    void removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) const override;
-
-    ScrollingNodeID scrollingNodeIDForTesting() const final;
+    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&);
+    void destroyTimer(std::unique_ptr<ScrollingEffectsControllerTimer>);
 
     FloatPoint adjustedScrollPosition(const FloatPoint&) const override;
 
     void handleKeyboardScrollRequest(const RequestedKeyboardScrollData&) override;
 
-    ScrollingEffectsController m_scrollController;
+    void discreteSnapTransitionTimerFired();
+
+    friend class ScrollingTreeScrollPhysicsClient;
+    template<typename> friend class ScrollSnapPhysicsClient;
+    std::unique_ptr<ScrollingTreeScrollPhysicsDelegateHolder> m_physics;
+    std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
 };
 
 } // namespace WebCore

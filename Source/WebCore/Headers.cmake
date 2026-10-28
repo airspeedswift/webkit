@@ -2182,6 +2182,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/scrolling/ScrollingTreePluginHostingNode.h
     page/scrolling/ScrollingTreePluginScrollingNode.h
     page/scrolling/ScrollingTreePositionedNode.h
+    page/scrolling/ScrollingTreeScrollPhysicsClient.h
     page/scrolling/ScrollingTreeScrollingNode.h
     page/scrolling/ScrollingTreeScrollingNodeDelegate.h
     page/scrolling/ScrollingTreeStickyNode.h

@@ -36,13 +36,48 @@
 #include "ScrollingTreeScrollingNode.h"
 #include <wtf/TZoneMallocInlines.h>
 
+#include "ScrollingTreeScrollPhysicsClient.h"
+#include "ScrollingTreeScrollPhysicsDelegateHolder.h"
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ThreadedScrollingTreeScrollingNodeDelegate);
 
+WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(ScrollingTreeScrollPhysicsDelegateHolder);
+
+// The shape that lets Swift use ScrollingTreeScrollPhysicsClient only in place (ScrollingTreeScrollPhysicsClient.h).
+static_assert(std::is_empty_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_polymorphic_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_default_constructible_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_copy_constructible_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_copy_assignable_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_move_assignable_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(std::is_move_constructible_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_trivially_destructible_v<ScrollingTreeScrollPhysicsClient>);
+
+ScrollingTreeScrollPhysicsClient::ScrollingTreeScrollPhysicsClient(ScrollingTreeScrollPhysicsClient&&)
+{
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
+ScrollingTreeScrollPhysicsClient::~ScrollingTreeScrollPhysicsClient() = default;
+
+void ScrollingTreeScrollPhysicsClient::startScrollendTimer()
+{
+    auto& delegate = this->delegate();
+    if (!delegate.m_discreteScrollendTimer) {
+        delegate.m_discreteScrollendTimer = delegate.createTimer([delegate = &delegate] {
+            delegate->scrollingNode()->didStopWheelEventScroll();
+        });
+    }
+    // As ScrollingEffectsController::scheduleScrollendTimer().
+    static constexpr Seconds discreteScrollDelay = 100_ms;
+    delegate.m_discreteScrollendTimer->startOneShot(discreteScrollDelay);
+}
+
 ThreadedScrollingTreeScrollingNodeDelegate::ThreadedScrollingTreeScrollingNodeDelegate(ScrollingTreeScrollingNode& scrollingNode)
     : ScrollingTreeScrollingNodeDelegate(scrollingNode)
-    , m_scrollController(*this)
+    , m_physics(makeUnique<ScrollingTreeScrollPhysicsDelegateHolder>())
 {
 }
 
@@ -50,54 +85,43 @@ ThreadedScrollingTreeScrollingNodeDelegate::~ThreadedScrollingTreeScrollingNodeD
 
 void ThreadedScrollingTreeScrollingNodeDelegate::updateFromStateNode(const ScrollingStateScrollingNode& scrollingStateNode)
 {
-    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::SnapOffsetsInfo))
-        m_scrollController.setSnapOffsetsInfo(scrollingStateNode.snapOffsetsInfo().convertUnits<LayoutScrollSnapOffsetsInfo>());
-
-    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentHorizontalSnapOffsetIndex))
-        m_scrollController.setActiveScrollSnapIndexForAxis(ScrollEventAxis::Horizontal, scrollingStateNode.currentHorizontalSnapPointIndex());
-
-    if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentVerticalSnapOffsetIndex))
-        m_scrollController.setActiveScrollSnapIndexForAxis(ScrollEventAxis::Vertical, scrollingStateNode.currentVerticalSnapPointIndex());
+    bool snapOffsetsChanged = scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::SnapOffsetsInfo);
+    if (snapOffsetsChanged) {
+        auto snapOffsetsInfo = scrollingStateNode.snapOffsetsInfo().convertUnits<LayoutScrollSnapOffsetsInfo>();
+        m_snapOffsetsInfo = snapOffsetsInfo.isEmpty() ? std::nullopt : std::make_optional(WTF::move(snapOffsetsInfo));
+    }
+    // -1 is no index.
+    auto snapIndex = [](std::optional<unsigned> index) {
+        return index ? int64_t { *index } : -1;
+    };
+    m_physics->delegate.updateFromStateNode(ScrollingTreeScrollPhysicsClientState(*this).facade(), snapOffsetsChanged, !!m_snapOffsetsInfo,
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentHorizontalSnapOffsetIndex), snapIndex(scrollingStateNode.currentHorizontalSnapPointIndex()),
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentVerticalSnapOffsetIndex), snapIndex(scrollingStateNode.currentVerticalSnapPointIndex()));
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::updateSnapScrollState()
 {
-    Ref scrollingNode = this->scrollingNode();
-    scrollingNode->setScrollSnapInProgress(m_scrollController.isScrollSnapInProgress());
-
-    if (m_scrollController.activeScrollSnapIndexDidChange())
-        scrollingTree()->setActiveScrollSnapIndices(scrollingNode->scrollingNodeID(), m_scrollController.activeScrollSnapIndexForAxis(ScrollEventAxis::Horizontal), m_scrollController.activeScrollSnapIndexForAxis(ScrollEventAxis::Vertical));
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::updateUserScrollInProgressForEvent(const PlatformWheelEvent& wheelEvent)
-{
-    bool wasInUserScroll = m_scrollController.isUserScrollInProgress();
-    m_scrollController.updateGestureInProgressState(wheelEvent);
-    bool isInUserScroll = m_scrollController.isUserScrollInProgress();
-    if (isInUserScroll != wasInUserScroll)
-        scrollingNode()->setUserScrollInProgress(isInUserScroll);
+    m_physics->delegate.updateSnapScrollState(ScrollingTreeScrollPhysicsClientState(*this).facade());
 }
 
 bool ThreadedScrollingTreeScrollingNodeDelegate::startAnimatedScrollToPosition(FloatPoint destinationPosition, ScrollAnimationCurve curve)
 {
-    auto currentOffset = ScrollableArea::scrollOffsetFromPosition(currentScrollPosition(), scrollOrigin());
-    auto destinationOffset = ScrollableArea::scrollOffsetFromPosition(destinationPosition, scrollOrigin());
-    return m_scrollController.startAnimatedScrollToDestination(currentOffset, destinationOffset, curve);
+    return m_physics->delegate.startAnimatedScrollToPosition(ScrollingTreeScrollPhysicsClientState(*this).facade(), destinationPosition, curve);
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::stopAnimatedScroll(EnumSet<AnimatedScrollType>)
 {
-    m_scrollController.stopAnimatedScroll();
+    m_physics->delegate.stopAnimatedScroll(ScrollingTreeScrollPhysicsClientState(*this).facade());
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::stopSpringAnimation()
 {
-    m_scrollController.stopSpringAnimation();
+    m_physics->delegate.stopSpringAnimation(ScrollingTreeScrollPhysicsClientState(*this).facade());
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::serviceScrollAnimation(MonotonicTime currentTime)
 {
-    m_scrollController.animationCallback(currentTime);
+    m_physics->delegate.serviceScrollAnimation(ScrollingTreeScrollPhysicsClientState(*this).facade(), currentTime.secondsSinceEpoch().value());
 }
 
 std::unique_ptr<ScrollingEffectsControllerTimer> ThreadedScrollingTreeScrollingNodeDelegate::createTimer(Function<void()>&& function)
@@ -119,116 +143,12 @@ void ThreadedScrollingTreeScrollingNodeDelegate::destroyTimer(std::unique_ptr<Sc
     ScrollingThread::dispatch([timer = WTF::move(timer)] { });
 }
 
-void ThreadedScrollingTreeScrollingNodeDelegate::startAnimationCallback(ScrollingEffectsController&)
+void ThreadedScrollingTreeScrollingNodeDelegate::discreteSnapTransitionTimerFired()
 {
-    scrollingNode()->setScrollAnimationInProgress(true);
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::stopAnimationCallback(ScrollingEffectsController&)
-{
-    scrollingNode()->setScrollAnimationInProgress(false);
-}
-
-bool ThreadedScrollingTreeScrollingNodeDelegate::allowsHorizontalScrolling() const
-{
-    return ScrollingTreeScrollingNodeDelegate::allowsHorizontalScrolling();
-}
-
-bool ThreadedScrollingTreeScrollingNodeDelegate::allowsVerticalScrolling() const
-{
-    return ScrollingTreeScrollingNodeDelegate::allowsVerticalScrolling();
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::immediateScrollBy(const FloatSize& delta, ScrollClamping clamping)
-{
-    scrollingNode()->scrollBy(delta, clamping);
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::adjustScrollPositionToBoundsIfNecessary()
-{
-    FloatPoint scrollPosition = currentScrollPosition();
-    FloatPoint constrainedPosition = scrollPosition.constrainedBetween(minimumScrollPosition(), maximumScrollPosition());
-    immediateScrollBy(constrainedPosition - scrollPosition);
-}
-
-FloatPoint ThreadedScrollingTreeScrollingNodeDelegate::scrollOffset() const
-{
-    return ScrollableArea::scrollOffsetFromPosition(currentScrollPosition(), scrollOrigin());
-}
-
-float ThreadedScrollingTreeScrollingNodeDelegate::pageScaleFactor() const
-{
-    // FIXME: What should this return for non-root frames, and overflow?
-    // Also, this should not have to access ScrollingTreeFrameScrollingNode.
-    if (RefPtr node = dynamicDowncast<ScrollingTreeFrameScrollingNode>(scrollingNode()))
-        return node->frameScaleFactor();
-
-    return 1;
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::willStartAnimatedScroll()
-{
-    scrollingNode()->willStartAnimatedScroll();
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::didStopAnimatedScroll()
-{
-    scrollingNode()->didStopAnimatedScroll();
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::willStartWheelEventScroll()
-{
-    scrollingNode()->willStartWheelEventScroll();
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::didStopWheelEventScroll()
-{
-    scrollingNode()->didStopWheelEventScroll();
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::willStartScrollSnapAnimation()
-{
-    scrollingNode()->setScrollSnapInProgress(true);
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::didStopScrollSnapAnimation()
-{
-    scrollingNode()->setScrollSnapInProgress(false);
-    didStopAnimatedScroll();
-}
-
-ScrollExtents ThreadedScrollingTreeScrollingNodeDelegate::scrollExtents() const
-{
-    Ref scrollingNode = this->scrollingNode();
-    // scrollableAreaSize() is the frame view's visibleSize(), which has the delegated page scale divided out
-    // of it. Put it back to get the snapport the snap offsets were computed in.
-    auto snapportSize = scrollingNode->scrollableAreaSize();
-    if (RefPtr frameNode = dynamicDowncast<ScrollingTreeFrameScrollingNode>(scrollingNode.get()))
-        snapportSize.scale(frameNode->delegatedPageScaleFactor());
-
-    return {
-        scrollingNode->totalContentsSize(),
-        scrollingNode->scrollableAreaSize(),
-        snapportSize
-    };
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::deferWheelEventTestCompletionForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason reason) const
-{
-    if (!scrollingTree()->isMonitoringWheelEvents())
-        return;
-
-    // Just use the scrolling node ID as the identifier, since we know this is coming from a ScrollingEffectsController associated with this node.
-    scrollingTree()->deferWheelEventTestCompletionForReason(scrollingNode()->scrollingNodeID(), reason);
-}
-
-void ThreadedScrollingTreeScrollingNodeDelegate::removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason reason) const
-{
-    if (!scrollingTree()->isMonitoringWheelEvents())
-        return;
-
-    // Just use the scrolling node ID as the identifier, since we know this is coming from a ScrollingEffectsController associated with this node.
-    scrollingTree()->removeWheelEventTestCompletionDeferralForReason(scrollingNode()->scrollingNodeID(), reason);
+    // The timer's callback may hold the last reference to the node, which owns this delegate.
+    ScrollingTreeScrollPhysicsClientState state(*this);
+    m_discreteSnapTransitionTimer = nullptr;
+    m_physics->delegate.discreteSnapTransitionTimerFired(state.facade());
 }
 
 FloatPoint ThreadedScrollingTreeScrollingNodeDelegate::adjustedScrollPosition(const FloatPoint& position) const
@@ -238,24 +158,8 @@ FloatPoint ThreadedScrollingTreeScrollingNodeDelegate::adjustedScrollPosition(co
 
 void ThreadedScrollingTreeScrollingNodeDelegate::handleKeyboardScrollRequest(const RequestedKeyboardScrollData& scrollData)
 {
-    switch (scrollData.action) {
-    case KeyboardScrollAction::StartAnimation:
-        m_scrollController.startKeyboardScroll(*scrollData.keyboardScroll);
-        break;
-    case KeyboardScrollAction::StopWithAnimation:
-        m_scrollController.finishKeyboardScroll(false);
-        break;
-    case KeyboardScrollAction::StopImmediately:
-        m_scrollController.finishKeyboardScroll(true);
-        break;
-    }
+    m_physics->delegate.handleKeyboardScrollRequest(ScrollingTreeScrollPhysicsClientState(*this).facade(), scrollData);
 }
-
-ScrollingNodeID ThreadedScrollingTreeScrollingNodeDelegate::scrollingNodeIDForTesting() const
-{
-    return scrollingNode()->scrollingNodeID();
-}
-
 
 } // namespace WebCore
 
