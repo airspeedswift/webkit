@@ -645,7 +645,6 @@ platform/mac/PlaybackSessionInterfaceMac.mm @nonARC @no-unify-when(bundle<=8)
 platform/mac/PowerObserverMac.mm @nonARC
 platform/mac/RevealUtilities.mm @nonARC
 platform/mac/ScrollAnimatorMac.mm @nonARC @no-unify-when(bundle<=8) @cost:3
-platform/mac/ScrollAnimationRubberBand.mm @nonARC
 platform/mac/ScrollViewMac.mm @nonARC
 platform/mac/ScrollbarMac.mm @nonARC @no-unify-when(bundle<=8)
 platform/mac/ScrollbarsControllerMac.mm @nonARC @no-unify-when(bundle<=8) @cost:3

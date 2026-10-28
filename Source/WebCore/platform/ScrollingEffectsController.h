@@ -32,7 +32,6 @@
 #include <WebCore/RectEdges.h>
 #include <WebCore/RubberbandingState.h>
 #include <WebCore/ScrollAnimation.h>
-#include <WebCore/ScrollSnapAnimatorState.h>
 #include <WebCore/ScrollSnapOffsetsInfo.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/WheelEventTestMonitor.h>
@@ -47,11 +46,13 @@ namespace WebCore {
 class KeyboardScrollingAnimator;
 class LayoutSize;
 class PlatformWheelEvent;
-class ScrollSnapAnimatorState;
 class ScrollingEffectsController;
 class ScrollableArea;
 class WheelEventTestMonitor;
 struct ScrollExtents;
+
+class ScrollPhysicsClient;
+struct ScrollPhysicsControllerHolder;
 
 class ScrollingEffectsControllerTimer : public RunLoop::TimerBase {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(ScrollingEffectsControllerTimer, WEBCORE_EXPORT);
@@ -141,7 +142,7 @@ public:
     virtual ScrollingNodeID scrollingNodeIDForTesting() const = 0;
 };
 
-class WEBCORE_EXPORT ScrollingEffectsController : public ScrollAnimationClient {
+class WEBCORE_EXPORT ScrollingEffectsController {
     WTF_MAKE_NONCOPYABLE(ScrollingEffectsController);
 
 public:
@@ -163,11 +164,6 @@ public:
 
     void stopKeyboardScrolling();
 
-    bool startMomentumScrollWithInitialVelocity(const FloatPoint& initialOffset, const FloatSize& initialVelocity, const FloatSize& initialDelta, NOESCAPE const Function<FloatPoint(const FloatPoint&)>& destinationModifier);
-
-    void willBeginKeyboardScrolling();
-    void didStopKeyboardScrolling();
-
     bool startKeyboardScroll(const KeyboardScroll&);
 
     void finishKeyboardScroll(bool immediate);
@@ -188,9 +184,7 @@ public:
     NODELETE std::optional<unsigned> activeScrollSnapIndexForAxis(ScrollEventAxis) const;
     float adjustedScrollDestination(ScrollEventAxis, FloatPoint destinationOffset, float velocity, std::optional<float> originalOffset, ScrollSnapPointSelectionMethod = ScrollSnapPointSelectionMethod::Closest) const;
 
-    bool activeScrollSnapIndexDidChange() const { return m_activeScrollSnapIndexDidChange; }
-    // FIXME: This is never called. We never set m_activeScrollSnapIndexDidChange back to false.
-    void setScrollSnapIndexDidChange(bool state) { m_activeScrollSnapIndexDidChange = state; }
+    bool activeScrollSnapIndexDidChange() const;
 
     // Returns true if handled.
     bool handleWheelEvent(const PlatformWheelEvent&);
@@ -213,76 +207,27 @@ public:
     void startRubberBandSnapBack();
     void rubberBandTargetOffsetDidChange();
     NODELETE bool isRubberBandInProgress() const;
-    RectEdges<bool> rubberBandingEdges() const { return m_rubberBandingEdges; }
+    RectEdges<bool> rubberBandingEdges() const;
 
     std::optional<RubberbandingState> captureRubberbandingState() const;
     bool restoreRubberbandingState(const RubberbandingState&);
-    NODELETE bool shouldAttemptRubberbandingRestoration(const RubberbandingState&);
 #if HAVE(APPKIT_GESTURES_SUPPORT)
     NODELETE FloatSize computeDampedStretchDelta(FloatSize delta, bool horizontalDeltaOpposesStretch, bool verticalDeltaOpposesStretch);
     NODELETE float deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch);
 
     float rubberbandHyperbolicCoefficientForTesting() const { return m_rubberbandHyperbolicCoefficient; }
 #else
-    NODELETE FloatSize deltaAdjustedForRefreshController(const FloatSize& adjustedDelta, bool);
 #endif
 #endif
 
 private:
     bool isSpringAnimationRunning() const;
 
-    void updateRubberBandAnimatingState();
-
-    void setIsAnimatingRubberBand(bool);
-    void setIsAnimatingScrollSnap(bool);
-    void setIsAnimatingKeyboardScrolling(bool);
-
-    void startScrollSnapAnimation();
-    void stopScrollSnapAnimation();
-
 #if PLATFORM(MAC)
-    NODELETE bool shouldOverrideMomentumScrolling() const;
     void discreteSnapTransitionTimerFired();
-    void scheduleDiscreteScrollSnap(const FloatSize& delta);
     void scrollendTimerFired();
     void scheduleScrollendTimer();
-
-    bool modifyScrollDeltaForStretching(const PlatformWheelEvent&, FloatSize&, bool isHorizontallyStretched, bool isVerticallyStretched);
-    bool applyScrollDeltaWithStretching(const PlatformWheelEvent&, FloatSize, bool isHorizontallyStretched, bool isVerticallyStretched);
-
-    FloatSize deltaAlignedToPredominantGestureAxis(MonotonicTime, FloatSize);
-
-    void startRubberBandAnimationIfNecessary(const PlatformWheelEvent&);
-
-    bool startRubberBandAnimation(const FloatSize& initialVelocity, const FloatSize& initialOverscroll);
-    bool startRubberBandAnimationWithElapsedTime(const FloatSize& initialVelocity, const FloatSize& initialOverscroll, Seconds alreadyElapsed, std::optional<FloatSize> targetOverscroll = std::nullopt);
-    void stopRubberBandAnimation();
-
-    void willStartRubberBandAnimation();
-    void didStopRubberBandAnimation();
-
-    bool shouldRubberBandOnSide(BoxSide, FloatSize) const;
-    bool isRubberBandInProgressInternal() const;
-    void updateRubberBandingState();
-    NODELETE void updateRubberBandingEdges(IntSize clientStretch);
 #endif
-
-    void startOrStopAnimationCallbacks();
-
-    void startDeferringWheelEventTestCompletion(WheelEventTestMonitor::DeferReason);
-    void stopDeferringWheelEventTestCompletion(WheelEventTestMonitor::DeferReason);
-
-    // ScrollAnimationClient
-    void scrollAnimationDidUpdate(ScrollAnimation&, const FloatPoint& /* currentOffset */) final;
-    void scrollAnimationWillStart(ScrollAnimation&) final;
-    void scrollAnimationDidEnd(ScrollAnimation&) final;
-    ScrollExtents scrollExtentsForAnimation(ScrollAnimation&) final;
-    FloatSize overscrollAmount(ScrollAnimation&) final;
-    FloatPoint scrollOffset(ScrollAnimation&) final;
-
-    void adjustDeltaForSnappingIfNeeded(float& deltaX, float& deltaY);
-
-    void clampDeltaForAllowedAxes(const PlatformWheelEvent&, FloatSize&);
 
 #if ENABLE(KINETIC_SCROLLING) && !PLATFORM(MAC)
     // Returns true if handled.
@@ -299,45 +244,22 @@ private:
 
     ScrollingEffectsControllerClient& m_client;
 
-    std::unique_ptr<ScrollAnimation> m_currentAnimation;
-
-    std::unique_ptr<ScrollSnapAnimatorState> m_scrollSnapState;
-    bool m_activeScrollSnapIndexDidChange { false };
-
-    bool m_isRunningAnimatingCallback { false };
-    bool m_isAnimatingRubberBand { false };
-    bool m_isAnimatingScrollSnap { false };
-    bool m_isAnimatingKeyboardScrolling { false };
-    bool m_inScrollGesture { false };
+    friend class ScrollPhysicsClient;
+    std::unique_ptr<ScrollPhysicsControllerHolder> m_physics;
+    std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
 
 #if PLATFORM(MAC)
-    MonotonicTime m_lastMomentumScrollTimestamp;
-    FloatSize m_unappliedOverscrollDelta;
-    FloatSize m_stretchScrollForce;
-    FloatSize m_momentumVelocity;
-
-    FloatSize m_scrollingVelocityForScrollSnap;
-
-    bool m_momentumScrollInProgress { false };
-    bool m_ignoreMomentumScrolls { false };
-    bool m_isRubberBanding { false };
-
-    FloatSize m_cumulativeGestureDelta;
-    MonotonicTime m_lastGestureEventTime;
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
     float m_rubberbandHyperbolicCoefficient { 0 };
     bool m_gestureBeganAtTop { false };
 #elif HAVE(NSREFRESHCONTROLLER)
-    bool m_skipAdditionalDeltaAdjustments { false };
 #endif
 
-    Deque<FloatSize> m_recentDiscreteWheelDeltas;
     std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
     std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
 
 #if HAVE(RUBBER_BANDING)
-    RectEdges<bool> m_rubberBandingEdges;
 #endif
 
 #if ASSERT_ENABLED

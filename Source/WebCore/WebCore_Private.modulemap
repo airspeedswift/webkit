@@ -37,8 +37,16 @@ framework module WebCore_Private [system] {
         // In the explicit module HTMLFastPathParserTypes above, for WebCore's Swift.
         exclude header "HTMLFastPathParserTypes.h"
 
+        // WebCore's Swift imports it as WebCore_Private.ScrollPhysicsTypes.
+        exclude header "ScrollPhysicsTypes.h"
         module * {
             export *
         }
+    }
+
+    explicit module ScrollPhysicsTypes {
+        header "ScrollPhysicsTypes.h"
+        requires cplusplus
+        export *
     }
 }

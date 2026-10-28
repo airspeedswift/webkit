@@ -37,57 +37,9 @@ class FloatPoint;
 class FloatSize;
 
 class ScrollingMomentumCalculator {
-    WTF_MAKE_TZONE_ALLOCATED(ScrollingMomentumCalculator);
 public:
     NODELETE WEBCORE_EXPORT static void setPlatformMomentumScrollingPredictionEnabled(bool);
 
-    static std::unique_ptr<ScrollingMomentumCalculator> create(const ScrollExtents&, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity);
-
-    ScrollingMomentumCalculator(const ScrollExtents&, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity);
-    virtual ~ScrollingMomentumCalculator() = default;
-
-    virtual FloatPoint scrollOffsetAfterElapsedTime(Seconds) = 0;
-    virtual Seconds animationDuration() = 0;
-
-    FloatPoint destinationScrollOffset() const { return m_retargetedScrollOffset.value_or(m_initialDestinationOffset); }
-
-    void setRetargetedScrollOffset(const FloatPoint&);
-
-protected:
-    virtual FloatPoint predictedDestinationOffset();
-
-    virtual void destinationScrollOffsetDidChange() { }
-
-    FloatSize m_initialDelta;
-    FloatSize m_initialVelocity;
-    FloatPoint m_initialScrollOffset;
-    FloatPoint m_initialDestinationOffset;
-    ScrollExtents m_scrollExtents;
-
-private:
-    std::optional<FloatPoint> m_retargetedScrollOffset;
-};
-
-class BasicScrollingMomentumCalculator final : public ScrollingMomentumCalculator {
-public:
-    BasicScrollingMomentumCalculator(const ScrollExtents&, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity);
-
-private:
-    FloatPoint scrollOffsetAfterElapsedTime(Seconds) final;
-    Seconds animationDuration() final;
-
-    NODELETE void initializeInterpolationCoefficientsIfNecessary();
-    NODELETE void initializeSnapProgressCurve();
-    NODELETE float animationProgressAfterElapsedTime(Seconds) const;
-
-    NODELETE FloatPoint linearlyInterpolatedOffsetAtProgress(float progress);
-    NODELETE FloatPoint cubicallyInterpolatedOffsetAtProgress(float progress) const;
-
-    float m_snapAnimationCurveMagnitude { 0 };
-    float m_snapAnimationDecayFactor { 0 };
-    std::array<FloatSize, 4> m_snapAnimationCurveCoefficients = { };
-    bool m_forceLinearAnimationCurve { false };
-    bool m_momentumCalculatorRequiresInitialization { true };
 };
 
 } // namespace WebCore

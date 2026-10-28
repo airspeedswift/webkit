@@ -75,4 +75,6 @@
 
 #include "TransformationMatrix.h"
 
+#include "ScrollPhysicsTypes.h"
+
 #include "WebCoreSwift-Generated.h"

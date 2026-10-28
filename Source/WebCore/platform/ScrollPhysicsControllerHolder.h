@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,49 +25,16 @@
 
 #pragma once
 
-#include "KeyboardScroll.h"
-#include "RectEdges.h"
-#include "ScrollAnimation.h"
+#include "WebCore-Swift.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
-class FloatPoint;
-class TimingFunction;
+// ScrollingEffectsController's state and logic, which live in Swift (ScrollPhysicsController.swift).
+struct ScrollPhysicsControllerHolder {
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED(ScrollPhysicsControllerHolder);
 
-class ScrollAnimationKeyboard final: public ScrollAnimation {
-    WTF_MAKE_TZONE_ALLOCATED(ScrollAnimationKeyboard);
-    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(ScrollAnimationKeyboard);
-public:
-    NODELETE ScrollAnimationKeyboard(ScrollAnimationClient&);
-    NODELETE virtual ~ScrollAnimationKeyboard();
-
-    bool startKeyboardScroll(const KeyboardScroll&);
-
-    void finishKeyboardScroll(bool immediate);
-
-    void stopKeyboardScrollAnimation();
-
-    ScrollClamping clamping() const override { return ScrollClamping::Unclamped; }
-
-private:
-    void serviceAnimation(MonotonicTime) final;
-    bool retargetActiveAnimation(const FloatPoint&) final;
-
-    String debugDescription() const final;
-
-    bool animateScroll(MonotonicTime);
-
-    RectEdges<bool> scrollableDirectionsFromPosition(FloatPoint position);
-
-    std::optional<KeyboardScroll> m_currentKeyboardScroll;
-    FloatSize m_velocity;
-    MonotonicTime m_timeAtLastFrame;
-    FloatPoint m_idealPosition;
-    FloatSize m_idealPositionForMinimumTravel;
-    bool m_scrollTriggeringKeyIsPressed;
+    ScrollPhysicsController controller { ScrollPhysicsController::init() };
 };
 
 } // namespace WebCore
-
-SPECIALIZE_TYPE_TRAITS_SCROLL_ANIMATION(WebCore::ScrollAnimationKeyboard, type() == WebCore::ScrollAnimation::Type::Keyboard)

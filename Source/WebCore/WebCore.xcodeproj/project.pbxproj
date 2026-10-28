@@ -477,7 +477,6 @@
 		0F03C0741884695E00A5F8CA /* SystemMemory.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F03C0731884695E00A5F8CA /* SystemMemory.h */; };
 		0F03C0751884805500A5F8CA /* InspectorOverlay.h in Headers */ = {isa = PBXBuildFile; fileRef = 7C522D4A15B478B2009B7C95 /* InspectorOverlay.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F099D0917B968A100FF84B9 /* WebCoreTypedArrayController.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F099D0717B968A100FF84B9 /* WebCoreTypedArrayController.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		0F0E009C26F92D8400ACE9C6 /* ScrollAnimationMomentum.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F0E009A26F92D7B00ACE9C6 /* ScrollAnimationMomentum.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F11781822E3C47F008BD570 /* FrameIdentifier.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F11781622E3C47E008BD570 /* FrameIdentifier.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F11A54F0F39233100C37884 /* RenderSelectionGeometry.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F11A54E0F39233100C37884 /* RenderSelectionGeometry.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F13163E16ED0CC80035CC04 /* PlatformCAFilters.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F13163D16ED0CC80035CC04 /* PlatformCAFilters.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -536,7 +535,6 @@
 		0F94F37E23661626003AA5C7 /* StyleRuleType.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F94F37C23661131003AA5C7 /* StyleRuleType.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F98C8F8286AA8FE00C7F4B2 /* ProcessCapabilities.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F98C8F6286AA8FA00C7F4B2 /* ProcessCapabilities.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0F99059A26F6BE850054FBE0 /* ScrollingMomentumCalculator.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F99059926F6BE7F0054FBE0 /* ScrollingMomentumCalculator.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		0F99059D26F6BE9A0054FBE0 /* ScrollingMomentumCalculatorMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F99059B26F6BE940054FBE0 /* ScrollingMomentumCalculatorMac.h */; };
 		0F9DAA0F1FD1C66A0079C5B2 /* DOMGCOutputConstraint.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F9DAA0E1FD1C6640079C5B2 /* DOMGCOutputConstraint.h */; };
 		0FA61B0E26F43213001AADB6 /* ScrollAnimation.h in Headers */ = {isa = PBXBuildFile; fileRef = 0FA61B0C26F43212001AADB6 /* ScrollAnimation.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		0FB266842E3304850071C4A5 /* ImageBufferFormat.h in Headers */ = {isa = PBXBuildFile; fileRef = 0FB266832E3304850071C4A5 /* ImageBufferFormat.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2646,8 +2644,13 @@
 		5B30695E18B3D3450099D5E8 /* WebGLDrawBuffers.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B30695B18B3D3450099D5E8 /* WebGLDrawBuffers.h */; };
 		5B416B5E29C4F1F4002ECA1B /* FontSizeAdjust.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B416B5D29C4F1F3002ECA1B /* FontSizeAdjust.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		1D345737494ECF6CB328807A /* ScrollingEffectsClock.h in Headers */ = {isa = PBXBuildFile; fileRef = F7E9EB0035992A8FE989EEE4 /* ScrollingEffectsClock.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A11000000000000000002 /* ScrollPhysicsTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000001 /* ScrollPhysicsTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A11000000000000000004 /* ScrollPhysicsControllerHolder.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000003 /* ScrollPhysicsControllerHolder.h */; };
+		5C0A11000000000000000006 /* ScrollPhysicsController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000005 /* ScrollPhysicsController.swift */; };
+		5C0A11000000000000000008 /* ScrollPhysicsAnimations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000007 /* ScrollPhysicsAnimations.swift */; };
+		5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */; };
+		5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */; };
 		5B46656325D14C0A000CFE14 /* ScrollingEffectsController.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		5B46656425D14C0A000CFE14 /* ScrollSnapAnimatorState.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B46656025D14C0A000CFE14 /* ScrollSnapAnimatorState.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5B4C7CA9D949D424F9683D2F /* UnifiedSource41-header-RenderStyleGetters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = FBCE61FFFCC0A29F0D842C51 /* UnifiedSource41-header-RenderStyleGetters.cpp */; };
 		5B602FF31E893171DB3FB4A7 /* UnifiedSource11-header-RenderStyleGetters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 25FAC750F76F755835BE4E86 /* UnifiedSource11-header-RenderStyleGetters.cpp */; };
 		5B92C42D2716E28A00A37CC0 /* ScrollingTreeStickyNode.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B92C42B2716E23300A37CC0 /* ScrollingTreeStickyNode.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -8153,8 +8156,6 @@
 		0757B13C214AE79700794B0D /* VideoPreset.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = VideoPreset.h; sourceTree = "<group>"; };
 		0759DC782DB4490F000E276E /* CocoaWritingToolsTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CocoaWritingToolsTypes.h; sourceTree = "<group>"; };
 		075CC6C228EE99E100EAAF61 /* IconCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = IconCocoa.mm; sourceTree = "<group>"; };
-		075DE29B28FE00DC00D51AD2 /* ScrollAnimationKeyboard.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollAnimationKeyboard.cpp; sourceTree = "<group>"; };
-		075DE29C28FE00DC00D51AD2 /* ScrollAnimationKeyboard.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollAnimationKeyboard.h; sourceTree = "<group>"; };
 		07611DB8243FB75C00D80704 /* MediaUsageInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MediaUsageInfo.h; sourceTree = "<group>"; };
 		0763726629030BB50055DDA2 /* MediaDeviceHashSalts.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MediaDeviceHashSalts.h; sourceTree = "<group>"; };
 		07638A971884487200E15A1B /* MediaSessionManagerIOS.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MediaSessionManagerIOS.h; sourceTree = "<group>"; };
@@ -8489,8 +8490,6 @@
 		0F03C0731884695E00A5F8CA /* SystemMemory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SystemMemory.h; sourceTree = "<group>"; };
 		0F099D0617B968A100FF84B9 /* WebCoreTypedArrayController.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebCoreTypedArrayController.cpp; sourceTree = "<group>"; };
 		0F099D0717B968A100FF84B9 /* WebCoreTypedArrayController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebCoreTypedArrayController.h; sourceTree = "<group>"; };
-		0F0E009A26F92D7B00ACE9C6 /* ScrollAnimationMomentum.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollAnimationMomentum.h; sourceTree = "<group>"; };
-		0F0E009B26F92D7B00ACE9C6 /* ScrollAnimationMomentum.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollAnimationMomentum.cpp; sourceTree = "<group>"; };
 		0F11781622E3C47E008BD570 /* FrameIdentifier.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FrameIdentifier.h; sourceTree = "<group>"; };
 		0F11A54E0F39233100C37884 /* RenderSelectionGeometry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RenderSelectionGeometry.h; sourceTree = "<group>"; };
 		0F13163D16ED0CC80035CC04 /* PlatformCAFilters.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlatformCAFilters.h; sourceTree = "<group>"; };
@@ -8522,8 +8521,6 @@
 		0F376F3F2994C58D004CA2F9 /* FontSelector.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = FontSelector.cpp; sourceTree = "<group>"; };
 		0F37F0832202AC8F00A89C0B /* ScrollingTreeScrollingNodeDelegateMac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScrollingTreeScrollingNodeDelegateMac.mm; sourceTree = "<group>"; };
 		0F37F0842202ACB700A89C0B /* ScrollingTreeScrollingNodeDelegateMac.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingTreeScrollingNodeDelegateMac.h; sourceTree = "<group>"; };
-		0F38186A2708D20100414F32 /* ScrollAnimationRubberBand.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScrollAnimationRubberBand.mm; sourceTree = "<group>"; };
-		0F38186C2708D20200414F32 /* ScrollAnimationRubberBand.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollAnimationRubberBand.h; sourceTree = "<group>"; };
 		0F3DD44D12F5EA1B000D9190 /* ShadowBlur.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ShadowBlur.cpp; sourceTree = "<group>"; };
 		0F3DD44E12F5EA1B000D9190 /* ShadowBlur.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShadowBlur.h; sourceTree = "<group>"; };
 		0F3F0E57157030C3006DA57F /* RenderGeometryMap.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = RenderGeometryMap.cpp; sourceTree = "<group>"; };
@@ -8648,7 +8645,6 @@
 		0F98C8F7286AA8FB00C7F4B2 /* ProcessCapabilities.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ProcessCapabilities.cpp; sourceTree = "<group>"; };
 		0F99059826F6BE7F0054FBE0 /* ScrollingMomentumCalculator.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollingMomentumCalculator.cpp; sourceTree = "<group>"; };
 		0F99059926F6BE7F0054FBE0 /* ScrollingMomentumCalculator.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingMomentumCalculator.h; sourceTree = "<group>"; };
-		0F99059B26F6BE940054FBE0 /* ScrollingMomentumCalculatorMac.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingMomentumCalculatorMac.h; sourceTree = "<group>"; };
 		0F99059C26F6BE950054FBE0 /* ScrollingMomentumCalculatorMac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScrollingMomentumCalculatorMac.mm; sourceTree = "<group>"; };
 		0F9B547522B4A772007B5E8A /* ScrollingStateOverflowScrollProxyNode.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingStateOverflowScrollProxyNode.h; sourceTree = "<group>"; };
 		0F9B547622B4A773007B5E8A /* ScrollingStateOverflowScrollProxyNode.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollingStateOverflowScrollProxyNode.cpp; sourceTree = "<group>"; };
@@ -13629,11 +13625,15 @@
 		5B30695B18B3D3450099D5E8 /* WebGLDrawBuffers.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebGLDrawBuffers.h; sourceTree = "<group>"; };
 		5B30695C18B3D3450099D5E8 /* WebGLDrawBuffers.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = WebGLDrawBuffers.idl; sourceTree = "<group>"; };
 		5B416B5D29C4F1F3002ECA1B /* FontSizeAdjust.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FontSizeAdjust.h; sourceTree = "<group>"; };
-		5B46655D25D14C09000CFE14 /* ScrollSnapAnimatorState.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollSnapAnimatorState.cpp; sourceTree = "<group>"; };
 		5B46655E25D14C09000CFE14 /* ScrollingEffectsController.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollingEffectsController.cpp; sourceTree = "<group>"; };
 		F7E9EB0035992A8FE989EEE4 /* ScrollingEffectsClock.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingEffectsClock.h; sourceTree = "<group>"; };
+		5C0A11000000000000000001 /* ScrollPhysicsTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollPhysicsTypes.h; sourceTree = "<group>"; };
+		5C0A11000000000000000003 /* ScrollPhysicsControllerHolder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollPhysicsControllerHolder.h; sourceTree = "<group>"; };
+		5C0A11000000000000000005 /* ScrollPhysicsController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsController.swift; sourceTree = "<group>"; };
+		5C0A11000000000000000007 /* ScrollPhysicsAnimations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsAnimations.swift; sourceTree = "<group>"; };
+		5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsGeometry.swift; sourceTree = "<group>"; };
+		5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollSnapAnimationState.swift; sourceTree = "<group>"; };
 		5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollingEffectsController.h; sourceTree = "<group>"; };
-		5B46656025D14C0A000CFE14 /* ScrollSnapAnimatorState.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollSnapAnimatorState.h; sourceTree = "<group>"; };
 		5B7AB9F62567DB7E006592D0 /* ScrollSnapOffsetsInfo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollSnapOffsetsInfo.cpp; sourceTree = "<group>"; };
 		5B92C4292716E23300A37CC0 /* ScrollingTreeStickyNode.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ScrollingTreeStickyNode.cpp; sourceTree = "<group>"; };
 		5B92C42B2716E23300A37CC0 /* ScrollingTreeStickyNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollingTreeStickyNode.h; sourceTree = "<group>"; };
@@ -31153,8 +31153,6 @@
 				4634592B1AC2271000ECB71C /* PowerObserverMac.mm */,
 				F49532D828FB4FA600D52F09 /* RevealUtilities.h */,
 				F49532D928FB4FA600D52F09 /* RevealUtilities.mm */,
-				0F38186C2708D20200414F32 /* ScrollAnimationRubberBand.h */,
-				0F38186A2708D20100414F32 /* ScrollAnimationRubberBand.mm */,
 				BCAE1FA512939DB7004CB026 /* ScrollAnimatorMac.h */,
 				BC51156D12B1749C00C96754 /* ScrollAnimatorMac.mm */,
 				1209CD7C2AF1B2C30046C3F0 /* ScrollbarMac.h */,
@@ -31164,7 +31162,6 @@
 				BC8B853C0E7C7F1100AB6984 /* ScrollbarThemeMac.h */,
 				BCEF869E0E844E9D00A85CD5 /* ScrollbarThemeMac.mm */,
 				5B1E0E4325D1629B00272281 /* ScrollingEffectsController.mm */,
-				0F99059B26F6BE940054FBE0 /* ScrollingMomentumCalculatorMac.h */,
 				0F99059C26F6BE950054FBE0 /* ScrollingMomentumCalculatorMac.mm */,
 				F47C590D29D2303800F07A3B /* ScrollTypesMac.h */,
 				9353676A09AED88B00D35CD6 /* ScrollViewMac.mm */,
@@ -40005,12 +40002,8 @@
 				5B2D767027B1460800F9BA3C /* ScrollAlignment.h */,
 				0F6EAD6626FE728000064D03 /* ScrollAnimation.cpp */,
 				0FA61B0C26F43212001AADB6 /* ScrollAnimation.h */,
-				075DE29B28FE00DC00D51AD2 /* ScrollAnimationKeyboard.cpp */,
-				075DE29C28FE00DC00D51AD2 /* ScrollAnimationKeyboard.h */,
 				0FC692BC257C0F410098E3F9 /* ScrollAnimationKinetic.cpp */,
 				0FC692BA257C0F400098E3F9 /* ScrollAnimationKinetic.h */,
-				0F0E009B26F92D7B00ACE9C6 /* ScrollAnimationMomentum.cpp */,
-				0F0E009A26F92D7B00ACE9C6 /* ScrollAnimationMomentum.h */,
 				0FC692BD257C0F410098E3F9 /* ScrollAnimationSmooth.cpp */,
 				0FC692BE257C0F420098E3F9 /* ScrollAnimationSmooth.h */,
 				CA3BF67B10D99BAE00E6CE53 /* ScrollAnimator.cpp */,
@@ -40028,12 +40021,16 @@
 				BC1402890E83680800319717 /* ScrollbarThemeComposite.h */,
 				CD1F9B4C270D03A900617EB6 /* ScrollExtents.h */,
 				F7E9EB0035992A8FE989EEE4 /* ScrollingEffectsClock.h */,
+				5C0A11000000000000000001 /* ScrollPhysicsTypes.h */,
+				5C0A11000000000000000003 /* ScrollPhysicsControllerHolder.h */,
+				5C0A11000000000000000005 /* ScrollPhysicsController.swift */,
+				5C0A11000000000000000007 /* ScrollPhysicsAnimations.swift */,
+				5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */,
+				5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */,
 				5B46655E25D14C09000CFE14 /* ScrollingEffectsController.cpp */,
 				5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */,
 				0F99059826F6BE7F0054FBE0 /* ScrollingMomentumCalculator.cpp */,
 				0F99059926F6BE7F0054FBE0 /* ScrollingMomentumCalculator.h */,
-				5B46655D25D14C09000CFE14 /* ScrollSnapAnimatorState.cpp */,
-				5B46656025D14C0A000CFE14 /* ScrollSnapAnimatorState.h */,
 				0F4CDEAA23D91A8A00251B02 /* ScrollTypes.cpp */,
 				93C09C850B0657AA005ABD4D /* ScrollTypes.h */,
 				F491A6712AA1475E00F96146 /* ScrollTypes.serialization.in */,
@@ -49107,7 +49104,6 @@
 				5B2D767227B1460800F9BA3C /* ScrollAlignment.h in Headers */,
 				1A05BAD7289A513500BF0D87 /* ScrollAnchoringController.h in Headers */,
 				0FA61B0E26F43213001AADB6 /* ScrollAnimation.h in Headers */,
-				0F0E009C26F92D8400ACE9C6 /* ScrollAnimationMomentum.h in Headers */,
 				CA3BF67E10D99BAE00E6CE53 /* ScrollAnimator.h in Headers */,
 				0F1774801378B772009DA76A /* ScrollAnimatorIOS.h in Headers */,
 				BCAE1FA712939DB7004CB026 /* ScrollAnimatorMac.h in Headers */,
@@ -49136,9 +49132,10 @@
 				9391A991162746CB00297330 /* ScrollingCoordinatorMac.h in Headers */,
 				712DBA4921F8AD83008F36B2 /* ScrollingCoordinatorTypes.h in Headers */,
 				1D345737494ECF6CB328807A /* ScrollingEffectsClock.h in Headers */,
+				5C0A11000000000000000002 /* ScrollPhysicsTypes.h in Headers */,
+				5C0A11000000000000000004 /* ScrollPhysicsControllerHolder.h in Headers */,
 				5B46656325D14C0A000CFE14 /* ScrollingEffectsController.h in Headers */,
 				0F99059A26F6BE850054FBE0 /* ScrollingMomentumCalculator.h in Headers */,
-				0F99059D26F6BE9A0054FBE0 /* ScrollingMomentumCalculatorMac.h in Headers */,
 				12BB61212B64261C0048B442 /* ScrollingNodeID.h in Headers */,
 				7AD41E7E2C7607AF00ED9467 /* ScrollingPlatformLayer.h in Headers */,
 				93C38BFF164473C700091EB2 /* ScrollingStateFixedNode.h in Headers */,
@@ -49183,7 +49180,6 @@
 				83C5795D1DA5C301006F9C97 /* ScrollIntoViewOptions.h in Headers */,
 				83C5795D1DA5C301006F9C86 /* ScrollLogicalPosition.h in Headers */,
 				83C5795D1DA5C301006FAC97 /* ScrollOptions.h in Headers */,
-				5B46656425D14C0A000CFE14 /* ScrollSnapAnimatorState.h in Headers */,
 				F46729281E0DE68500ACC3D8 /* ScrollSnapOffsetsInfo.h in Headers */,
 				713516932AE6D01F00718EBE /* ScrollTimeline.h in Headers */,
 				713516992AE6D2B200718EBE /* ScrollTimelineOptions.h in Headers */,
@@ -51547,6 +51543,10 @@
 				C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */,
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
 				F4FD8A7220C64FDA7BA4884D /* TransformationMatrix.swift in Sources */,
+				5C0A11000000000000000006 /* ScrollPhysicsController.swift in Sources */,
+				5C0A11000000000000000008 /* ScrollPhysicsAnimations.swift in Sources */,
+				5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */,
+				5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,
 				5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */,

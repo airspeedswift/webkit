@@ -2527,12 +2527,9 @@ platform/RunLoopObserver.cpp
 platform/ScreenOrientationManager.cpp
 platform/ScrollAlignment.cpp
 platform/ScrollAnimation.cpp
-platform/ScrollAnimationKeyboard.cpp
 platform/ScrollAnimationKinetic.cpp
-platform/ScrollAnimationMomentum.cpp
 platform/ScrollAnimationSmooth.cpp
 platform/ScrollAnimator.cpp
-platform/ScrollSnapAnimatorState.cpp
 platform/ScrollTypes.cpp
 platform/ScrollView.cpp @cost:3
 platform/ScrollableArea.cpp @cost:3
