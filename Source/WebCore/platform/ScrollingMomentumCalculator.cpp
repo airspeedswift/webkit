@@ -32,6 +32,7 @@
 
 namespace WebCore {
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollingMomentumCalculator);
 
 static const Seconds scrollSnapAnimationDuration = 1_s;
@@ -71,6 +72,7 @@ FloatPoint ScrollingMomentumCalculator::predictedDestinationOffset()
     float initialOffsetY = clampTo<float>(m_initialScrollOffset.y() + projectedInertialScrollDistance(m_initialDelta.height()), minScrollOffset.y(), maxScrollOffset.y());
     return { initialOffsetX, initialOffsetY };
 }
+#endif
 
 #if !PLATFORM(MAC)
 
@@ -85,6 +87,7 @@ void ScrollingMomentumCalculator::setPlatformMomentumScrollingPredictionEnabled(
 
 #endif
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 BasicScrollingMomentumCalculator::BasicScrollingMomentumCalculator(const ScrollExtents& scrollExtents, const FloatPoint& initialOffset, const FloatSize& initialDelta, const FloatSize& initialVelocity)
     : ScrollingMomentumCalculator(scrollExtents, initialOffset, initialDelta, initialVelocity)
 {
@@ -237,5 +240,6 @@ float BasicScrollingMomentumCalculator::animationProgressAfterElapsedTime(Second
     float timeProgress = clampTo<float>(elapsedTime / scrollSnapAnimationDuration, 0, 1);
     return std::min(1.0, m_snapAnimationCurveMagnitude * (1.0 - std::pow(m_snapAnimationDecayFactor, -framesPerSecond * scrollSnapAnimationDuration.value() * timeProgress)));
 }
+#endif
 
 } // namespace WebCore

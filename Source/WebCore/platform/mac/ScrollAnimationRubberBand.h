@@ -29,6 +29,7 @@
 
 #if HAVE(RUBBER_BANDING)
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WebCore {
 
 class ScrollAnimationRubberBand final: public ScrollAnimation {
@@ -66,5 +67,6 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_SCROLL_ANIMATION(WebCore::ScrollAnimationRubberBand, type() == WebCore::ScrollAnimation::Type::RubberBand)
+#endif // !USE_SWIFT_SCROLL_PHYSICS
 
 #endif // HAVE(RUBBER_BANDING)
