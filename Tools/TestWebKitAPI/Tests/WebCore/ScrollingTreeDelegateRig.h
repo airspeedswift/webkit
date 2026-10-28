@@ -1,0 +1,842 @@
+/*
+ * Copyright (C) 2026 Apple Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY APPLE INC. AND ITS CONTRIBUTORS ``AS IS''
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+ * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#pragma once
+
+// A scrolling tree of Mac frame and overflow scrolling nodes, driven through the tree's own entry points:
+// state-tree commits, wheel events and display refreshes, with the scroll-animation clock replaced so a
+// session is repeatable. The tree records the calls its nodes make on it. ScrollingTreeDelegateBench.cpp
+// uses it.
+
+#include <CoreFoundation/CoreFoundation.h>
+#include <WebCore/FloatPoint.h>
+#include <WebCore/FloatSize.h>
+#include <WebCore/KeyboardScroll.h>
+#include <WebCore/PlatformWheelEvent.h>
+#include <WebCore/ScrollSnapOffsetsInfo.h>
+#include <WebCore/ScrollTypes.h>
+#include <WebCore/ScrollingCoordinatorTypes.h>
+#include <WebCore/ScrollingEffectsClock.h>
+#include <WebCore/ScrollingStateFrameScrollingNode.h>
+#include <WebCore/ScrollingStateOverflowScrollingNode.h>
+#include <WebCore/ScrollingStateTree.h>
+#include <WebCore/ScrollingThread.h>
+#include <WebCore/ScrollingTree.h>
+#include <WebCore/ScrollingTreeFrameScrollingNodeMac.h>
+#include <WebCore/ScrollingTreeOverflowScrollingNodeMac.h>
+#include <WebCore/ScrollingTreeScrollingNode.h>
+#include <WebCore/WheelEventTestMonitor.h>
+#include <bit>
+#include <cstdint>
+#include <optional>
+#include <vector>
+#include <wtf/MonotonicTime.h>
+#include <wtf/TZoneMallocInlines.h>
+#include <wtf/threads/BinarySemaphore.h>
+
+namespace TestWebKitAPI {
+namespace ScrollingTreeDelegate {
+
+using namespace WebCore;
+
+// MARK: - Digest
+
+// FNV-1a over everything a session observes, in the order it observes it.
+class Digest {
+public:
+    uint64_t value() const { return m_hash; }
+
+    void bytes(const void* data, size_t size)
+    {
+        auto* p = static_cast<const uint8_t*>(data);
+        for (size_t i = 0; i < size; ++i) {
+            m_hash ^= p[i];
+            m_hash *= 1099511628211ull;
+        }
+    }
+
+    Digest& u(uint64_t value)
+    {
+        bytes(&value, sizeof(value));
+        return *this;
+    }
+
+    Digest& f(float value) { return u(std::bit_cast<uint32_t>(value)); }
+    Digest& b(bool value) { return u(value ? 1 : 0); }
+    Digest& pt(FloatPoint value) { return f(value.x()).f(value.y()); }
+    Digest& optu(std::optional<unsigned> value) { return value ? u(1).u(*value) : u(0); }
+
+private:
+    uint64_t m_hash { 14695981039346656037ull };
+};
+
+// MARK: - Inputs
+
+class Lcg {
+public:
+    explicit Lcg(uint64_t seed)
+        : m_state(seed * 6364136223846793005ull + 1442695040888963407ull)
+    {
+    }
+
+    uint32_t next()
+    {
+        m_state = m_state * 6364136223846793005ull + 1442695040888963407ull;
+        return static_cast<uint32_t>(m_state >> 33);
+    }
+
+    // [0, 1)
+    float unit() { return static_cast<float>(next() >> 8) / static_cast<float>(1 << 23); }
+    // [low, high]
+    int range(int low, int high) { return low + static_cast<int>(next() % static_cast<uint32_t>(high - low + 1)); }
+    float between(float low, float high) { return low + (high - low) * unit(); }
+    bool chance(unsigned percent) { return next() % 100 < percent; }
+
+private:
+    uint64_t m_state;
+};
+
+struct WheelDescription {
+    PlatformWheelEventPhase phase { PlatformWheelEventPhase::None };
+    PlatformWheelEventPhase momentumPhase { PlatformWheelEventPhase::None };
+    FloatSize delta;
+    PlatformWheelEventGranularity granularity { PlatformWheelEventGranularity::ScrollByPixelWheelEvent };
+    bool hasPreciseScrollingDeltas { true };
+};
+
+// Sets the fields WebKit's own event conversion sets.
+class RigWheelEvent : public PlatformWheelEvent {
+public:
+    RigWheelEvent(const WheelDescription& description, MonotonicTime timestamp, double interval)
+    {
+        m_timestamp = timestamp;
+        m_phase = description.phase;
+        m_momentumPhase = description.momentumPhase;
+        m_deltaX = description.delta.width();
+        m_deltaY = description.delta.height();
+        m_wheelTicksX = description.delta.width() * 0.1f;
+        m_wheelTicksY = description.delta.height() * 0.1f;
+        m_unacceleratedScrollingDeltaX = description.hasPreciseScrollingDeltas ? description.delta.width() * 0.75f : description.delta.width();
+        m_unacceleratedScrollingDeltaY = description.hasPreciseScrollingDeltas ? description.delta.height() * 0.75f : description.delta.height();
+        m_scrollingVelocity = interval > 0 ? description.delta.scaled(static_cast<float>(1 / interval)) : FloatSize();
+        m_granularity = description.granularity;
+        m_hasPreciseScrollingDeltas = description.hasPreciseScrollingDeltas;
+        m_ioHIDEventTimestamp = m_timestamp;
+        m_rawPlatformDelta = description.delta;
+    }
+};
+
+inline ScrollingNodeID nodeID(uint64_t value)
+{
+    return ScrollingNodeID(ObjectIdentifier<ScrollingNodeIDType>(value), ProcessIdentifier(1));
+}
+
+inline ScrollableAreaParameters scrollableParameters(ScrollElasticity horizontal = ScrollElasticity::Allowed, ScrollElasticity vertical = ScrollElasticity::Allowed, bool allowsHorizontal = true, bool allowsVertical = true)
+{
+    ScrollableAreaParameters parameters;
+    parameters.horizontalScrollElasticity = horizontal;
+    parameters.verticalScrollElasticity = vertical;
+    parameters.allowsHorizontalScrolling = allowsHorizontal;
+    parameters.allowsVerticalScrolling = allowsVertical;
+    return parameters;
+}
+
+struct SnapDescription {
+    std::vector<float> horizontal;
+    std::vector<float> vertical;
+    float areaLength { 300 };
+    ScrollSnapStrictness strictness { ScrollSnapStrictness::Mandatory };
+    std::optional<unsigned> stopAlways;
+};
+
+inline FloatScrollSnapOffsetsInfo snapOffsets(const SnapDescription& description)
+{
+    FloatScrollSnapOffsetsInfo info;
+    info.strictness = description.strictness;
+    auto append = [&](const std::vector<float>& offsets, ScrollEventAxis axis) {
+        auto& list = axis == ScrollEventAxis::Vertical ? info.verticalSnapOffsets : info.horizontalSnapOffsets;
+        for (unsigned i = 0; i < offsets.size(); ++i) {
+            size_t areaIndex = info.snapAreas.size();
+            float position = offsets[i];
+            info.snapAreas.append(axis == ScrollEventAxis::Vertical ? FloatRect(0, position, 400, description.areaLength) : FloatRect(position, 0, description.areaLength, 400));
+            info.snapAreasIDs.append(NodeIdentifier(areaIndex + 1));
+            SnapOffset<float> offset { position, description.stopAlways && *description.stopAlways == i ? ScrollSnapStop::Always : ScrollSnapStop::Normal, false, false, false, NodeIdentifier(areaIndex + 1), { } };
+            offset.snapAreaIndices.append(areaIndex);
+            list.append(WTF::move(offset));
+        }
+    };
+    append(description.horizontal, ScrollEventAxis::Horizontal);
+    append(description.vertical, ScrollEventAxis::Vertical);
+    return info;
+}
+
+inline std::vector<float> evenlySpaced(float start, float spacing, unsigned count)
+{
+    std::vector<float> result;
+    for (unsigned i = 0; i < count; ++i)
+        result.push_back(start + spacing * i);
+    return result;
+}
+
+inline std::vector<FloatSize> decayingDeltas(FloatSize first, float decay, unsigned count)
+{
+    std::vector<FloatSize> result;
+    auto delta = first;
+    for (unsigned i = 0; i < count; ++i) {
+        result.push_back(delta);
+        delta = delta.scaled(decay);
+    }
+    return result;
+}
+
+inline KeyboardScroll keyboardScroll(ScrollDirection direction, ScrollGranularity granularity, float distance)
+{
+    // As KeyboardScrollingAnimator::makeKeyboardScroll() builds it.
+    KeyboardScroll scroll;
+    scroll.offset = unitVectorForScrollDirection(direction).scaled(distance);
+    scroll.granularity = granularity;
+    scroll.direction = direction;
+    scroll.maximumVelocity = scroll.offset.scaled(KeyboardScrollParameters::parameters().maximumVelocityMultiplier);
+    scroll.force = scroll.maximumVelocity.scaled(KeyboardScrollParameters::parameters().springMass / KeyboardScrollParameters::parameters().timeToMaximumVelocity);
+    return scroll;
+}
+
+// MARK: - Threads
+
+// Wheel events and display refreshes reach the tree on the scrolling thread, and the timers its nodes' delegates
+// create run on that thread's run loop, so a session runs there. Runs the function there and waits for it.
+inline void onScrollingThread(Function<void()>&& function)
+{
+    BinarySemaphore done;
+    ScrollingThread::dispatch([&] {
+        function();
+        done.signal();
+    });
+    done.wait();
+}
+
+// Runs the work the scrollbars queued for the main thread.
+inline void drainMainThreadTasks()
+{
+    while (CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0, true) == kCFRunLoopRunHandledSource) { }
+}
+
+// MARK: - Clock
+
+struct RigClock {
+    static double& now()
+    {
+        static double seconds { 1000 };
+        return seconds;
+    }
+
+    static MonotonicTime read() { return MonotonicTime::fromRawSeconds(now()); }
+};
+
+// MARK: - Tree
+
+// What the tree records of its nodes' calls, one tag per kind.
+enum class TreeCall : uint8_t {
+    ActiveSnapIndices = 1,
+    SnapIndicesDidChange,
+    DeferTestCompletion,
+    RemoveTestCompletionDeferral,
+    RubberBanding,
+    DidScroll,
+    AnimatedScrollChanged,
+    WillStartAnimatedScroll,
+    DidStopAnimatedScroll,
+    WillStartWheelEventScroll,
+    DidStopWheelEventScroll,
+    WheelEventPhase,
+    ScrollRequest,
+    KeyboardScrollRequest,
+    DidHandleScrollRequest,
+    ReceivedPhases,
+    BeginScrollSnapping,
+    EndScrollSnapping,
+};
+
+class RigScrollingTree final : public ScrollingTree {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(RigScrollingTree);
+public:
+    static Ref<RigScrollingTree> create(Digest& digest) { return adoptRef(*new RigScrollingTree(digest)); }
+
+    void setWheelTarget(std::optional<ScrollingNodeID> target) { m_wheelTarget = target; }
+
+    void setRefreshController(bool hasRefreshController, float topScrollStretch, float snappingThreshold)
+    {
+        m_hasRefreshController = hasRefreshController;
+        m_topScrollStretch = topScrollStretch;
+        m_snappingThreshold = snappingThreshold;
+    }
+
+    // As ThreadedScrollingTree does on the scrolling thread after a commit.
+    void startPendingScrollAnimations()
+    {
+        Locker locker { m_treeLock };
+        auto animations = std::exchange(m_pendingScrollAnimations, { });
+        for (auto& [id, request] : animations) {
+            if (RefPtr node = dynamicDowncast<ScrollingTreeScrollingNode>(nodeForID(id)))
+                node->startAnimatedScrollToPosition(request.destinationPosition(node->currentScrollPosition()));
+        }
+        auto keyboardScrolls = std::exchange(m_pendingKeyboardScrolls, { });
+        for (auto& [id, request] : keyboardScrolls) {
+            if (RefPtr node = dynamicDowncast<ScrollingTreeScrollingNode>(nodeForID(id)))
+                node->handleKeyboardScrollRequest(request);
+        }
+    }
+
+    // As ThreadedScrollingTree::displayDidRefreshOnScrollingThread() services animations.
+    void displayDidRefreshAt(MonotonicTime now)
+    {
+        Locker locker { m_treeLock };
+        serviceScrollAnimations(now);
+    }
+
+    void disableLatching() { m_allowLatching = false; }
+
+private:
+    explicit RigScrollingTree(Digest& digest)
+        : m_digest(digest)
+    {
+    }
+
+    Digest& record(TreeCall call, ScrollingNodeID id)
+    {
+        return m_digest.u(static_cast<uint8_t>(call)).u(id.object().toUInt64());
+    }
+
+    Ref<ScrollingTreeNode> createScrollingTreeNode(ScrollingNodeType nodeType, ScrollingNodeID id) final
+    {
+        if (nodeType == ScrollingNodeType::Overflow)
+            return ScrollingTreeOverflowScrollingNodeMac::create(*this, id);
+        return ScrollingTreeFrameScrollingNodeMac::create(*this, nodeType, id);
+    }
+
+    RefPtr<ScrollingTreeNode> scrollingNodeForPoint(FloatPoint) final
+    {
+        if (m_wheelTarget)
+            return nodeForID(*m_wheelTarget);
+        return rootNode();
+    }
+
+    void handleWheelEventPhase(ScrollingNodeID id, PlatformWheelEventPhase phase) final { record(TreeCall::WheelEventPhase, id).u(static_cast<uint8_t>(phase)); }
+    void currentSnapPointIndicesDidChange(ScrollingNodeID id, std::optional<unsigned> horizontal, std::optional<unsigned> vertical) final { record(TreeCall::SnapIndicesDidChange, id).optu(horizontal).optu(vertical); }
+    void setActiveScrollSnapIndices(ScrollingNodeID id, std::optional<unsigned> horizontal, std::optional<unsigned> vertical) final { record(TreeCall::ActiveSnapIndices, id).optu(horizontal).optu(vertical); }
+    void deferWheelEventTestCompletionForReason(ScrollingNodeID id, WheelEventTestMonitor::DeferReason reason) final { record(TreeCall::DeferTestCompletion, id).u(static_cast<uint64_t>(reason)); }
+    void removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID id, WheelEventTestMonitor::DeferReason reason) final { record(TreeCall::RemoveTestCompletionDeferral, id).u(static_cast<uint64_t>(reason)); }
+
+    void setRubberBandingInProgressForNode(ScrollingNodeID id, bool inProgress) final
+    {
+        record(TreeCall::RubberBanding, id).b(inProgress);
+        ScrollingTree::setRubberBandingInProgressForNode(id, inProgress);
+    }
+
+    void scrollingTreeNodeDidScroll(ScrollingTreeScrollingNode& node, ScrollingLayerPositionAction action) final
+    {
+        record(TreeCall::DidScroll, node.scrollingNodeID()).pt(node.currentScrollPosition()).u(static_cast<uint8_t>(action));
+        ScrollingTree::scrollingTreeNodeDidScroll(node, action);
+    }
+
+    void hasNodeWithAnimatedScrollChanged(bool hasNodeWithAnimatedScroll) final { m_digest.u(static_cast<uint8_t>(TreeCall::AnimatedScrollChanged)).b(hasNodeWithAnimatedScroll); }
+    void scrollingTreeNodeWillStartAnimatedScroll(ScrollingTreeScrollingNode& node) final { record(TreeCall::WillStartAnimatedScroll, node.scrollingNodeID()); }
+    void scrollingTreeNodeDidStopAnimatedScroll(ScrollingTreeScrollingNode& node) final { record(TreeCall::DidStopAnimatedScroll, node.scrollingNodeID()); }
+    void scrollingTreeNodeWillStartWheelEventScroll(ScrollingTreeScrollingNode& node) final { record(TreeCall::WillStartWheelEventScroll, node.scrollingNodeID()); }
+    void scrollingTreeNodeDidStopWheelEventScroll(ScrollingTreeScrollingNode& node) final { record(TreeCall::DidStopWheelEventScroll, node.scrollingNodeID()); }
+    void scrollingTreeNodeDidBeginScrollSnapping(ScrollingNodeID id) final { record(TreeCall::BeginScrollSnapping, id); }
+    void scrollingTreeNodeDidEndScrollSnapping(ScrollingNodeID id) final { record(TreeCall::EndScrollSnapping, id); }
+    void receivedWheelEventWithPhases(PlatformWheelEventPhase phase, PlatformWheelEventPhase momentumPhase) final { m_digest.u(static_cast<uint8_t>(TreeCall::ReceivedPhases)).u(static_cast<uint8_t>(phase)).u(static_cast<uint8_t>(momentumPhase)); }
+
+    // As ThreadedScrollingTree: animated scrolls and keyboard scrolls start after the commit.
+    RequestsScrollHandling scrollingTreeNodeRequestsScroll(ScrollingNodeID id, const RequestedScrollData& request) final
+    {
+        record(TreeCall::ScrollRequest, id).u(static_cast<uint8_t>(request.requestType));
+        if (!isAnimatedUpdate(request.requestType))
+            return RequestsScrollHandling::Unhandled;
+        for (auto& pending : m_pendingScrollAnimations) {
+            if (pending.first == id) {
+                pending.second = request;
+                return RequestsScrollHandling::Handled;
+            }
+        }
+        m_pendingScrollAnimations.emplace_back(id, request);
+        return RequestsScrollHandling::Handled;
+    }
+
+    bool scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeID id, const RequestedKeyboardScrollData& request) final
+    {
+        record(TreeCall::KeyboardScrollRequest, id).u(static_cast<uint8_t>(request.action));
+        for (auto& pending : m_pendingKeyboardScrolls) {
+            if (pending.first == id) {
+                pending.second = request;
+                return true;
+            }
+        }
+        m_pendingKeyboardScrolls.emplace_back(id, request);
+        return true;
+    }
+
+    void didHandleScrollRequestForNode(ScrollingNodeID id, ScrollRequestType type, FloatPoint position, ShouldFireScrollEnd fireScrollEnd, Markable<ScrollRequestIdentifier>) final
+    {
+        record(TreeCall::DidHandleScrollRequest, id).u(static_cast<uint8_t>(type)).pt(position).u(static_cast<uint8_t>(fireScrollEnd));
+    }
+
+    float topScrollStretchForRefreshController() const final { return m_topScrollStretch; }
+    float refreshControllerSnappingThreshold() const final { return m_snappingThreshold; }
+    bool hasRefreshController() const final { return m_hasRefreshController; }
+
+    Digest& m_digest;
+    std::optional<ScrollingNodeID> m_wheelTarget;
+    std::vector<std::pair<ScrollingNodeID, RequestedScrollData>> m_pendingScrollAnimations;
+    std::vector<std::pair<ScrollingNodeID, RequestedKeyboardScrollData>> m_pendingKeyboardScrolls;
+    bool m_hasRefreshController { false };
+    float m_topScrollStretch { 0 };
+    float m_snappingThreshold { 0 };
+};
+
+// MARK: - Session
+
+struct NodeSetup {
+    FloatSize viewport { 800, 600 };
+    FloatSize contents { 1200, 20000 };
+    FloatPoint position;
+    IntPoint origin;
+    ScrollableAreaParameters parameters { scrollableParameters() };
+};
+
+// One tree, its state tree and the clock, through one scroll session. Node 0 is the root. After each step it
+// digests each node's scroll position and user-scroll and snap flags.
+class Session {
+public:
+    static constexpr double frameInterval = 1.0 / 60;
+
+    explicit Session(Digest& digest, double startTime = 1000)
+        : m_digest(digest)
+        , m_tree(RigScrollingTree::create(digest))
+    {
+        RigClock::now() = startTime;
+        setScrollingEffectsClockForTesting(RigClock::read);
+        m_tree->disableLatching();
+    }
+
+    ~Session()
+    {
+        // Removing the nodes stops their timers.
+        m_stateTree = makeUnique<ScrollingStateTree>();
+        commit();
+        setScrollingEffectsClockForTesting(nullptr);
+    }
+
+    RigScrollingTree& tree() { return m_tree.get(); }
+    uint64_t entries() const { return m_entries; }
+    size_t nodeCount() const { return m_nodes.size(); }
+
+    unsigned addRoot(const NodeSetup& setup, ScrollingNodeType type = ScrollingNodeType::MainFrame)
+    {
+        auto id = nodeID(m_nextID++);
+        m_stateTree->insertNode(type, id, std::nullopt, 0);
+        m_nodes = { id };
+        Ref root = rootState();
+        root->setAsyncFrameOrOverflowScrollingEnabled(true);
+        root->setFrameScaleFactor(1);
+        root->setLayoutViewport(FloatRect(setup.position, setup.viewport));
+        apply(0, setup);
+        return 0;
+    }
+
+    unsigned addOverflow(const NodeSetup& setup, unsigned parent = 0)
+    {
+        auto id = nodeID(m_nextID++);
+        m_stateTree->insertNode(ScrollingNodeType::Overflow, id, m_nodes[parent], notFound);
+        m_nodes.push_back(id);
+        apply(m_nodes.size() - 1, setup);
+        return m_nodes.size() - 1;
+    }
+
+    void apply(unsigned index, const NodeSetup& setup)
+    {
+        Ref node = state(index);
+        node->setScrollableAreaSize(setup.viewport);
+        node->setTotalContentsSize(setup.contents);
+        node->setReachableContentsSize(setup.contents);
+        node->setScrollOrigin(setup.origin);
+        node->setScrollPosition(setup.position);
+        node->setScrollableAreaParameters(setup.parameters);
+    }
+
+    Ref<ScrollingStateScrollingNode> state(unsigned index) { return downcast<ScrollingStateScrollingNode>(m_stateTree->stateNodeForID(m_nodes[index]).releaseNonNull()); }
+    Ref<ScrollingStateFrameScrollingNode> rootState() { return m_stateTree->rootStateNode().releaseNonNull(); }
+
+    RefPtr<ScrollingTreeScrollingNode> node(unsigned index) { return dynamicDowncast<ScrollingTreeScrollingNode>(m_tree->nodeForID(m_nodes[index])); }
+
+    void commit()
+    {
+        auto stateTree = m_stateTree->commit(LayerRepresentation::PlatformLayerRepresentation);
+        stateTree->setRootFrameIdentifier(FrameIdentifier(1));
+        m_tree->commitTreeState(WTF::move(stateTree));
+        m_tree->startPendingScrollAnimations();
+        ++m_entries;
+        observe();
+    }
+
+    void requestScroll(unsigned index, ScrollRequestType type, Variant<FloatPoint, FloatSize> positionOrDelta, ScrollType scrollType = ScrollType::Programmatic, ScrollClamping clamping = ScrollClamping::Clamped)
+    {
+        state(index)->setRequestedScrollData({ type, positionOrDelta, { }, scrollType, clamping, ScrollbarRevealBehavior::Default });
+    }
+
+    void requestKeyboardScroll(unsigned index, KeyboardScrollAction action, std::optional<KeyboardScroll> scroll = std::nullopt)
+    {
+        state(index)->setKeyboardScrollData({ action, scroll });
+    }
+
+    WheelEventHandlingResult wheel(unsigned target, const WheelDescription& description, double gap = 1.0 / 120)
+    {
+        RigClock::now() += gap;
+        RigWheelEvent event(description, RigClock::read(), gap);
+        m_tree->setWheelTarget(m_nodes[target]);
+        auto steps = m_tree->determineWheelEventProcessing(event);
+        auto result = m_tree->handleWheelEvent(event, steps);
+        ++m_entries;
+        m_digest.u(result.steps.toRaw()).b(result.wasHandled);
+        observe();
+        return result;
+    }
+
+    void frame()
+    {
+        RigClock::now() += frameInterval;
+        m_tree->displayDidRefreshAt(RigClock::read());
+        ++m_entries;
+        observe();
+    }
+
+    // Frames until no node animates, at most limit of them.
+    unsigned framesUntilIdle(unsigned limit = 600)
+    {
+        unsigned count = 0;
+        while (count < limit && m_tree->hasNodeWithActiveScrollAnimations()) {
+            frame();
+            ++count;
+        }
+        m_digest.u(count);
+        return count;
+    }
+
+    // A trackpad gesture: MayBegin, Began, Changed..., Ended, then momentum Began, Changed..., Ended.
+    struct Gesture {
+        std::vector<FloatSize> deltas;
+        std::vector<FloatSize> momentumDeltas;
+        double interval { 1.0 / 120 };
+        double gapBefore { 0.3 };
+        bool mayBegin { true };
+        bool cancelled { false };
+        bool framesBetweenEvents { true };
+    };
+
+    void gesture(unsigned target, const Gesture& gesture)
+    {
+        using Phase = PlatformWheelEventPhase;
+        bool first = true;
+        auto emit = [&](Phase phase, Phase momentumPhase, FloatSize delta) {
+            wheel(target, { phase, momentumPhase, delta }, first ? gesture.gapBefore : gesture.interval);
+            first = false;
+            if (gesture.framesBetweenEvents)
+                frame();
+        };
+        if (gesture.mayBegin)
+            emit(Phase::MayBegin, Phase::None, { });
+        for (size_t i = 0; i < gesture.deltas.size(); ++i)
+            emit(i ? Phase::Changed : Phase::Began, Phase::None, gesture.deltas[i]);
+        emit(gesture.cancelled ? Phase::Cancelled : Phase::Ended, Phase::None, { });
+        if (gesture.cancelled || gesture.momentumDeltas.empty())
+            return;
+        for (size_t i = 0; i < gesture.momentumDeltas.size(); ++i)
+            emit(Phase::None, i ? Phase::Changed : Phase::Began, gesture.momentumDeltas[i]);
+        emit(Phase::None, Phase::Ended, { });
+    }
+
+    void observe()
+    {
+        for (auto id : m_nodes) {
+            RefPtr node = dynamicDowncast<ScrollingTreeScrollingNode>(m_tree->nodeForID(id));
+            if (!node) {
+                m_digest.u(0);
+                continue;
+            }
+            m_digest.pt(node->currentScrollPosition()).b(node->isUserScrollInProgress()).b(node->isScrollSnapInProgress());
+        }
+    }
+
+    // Replaces the root with a new main frame node, as a navigation does, keeping the overflow nodes.
+    void replaceRoot(const NodeSetup& rootSetup, const std::vector<NodeSetup>& overflowSetups)
+    {
+        auto overflowCount = m_nodes.size() - 1;
+        auto oldOverflows = std::vector<ScrollingNodeID>(m_nodes.begin() + 1, m_nodes.end());
+        addRoot(rootSetup);
+        for (size_t i = 0; i < overflowCount; ++i) {
+            m_stateTree->insertNode(ScrollingNodeType::Overflow, oldOverflows[i], m_nodes[0], notFound);
+            m_nodes.push_back(oldOverflows[i]);
+            apply(m_nodes.size() - 1, i < overflowSetups.size() ? overflowSetups[i] : NodeSetup { });
+        }
+    }
+
+private:
+    Digest& m_digest;
+    Ref<RigScrollingTree> m_tree;
+    std::unique_ptr<ScrollingStateTree> m_stateTree { makeUnique<ScrollingStateTree>() };
+    std::vector<ScrollingNodeID> m_nodes;
+    uint64_t m_nextID { 1 };
+    uint64_t m_entries { 0 };
+};
+
+// MARK: - Benchmark shapes
+//
+// Each shape is one pass of a session on a new tree. The benchmark runs it once by default and many times in
+// its full run.
+
+inline NodeSetup mainFrameSetup(FloatPoint position)
+{
+    NodeSetup setup;
+    setup.position = position;
+    return setup;
+}
+
+inline NodeSetup overflowSetup(FloatPoint position, unsigned variant)
+{
+    NodeSetup setup;
+    setup.viewport = { 400, 300 };
+    setup.contents = { 400.0f + 200 * (variant % 3), 3000.0f + 1000 * variant };
+    setup.position = position;
+    setup.parameters = scrollableParameters(ScrollElasticity::Automatic, variant % 2 ? ScrollElasticity::Allowed : ScrollElasticity::Automatic, variant % 3, true);
+    return setup;
+}
+
+inline void trackpadGestureShape(Session& session)
+{
+    session.addRoot(mainFrameSetup({ 200, 8000 }));
+    session.commit();
+    Lcg random(4);
+    for (unsigned i = 0; i < 24; ++i) {
+        Session::Gesture gesture;
+        float sign = i % 2 ? -1 : 1;
+        gesture.deltas = decayingDeltas({ random.between(-2, 2), sign * random.between(4, 30) }, 0.97f, random.range(10, 30));
+        gesture.momentumDeltas = decayingDeltas({ 0, sign * random.between(10, 40) }, 0.92f, random.range(20, 60));
+        session.gesture(0, gesture);
+        session.framesUntilIdle();
+    }
+}
+
+inline void rubberBandAtEdgeShape(Session& session)
+{
+    auto setup = mainFrameSetup({ 0, 0 });
+    session.addRoot(setup);
+    session.commit();
+    Lcg random(5);
+    for (unsigned i = 0; i < 16; ++i) {
+        // Alternate the elasticity, and every fourth pull has a refresh controller pulling too.
+        setup.parameters = scrollableParameters(i % 2 ? ScrollElasticity::Automatic : ScrollElasticity::Allowed, i % 2 ? ScrollElasticity::Automatic : ScrollElasticity::Allowed);
+        session.apply(0, setup);
+        session.requestScroll(0, ScrollRequestType::PositionUpdate, FloatPoint { });
+        session.commit();
+        session.tree().setRefreshController(i % 4 == 3, i % 4 == 3 ? 40 : 0, i % 4 == 3 ? 60 : 0);
+        Session::Gesture gesture;
+        // Pulling down past the top edge, and every third pull also past the left edge.
+        gesture.deltas = decayingDeltas({ i % 3 ? 0 : random.between(4, 12), random.between(8, 30) }, 0.95f, random.range(8, 20));
+        gesture.gapBefore = 0.2;
+        session.gesture(0, gesture);
+        session.framesUntilIdle();
+    }
+    session.tree().setRefreshController(false, 0, 0);
+}
+
+inline void scrollSnapGestureShape(Session& session)
+{
+    auto setup = mainFrameSetup({ 0, 6000 });
+    session.addRoot(setup);
+    session.state(0)->setSnapOffsetsInfo(snapOffsets({ evenlySpaced(0, 300, 50), evenlySpaced(0, 300, 50), 300, ScrollSnapStrictness::Mandatory, std::nullopt }));
+    session.commit();
+    Lcg random(6);
+    for (unsigned i = 0; i < 16; ++i) {
+        Session::Gesture gesture;
+        float sign = i % 2 ? -1 : 1;
+        gesture.deltas = decayingDeltas({ random.between(-6, 6), sign * random.between(4, 24) }, 0.96f, random.range(8, 24));
+        if (i % 4 != 3)
+            gesture.momentumDeltas = decayingDeltas({ 0, sign * random.between(10, 30) }, 0.9f, random.range(10, 30));
+        session.gesture(0, gesture);
+        session.framesUntilIdle();
+    }
+}
+
+inline void stateCommitsShape(Session& session)
+{
+    session.addRoot(mainFrameSetup({ 0, 1000 }));
+    for (unsigned i = 0; i < 4; ++i)
+        session.addOverflow(overflowSetup({ 0, 100.0f * i }, i));
+    session.commit();
+    Lcg random(7);
+    for (unsigned round = 0; round < 40; ++round) {
+        for (unsigned index = 0; index < session.nodeCount(); ++index) {
+            Ref state = session.state(index);
+            switch ((round + index) % 6) {
+            case 0:
+                state->setTotalContentsSize({ 1200.0f + random.range(0, 4) * 100, 20000.0f + random.range(0, 40) * 100 });
+                break;
+            case 1: {
+                unsigned count = random.range(50, 200);
+                state->setSnapOffsetsInfo(snapOffsets({ { }, evenlySpaced(0, 100, count), 300, round % 2 ? ScrollSnapStrictness::Proximity : ScrollSnapStrictness::Mandatory, std::nullopt }));
+                break;
+            }
+            case 2:
+                state->setCurrentVerticalSnapPointIndex(random.chance(80) ? std::optional<unsigned>(random.range(0, 49)) : std::nullopt);
+                state->setCurrentHorizontalSnapPointIndex(random.chance(20) ? std::optional<unsigned>(random.range(0, 9)) : std::nullopt);
+                break;
+            case 3: {
+                ScrollbarHoverState hover;
+                hover.mouseIsOverHorizontalScrollbar = random.chance(50);
+                hover.mouseIsOverVerticalScrollbar = random.chance(50);
+                state->setScrollbarHoverState(hover);
+                state->setScrollbarEnabledState(ScrollbarOrientation::Vertical, random.chance(80));
+                state->setScrollbarEnabledState(ScrollbarOrientation::Horizontal, random.chance(50));
+                break;
+            }
+            case 4:
+                state->setScrollbarWidth(random.chance(50) ? ScrollbarWidth::Thin : ScrollbarWidth::Auto);
+                state->setUseDarkAppearanceForScrollbars(random.chance(50));
+                break;
+            case 5:
+                state->setMouseIsOverContentArea(random.chance(50));
+                session.requestScroll(index, ScrollRequestType::PositionUpdate, FloatPoint { 0, random.between(0, 2000) });
+                break;
+            }
+        }
+        session.commit();
+    }
+}
+
+inline void mixedSessionShape(Session& session)
+{
+    session.addRoot(mainFrameSetup({ 0, 2000 }));
+    session.addOverflow(overflowSetup({ 0, 500 }, 1));
+    session.addOverflow(overflowSetup({ 0, 0 }, 2));
+    SnapDescription rootSnaps { { }, evenlySpaced(0, 600, 30), 600, ScrollSnapStrictness::Proximity, std::nullopt };
+    SnapDescription overflowSnaps { { }, evenlySpaced(0, 300, 20), 300, ScrollSnapStrictness::Mandatory, std::nullopt };
+    session.state(0)->setSnapOffsetsInfo(snapOffsets(rootSnaps));
+    session.state(2)->setSnapOffsetsInfo(snapOffsets(overflowSnaps));
+    session.commit();
+    Lcg random(8);
+    static constexpr ScrollDirection directions[] = { ScrollDirection::ScrollDown, ScrollDirection::ScrollUp, ScrollDirection::ScrollRight, ScrollDirection::ScrollLeft };
+    for (unsigned i = 0; i < 24; ++i) {
+        unsigned target = random.range(0, 2);
+        switch (i % 6) {
+        case 0:
+        case 3: {
+            Session::Gesture gesture;
+            float sign = random.chance(50) ? -1 : 1;
+            gesture.deltas = decayingDeltas({ random.between(-3, 3), sign * random.between(4, 30) }, 0.96f, random.range(8, 24));
+            if (random.chance(70))
+                gesture.momentumDeltas = decayingDeltas({ 0, sign * random.between(10, 40) }, 0.92f, random.range(10, 40));
+            session.gesture(target, gesture);
+            session.framesUntilIdle();
+            break;
+        }
+        case 1:
+            if (random.chance(50))
+                session.requestScroll(target, ScrollRequestType::AnimatedPositionUpdate, FloatPoint { 0, random.between(0, 4000) });
+            else
+                session.requestScroll(target, ScrollRequestType::AnimatedDeltaUpdate, FloatSize { 0, random.between(-800, 800) });
+            session.commit();
+            for (unsigned frame = random.range(2, 30); frame; --frame)
+                session.frame();
+            session.requestScroll(target, ScrollRequestType::PositionUpdate, FloatPoint { 0, random.between(0, 2000) });
+            session.commit();
+            session.framesUntilIdle();
+            break;
+        case 2: {
+            auto direction = directions[random.range(0, 3)];
+            auto granularity = random.chance(60) ? ScrollGranularity::Line : ScrollGranularity::Page;
+            session.requestKeyboardScroll(target, KeyboardScrollAction::StartAnimation, keyboardScroll(direction, granularity, granularity == ScrollGranularity::Line ? 40 : 540));
+            session.commit();
+            for (unsigned frame = random.range(4, 30); frame; --frame)
+                session.frame();
+            session.requestKeyboardScroll(target, random.chance(70) ? KeyboardScrollAction::StopWithAnimation : KeyboardScrollAction::StopImmediately);
+            session.commit();
+            session.framesUntilIdle();
+            break;
+        }
+        case 4:
+            // Discrete mouse-wheel ticks; on a node with snap offsets they arm the snap timers, which this pass never fires.
+            for (unsigned tick = random.range(2, 8); tick; --tick) {
+                session.wheel(target, { PlatformWheelEventPhase::None, PlatformWheelEventPhase::None, { 0, random.chance(50) ? -40.0f : 40.0f }, PlatformWheelEventGranularity::ScrollByPixelWheelEvent, false }, 0.05);
+                session.frame();
+            }
+            session.framesUntilIdle();
+            break;
+        case 5: {
+            // A pull past the top of the root, and a programmatic scroll while it snaps back. Once, with a refresh
+            // controller, a new root replaces it first and takes over the rubber band, as after a navigation.
+            session.requestScroll(0, ScrollRequestType::PositionUpdate, FloatPoint { });
+            session.commit();
+            session.tree().setRefreshController(i == 17, i == 17 ? 40 : 0, i == 17 ? 60 : 0);
+            Session::Gesture gesture;
+            gesture.deltas = decayingDeltas({ 0, random.between(8, 30) }, 0.95f, random.range(8, 16));
+            session.gesture(0, gesture);
+            if (i == 17) {
+                session.replaceRoot(mainFrameSetup({ 0, 0 }), { overflowSetup({ 0, 500 }, 1), overflowSetup({ 0, 0 }, 2) });
+                session.state(0)->setSnapOffsetsInfo(snapOffsets(rootSnaps));
+                session.state(2)->setSnapOffsetsInfo(snapOffsets(overflowSnaps));
+                session.commit();
+            }
+            session.requestScroll(0, ScrollRequestType::PositionUpdate, FloatPoint { 0, 300 });
+            session.commit();
+            session.framesUntilIdle();
+            session.tree().setRefreshController(false, 0, 0);
+            session.state(0)->setTotalContentsSize({ 1200, 20000.0f + 100 * i });
+            session.commit();
+            break;
+        }
+        }
+    }
+}
+
+using Shape = void (*)(Session&);
+
+// One pass of a shape on a new tree, on the scrolling thread: its digest and how many entries (commits, wheel
+// events, display refreshes) it made.
+inline std::pair<uint64_t, uint64_t> runShape(Shape shape)
+{
+    Digest digest;
+    uint64_t entries = 0;
+    onScrollingThread([&] {
+        Session session(digest);
+        shape(session);
+        entries = session.entries();
+    });
+    drainMainThreadTasks();
+    return { digest.value(), entries };
+}
+
+} // namespace ScrollingTreeDelegate
+} // namespace TestWebKitAPI

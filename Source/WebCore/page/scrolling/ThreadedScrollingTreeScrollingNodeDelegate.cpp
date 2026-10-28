@@ -36,13 +36,56 @@
 #include "ScrollingTreeScrollingNode.h"
 #include <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+#include "ScrollingTreeScrollPhysicsClient.h"
+#include "ScrollingTreeScrollPhysicsDelegateHolder.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ThreadedScrollingTreeScrollingNodeDelegate);
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(ScrollingTreeScrollPhysicsDelegateHolder);
+
+// The shape that lets Swift use ScrollingTreeScrollPhysicsClient only in place (ScrollingTreeScrollPhysicsClient.h).
+static_assert(std::is_empty_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_polymorphic_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_default_constructible_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_copy_constructible_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_copy_assignable_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_move_assignable_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(std::is_move_constructible_v<ScrollingTreeScrollPhysicsClient>);
+static_assert(!std::is_trivially_destructible_v<ScrollingTreeScrollPhysicsClient>);
+
+ScrollingTreeScrollPhysicsClient::ScrollingTreeScrollPhysicsClient(ScrollingTreeScrollPhysicsClient&&)
+{
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
+ScrollingTreeScrollPhysicsClient::~ScrollingTreeScrollPhysicsClient() = default;
+
+void ScrollingTreeScrollPhysicsClient::startScrollendTimer()
+{
+    auto& delegate = this->delegate();
+    if (!delegate.m_discreteScrollendTimer) {
+        delegate.m_discreteScrollendTimer = delegate.createTimer([delegate = &delegate] {
+            delegate->scrollingNode()->didStopWheelEventScroll();
+        });
+    }
+    // As ScrollingEffectsController::scheduleScrollendTimer().
+    static constexpr Seconds discreteScrollDelay = 100_ms;
+    delegate.m_discreteScrollendTimer->startOneShot(discreteScrollDelay);
+}
+#endif
+
 ThreadedScrollingTreeScrollingNodeDelegate::ThreadedScrollingTreeScrollingNodeDelegate(ScrollingTreeScrollingNode& scrollingNode)
     : ScrollingTreeScrollingNodeDelegate(scrollingNode)
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    , m_physics(makeUnique<ScrollingTreeScrollPhysicsDelegateHolder>())
+#else
     , m_scrollController(*this)
+#endif
 {
 }
 
@@ -50,6 +93,20 @@ ThreadedScrollingTreeScrollingNodeDelegate::~ThreadedScrollingTreeScrollingNodeD
 
 void ThreadedScrollingTreeScrollingNodeDelegate::updateFromStateNode(const ScrollingStateScrollingNode& scrollingStateNode)
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    bool snapOffsetsChanged = scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::SnapOffsetsInfo);
+    if (snapOffsetsChanged) {
+        auto snapOffsetsInfo = scrollingStateNode.snapOffsetsInfo().convertUnits<LayoutScrollSnapOffsetsInfo>();
+        m_snapOffsetsInfo = snapOffsetsInfo.isEmpty() ? std::nullopt : std::make_optional(WTF::move(snapOffsetsInfo));
+    }
+    // -1 is no index.
+    auto snapIndex = [](std::optional<unsigned> index) {
+        return index ? int64_t { *index } : -1;
+    };
+    m_physics->delegate.updateFromStateNode(ScrollingTreeScrollPhysicsClientState(*this).facade(), snapOffsetsChanged, !!m_snapOffsetsInfo,
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentHorizontalSnapOffsetIndex), snapIndex(scrollingStateNode.currentHorizontalSnapPointIndex()),
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentVerticalSnapOffsetIndex), snapIndex(scrollingStateNode.currentVerticalSnapPointIndex()));
+#else
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::SnapOffsetsInfo))
         m_scrollController.setSnapOffsetsInfo(scrollingStateNode.snapOffsetsInfo().convertUnits<LayoutScrollSnapOffsetsInfo>());
 
@@ -58,17 +115,23 @@ void ThreadedScrollingTreeScrollingNodeDelegate::updateFromStateNode(const Scrol
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::CurrentVerticalSnapOffsetIndex))
         m_scrollController.setActiveScrollSnapIndexForAxis(ScrollEventAxis::Vertical, scrollingStateNode.currentVerticalSnapPointIndex());
+#endif
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::updateSnapScrollState()
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.updateSnapScrollState(ScrollingTreeScrollPhysicsClientState(*this).facade());
+#else
     Ref scrollingNode = this->scrollingNode();
     scrollingNode->setScrollSnapInProgress(m_scrollController.isScrollSnapInProgress());
 
     if (m_scrollController.activeScrollSnapIndexDidChange())
         scrollingTree()->setActiveScrollSnapIndices(scrollingNode->scrollingNodeID(), m_scrollController.activeScrollSnapIndexForAxis(ScrollEventAxis::Horizontal), m_scrollController.activeScrollSnapIndexForAxis(ScrollEventAxis::Vertical));
+#endif
 }
 
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
 void ThreadedScrollingTreeScrollingNodeDelegate::updateUserScrollInProgressForEvent(const PlatformWheelEvent& wheelEvent)
 {
     bool wasInUserScroll = m_scrollController.isUserScrollInProgress();
@@ -77,27 +140,44 @@ void ThreadedScrollingTreeScrollingNodeDelegate::updateUserScrollInProgressForEv
     if (isInUserScroll != wasInUserScroll)
         scrollingNode()->setUserScrollInProgress(isInUserScroll);
 }
+#endif
 
 bool ThreadedScrollingTreeScrollingNodeDelegate::startAnimatedScrollToPosition(FloatPoint destinationPosition, ScrollAnimationCurve curve)
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    return m_physics->delegate.startAnimatedScrollToPosition(ScrollingTreeScrollPhysicsClientState(*this).facade(), destinationPosition, curve);
+#else
     auto currentOffset = ScrollableArea::scrollOffsetFromPosition(currentScrollPosition(), scrollOrigin());
     auto destinationOffset = ScrollableArea::scrollOffsetFromPosition(destinationPosition, scrollOrigin());
     return m_scrollController.startAnimatedScrollToDestination(currentOffset, destinationOffset, curve);
+#endif
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::stopAnimatedScroll(EnumSet<AnimatedScrollType>)
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.stopAnimatedScroll(ScrollingTreeScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.stopAnimatedScroll();
+#endif
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::stopSpringAnimation()
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.stopSpringAnimation(ScrollingTreeScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.stopSpringAnimation();
+#endif
 }
 
 void ThreadedScrollingTreeScrollingNodeDelegate::serviceScrollAnimation(MonotonicTime currentTime)
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.serviceScrollAnimation(ScrollingTreeScrollPhysicsClientState(*this).facade(), currentTime.secondsSinceEpoch().value());
+#else
     m_scrollController.animationCallback(currentTime);
+#endif
 }
 
 std::unique_ptr<ScrollingEffectsControllerTimer> ThreadedScrollingTreeScrollingNodeDelegate::createTimer(Function<void()>&& function)
@@ -119,6 +199,17 @@ void ThreadedScrollingTreeScrollingNodeDelegate::destroyTimer(std::unique_ptr<Sc
     ScrollingThread::dispatch([timer = WTF::move(timer)] { });
 }
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+void ThreadedScrollingTreeScrollingNodeDelegate::discreteSnapTransitionTimerFired()
+{
+    // The timer's callback may hold the last reference to the node, which owns this delegate.
+    ScrollingTreeScrollPhysicsClientState state(*this);
+    m_discreteSnapTransitionTimer = nullptr;
+    m_physics->delegate.discreteSnapTransitionTimerFired(state.facade());
+}
+#endif
+
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
 void ThreadedScrollingTreeScrollingNodeDelegate::startAnimationCallback(ScrollingEffectsController&)
 {
     scrollingNode()->setScrollAnimationInProgress(true);
@@ -230,6 +321,7 @@ void ThreadedScrollingTreeScrollingNodeDelegate::removeWheelEventTestCompletionD
     // Just use the scrolling node ID as the identifier, since we know this is coming from a ScrollingEffectsController associated with this node.
     scrollingTree()->removeWheelEventTestCompletionDeferralForReason(scrollingNode()->scrollingNodeID(), reason);
 }
+#endif
 
 FloatPoint ThreadedScrollingTreeScrollingNodeDelegate::adjustedScrollPosition(const FloatPoint& position) const
 {
@@ -238,6 +330,9 @@ FloatPoint ThreadedScrollingTreeScrollingNodeDelegate::adjustedScrollPosition(co
 
 void ThreadedScrollingTreeScrollingNodeDelegate::handleKeyboardScrollRequest(const RequestedKeyboardScrollData& scrollData)
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.handleKeyboardScrollRequest(ScrollingTreeScrollPhysicsClientState(*this).facade(), scrollData);
+#else
     switch (scrollData.action) {
     case KeyboardScrollAction::StartAnimation:
         m_scrollController.startKeyboardScroll(*scrollData.keyboardScroll);
@@ -249,12 +344,15 @@ void ThreadedScrollingTreeScrollingNodeDelegate::handleKeyboardScrollRequest(con
         m_scrollController.finishKeyboardScroll(true);
         break;
     }
+#endif
 }
 
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
 ScrollingNodeID ThreadedScrollingTreeScrollingNodeDelegate::scrollingNodeIDForTesting() const
 {
     return scrollingNode()->scrollingNodeID();
 }
+#endif
 
 
 } // namespace WebCore
