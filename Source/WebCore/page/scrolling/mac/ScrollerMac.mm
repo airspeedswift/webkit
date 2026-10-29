@@ -42,6 +42,8 @@
 #import <wtf/BlockObjCExceptions.h>
 #import <wtf/TZoneMallocInlines.h>
 
+#if !USE_SWIFT_MAC_SCROLLERS
+
 enum class FeatureToAnimate {
     KnobAlpha,
     TrackAlpha,
@@ -664,5 +666,7 @@ String ScrollerMac::scrollbarState() const
 }
 
 }
+
+#endif // !USE_SWIFT_MAC_SCROLLERS
 
 #endif
