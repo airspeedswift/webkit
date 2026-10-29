@@ -404,6 +404,7 @@
 		DD3DC8B427A4BF8E007E5B61 /* LikelyDenseUnsignedIntegerSet.h in Headers */ = {isa = PBXBuildFile; fileRef = 337B2D6926546EAA00DDFD3D /* LikelyDenseUnsignedIntegerSet.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC8B527A4BF8E007E5B61 /* HexNumber.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A472BB151A825A004123FF /* HexNumber.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC8B627A4BF8E007E5B61 /* MainThread.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A472C7151A825B004123FF /* MainThread.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		2C5A9E1F3B7D4A6E8F012346 /* MainThreadBlocks.h in Headers */ = {isa = PBXBuildFile; fileRef = 2C5A9E1F3B7D4A6E8F012345 /* MainThreadBlocks.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC8B727A4BF8E007E5B61 /* CryptographicUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = E15556F418A0CC18006F48FB /* CryptographicUtilities.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC8B827A4BF8E007E5B61 /* HashTraits.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A472BA151A825A004123FF /* HashTraits.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC8B927A4BF8E007E5B61 /* PlatformHave.h in Headers */ = {isa = PBXBuildFile; fileRef = 7C3A45D023CFA883007DE3A6 /* PlatformHave.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -1674,6 +1675,7 @@
 		A8A472C5151A825A004123FF /* MainThreadCocoa.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MainThreadCocoa.mm; sourceTree = "<group>"; };
 		A8A472C6151A825A004123FF /* MainThread.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MainThread.cpp; sourceTree = "<group>"; };
 		A8A472C7151A825B004123FF /* MainThread.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainThread.h; sourceTree = "<group>"; };
+		2C5A9E1F3B7D4A6E8F012345 /* MainThreadBlocks.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MainThreadBlocks.h; sourceTree = "<group>"; };
 		A8A472C9151A825B004123FF /* MathExtras.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MathExtras.h; sourceTree = "<group>"; };
 		A8A472CC151A825B004123FF /* MessageQueue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MessageQueue.h; sourceTree = "<group>"; };
 		A8A472CD151A825B004123FF /* MetaAllocator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MetaAllocator.cpp; sourceTree = "<group>"; };
@@ -3489,6 +3491,7 @@
 				1C503BE523AAE0AE0072E66B /* LanguageCocoa.mm */,
 				1C96836826BE76B600A2A2F9 /* LoggingCocoa.mm */,
 				7A6EBA3320746C34004F9C44 /* MachSendRight.cpp */,
+				2C5A9E1F3B7D4A6E8F012345 /* MainThreadBlocks.h */,
 				A8A472C5151A825A004123FF /* MainThreadCocoa.mm */,
 				ADF2CE651E39F106006889DB /* MemoryFootprintCocoa.cpp */,
 				AD89B6B91E64150F0090707F /* MemoryPressureHandlerCocoa.mm */,
@@ -3771,6 +3774,7 @@
 				E3BFBA792E05EE9F00A38E4F /* MachSendRightAnnotated.h in Headers */,
 				DDF306E027C08654006A526F /* MachVMSPI.h in Headers */,
 				DD3DC8B627A4BF8E007E5B61 /* MainThread.h in Headers */,
+				2C5A9E1F3B7D4A6E8F012346 /* MainThreadBlocks.h in Headers */,
 				5187AC962C08570600549EFE /* MainThreadDispatcher.h in Headers */,
 				BC5267672C2726D600E422DD /* MakeString.h in Headers */,
 				BBEA08042CCFDB33000AC148 /* MallocCommon.h in Headers */,
