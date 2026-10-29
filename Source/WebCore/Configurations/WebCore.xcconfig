@@ -56,7 +56,7 @@ WK_SWIFT_SCROLLING_TREE_DELEGATE_CONDITIONS_YES = USE_SWIFT_SCROLLING_TREE_DELEG
 // Implements the scrolling tree's Mac scrollbars (ScrollerPairMac's state, ScrollerMac and their AppKit delegates) in
 // Swift. The define changes ScrollerPairMac's layout, so WebKit's BaseTarget.xcconfig and TestWebKitAPI's Base.xcconfig
 // declare the same setting.
-WK_USE_SWIFT_MAC_SCROLLERS = NO;
+WK_USE_SWIFT_MAC_SCROLLERS = YES;
 WK_SWIFT_MAC_SCROLLERS_DEFINES_YES = USE_SWIFT_MAC_SCROLLERS=1;
 WK_SWIFT_MAC_SCROLLERS_DEFINES_NO = USE_SWIFT_MAC_SCROLLERS=0;
 WK_SWIFT_MAC_SCROLLERS_CONDITIONS_YES = USE_SWIFT_MAC_SCROLLERS;
