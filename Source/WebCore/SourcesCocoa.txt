@@ -256,7 +256,6 @@ page/scrolling/cocoa/ScrollingTreeFixedNodeCocoa.mm @nonARC
 page/scrolling/cocoa/ScrollingTreeOverflowScrollProxyNodeCocoa.mm @nonARC
 page/scrolling/cocoa/ScrollingTreePositionedNodeCocoa.mm @nonARC
 page/scrolling/cocoa/ScrollingTreeStickyNodeCocoa.mm @nonARC
-page/scrolling/mac/ScrollerMac.mm @nonARC
 page/scrolling/mac/ScrollerPairMac.mm @nonARC
 page/scrolling/mac/ScrollingCoordinatorMac.mm @nonARC
 page/scrolling/mac/ScrollingStateScrollingNodeMac.mm @nonARC

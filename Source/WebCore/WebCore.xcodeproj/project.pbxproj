@@ -119,7 +119,6 @@
 		025F62AA2DD69A9800573F15 /* AutoplayPolicy.h in Headers */ = {isa = PBXBuildFile; fileRef = 025F62A92DD69A8700573F15 /* AutoplayPolicy.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		029D57AA2C506F5900AD086B /* UserGestureTokenIdentifier.h in Headers */ = {isa = PBXBuildFile; fileRef = 029D57A92C506F5900AD086B /* UserGestureTokenIdentifier.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		02E536BD2984EA6800417C02 /* ScrollerPairMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 024E5F7429844DBD009CC5FC /* ScrollerPairMac.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		02E536C12984ECE200417C02 /* ScrollerMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 024E5F7129844DBC009CC5FC /* ScrollerMac.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		02F00913A402BD5A4A68ED65 /* UnifiedSource16-header-RenderStyleGetters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1B5C8E332AFA25F34506CCB0 /* UnifiedSource16-header-RenderStyleGetters.cpp */; };
 		030346BE5CD75A7829AD613F /* UnifiedSource40-header-RenderStyleGetters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A756860D9AF6A2C15FCF7E3E /* UnifiedSource40-header-RenderStyleGetters.cpp */; };
 		0318396A0000000000000011 /* PathArcLengthMapper.h in Headers */ = {isa = PBXBuildFile; fileRef = 0318396A0000000000000001 /* PathArcLengthMapper.h */; };
@@ -2652,6 +2651,11 @@
 		5C0A16000000000000000002 /* ScrollingTreeScrollPhysicsClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A16000000000000000001 /* ScrollingTreeScrollPhysicsClient.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5C0A16000000000000000004 /* ScrollingTreeScrollPhysicsDelegateHolder.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A16000000000000000003 /* ScrollingTreeScrollPhysicsDelegateHolder.h */; };
 		5C0A16000000000000000006 /* ScrollingTreeScrollingNodeDelegateMac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A16000000000000000005 /* ScrollingTreeScrollingNodeDelegateMac.swift */; };
+		5C0A17000000000000000002 /* ScrollerPairMacTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000001 /* ScrollerPairMacTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A17000000000000000004 /* ScrollerImpDelegateBinding.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000003 /* ScrollerImpDelegateBinding.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A17000000000000000006 /* ScrollerPairMacState.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000005 /* ScrollerPairMacState.h */; };
+		5C0A17000000000000000008 /* ScrollerPairMac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000007 /* ScrollerPairMac.swift */; };
+		5C0A1700000000000000000A /* MacScrollerImpState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000009 /* MacScrollerImpState.swift */; };
 		5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */; };
 		5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */; };
 		5B46656325D14C0A000CFE14 /* ScrollingEffectsController.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -7908,8 +7912,6 @@
 		0223E0732AAED62200AF30FB /* RemoteUserInputEventData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RemoteUserInputEventData.h; sourceTree = "<group>"; };
 		02357438619C3D1E3719E438 /* NetworkLoadPolicy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkLoadPolicy.h; sourceTree = "<group>"; };
 		0245150B297CAF7700DFD845 /* LinkDecorationFilteringData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LinkDecorationFilteringData.h; sourceTree = "<group>"; };
-		024E5F7129844DBC009CC5FC /* ScrollerMac.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerMac.h; sourceTree = "<group>"; };
-		024E5F7229844DBD009CC5FC /* ScrollerMac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScrollerMac.mm; sourceTree = "<group>"; };
 		024E5F7329844DBD009CC5FC /* ScrollerPairMac.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScrollerPairMac.mm; sourceTree = "<group>"; };
 		024E5F7429844DBD009CC5FC /* ScrollerPairMac.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerPairMac.h; sourceTree = "<group>"; };
 		025F62A92DD69A8700573F15 /* AutoplayPolicy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AutoplayPolicy.h; sourceTree = "<group>"; };
@@ -13639,6 +13641,11 @@
 		5C0A16000000000000000001 /* ScrollingTreeScrollPhysicsClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingTreeScrollPhysicsClient.h; sourceTree = "<group>"; };
 		5C0A16000000000000000003 /* ScrollingTreeScrollPhysicsDelegateHolder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingTreeScrollPhysicsDelegateHolder.h; sourceTree = "<group>"; };
 		5C0A16000000000000000005 /* ScrollingTreeScrollingNodeDelegateMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollingTreeScrollingNodeDelegateMac.swift; sourceTree = "<group>"; };
+		5C0A17000000000000000001 /* ScrollerPairMacTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerPairMacTypes.h; sourceTree = "<group>"; };
+		5C0A17000000000000000003 /* ScrollerImpDelegateBinding.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerImpDelegateBinding.h; sourceTree = "<group>"; };
+		5C0A17000000000000000005 /* ScrollerPairMacState.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerPairMacState.h; sourceTree = "<group>"; };
+		5C0A17000000000000000007 /* ScrollerPairMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollerPairMac.swift; sourceTree = "<group>"; };
+		5C0A17000000000000000009 /* MacScrollerImpState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScrollerImpState.swift; sourceTree = "<group>"; };
 		5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsGeometry.swift; sourceTree = "<group>"; };
 		5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollSnapAnimationState.swift; sourceTree = "<group>"; };
 		5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollingEffectsController.h; sourceTree = "<group>"; };
@@ -25998,10 +26005,13 @@
 		1AF62EE214DA22A70041556C /* mac */ = {
 			isa = PBXGroup;
 			children = (
-				024E5F7129844DBC009CC5FC /* ScrollerMac.h */,
-				024E5F7229844DBD009CC5FC /* ScrollerMac.mm */,
 				024E5F7429844DBD009CC5FC /* ScrollerPairMac.h */,
 				024E5F7329844DBD009CC5FC /* ScrollerPairMac.mm */,
+				5C0A17000000000000000007 /* ScrollerPairMac.swift */,
+				5C0A17000000000000000005 /* ScrollerPairMacState.h */,
+				5C0A17000000000000000001 /* ScrollerPairMacTypes.h */,
+				5C0A17000000000000000003 /* ScrollerImpDelegateBinding.h */,
+				5C0A17000000000000000009 /* MacScrollerImpState.swift */,
 				9391A990162746CB00297330 /* ScrollingCoordinatorMac.h */,
 				1AF62EE314DA22A70041556C /* ScrollingCoordinatorMac.mm */,
 				0F73B765222B327F00805316 /* ScrollingStateScrollingNodeMac.mm */,
@@ -49136,8 +49146,10 @@
 				E53FC41A293BF17300EDE3E6 /* ScrollbarTrackCornerSystemImageMac.h in Headers */,
 				A539B0282F8F168200F84422 /* ScrollbarUpdateScope.h in Headers */,
 				83C5795D1DA5C301006FAC86 /* ScrollBehavior.h in Headers */,
-				02E536C12984ECE200417C02 /* ScrollerMac.h in Headers */,
 				02E536BD2984EA6800417C02 /* ScrollerPairMac.h in Headers */,
+				5C0A17000000000000000002 /* ScrollerPairMacTypes.h in Headers */,
+				5C0A17000000000000000004 /* ScrollerImpDelegateBinding.h in Headers */,
+				5C0A17000000000000000006 /* ScrollerPairMacState.h in Headers */,
 				CD1F9B4D270D03A900617EB6 /* ScrollExtents.h in Headers */,
 				0F605AED15F94848004DF0C0 /* ScrollingConstraints.h in Headers */,
 				1AF62EE814DA22A70041556C /* ScrollingCoordinator.h in Headers */,
@@ -51561,6 +51573,8 @@
 				5C0A11000000000000000008 /* ScrollPhysicsAnimations.swift in Sources */,
 				5C0A1100000000000000000E /* ScrollPhysicsClientProtocol.swift in Sources */,
 				5C0A16000000000000000006 /* ScrollingTreeScrollingNodeDelegateMac.swift in Sources */,
+				5C0A17000000000000000008 /* ScrollerPairMac.swift in Sources */,
+				5C0A1700000000000000000A /* MacScrollerImpState.swift in Sources */,
 				5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */,
 				5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,

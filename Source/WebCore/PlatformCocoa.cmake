@@ -1601,7 +1601,6 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     page/mac/CorrectionIndicator.h
 
-    page/scrolling/mac/ScrollerMac.h
     page/scrolling/mac/ScrollerPairMac.h
     page/scrolling/mac/ScrollingCoordinatorMac.h
     page/scrolling/mac/ScrollingTreeFrameScrollingNodeMac.h

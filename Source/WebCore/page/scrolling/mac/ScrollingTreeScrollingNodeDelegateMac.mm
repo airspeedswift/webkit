@@ -44,6 +44,8 @@
 #import "ScrollingTreeScrollPhysicsClient.h"
 #import "ScrollingTreeScrollPhysicsDelegateHolder.h"
 
+#import "WebCore-Swift.h"
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollingTreeScrollingNodeDelegateMac);
@@ -86,16 +88,14 @@ void ScrollingTreeScrollingNodeDelegateMac::nodeWillBeDestroyed()
 
 void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingStateScrollingNode& scrollingStateNode)
 {
-    Ref horizontalScroller = m_scrollerPair->horizontalScroller();
-    Ref verticalScroller = m_scrollerPair->verticalScroller();
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::PainterForScrollbar)) {
         RetainPtr horizontalScrollbar = scrollingStateNode.horizontalScrollerImp();
         RetainPtr verticalScrollbar = scrollingStateNode.verticalScrollerImp();
         if (horizontalScrollbar || verticalScrollbar) {
             m_scrollerPair->releaseReferencesToScrollerImpsOnTheMainThread();
-            horizontalScroller->setScrollerImp(horizontalScrollbar);
-            verticalScroller->setScrollerImp(verticalScrollbar);
+            m_scrollerPair->scrollers().setScrollerImp(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, horizontalScrollbar.get());
+            m_scrollerPair->scrollers().setScrollerImp(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, verticalScrollbar.get());
         }
     }
 
@@ -103,26 +103,26 @@ void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingS
         m_scrollerPair->mouseIsInScrollbar(scrollingStateNode.scrollbarHoverState());
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::HorizontalScrollbarLayer))
-        horizontalScroller->setHostLayer(protect(static_cast<CALayer*>(scrollingStateNode.horizontalScrollbarLayer())));
+        m_scrollerPair->scrollers().setHostLayer(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, protect(static_cast<CALayer*>(scrollingStateNode.horizontalScrollbarLayer())).get());
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::VerticalScrollbarLayer))
-        verticalScroller->setHostLayer(protect(static_cast<CALayer*>(scrollingStateNode.verticalScrollbarLayer())));
+        m_scrollerPair->scrollers().setHostLayer(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, protect(static_cast<CALayer*>(scrollingStateNode.verticalScrollbarLayer())).get());
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollableAreaParams)) {
-        horizontalScroller->setHiddenByStyle(scrollingStateNode.scrollableAreaParameters().horizontalNativeScrollbarVisibility);
-        verticalScroller->setHiddenByStyle(scrollingStateNode.scrollableAreaParameters().verticalNativeScrollbarVisibility);
+        m_scrollerPair->scrollers().setHiddenByStyle(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, scrollingStateNode.scrollableAreaParameters().horizontalNativeScrollbarVisibility);
+        m_scrollerPair->scrollers().setHiddenByStyle(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, scrollingStateNode.scrollableAreaParameters().verticalNativeScrollbarVisibility);
     }
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarEnabledState)) {
         auto scrollbarEnabledState = scrollingStateNode.scrollbarEnabledState();
-        m_scrollerPair->horizontalScroller().setEnabled(scrollbarEnabledState.horizontalScrollbarIsEnabled);
-        m_scrollerPair->verticalScroller().setEnabled(scrollbarEnabledState.verticalScrollbarIsEnabled);
+        m_scrollerPair->scrollers().setEnabled(ScrollbarOrientation::Horizontal, scrollbarEnabledState.horizontalScrollbarIsEnabled);
+        m_scrollerPair->scrollers().setEnabled(ScrollbarOrientation::Vertical, scrollbarEnabledState.verticalScrollbarIsEnabled);
     }
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarLayoutDirection)) {
         auto scrollbarLayoutDirection = scrollingStateNode.scrollbarLayoutDirection();
-        horizontalScroller->setScrollbarLayoutDirection(scrollbarLayoutDirection);
-        verticalScroller->setScrollbarLayoutDirection(scrollbarLayoutDirection);
+        m_scrollerPair->scrollers().setScrollbarLayoutDirection(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, scrollbarLayoutDirection);
+        m_scrollerPair->scrollers().setScrollbarLayoutDirection(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, scrollbarLayoutDirection);
     }
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarWidth)) {
@@ -247,8 +247,8 @@ Vector<RetainPtr<CALayer>, 2> ScrollingTreeScrollingNodeDelegateMac::hitTestable
     bool usesOverlayScrollbars = m_scrollerPair->scrollbarStyle() == ScrollbarStyle::Overlay;
 
     Vector<RetainPtr<CALayer>, 2> layers;
-    auto appendIfHitTestable = [&](ScrollerMac& scroller, NativeScrollbarVisibility visibility) {
-        RetainPtr hostLayer = scroller.hostLayer();
+    auto appendIfHitTestable = [&](ScrollbarOrientation orientation, NativeScrollbarVisibility visibility) {
+        RetainPtr hostLayer = m_scrollerPair->hostLayer(orientation);
         if (!hostLayer)
             return;
 
@@ -261,7 +261,7 @@ Vector<RetainPtr<CALayer>, 2> ScrollingTreeScrollingNodeDelegateMac::hitTestable
         case NativeScrollbarVisibility::Visible:
             // The web process only hit-tests an overlay scrollbar while it is shown, which it learns about
             // through ScrollerMac::visibilityChanged(), so consult the same state here.
-            if (usesOverlayScrollbars && !scroller.isVisible())
+            if (usesOverlayScrollbars && !m_scrollerPair->scrollers().isVisible(orientation))
                 return;
             break;
         }
@@ -269,8 +269,8 @@ Vector<RetainPtr<CALayer>, 2> ScrollingTreeScrollingNodeDelegateMac::hitTestable
         layers.append(WTF::move(hostLayer));
     };
 
-    appendIfHitTestable(m_scrollerPair->verticalScroller(), node->verticalNativeScrollbarVisibility());
-    appendIfHitTestable(m_scrollerPair->horizontalScroller(), node->horizontalNativeScrollbarVisibility());
+    appendIfHitTestable(ScrollbarOrientation::Vertical, node->verticalNativeScrollbarVisibility());
+    appendIfHitTestable(ScrollbarOrientation::Horizontal, node->horizontalNativeScrollbarVisibility());
     return layers;
 }
 
