@@ -838,6 +838,7 @@
 				WebCore/CookieJar.cpp,
 				WebCore/CredentialStorage.cpp,
 				WebCore/CryptoDigest.cpp,
+				WebCore/CSSFastPathsBench.cpp,
 				WebCore/CSSParser.cpp,
 				WebCore/CSSParserFastPaths.cpp,
 				WebCore/CSSTokenizerBench.cpp,

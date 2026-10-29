@@ -1048,6 +1048,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/parser/CSSParserContext.h
     css/parser/CSSParserEnum.h
     css/parser/CSSParserFastPaths.h
+    css/parser/CSSParserFastPathsSwiftTypes.h
     css/parser/CSSParserIdioms.h
     css/parser/CSSParserMode.h
     css/parser/CSSParserToken.h
