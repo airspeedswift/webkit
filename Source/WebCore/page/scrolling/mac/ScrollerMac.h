@@ -35,6 +35,8 @@
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 
+#if !USE_SWIFT_MAC_SCROLLERS
+
 OBJC_CLASS CALayer;
 OBJC_CLASS NSColor;
 OBJC_CLASS NSScrollerImp;
@@ -122,5 +124,7 @@ private:
 };
 
 }
+
+#endif // !USE_SWIFT_MAC_SCROLLERS
 
 #endif
