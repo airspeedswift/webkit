@@ -53,6 +53,14 @@
 #include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/StringParsingBuffer.h>
 
+#if !defined(USE_SWIFT_CSS_FAST_PATHS)
+#define USE_SWIFT_CSS_FAST_PATHS 0
+#endif
+
+#if USE_SWIFT_CSS_FAST_PATHS
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 
 std::optional<CSS::Range> CSSParserFastPaths::lengthValueRangeForPropertiesSupportingSimpleLengths(CSSPropertyID propertyId)
@@ -106,6 +114,7 @@ std::optional<CSS::Range> CSSParserFastPaths::lengthValueRangeForPropertiesSuppo
     }
 }
 
+#if !USE_SWIFT_CSS_FAST_PATHS
 template<typename CharacterType> static inline std::optional<double> parseCSSNumber(std::span<const CharacterType> characters)
 {
     // The charactersToDouble() function allows a trailing '.' but that is not allowed in CSS number values.
@@ -184,11 +193,30 @@ static inline bool parseSimpleNumberOrPercentageDividedBy100(std::span<const Cha
 
     return true;
 }
+#else
+template<typename CharacterType> static CSSFastPathNumber parseNumberForSwift(std::span<const CharacterType> characters)
+{
+    bool ok;
+    double number = charactersToDouble(characters, &ok);
+    return { number, CSSUnitType::Number, ok };
+}
+
+CSSFastPathNumber cssFastPathParseNumber8([[clang::noescape]] std::span<const uint8_t> characters)
+{
+    return parseNumberForSwift(byteCast<Latin1Character>(characters));
+}
+
+CSSFastPathNumber cssFastPathParseNumber16([[clang::noescape]] std::span<const char16_t> characters)
+{
+    return parseNumberForSwift(characters);
+}
+#endif
 
 static RefPtr<CSSValue> parseSimpleLengthValue(StringView string, CSSParserMode cssParserMode, CSS::Range valueRange)
 {
     ASSERT(!string.isEmpty());
 
+#if !USE_SWIFT_CSS_FAST_PATHS
     double number;
     auto unit = CSSUnitType::Number;
 
@@ -213,8 +241,16 @@ static RefPtr<CSSValue> parseSimpleLengthValue(StringView string, CSSParserMode 
         return nullptr;
 
     return CSSPrimitiveValue::create(number, unit);
+#else
+    bool svgAttributeMode = cssParserMode == SVGAttributeMode;
+    auto result = string.is8Bit() ? cssFastPathLength8(byteCast<uint8_t>(string.span8()), svgAttributeMode, valueRange.min, valueRange.max) : cssFastPathLength16(string.span16(), svgAttributeMode, valueRange.min, valueRange.max);
+    if (!result.ok)
+        return nullptr;
+    return CSSPrimitiveValue::create(result.value, result.unit);
+#endif
 }
 
+#if !USE_SWIFT_CSS_FAST_PATHS
 // Returns the number of characters which form a valid double
 // and are terminated by the given terminator character
 template <typename CharacterType>
@@ -659,12 +695,29 @@ static std::optional<SRGBA<uint8_t>> parseNumericColor(std::span<const Character
 
     return std::nullopt;
 }
+#else
+// CSSParserFastPathsSwift.swift converts an hsl() hue in radians to degrees with this value.
+static_assert(degreesPerRadianDouble == 180.0 / std::numbers::pi);
+
+// A color CSSParserFastPathsSwift.swift returns: a PackedColor::ARGB, or -1 for none.
+static std::optional<SRGBA<uint8_t>> colorFromSwift(int64_t color)
+{
+    if (color < 0)
+        return std::nullopt;
+    return asSRGBA(PackedColor::ARGB { static_cast<uint32_t>(color) });
+}
+#endif
 
 static std::optional<SRGBA<uint8_t>> parseNumericColor(StringView string, const CSSParserContext& context)
 {
+#if !USE_SWIFT_CSS_FAST_PATHS
     if (string.is8Bit())
         return parseNumericColor(string.span8(), context);
     return parseNumericColor(string.span16(), context);
+#else
+    bool quirksMode = isQuirksModeBehavior(context.mode);
+    return colorFromSwift(string.is8Bit() ? cssFastPathNumericColor8(byteCast<uint8_t>(string.span8()), quirksMode) : cssFastPathNumericColor16(string.span16(), quirksMode));
+#endif
 }
 
 static RefPtr<CSSValue> parseColor(StringView string, const CSSParserContext& context)
@@ -681,6 +734,7 @@ static RefPtr<CSSValue> parseColor(StringView string, const CSSParserContext& co
     return nullptr;
 }
 
+#if !USE_SWIFT_CSS_FAST_PATHS
 static std::optional<SRGBA<uint8_t>> finishParsingNamedColor(std::span<char> buffer)
 {
     buffer.back() = '\0';
@@ -710,26 +764,46 @@ template<typename CharacterType> static std::optional<SRGBA<uint8_t>> parseSimpl
         return color;
     return parseNamedColorInternal(characters);
 }
+#else
+int64_t cssFastPathFindNamedColor([[clang::noescape]] std::span<const uint8_t> name)
+{
+    auto* namedColor = findColor(byteCast<char>(name.data()), static_cast<unsigned>(name.size()));
+    return namedColor ? static_cast<int64_t>(namedColor->ARGBValue) : -1;
+}
+#endif
 
 std::optional<SRGBA<uint8_t>> CSSParserFastPaths::parseSimpleColor(StringView string, const CSSParserContext& context)
 {
+#if !USE_SWIFT_CSS_FAST_PATHS
     if (string.is8Bit())
         return parseSimpleColorInternal(string.span8(), context);
     return parseSimpleColorInternal(string.span16(), context);
+#else
+    bool quirksMode = isQuirksModeBehavior(context.mode);
+    return colorFromSwift(string.is8Bit() ? cssFastPathSimpleColor8(byteCast<uint8_t>(string.span8()), quirksMode) : cssFastPathSimpleColor16(string.span16(), quirksMode));
+#endif
 }
 
 std::optional<SRGBA<uint8_t>> CSSParserFastPaths::parseHexColor(StringView string)
 {
+#if !USE_SWIFT_CSS_FAST_PATHS
     if (string.is8Bit())
         return parseHexColorInternal(string.span8());
     return parseHexColorInternal(string.span16());
+#else
+    return colorFromSwift(string.is8Bit() ? cssFastPathHexColor8(byteCast<uint8_t>(string.span8())) : cssFastPathHexColor16(string.span16()));
+#endif
 }
 
 std::optional<SRGBA<uint8_t>> CSSParserFastPaths::parseNamedColor(StringView string)
 {
+#if !USE_SWIFT_CSS_FAST_PATHS
     if (string.is8Bit())
         return parseNamedColorInternal(string.span8());
     return parseNamedColorInternal(string.span16());
+#else
+    return colorFromSwift(string.is8Bit() ? cssFastPathNamedColor8(byteCast<uint8_t>(string.span8())) : cssFastPathNamedColor16(string.span16()));
+#endif
 }
 
 static bool isUniversalKeyword(StringView string)
@@ -769,6 +843,7 @@ static RefPtr<CSSValue> parseKeywordValue(CSSPropertyID property, StringView str
     return nullptr;
 }
 
+#if !USE_SWIFT_CSS_FAST_PATHS
 template <typename CharType>
 static bool parseTransformTranslateArguments(StringParsingBuffer<CharType>& buffer, unsigned expectedCount, CSSValueID transformType, CSSValueListBuilder& arguments)
 {
@@ -963,13 +1038,34 @@ static RefPtr<CSSValue> parseSimpleTransformList(std::span<const CharacterType> 
         return nullptr;
     return CSSTransformListValue::create(WTF::move(builder));
 }
+#else
+// Swift moves a noncopyable C++ type with its move constructor only when its destructor is not trivial; m_functions'
+// inline buffer needs that.
+static_assert(!std::is_trivially_destructible_v<CSSFastPathTransformSink>);
+
+void CSSFastPathTransformSink::append(uint16_t name, [[clang::noescape]] std::span<const double> values, [[clang::noescape]] std::span<const uint8_t> units)
+{
+    RELEASE_ASSERT(values.size() == units.size());
+    CSSValueListBuilder arguments;
+    for (size_t i = 0; i < values.size(); ++i)
+        [[clang::always_inline]] arguments.append(CSSPrimitiveValue::create(values[i], static_cast<CSSUnitType>(units[i])));
+    m_functions.append(CSSFunctionValue::create(static_cast<CSSValueID>(name), WTF::move(arguments)));
+}
+#endif
 
 static RefPtr<CSSValue> parseSimpleTransform(StringView string)
 {
     ASSERT(!string.isEmpty());
+#if !USE_SWIFT_CSS_FAST_PATHS
     if (string.is8Bit())
         return parseSimpleTransformList(string.span8());
     return parseSimpleTransformList(string.span16());
+#else
+    CSSFastPathTransformSink sink;
+    if (!(string.is8Bit() ? cssFastPathTransform8(byteCast<uint8_t>(string.span8()), sink) : cssFastPathTransform16(string.span16(), sink)))
+        return nullptr;
+    return CSSTransformListValue::create(sink.takeFunctions());
+#endif
 }
 
 static RefPtr<CSSValue> parseDisplay(StringView string)
@@ -1016,6 +1112,7 @@ static RefPtr<CSSValue> parseDisplay(StringView string)
 
 static RefPtr<CSSValue> parseOpacity(StringView string)
 {
+#if !USE_SWIFT_CSS_FAST_PATHS
     double number;
 
     if (string.is8Bit()) {
@@ -1025,6 +1122,12 @@ static RefPtr<CSSValue> parseOpacity(StringView string)
         if (!parseSimpleNumberOrPercentageDividedBy100(string.span16(), number))
             return nullptr;
     }
+#else
+    auto result = string.is8Bit() ? cssFastPathOpacity8(byteCast<uint8_t>(string.span8())) : cssFastPathOpacity16(string.span16());
+    if (!result.ok)
+        return nullptr;
+    double number = result.value;
+#endif
 
     return CSSPrimitiveValue::create(number, CSSUnitType::Number);
 }
