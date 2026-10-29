@@ -910,6 +910,7 @@
 				WebCore/LocalNetworkAccess.cpp,
 				WebCore/Logging.cpp,
 				WebCore/LoginStatus.cpp,
+				WebCore/MacScrollersBench.mm,
 				WebCore/MarkedText.cpp,
 				WebCore/MediaConstraintsTests.cpp,
 				WebCore/MediaQueryListCapacity.cpp,
