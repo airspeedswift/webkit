@@ -7313,7 +7313,7 @@
 		F47A09D120A93A9700240FAE /* DisabledAdaptations.h in Headers */ = {isa = PBXBuildFile; fileRef = F47A09CF20A939F600240FAE /* DisabledAdaptations.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		F47A633D1FF6FD500081B3CC /* PromisedAttachmentInfo.h in Headers */ = {isa = PBXBuildFile; fileRef = F47A633C1FF6FD500081B3CC /* PromisedAttachmentInfo.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		F47AD23B21934FF40051DD0B /* InsertNestedListCommand.h in Headers */ = {isa = PBXBuildFile; fileRef = F47AD2382193499A0051DD0B /* InsertNestedListCommand.h */; };
-		F47C590E29D2303800F07A3B /* ScrollTypesMac.h in Headers */ = {isa = PBXBuildFile; fileRef = F47C590D29D2303800F07A3B /* ScrollTypesMac.h */; };
+		F47C590E29D2303800F07A3B /* ScrollTypesMac.h in Headers */ = {isa = PBXBuildFile; fileRef = F47C590D29D2303800F07A3B /* ScrollTypesMac.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		F48223101E3869B80066FC79 /* WebItemProviderPasteboard.mm in Sources */ = {isa = PBXBuildFile; fileRef = F482230E1E3869B80066FC79 /* WebItemProviderPasteboard.mm */; };
 		F48223111E3869B80066FC79 /* WebItemProviderPasteboard.h in Headers */ = {isa = PBXBuildFile; fileRef = F482230F1E3869B80066FC79 /* WebItemProviderPasteboard.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		F48223131E386E240066FC79 /* AbstractPasteboard.h in Headers */ = {isa = PBXBuildFile; fileRef = F48223121E386E240066FC79 /* AbstractPasteboard.h */; settings = {ATTRIBUTES = (Private, ); }; };
