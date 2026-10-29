@@ -720,6 +720,7 @@ elseif (APPLE)
         cocoa/AuditToken.h
         cocoa/CrashReporter.h
         cocoa/Entitlements.h
+        cocoa/MainThreadBlocks.h
         cocoa/NSStringExtras.h
         cocoa/NSURLExtras.h
         cocoa/RuntimeApplicationChecksCocoa.h
