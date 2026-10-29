@@ -67,4 +67,11 @@
 #include "CSSTokenizerSwiftTypes.h"
 #endif
 
+#if !defined(USE_SWIFT_CSS_FAST_PATHS)
+#define USE_SWIFT_CSS_FAST_PATHS 0
+#endif
+#if USE_SWIFT_CSS_FAST_PATHS
+#include "CSSParserFastPathsSwiftTypes.h"
+#endif
+
 #include "WebCoreSwift-Generated.h"
