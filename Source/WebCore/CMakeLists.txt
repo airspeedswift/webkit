@@ -3318,6 +3318,11 @@ endif ()
 if (WK_USE_SWIFT_CSS_TOKENIZER)
     list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSTokenizer\\.cpp( |$)")
 endif ()
+# Set by WK_USE_SWIFT_CSS_FAST_PATHS. CSSParserFastPaths.cpp then includes WebCore-Swift.h, so it compiles in
+# WebCore_SwiftInterop, after WebCore's Swift module.
+if (WK_USE_SWIFT_CSS_FAST_PATHS)
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSParserFastPaths\\.cpp( |$)")
+endif ()
 
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
@@ -3412,6 +3417,7 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/SIMDHighBitMask.swift
         ${WEBCORE_DIR}/SIMDSaturatingSubtract.swift
         ${WEBCORE_DIR}/SIMDTableLookup.swift
+        ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
         ${WEBCORE_DIR}/html/parser/HTMLFastPathParser.swift
@@ -3474,6 +3480,14 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_CSS_TOKENIZER=1>")
         webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_TOKENIZER" "-Xcc -DUSE_SWIFT_CSS_TOKENIZER=1")
         list(APPEND _webcore_swift_core_submodules css/parser/CSSParserToken.h css/parser/CSSTokenizerSwiftTypes.h)
+    endif ()
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_CSS_FAST_PATHS: the C++ and Swift conditions.
+    if (WK_USE_SWIFT_CSS_FAST_PATHS)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSParserFastPaths.cpp)
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_CSS_FAST_PATHS=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_FAST_PATHS" "-Xcc -DUSE_SWIFT_CSS_FAST_PATHS=1")
+        list(APPEND _webcore_swift_core_submodules css/parser/CSSParserFastPathsSwiftTypes.h)
     endif ()
 
     webkit_target_add_swift_options(WebCore

@@ -582,6 +582,12 @@ macro(WEBKIT_OPTION_END)
     if (WK_USE_SWIFT_CSS_TOKENIZER)
         set(WK_BUILD_WEBCORE_SWIFT ON)
     endif ()
+    # The counterpart of the WebCore.xcconfig setting of the same name: CSSParserFastPaths' color, length, opacity
+    # and transform scans are CSSParserFastPathsSwift.swift.
+    option(WK_USE_SWIFT_CSS_FAST_PATHS "Parse simple CSS property values with WebCore's CSSParserFastPathsSwift.swift" OFF)
+    if (WK_USE_SWIFT_CSS_FAST_PATHS)
+        set(WK_BUILD_WEBCORE_SWIFT ON)
+    endif ()
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
