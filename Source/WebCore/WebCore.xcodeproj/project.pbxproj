@@ -2590,6 +2590,11 @@
 		5C0A16000000000000000002 /* ScrollingTreeScrollPhysicsClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A16000000000000000001 /* ScrollingTreeScrollPhysicsClient.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5C0A16000000000000000004 /* ScrollingTreeScrollPhysicsDelegateHolder.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A16000000000000000003 /* ScrollingTreeScrollPhysicsDelegateHolder.h */; };
 		5C0A16000000000000000006 /* ScrollingTreeScrollingNodeDelegateMac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A16000000000000000005 /* ScrollingTreeScrollingNodeDelegateMac.swift */; };
+		5C0A17000000000000000002 /* ScrollerPairMacTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000001 /* ScrollerPairMacTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A17000000000000000004 /* ScrollerImpDelegateBinding.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000003 /* ScrollerImpDelegateBinding.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C0A17000000000000000006 /* ScrollerPairMacState.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000005 /* ScrollerPairMacState.h */; };
+		5C0A17000000000000000008 /* ScrollerPairMac.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000007 /* ScrollerPairMac.swift */; };
+		5C0A1700000000000000000A /* MacScrollerImpState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A17000000000000000009 /* MacScrollerImpState.swift */; };
 		5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */; };
 		5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */; };
 		5B46656325D14C0A000CFE14 /* ScrollingEffectsController.h in Headers */ = {isa = PBXBuildFile; fileRef = 5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -13538,6 +13543,11 @@
 		5C0A16000000000000000001 /* ScrollingTreeScrollPhysicsClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingTreeScrollPhysicsClient.h; sourceTree = "<group>"; };
 		5C0A16000000000000000003 /* ScrollingTreeScrollPhysicsDelegateHolder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollingTreeScrollPhysicsDelegateHolder.h; sourceTree = "<group>"; };
 		5C0A16000000000000000005 /* ScrollingTreeScrollingNodeDelegateMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollingTreeScrollingNodeDelegateMac.swift; sourceTree = "<group>"; };
+		5C0A17000000000000000001 /* ScrollerPairMacTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerPairMacTypes.h; sourceTree = "<group>"; };
+		5C0A17000000000000000003 /* ScrollerImpDelegateBinding.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerImpDelegateBinding.h; sourceTree = "<group>"; };
+		5C0A17000000000000000005 /* ScrollerPairMacState.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScrollerPairMacState.h; sourceTree = "<group>"; };
+		5C0A17000000000000000007 /* ScrollerPairMac.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollerPairMac.swift; sourceTree = "<group>"; };
+		5C0A17000000000000000009 /* MacScrollerImpState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacScrollerImpState.swift; sourceTree = "<group>"; };
 		5C0A11000000000000000009 /* ScrollPhysicsGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollPhysicsGeometry.swift; sourceTree = "<group>"; };
 		5C0A1100000000000000000B /* ScrollSnapAnimationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScrollSnapAnimationState.swift; sourceTree = "<group>"; };
 		5B46655F25D14C09000CFE14 /* ScrollingEffectsController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollingEffectsController.h; sourceTree = "<group>"; };
@@ -25876,6 +25886,11 @@
 				024E5F7229844DBD009CC5FC /* ScrollerMac.mm */,
 				024E5F7429844DBD009CC5FC /* ScrollerPairMac.h */,
 				024E5F7329844DBD009CC5FC /* ScrollerPairMac.mm */,
+				5C0A17000000000000000007 /* ScrollerPairMac.swift */,
+				5C0A17000000000000000005 /* ScrollerPairMacState.h */,
+				5C0A17000000000000000001 /* ScrollerPairMacTypes.h */,
+				5C0A17000000000000000003 /* ScrollerImpDelegateBinding.h */,
+				5C0A17000000000000000009 /* MacScrollerImpState.swift */,
 				9391A990162746CB00297330 /* ScrollingCoordinatorMac.h */,
 				1AF62EE314DA22A70041556C /* ScrollingCoordinatorMac.mm */,
 				0F73B765222B327F00805316 /* ScrollingStateScrollingNodeMac.mm */,
@@ -48925,6 +48940,9 @@
 				83C5795D1DA5C301006FAC86 /* ScrollBehavior.h in Headers */,
 				02E536C12984ECE200417C02 /* ScrollerMac.h in Headers */,
 				02E536BD2984EA6800417C02 /* ScrollerPairMac.h in Headers */,
+				5C0A17000000000000000002 /* ScrollerPairMacTypes.h in Headers */,
+				5C0A17000000000000000004 /* ScrollerImpDelegateBinding.h in Headers */,
+				5C0A17000000000000000006 /* ScrollerPairMacState.h in Headers */,
 				CD1F9B4D270D03A900617EB6 /* ScrollExtents.h in Headers */,
 				0F605AED15F94848004DF0C0 /* ScrollingConstraints.h in Headers */,
 				1AF62EE814DA22A70041556C /* ScrollingCoordinator.h in Headers */,
@@ -51321,6 +51339,8 @@
 				5C0A11000000000000000008 /* ScrollPhysicsAnimations.swift in Sources */,
 				5C0A1100000000000000000E /* ScrollPhysicsClientProtocol.swift in Sources */,
 				5C0A16000000000000000006 /* ScrollingTreeScrollingNodeDelegateMac.swift in Sources */,
+				5C0A17000000000000000008 /* ScrollerPairMac.swift in Sources */,
+				5C0A1700000000000000000A /* MacScrollerImpState.swift in Sources */,
 				5C0A1100000000000000000A /* ScrollPhysicsGeometry.swift in Sources */,
 				5C0A1100000000000000000C /* ScrollSnapAnimationState.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
