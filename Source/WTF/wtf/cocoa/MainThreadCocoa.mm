@@ -38,6 +38,7 @@
 #import <wtf/BlockPtr.h>
 #import <wtf/Logging.h>
 #import <wtf/RunLoop.h>
+#import <wtf/cocoa/MainThreadBlocks.h>
 
 #if USE(WEB_THREAD)
 #import <wtf/ios/WebCoreThread.h>
@@ -87,6 +88,20 @@ void callOnWebThreadOrDispatchAsyncOnMainThread(void (^block)())
     }
 #endif
     RunLoop::mainSingleton().dispatch([block = makeBlockPtr(block)] {
+        block();
+    });
+}
+
+void callOnMainThreadWithBlock(void (^ _Nonnull block)(void))
+{
+    callOnMainThread([block = makeBlockPtr(block)] {
+        block();
+    });
+}
+
+void ensureOnMainThreadWithBlock(void (^ _Nonnull block)(void))
+{
+    ensureOnMainThread([block = makeBlockPtr(block)] {
         block();
     });
 }
