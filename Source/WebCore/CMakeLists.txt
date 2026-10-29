@@ -3302,6 +3302,7 @@ list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES
     "(^|/)WebVTTTokenizer\\.cpp( |$)"
     "(^|/)XMLDocumentParserLibxml2\\.cpp( |$)")
 list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSTokenizer\\.cpp( |$)")
+list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSParserFastPaths\\.cpp( |$)")
 
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
@@ -3396,6 +3397,7 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/SIMDHighBitMask.swift
         ${WEBCORE_DIR}/SIMDSaturatingSubtract.swift
         ${WEBCORE_DIR}/SIMDTableLookup.swift
+        ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
         ${WEBCORE_DIR}/html/parser/HTMLFastPathParser.swift
@@ -3436,6 +3438,9 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
 
     list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSTokenizer.cpp)
     list(APPEND _webcore_swift_core_submodules css/parser/CSSParserToken.h css/parser/CSSTokenizerSwiftTypes.h)
+
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSParserFastPaths.cpp)
+    list(APPEND _webcore_swift_core_submodules css/parser/CSSParserFastPathsSwiftTypes.h)
 
     webkit_target_add_swift_options(WebCore
         "-library-level spi"
