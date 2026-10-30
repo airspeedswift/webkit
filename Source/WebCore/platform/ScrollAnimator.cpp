@@ -67,6 +67,11 @@ ScrollAnimator::~ScrollAnimator()
     m_scrollController.stopAllTimers();
 }
 
+KeyboardScrollingAnimator* ScrollAnimator::keyboardScrollingAnimator() const
+{
+    return m_keyboardScrollingAnimator.ptr();
+}
+
 bool ScrollAnimator::singleAxisScroll(ScrollEventAxis axis, float scrollDelta, EnumSet<ScrollBehavior> behavior)
 {
     CheckedRef scrollableArea = m_scrollableArea;
@@ -455,6 +460,21 @@ void ScrollAnimator::cancelAnimations()
 {
     m_scrollController.stopAnimatedScroll();
     protect(scrollableArea())->scrollbarsController().cancelAnimations();
+}
+
+bool ScrollAnimator::isUserScrollInProgress() const
+{
+    return m_scrollController.isUserScrollInProgress();
+}
+
+bool ScrollAnimator::isScrollSnapInProgress() const
+{
+    return m_scrollController.isScrollSnapInProgress();
+}
+
+bool ScrollAnimator::usesScrollSnap() const
+{
+    return m_scrollController.usesScrollSnap();
 }
 
 void ScrollAnimator::contentsSizeChanged()
