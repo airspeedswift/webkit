@@ -55,6 +55,11 @@ struct ScrollExtents;
 
 class ScrollingEffectsControllerTimer;
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+class ScrollAnimatorScrollPhysicsClient;
+struct ScrollPhysicsControllerHolder;
+#endif
+
 class ScrollAnimator : private ScrollingEffectsControllerClient {
     WTF_MAKE_TZONE_ALLOCATED(ScrollAnimator);
 public:
@@ -144,6 +149,14 @@ private:
 
     FloatPoint adjustScrollPositionIfNecessary(const FloatPoint&) const;
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    void discreteSnapTransitionTimerFired();
+    void scheduleScrollendTimer();
+
+    friend class ScrollAnimatorScrollPhysicsClient;
+    template<typename> friend class ScrollSnapPhysicsClient;
+#endif
+
 public:
     // ScrollingEffectsControllerClient.
     std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&) final;
@@ -189,7 +202,15 @@ public:
 protected:
     WeakRef<ScrollableArea> m_scrollableArea;
     RefPtr<WheelEventTestMonitor> m_wheelEventTestMonitor;
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    std::unique_ptr<ScrollPhysicsControllerHolder> m_physics;
+    std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
+    // Declared so that member destruction stops the snap timer, then the scrollend timer, before m_physics.
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
+#else
     ScrollingEffectsController m_scrollController;
+#endif
     FloatPoint m_currentPosition;
 
     const UniqueRef<KeyboardScrollingAnimator> m_keyboardScrollingAnimator;

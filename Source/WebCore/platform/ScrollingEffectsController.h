@@ -54,8 +54,10 @@ class WheelEventTestMonitor;
 struct ScrollExtents;
 
 #if USE_SWIFT_SCROLL_PHYSICS
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 class ScrollPhysicsClient;
 struct ScrollPhysicsControllerHolder;
+#endif
 #endif
 
 class ScrollingEffectsControllerTimer : public RunLoop::TimerBase {
@@ -151,9 +153,12 @@ class WEBCORE_EXPORT ScrollingEffectsController {
 #else
 class WEBCORE_EXPORT ScrollingEffectsController : public ScrollAnimationClient {
 #endif
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     WTF_MAKE_NONCOPYABLE(ScrollingEffectsController);
+#endif
 
 public:
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     explicit ScrollingEffectsController(ScrollingEffectsControllerClient&);
     virtual ~ScrollingEffectsController();
 
@@ -171,6 +176,7 @@ public:
     void stopSpringAnimation();
 
     void stopKeyboardScrolling();
+#endif
 
 #if !USE_SWIFT_SCROLL_PHYSICS
     bool startMomentumScrollWithInitialVelocity(const FloatPoint& initialOffset, const FloatSize& initialVelocity, const FloatSize& initialDelta, NOESCAPE const Function<FloatPoint(const FloatPoint&)>& destinationModifier);
@@ -179,6 +185,7 @@ public:
     void didStopKeyboardScrolling();
 #endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     bool startKeyboardScroll(const KeyboardScroll&);
 
     void finishKeyboardScroll(bool immediate);
@@ -212,15 +219,19 @@ public:
 
     bool isScrollSnapInProgress() const;
     bool LEGACY_NODELETE isUserScrollInProgress() const;
+#endif
 
 #if PLATFORM(MAC)
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     // Stops a running spring animation, or ignores the rest of a momentum scroll while one runs. Called before the wheel event
     // scrolls anything, including for events with PlatformWheelEventPhase::MayBegin.
     void handleWheelEventDuringSpringAnimation(const PlatformWheelEvent&);
+#endif
 
     static FloatSize LEGACY_NODELETE wheelDeltaBiasingTowardsVertical(const FloatSize&);
     static bool LEGACY_NODELETE isScrollDeltaOpposingStretch(IntSize stretch, ScrollEventAxis, float delta);
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     // Returns true if handled.
     bool processWheelEventForScrollSnap(const PlatformWheelEvent&);
 
@@ -236,6 +247,7 @@ public:
 
     std::optional<RubberbandingState> captureRubberbandingState() const;
     bool restoreRubberbandingState(const RubberbandingState&);
+#endif
 #if !USE_SWIFT_SCROLL_PHYSICS
     bool LEGACY_NODELETE shouldAttemptRubberbandingRestoration(const RubberbandingState&);
 #endif
@@ -252,7 +264,9 @@ public:
 #endif
 
 private:
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     bool isSpringAnimationRunning() const;
+#endif
 
 #if !USE_SWIFT_SCROLL_PHYSICS
     void updateRubberBandAnimatingState();
@@ -269,12 +283,16 @@ private:
 #if !USE_SWIFT_SCROLL_PHYSICS
     bool LEGACY_NODELETE shouldOverrideMomentumScrolling() const;
 #endif
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     void discreteSnapTransitionTimerFired();
+#endif
 #if !USE_SWIFT_SCROLL_PHYSICS
     void scheduleDiscreteScrollSnap(const FloatSize& delta);
 #endif
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     void scrollendTimerFired();
     void scheduleScrollendTimer();
+#endif
 #if !USE_SWIFT_SCROLL_PHYSICS
 
     bool modifyScrollDeltaForStretching(const PlatformWheelEvent&, FloatSize&, bool isHorizontallyStretched, bool isVerticallyStretched);
@@ -330,6 +348,7 @@ private:
     } m_previousKineticAnimationInfo;
 #endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     ScrollingEffectsControllerClient& m_client;
 
 #if USE_SWIFT_SCROLL_PHYSICS
@@ -348,6 +367,7 @@ private:
     bool m_isAnimatingScrollSnap { false };
     bool m_isAnimatingKeyboardScrolling { false };
     bool m_inScrollGesture { false };
+#endif
 #endif
 
 #if PLATFORM(MAC)
@@ -379,8 +399,10 @@ private:
 #if !USE_SWIFT_SCROLL_PHYSICS
     Deque<FloatSize> m_recentDiscreteWheelDeltas;
 #endif
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
     std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
+#endif
 
 #if HAVE(RUBBER_BANDING)
 #if !USE_SWIFT_SCROLL_PHYSICS
@@ -388,8 +410,10 @@ private:
 #endif
 #endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 #if ASSERT_ENABLED
     bool m_timersWereStopped { false };
+#endif
 #endif
 #endif
 };
