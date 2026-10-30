@@ -65,7 +65,7 @@ public:
 
     ScrollableArea& scrollableArea() const { return m_scrollableArea; }
 
-    KeyboardScrollingAnimator *keyboardScrollingAnimator() const final { return m_keyboardScrollingAnimator.ptr(); }
+    WEBCORE_EXPORT KeyboardScrollingAnimator *keyboardScrollingAnimator() const final;
 
     enum class ScrollBehavior : uint8_t {
         RespectScrollSnap,
@@ -78,17 +78,17 @@ public:
     // already at the destination. Otherwise, starts scrolling towards the
     // destination and returns true. Scrolling may be immediate or animated.
     // The base class implementation always scrolls immediately, never animates.
-    bool singleAxisScroll(ScrollEventAxis, float delta, EnumSet<ScrollBehavior>);
+    WEBCORE_EXPORT bool singleAxisScroll(ScrollEventAxis, float delta, EnumSet<ScrollBehavior>);
 
     WEBCORE_EXPORT bool scrollToPositionWithoutAnimation(const FloatPoint&, ScrollClamping = ScrollClamping::Clamped);
     WEBCORE_EXPORT bool scrollToPositionWithAnimation(const FloatPoint&, ScrollClamping = ScrollClamping::Clamped, ScrollAnimationCurve = ScrollAnimationCurve::Default);
 
-    bool retargetRunningAnimation(const FloatPoint& newPosition, ScrollAnimationCurve);
+    WEBCORE_EXPORT bool retargetRunningAnimation(const FloatPoint& newPosition, ScrollAnimationCurve);
 
     virtual bool handleWheelEvent(const PlatformWheelEvent&);
     virtual bool processWheelEventForScrollSnap(const PlatformWheelEvent&) { return false; }
 
-    void stopKeyboardScrollAnimation();
+    WEBCORE_EXPORT void stopKeyboardScrollAnimation();
     
 #if PLATFORM(COCOA)
     virtual void handleWheelEventPhase(PlatformWheelEventPhase) { }
@@ -98,34 +98,34 @@ public:
     virtual bool handleTouchEvent(const PlatformTouchEvent&);
 #endif
 
-    void cancelAnimations();
+    WEBCORE_EXPORT void cancelAnimations();
 
     virtual bool isRubberBandInProgress() const { return false; }
 
-    bool isUserScrollInProgress() const { return m_scrollController.isUserScrollInProgress(); }
-    bool isScrollSnapInProgress() const { return m_scrollController.isScrollSnapInProgress(); }
-    bool usesScrollSnap() const { return m_scrollController.usesScrollSnap(); }
+    WEBCORE_EXPORT bool isUserScrollInProgress() const;
+    WEBCORE_EXPORT bool isScrollSnapInProgress() const;
+    WEBCORE_EXPORT bool usesScrollSnap() const;
 
-    void contentsSizeChanged();
+    WEBCORE_EXPORT void contentsSizeChanged();
 
     enum NotifyScrollableArea : bool { No, Yes };
-    void setCurrentPosition(const FloatPoint&, NotifyScrollableArea = NotifyScrollableArea::No);
+    WEBCORE_EXPORT void setCurrentPosition(const FloatPoint&, NotifyScrollableArea = NotifyScrollableArea::No);
     const FloatPoint& currentPosition() const LIFETIME_BOUND { return m_currentPosition; }
 
     void setWheelEventTestMonitor(RefPtr<WheelEventTestMonitor>&& testMonitor) { m_wheelEventTestMonitor = testMonitor; }
     WheelEventTestMonitor* wheelEventTestMonitor() const { return m_wheelEventTestMonitor.get(); }
 
-    FloatPoint scrollOffsetAdjustedForSnapping(const FloatPoint& offset, ScrollSnapPointSelectionMethod) const;
-    float scrollOffsetAdjustedForSnapping(ScrollEventAxis, const FloatPoint& newOffset, ScrollSnapPointSelectionMethod) const;
+    WEBCORE_EXPORT FloatPoint scrollOffsetAdjustedForSnapping(const FloatPoint& offset, ScrollSnapPointSelectionMethod) const;
+    WEBCORE_EXPORT float scrollOffsetAdjustedForSnapping(ScrollEventAxis, const FloatPoint& newOffset, ScrollSnapPointSelectionMethod) const;
 
-    NODELETE bool activeScrollSnapIndexDidChange() const;
-    NODELETE std::optional<unsigned> activeScrollSnapIndexForAxis(ScrollEventAxis) const;
-    void setActiveScrollSnapIndexForAxis(ScrollEventAxis, std::optional<unsigned> index);
-    void setSnapOffsetsInfo(const LayoutScrollSnapOffsetsInfo&);
-    NODELETE const LayoutScrollSnapOffsetsInfo* snapOffsetsInfo() const;
-    void resnapAfterLayout();
+    NODELETE WEBCORE_EXPORT bool activeScrollSnapIndexDidChange() const;
+    NODELETE WEBCORE_EXPORT std::optional<unsigned> activeScrollSnapIndexForAxis(ScrollEventAxis) const;
+    WEBCORE_EXPORT void setActiveScrollSnapIndexForAxis(ScrollEventAxis, std::optional<unsigned> index);
+    WEBCORE_EXPORT void setSnapOffsetsInfo(const LayoutScrollSnapOffsetsInfo&);
+    NODELETE WEBCORE_EXPORT const LayoutScrollSnapOffsetsInfo* snapOffsetsInfo() const;
+    WEBCORE_EXPORT void resnapAfterLayout();
 
-    ScrollAnimationStatus serviceScrollAnimation(MonotonicTime);
+    WEBCORE_EXPORT ScrollAnimationStatus serviceScrollAnimation(MonotonicTime);
 
 protected:
     bool handleSteppedScrolling(const PlatformWheelEvent&);
