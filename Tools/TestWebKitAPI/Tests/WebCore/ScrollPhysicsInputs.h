@@ -25,7 +25,7 @@
 
 #pragma once
 
-// Deterministic inputs for ScrollingEffectsController: wheel gestures, smooth and keyboard scrolls, snap
+// Deterministic inputs for ScrollAnimator: wheel gestures, smooth, programmatic and keyboard scrolls, snap
 // offsets, and the benchmark's session shapes. ScrollPhysics.cpp and ScrollPhysicsBench.cpp share them.
 
 #include "ScrollPhysicsTestClient.h"
@@ -83,25 +83,26 @@ inline Step wheelStep(const WheelDescription& wheel, double gap, Op op = Op::Whe
     return result;
 }
 
-inline Step smoothScroll(FloatPoint from, FloatPoint to)
+// Past the extents only with `unclamped`.
+inline Step smoothScroll(FloatPoint to, bool unclamped = false)
 {
-    auto result = step(Op::StartAnimatedScroll);
-    result.a = from;
-    result.size = toFloatSize(to);
+    auto result = step(Op::ScrollToPositionWithAnimation);
+    result.a = to;
+    result.flag = unclamped;
+    return result;
+}
+
+inline Step scrollWithoutAnimation(FloatPoint to)
+{
+    auto result = step(Op::ScrollToPositionWithoutAnimation);
+    result.a = to;
     return result;
 }
 
 inline Step retarget(FloatPoint to)
 {
-    auto result = step(Op::RetargetAnimatedScroll);
+    auto result = step(Op::RetargetRunningAnimation);
     result.a = to;
-    return result;
-}
-
-inline Step retargetBy(FloatSize delta)
-{
-    auto result = step(Op::RetargetAnimatedScrollBy);
-    result.size = delta;
     return result;
 }
 
@@ -114,29 +115,37 @@ inline Step retargetFrames(FloatPoint center, FloatSize stride, unsigned count =
     return result;
 }
 
-inline KeyboardScroll keyboardScroll(ScrollDirection direction, ScrollGranularity granularity, float distance)
+inline unsigned behaviorBits(std::initializer_list<ScrollAnimator::ScrollBehavior> behaviors)
 {
-    // As KeyboardScrollingAnimator::makeKeyboardScroll() builds it.
-    KeyboardScroll scroll;
-    scroll.offset = unitVectorForScrollDirection(direction).scaled(distance);
-    scroll.granularity = granularity;
-    scroll.direction = direction;
-    scroll.maximumVelocity = scroll.offset.scaled(KeyboardScrollParameters::parameters().maximumVelocityMultiplier);
-    scroll.force = scroll.maximumVelocity.scaled(KeyboardScrollParameters::parameters().springMass / KeyboardScrollParameters::parameters().timeToMaximumVelocity);
-    return scroll;
+    unsigned bits = 0;
+    for (auto behavior : behaviors)
+        bits |= 1u << static_cast<uint8_t>(behavior);
+    return bits;
 }
 
-inline Step startKeyboard(const KeyboardScroll& scroll)
+inline Step singleAxisScroll(ScrollEventAxis axis, float delta, unsigned behavior)
 {
-    auto result = step(Op::StartKeyboardScroll);
-    result.keyboard = scroll;
+    auto result = step(Op::SingleAxisScroll);
+    result.axis = axis;
+    result.value = delta;
+    result.count = behavior;
     return result;
 }
 
-inline Step finishKeyboard(bool immediate)
+// A key press, as the event handler sends it to the keyboard scrolling animator.
+inline Step keyDown(ScrollDirection direction, ScrollGranularity granularity, bool isKeyRepeat = false)
 {
-    auto result = step(Op::FinishKeyboardScroll);
-    result.flag = immediate;
+    auto result = step(Op::KeyboardScrollGesture);
+    result.direction = direction;
+    result.granularity = granularity;
+    result.flag = isKeyRepeat;
+    return result;
+}
+
+inline Step keyUp(bool immediately = false)
+{
+    auto result = step(Op::KeyUp);
+    result.flag = immediately;
     return result;
 }
 
@@ -178,14 +187,13 @@ inline Step setPrediction(bool enabled)
     return result;
 }
 
-inline Step adjustedDestination(ScrollEventAxis axis, FloatPoint destination, float velocity, std::optional<float> original, ScrollSnapPointSelectionMethod method)
+inline Step adjustedForSnapping(ScrollEventAxis axis, FloatPoint offset, ScrollSnapPointSelectionMethod method, bool bothAxes = false)
 {
-    auto result = step(Op::AdjustedScrollDestination);
+    auto result = step(Op::ScrollOffsetAdjustedForSnapping);
     result.axis = axis;
-    result.a = destination;
-    result.value = velocity;
-    result.optionalFloat = original;
+    result.a = offset;
     result.method = method;
+    result.flag = bothAxes;
     return result;
 }
 
@@ -194,13 +202,6 @@ inline Step setActiveIndex(ScrollEventAxis axis, std::optional<unsigned> index)
     auto result = step(Op::SetActiveScrollSnapIndex);
     result.axis = axis;
     result.optionalIndex = index;
-    return result;
-}
-
-inline Step captureRestore(double secondsBetween)
-{
-    auto result = step(Op::CaptureRestoreRubberbanding);
-    result.seconds = secondsBetween;
     return result;
 }
 
@@ -360,8 +361,13 @@ inline std::vector<float> evenlySpaced(float start, float spacing, unsigned coun
 
 // MARK: - Benchmark shapes
 //
-// Each shape is one case: one controller through one pass of a scroll session. The benchmark runs the pass
-// once by default and many times in its full run.
+// Each shape is one case: one scrollable area and its animator through one pass of a scroll session. The
+// benchmark runs the pass once by default and many times in its full run.
+
+inline FloatPoint maximumScrollOffset(const ScriptedConfig& config)
+{
+    return FloatPoint(config.contentsSize - config.viewportSize);
+}
 
 inline ScriptedConfig benchConfig()
 {
@@ -379,14 +385,15 @@ inline Case smoothScrollShape()
     result.config = benchConfig();
     result.offset = { 0, 5000 };
     Lcg random(1);
-    auto maximum = extentsFor(result.config).maximumScrollOffset();
+    auto maximum = maximumScrollOffset(result.config);
     FloatPoint from = result.offset;
     for (unsigned i = 0; i < 64; ++i) {
-        // About one in eight destinations is past the extents.
-        FloatPoint to { random.between(-100, maximum.x() + 100), from.y() + random.between(-800, 800) };
-        if (random.chance(12))
-            to.setY(random.chance(50) ? -200 : maximum.y() + 200);
-        result.steps.push_back(smoothScroll(from, to));
+        // About one in eight destinations is past the extents, and is not clamped.
+        FloatPoint to { random.between(0, maximum.x()), from.y() + random.between(-800, 800) };
+        bool pastExtents = random.chance(12);
+        if (pastExtents)
+            to = { random.between(-100, maximum.x() + 100), random.chance(50) ? -200 : maximum.y() + 200 };
+        result.steps.push_back(smoothScroll(to, pastExtents));
         result.steps.push_back(frames());
         from = to.constrainedBetween({ }, maximum);
     }
@@ -402,13 +409,16 @@ inline Case smoothRetargetShape()
     Lcg random(2);
     for (unsigned i = 0; i < 16; ++i) {
         FloatPoint center { random.between(0, 400), random.between(1000, 15000) };
-        result.steps.push_back(smoothScroll(result.offset, center));
+        result.steps.push_back(smoothScroll(center));
         result.steps.push_back(retargetFrames(center, { random.between(-20, 20), random.between(-60, 60) }, 48));
         result.steps.push_back(frames());
     }
     return result;
 }
 
+// Key presses through the keyboard scrolling animator: a page or the whole document animates from the animator,
+// an arrow key scrolls one line through singleAxisScroll(), and a held arrow key goes to the area's own keyboard
+// scrolling.
 inline Case keyboardScrollShape()
 {
     Case result;
@@ -417,16 +427,30 @@ inline Case keyboardScrollShape()
     result.offset = { 200, 5000 };
     static constexpr ScrollDirection directions[] = { ScrollDirection::ScrollDown, ScrollDirection::ScrollRight, ScrollDirection::ScrollUp, ScrollDirection::ScrollLeft };
     Lcg random(3);
-    auto maximum = extentsFor(result.config).maximumScrollOffset();
+    auto maximum = maximumScrollOffset(result.config);
     for (unsigned i = 0; i < 32; ++i) {
-        // Every eighth run starts against an edge, for the rubber-band force.
+        // Every eighth run starts against an edge.
         if (i % 8 == 7)
             result.steps.push_back(setConfig(result.config, FloatPoint(0, maximum.y())));
         auto direction = directions[i % 4];
-        auto granularity = i % 3 ? ScrollGranularity::Line : ScrollGranularity::Page;
-        result.steps.push_back(startKeyboard(keyboardScroll(direction, granularity, granularity == ScrollGranularity::Line ? 40 : 540)));
+        if (i % 4 == 3) {
+            auto axis = axisFromDirection(direction);
+            float sign = direction == ScrollDirection::ScrollUp || direction == ScrollDirection::ScrollLeft ? -1 : 1;
+            result.steps.push_back(keyDown(direction, ScrollGranularity::Line));
+            for (unsigned repeat = 0, count = random.range(2, 6); repeat < count; ++repeat) {
+                result.steps.push_back(singleAxisScroll(axis, sign * 40, behaviorBits({ ScrollAnimator::ScrollBehavior::RespectScrollSnap })));
+                result.steps.push_back(frames(random.range(2, 8)));
+            }
+            result.steps.push_back(keyUp());
+            result.steps.push_back(frames());
+            continue;
+        }
+        auto granularity = i % 5 == 4 ? ScrollGranularity::Document : ScrollGranularity::Page;
+        result.steps.push_back(keyDown(direction, granularity));
         result.steps.push_back(frames(random.range(6, 40)));
-        result.steps.push_back(finishKeyboard(false));
+        if (i % 2)
+            result.steps.push_back(step(Op::StopKeyboardScrollAnimation));
+        result.steps.push_back(keyUp(i % 6 == 5));
         result.steps.push_back(frames());
     }
     return result;
@@ -476,7 +500,6 @@ inline Case scrollSnapGestureShape()
     Case result;
     result.name = "ScrollSnapGesture";
     result.config = benchConfig();
-    result.config.reentrant = true;
     result.offset = { 0, 6000 };
     SnapDescription snap;
     snap.offsets = evenlySpaced(0, 190, 100);
@@ -502,7 +525,6 @@ inline Case discreteWheelSnapShape()
     Case result;
     result.name = "DiscreteWheelSnap";
     result.config = benchConfig();
-    result.config.reentrant = true;
     result.offset = { 0, 3800 };
     SnapDescription snap;
     snap.offsets = evenlySpaced(0, 380, 50);
@@ -525,24 +547,26 @@ inline Case mixedSessionShape()
     Case result;
     result.name = "MixedSession";
     result.config = benchConfig();
-    result.config.reentrant = true;
     result.offset = { 0, 4000 };
     SnapDescription snap;
     snap.offsets = evenlySpaced(0, 600, 34);
     result.snapInfos.push_back({ });
     result.snapInfos.push_back(snapInfo(snap));
+    // Snapping from the start, so programmatic scrolls and snap queries meet snap offsets until a layout clears them.
+    result.steps.push_back(setSnapInfo(1));
     Lcg random(8);
-    auto maximum = extentsFor(result.config).maximumScrollOffset();
+    auto maximum = maximumScrollOffset(result.config);
+    static constexpr ScrollSnapPointSelectionMethod methods[] = { ScrollSnapPointSelectionMethod::Closest, ScrollSnapPointSelectionMethod::Directional, ScrollSnapPointSelectionMethod::Paging };
     for (unsigned i = 0; i < 40; ++i) {
-        switch (random.range(0, 7)) {
+        switch (random.range(0, 8)) {
         case 0:
-            result.steps.push_back(smoothScroll(result.offset, { 0, random.between(0, maximum.y()) }));
+            result.steps.push_back(smoothScroll({ 0, random.between(0, maximum.y()) }));
             result.steps.push_back(frames());
             break;
         case 1:
-            result.steps.push_back(startKeyboard(keyboardScroll(random.chance(50) ? ScrollDirection::ScrollDown : ScrollDirection::ScrollUp, ScrollGranularity::Line, 40)));
+            result.steps.push_back(keyDown(random.chance(50) ? ScrollDirection::ScrollDown : ScrollDirection::ScrollUp, ScrollGranularity::Page));
             result.steps.push_back(frames(random.range(4, 30)));
-            result.steps.push_back(finishKeyboard(false));
+            result.steps.push_back(keyUp());
             result.steps.push_back(frames());
             break;
         case 2: {
@@ -555,11 +579,13 @@ inline Case mixedSessionShape()
             break;
         }
         case 3: {
+            // A pull past the top, then a programmatic scroll while it snaps back.
             result.steps.push_back(setConfig(result.config, FloatPoint(0, 0)));
             GestureDescription gesture;
             gesture.deltas = decayingDeltas({ 0, random.between(8, 25) }, 0.95f, random.range(6, 14));
             appendGesture(result.steps, gesture);
-            result.steps.push_back(captureRestore(0.05));
+            result.steps.push_back(frames(random.range(1, 6)));
+            result.steps.push_back(scrollWithoutAnimation({ 0, random.between(0, 2000) }));
             result.steps.push_back(frames());
             break;
         }
@@ -575,14 +601,22 @@ inline Case mixedSessionShape()
             result.steps.push_back(frames());
             break;
         case 6:
-            result.steps.push_back(smoothScroll(result.offset, { 0, random.between(0, maximum.y()) }));
+            result.steps.push_back(smoothScroll({ 0, random.between(0, maximum.y()) }));
             result.steps.push_back(frames(random.range(1, 10)));
             result.steps.push_back(step(Op::ContentsSizeChanged));
             result.steps.push_back(frames());
             break;
         case 7:
-            result.steps.push_back(adjustedDestination(ScrollEventAxis::Vertical, { 0, random.between(0, maximum.y()) }, random.between(-2000, 2000), random.between(0, maximum.y()), ScrollSnapPointSelectionMethod::Closest));
+            result.steps.push_back(adjustedForSnapping(ScrollEventAxis::Vertical, { 0, random.between(0, maximum.y()) }, methods[random.range(0, 2)], random.chance(30)));
             break;
+        case 8: {
+            bool paged = random.chance(50);
+            float delta = (random.chance(50) ? -1 : 1) * (paged ? 540 : 40);
+            unsigned behavior = paged ? behaviorBits({ ScrollAnimator::ScrollBehavior::RespectScrollSnap, ScrollAnimator::ScrollBehavior::Paged }) : behaviorBits({ ScrollAnimator::ScrollBehavior::RespectScrollSnap });
+            result.steps.push_back(singleAxisScroll(ScrollEventAxis::Vertical, delta, behavior));
+            result.steps.push_back(frames());
+            break;
+        }
         }
     }
     return result;
@@ -591,7 +625,7 @@ inline Case mixedSessionShape()
 // MARK: - Unit cases
 //
 // ScrollPhysics.cpp checks each one's full trace digest: the input classes a size, count or ordering in the
-// controller depends on.
+// scroll physics depends on.
 
 inline ScriptedConfig unitConfig()
 {
@@ -619,14 +653,13 @@ inline Case discreteWheelBurstCase(unsigned burst)
     return result;
 }
 
-// A glide over many snap offsets, with a client that re-enters the controller on every scroll.
+// A glide over many snap offsets; every scroll the glide makes updates the animator's snap index.
 inline Case snapGlideCase(unsigned snapOffsets)
 {
     Case result;
     result.name = "SnapGlide" + std::to_string(snapOffsets);
     result.config = unitConfig();
     result.config.contentsSize = { 800, 200000 };
-    result.config.reentrant = true;
     result.offset = { 0, 5000 };
     SnapDescription snap;
     snap.offsets = evenlySpaced(0, 190, snapOffsets);
@@ -642,17 +675,16 @@ inline Case snapGlideCase(unsigned snapOffsets)
     return result;
 }
 
-// The client stops the smooth scroll from inside the scroll the animation asked for.
+// The scrollable area stops the smooth scroll from inside the scroll the animation asked for.
 inline Case stopFromScrollCase()
 {
     Case result;
     result.name = "StopFromScroll";
     result.config = unitConfig();
-    result.config.reentrant = true;
-    result.config.reentryAction = ReentryAction::StopAnimatedScroll;
+    result.config.reentryAction = ReentryAction::CancelAnimations;
     result.config.reentryAtScroll = 3;
     result.offset = { 0, 1300 };
-    result.steps.push_back(smoothScroll({ 0, 1300 }, { 0, 1500 }));
+    result.steps.push_back(smoothScroll({ 0, 1500 }));
     result.steps.push_back(frames());
     return result;
 }
@@ -665,7 +697,7 @@ inline Case retargetToCurrentOffsetCase()
     result.name = "RetargetToCurrentOffset";
     result.config = unitConfig();
     result.offset = { 0, 1000 };
-    result.steps.push_back(smoothScroll({ 0, 1000 }, { 0, 1180 }));
+    result.steps.push_back(smoothScroll({ 0, 1180 }));
     result.steps.push_back(retarget({ 0, 1000 }));
     result.steps.push_back(frames());
     return result;
@@ -695,18 +727,17 @@ inline Case momentumContentsSizeChangedCase()
     return result;
 }
 
-// Keyboard scrolls whose position the animation truncates to an integral point within the extents: a position
-// between 0 and 1, a position at or beyond 2^31, and contents smaller than the viewport while the key is held.
+// Page-down presses whose destination the keyboard scrolling animator truncates to an integral point: from a
+// position between 0 and 1, from a position at or beyond 2^31, and on contents smaller than the viewport.
 inline Case keyboardSubpixelPositionCase()
 {
     Case result;
     result.name = "KeyboardSubpixelPosition";
     result.config = unitConfig();
-    result.config.roundScrollOffset = false;
     result.offset = { 0.25f, 0.5f };
-    result.steps.push_back(startKeyboard(keyboardScroll(ScrollDirection::ScrollDown, ScrollGranularity::Line, 40)));
+    result.steps.push_back(keyDown(ScrollDirection::ScrollDown, ScrollGranularity::Page));
     result.steps.push_back(frames(2));
-    result.steps.push_back(finishKeyboard(false));
+    result.steps.push_back(keyUp());
     result.steps.push_back(frames());
     return result;
 }
@@ -718,9 +749,9 @@ inline Case keyboardPositionBeyondInt32Case()
     result.config = unitConfig();
     result.config.contentsSize = { 6e9f, 6e9f };
     result.offset = { 3e9f, 2147483392.0f };
-    result.steps.push_back(startKeyboard(keyboardScroll(ScrollDirection::ScrollDown, ScrollGranularity::Page, 540)));
+    result.steps.push_back(keyDown(ScrollDirection::ScrollDown, ScrollGranularity::Page));
     result.steps.push_back(frames(5));
-    result.steps.push_back(finishKeyboard(false));
+    result.steps.push_back(keyUp());
     result.steps.push_back(frames());
     return result;
 }
@@ -732,11 +763,181 @@ inline Case keyboardContentsSmallerThanViewportCase()
     result.config = unitConfig();
     result.config.contentsSize = { 500, 400 };
     result.offset = { 0, 0 };
-    result.steps.push_back(startKeyboard(keyboardScroll(ScrollDirection::ScrollDown, ScrollGranularity::Line, 40)));
+    result.steps.push_back(keyDown(ScrollDirection::ScrollDown, ScrollGranularity::Page));
     result.steps.push_back(frames(10));
-    result.steps.push_back(finishKeyboard(false));
+    result.steps.push_back(keyUp());
     result.steps.push_back(frames());
     return result;
+}
+
+// Snap offsets with explicit snap areas, for the snap point selection case.
+inline unsigned appendSnapArea(LayoutScrollSnapOffsetsInfo& info, float x, float y, float width, float height)
+{
+    unsigned index = info.snapAreas.size();
+    info.snapAreas.append(LayoutRect(LayoutPoint(LayoutUnit(static_cast<double>(x)), LayoutUnit(static_cast<double>(y))), LayoutSize(LayoutUnit(static_cast<double>(width)), LayoutUnit(static_cast<double>(height)))));
+    info.snapAreasIDs.append(NodeIdentifier(static_cast<uint64_t>(index + 1)));
+    return index;
+}
+
+inline void appendSnapOffset(LayoutScrollSnapOffsetsInfo& info, ScrollEventAxis axis, float offset, std::initializer_list<unsigned> areas, bool stopAlways = false, bool hasSnapAreaLargerThanViewport = false)
+{
+    SnapOffset<LayoutUnit> snapOffset { LayoutUnit(static_cast<double>(offset)), stopAlways ? ScrollSnapStop::Always : ScrollSnapStop::Normal, hasSnapAreaLargerThanViewport, false, false, { }, { } };
+    for (auto area : areas)
+        snapOffset.snapAreaIndices.append(area);
+    (axis == ScrollEventAxis::Vertical ? info.verticalSnapOffsets : info.horizontalSnapOffsets).append(WTF::move(snapOffset));
+}
+
+inline std::vector<LayoutScrollSnapOffsetsInfo> snapPointSelectionInfos()
+{
+    constexpr auto horizontal = ScrollEventAxis::Horizontal;
+    constexpr auto vertical = ScrollEventAxis::Vertical;
+    std::vector<LayoutScrollSnapOffsetsInfo> infos;
+
+    // One snap offset.
+    LayoutScrollSnapOffsetsInfo single;
+    single.strictness = ScrollSnapStrictness::Mandatory;
+    appendSnapOffset(single, vertical, 500, { appendSnapArea(single, 0, 500, 400, 300) });
+    infos.push_back(single);
+
+    // Proximity, a fractional offset, and offsets 3.5 apart for a tie.
+    LayoutScrollSnapOffsetsInfo proximity;
+    proximity.strictness = ScrollSnapStrictness::Proximity;
+    for (float offset : { 300.0f, 1000.0f, 1003.5f, 1400.0f, 2500.0f })
+        appendSnapOffset(proximity, vertical, offset, { appendSnapArea(proximity, 0, offset, 400, 300) });
+    infos.push_back(proximity);
+
+    // scroll-snap-stop: always on some offsets.
+    LayoutScrollSnapOffsetsInfo stops;
+    stops.strictness = ScrollSnapStrictness::Mandatory;
+    for (float offset : { 0.0f, 300.0f, 600.0f, 900.0f, 1200.0f, 1500.0f, 2000.0f })
+        appendSnapOffset(stops, vertical, offset, { appendSnapArea(stops, 0, offset, 400, 300) }, offset == 600 || offset == 1200 || offset == 2000);
+    infos.push_back(stops);
+
+    // Snap areas larger than the snapport, one between offsets further apart than the snapport and one between
+    // offsets closer than it.
+    LayoutScrollSnapOffsetsInfo large;
+    large.strictness = ScrollSnapStrictness::Mandatory;
+    for (auto [offset, length] : { std::pair { 200.0f, 700.0f }, { 1000.0f, 2000.0f }, { 3000.0f, 300.0f }, { 5000.0f, 1000.0f }, { 5300.0f, 300.0f }, { 7000.0f, 2000.0f } })
+        appendSnapOffset(large, vertical, offset, { appendSnapArea(large, 0, offset, 400, length) }, false, length > 600);
+    infos.push_back(large);
+
+    // The same on the horizontal axis, with no strictness.
+    LayoutScrollSnapOffsetsInfo largeHorizontal;
+    for (auto [offset, length] : { std::pair { 0.0f, 300.0f }, { 900.0f, 2000.0f }, { 2900.0f, 300.0f }, { 4000.0f, 300.0f } })
+        appendSnapOffset(largeHorizontal, horizontal, offset, { appendSnapArea(largeHorizontal, offset, 0, length, 400) }, false, length > 800);
+    infos.push_back(largeHorizontal);
+
+    // Snap areas off screen in the other axis, and an offset with two snap areas.
+    LayoutScrollSnapOffsetsInfo offscreen;
+    offscreen.strictness = ScrollSnapStrictness::Mandatory;
+    appendSnapOffset(offscreen, vertical, 0, { appendSnapArea(offscreen, 0, 2000, 400, 300), appendSnapArea(offscreen, 0, 0, 400, 300) });
+    appendSnapOffset(offscreen, vertical, 500, { appendSnapArea(offscreen, 3000, 500, 400, 300) });
+    appendSnapOffset(offscreen, vertical, 1000, { appendSnapArea(offscreen, 3000, 1000, 400, 300), appendSnapArea(offscreen, 0, 1000, 400, 300) });
+    appendSnapOffset(offscreen, vertical, 1500, { appendSnapArea(offscreen, 5000, 1500, 400, 300), appendSnapArea(offscreen, 0, 100, 400, 300) });
+    infos.push_back(offscreen);
+
+    // A grid whose snap areas are not visible at each other's offsets, one visible in one direction only, one never
+    // compatible, and a far one.
+    LayoutScrollSnapOffsetsInfo grid;
+    grid.strictness = ScrollSnapStrictness::Mandatory;
+    unsigned lowerLeft = appendSnapArea(grid, 0, 3000, 400, 400);
+    unsigned upperRight = appendSnapArea(grid, 1000, 0, 400, 400);
+    unsigned middle = appendSnapArea(grid, 2000, 3000, 400, 400);
+    unsigned lower = appendSnapArea(grid, 2000, 6000, 400, 400);
+    unsigned incompatible = appendSnapArea(grid, 5000, 100, 400, 300);
+    unsigned far = appendSnapArea(grid, 30000, 30000, 400, 400);
+    unsigned incompatibleHorizontally = appendSnapArea(grid, 100, 5000, 300, 400);
+    appendSnapOffset(grid, horizontal, 0, { lowerLeft });
+    appendSnapOffset(grid, horizontal, 1000, { upperRight });
+    appendSnapOffset(grid, horizontal, 2000, { middle });
+    appendSnapOffset(grid, horizontal, 30000, { far });
+    appendSnapOffset(grid, horizontal, 35000, { incompatibleHorizontally });
+    appendSnapOffset(grid, vertical, 0, { upperRight });
+    appendSnapOffset(grid, vertical, 3000, { lowerLeft });
+    appendSnapOffset(grid, vertical, 6000, { lower });
+    appendSnapOffset(grid, vertical, 8000, { incompatible });
+    appendSnapOffset(grid, vertical, 30000, { far });
+    appendSnapOffset(grid, vertical, 35000, { incompatible });
+    infos.push_back(grid);
+
+    return infos;
+}
+
+// Snap point selection on each of snapPointSelectionInfos(), at and on both sides of each snap offset, each proximity
+// threshold, each snap area edge and each midpoint, by the closest, directional and paging methods on both axes.
+inline Case snapPointSelectionCase()
+{
+    Case result;
+    result.name = "SnapPointSelection";
+    result.config = unitConfig();
+    result.config.contentsSize = { 40000, 40000 };
+    result.offset = { 0, 0 };
+    result.snapInfos = snapPointSelectionInfos();
+    auto pagedBehavior = behaviorBits({ ScrollAnimator::ScrollBehavior::RespectScrollSnap, ScrollAnimator::ScrollBehavior::Paged, ScrollAnimator::ScrollBehavior::NeverAnimate });
+    auto directionalBehavior = behaviorBits({ ScrollAnimator::ScrollBehavior::RespectScrollSnap, ScrollAnimator::ScrollBehavior::NeverAnimate });
+    static constexpr float subpixel = 1.0f / 64;
+    for (unsigned index = 0; index < result.snapInfos.size(); ++index) {
+        const auto& info = result.snapInfos[index];
+        result.steps.push_back(setSnapInfo(index));
+        for (auto axis : { ScrollEventAxis::Horizontal, ScrollEventAxis::Vertical }) {
+            const auto& offsets = axis == ScrollEventAxis::Vertical ? info.verticalSnapOffsets : info.horizontalSnapOffsets;
+            float viewportLength = axis == ScrollEventAxis::Vertical ? 600 : 800;
+            std::vector<float> destinations;
+            for (unsigned i = 0; i < offsets.size(); ++i) {
+                float offset = offsets[i].offset.toFloat();
+                for (float delta : { 0.0f, 0.5f, 0.3f * viewportLength, viewportLength - 0.5f }) {
+                    for (float side : { -subpixel, 0.0f, subpixel }) {
+                        destinations.push_back(offset + delta + side);
+                        destinations.push_back(offset - delta + side);
+                    }
+                }
+                if (i + 1 < offsets.size())
+                    destinations.push_back((offset + offsets[i + 1].offset.toFloat()) / 2);
+            }
+            // The other axis matters only where it has snap offsets or the snap areas are off screen in it.
+            bool otherAxisMatters = !info.horizontalSnapOffsets.isEmpty() && !info.verticalSnapOffsets.isEmpty();
+            for (auto& area : info.snapAreas)
+                otherAxisMatters = otherAxisMatters || (axis == ScrollEventAxis::Vertical ? area.x() : area.y()) > 0;
+            auto others = otherAxisMatters ? std::vector<float> { 0, 100, 3000 } : std::vector<float> { 0 };
+            for (unsigned d = 0; d < destinations.size(); ++d) {
+                float destination = destinations[d];
+                for (float other : others) {
+                    FloatPoint point = axis == ScrollEventAxis::Vertical ? FloatPoint { other, destination } : FloatPoint { destination, other };
+                    result.steps.push_back(adjustedForSnapping(axis, point, ScrollSnapPointSelectionMethod::Closest, d % 2));
+                    for (float from : { -50.0f, 0.0f, 50.0f }) {
+                        auto position = step(Op::SetCurrentPosition);
+                        position.a = axis == ScrollEventAxis::Vertical ? FloatPoint { other, destination + from } : FloatPoint { destination + from, other };
+                        result.steps.push_back(position);
+                        result.steps.push_back(adjustedForSnapping(axis, point, ScrollSnapPointSelectionMethod::Directional));
+                    }
+                }
+                auto position = step(Op::SetCurrentPosition);
+                position.a = axis == ScrollEventAxis::Vertical ? FloatPoint { 0, destination } : FloatPoint { destination, 0 };
+                for (float delta : { -viewportLength, viewportLength }) {
+                    result.steps.push_back(position);
+                    result.steps.push_back(singleAxisScroll(axis, delta, d % 2 ? directionalBehavior : pagedBehavior));
+                }
+            }
+        }
+    }
+    // Directional scrolls across several snap stops, and from a position outside the scroll range, so that a
+    // destination with no velocity is clamped away from it.
+    result.steps.push_back(setSnapInfo(2));
+    for (auto [from, to] : { std::pair { 0.0f, 2500.0f }, { 2500.0f, 0.0f }, { -100.0f, -100.0f }, { 40000.0f, 40000.0f } }) {
+        auto position = step(Op::SetCurrentPosition);
+        position.a = { 0, from };
+        result.steps.push_back(position);
+        result.steps.push_back(adjustedForSnapping(ScrollEventAxis::Vertical, { 0, to }, ScrollSnapPointSelectionMethod::Directional));
+    }
+    return result;
+}
+
+// The case's many steps are not each followed by a snapshot: the trace has every result.
+inline uint64_t snapPointSelectionDigest()
+{
+    Trace trace(TraceLevel::Full);
+    std::vector<Case> one { snapPointSelectionCase() };
+    return runCases(trace, one, false);
 }
 
 inline std::vector<Case> unitCases()
