@@ -50,6 +50,10 @@
 #import "WebCore-Swift.h"
 #endif
 
+#if USE_SWIFT_SCROLLERS_IN_DELEGATE
+#import "ScrollerPairMacTypes.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollingTreeScrollingNodeDelegateMac);
@@ -98,6 +102,7 @@ void ScrollingTreeScrollingNodeDelegateMac::nodeWillBeDestroyed()
 
 void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingStateScrollingNode& scrollingStateNode)
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
 #if !USE_SWIFT_MAC_SCROLLERS
     Ref horizontalScroller = m_scrollerPair->horizontalScroller();
     Ref verticalScroller = m_scrollerPair->verticalScroller();
@@ -189,6 +194,14 @@ void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingS
         m_scrollerPair->scrollbarColorChanged(scrollingStateNode.scrollbarColor());
 
     m_scrollerPair->updateValues();
+#else
+    m_physics->delegate.updateScrollbars(m_scrollerPair.ptr(), m_scrollerPair->scrollers(), scrollingStateNode.changedProperties().toRaw(),
+        scrollingStateNode.horizontalScrollerImp(), scrollingStateNode.verticalScrollerImp(), scrollingStateNode.scrollbarHoverState(),
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::HorizontalScrollbarLayer) ? static_cast<CALayer*>(scrollingStateNode.horizontalScrollbarLayer()) : nil,
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::VerticalScrollbarLayer) ? static_cast<CALayer*>(scrollingStateNode.verticalScrollbarLayer()) : nil, scrollingStateNode.scrollableAreaParameters(),
+        scrollingStateNode.scrollbarEnabledState(), scrollingStateNode.scrollbarLayoutDirection(), scrollingStateNode.scrollbarWidth(), scrollingStateNode.useDarkAppearanceForScrollbars(),
+        scrollingStateNode.mouseIsOverContentArea(), scrollingStateNode.mouseLocationState(), scrollingStateNode.scrollbarColor());
+#endif
 
     ThreadedScrollingTreeScrollingNodeDelegate::updateFromStateNode(scrollingStateNode);
 
@@ -214,7 +227,11 @@ void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingS
 bool ScrollingTreeScrollingNodeDelegateMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
 #if USE_SWIFT_SCROLLING_TREE_DELEGATE
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_physics->delegate.handleWheelEvent(ScrollingTreeScrollPhysicsClientState(*this).facade(), m_scrollerPair.ptr(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#else
+    return m_physics->delegate.handleWheelEvent(ScrollingTreeScrollPhysicsClientState(*this).facade(), m_scrollerPair->scrollers(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#endif
 #else
     bool wasInMomentumPhase = m_inMomentumPhase;
 
@@ -509,7 +526,11 @@ bool ScrollingTreeScrollingNodeDelegateMac::hasRefreshController() const
 void ScrollingTreeScrollingNodeDelegateMac::updateScrollbarPainters()
 {
 #if USE_SWIFT_SCROLLING_TREE_DELEGATE
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     m_physics->delegate.updateScrollbarPainters(m_scrollerPair.ptr());
+#else
+    m_physics->delegate.updateScrollbarPainters(m_scrollerPair.ptr(), m_scrollerPair->scrollers());
+#endif
 #else
     if (m_inMomentumPhase && m_scrollerPair->hasScrollerImp() && m_scrollerPair->isUsingPresentationValues())
         m_scrollerPair->updateScrollbarPainters();
@@ -523,38 +544,66 @@ void ScrollingTreeScrollingNodeDelegateMac::initScrollbars()
 
 void ScrollingTreeScrollingNodeDelegateMac::updateScrollbarLayers()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     m_scrollerPair->updateValues();
+#else
+    m_scrollerPair->scrollers().updateValues(m_scrollerPair.ptr());
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::handleWheelEventPhase(const PlatformWheelEventPhase wheelEventPhase)
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     m_scrollerPair->handleWheelEventPhase(wheelEventPhase);
+#else
+    m_scrollerPair->scrollers().handleWheelEventPhase(m_scrollerPair.ptr(), wheelEventPhase);
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::viewWillStartLiveResize()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->viewWillStartLiveResize();
+#else
+    m_scrollerPair->scrollers().viewWillStartLiveResize(m_scrollerPair.ptr());
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::viewWillEndLiveResize()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->viewWillEndLiveResize();
+#else
+    m_scrollerPair->scrollers().viewWillEndLiveResize(m_scrollerPair.ptr());
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::viewSizeDidChange()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->contentsSizeChanged();
+#else
+    m_scrollerPair->scrollers().notifyScrollerImpPair(m_scrollerPair.ptr(), ScrollerImpPairNotification::ContentAreaDidResize);
+#endif
 }
 
 String ScrollingTreeScrollingNodeDelegateMac::scrollbarStateForOrientation(ScrollbarOrientation orientation) const
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->scrollbarStateForOrientation(orientation);
+#else
+    return m_scrollerPair->scrollers().scrollbarStateForOrientation(orientation);
+#endif
 }
 
 Vector<RetainPtr<CALayer>, 2> ScrollingTreeScrollingNodeDelegateMac::hitTestableScrollbarLayers() const
 {
     Ref node = scrollingNode();
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     bool usesOverlayScrollbars = m_scrollerPair->scrollbarStyle() == ScrollbarStyle::Overlay;
+#else
+    bool usesOverlayScrollbars = m_scrollerPair->scrollers().scrollbarStyle() == ScrollbarStyle::Overlay;
+#endif
 
     Vector<RetainPtr<CALayer>, 2> layers;
 #if !USE_SWIFT_MAC_SCROLLERS
