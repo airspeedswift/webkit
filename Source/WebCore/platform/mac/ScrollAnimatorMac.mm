@@ -38,6 +38,9 @@
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/text/TextStream.h>
 
+#import "ScrollAnimatorScrollPhysicsClient.h"
+#import "ScrollPhysicsControllerHolder.h"
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollAnimatorMac);
@@ -56,7 +59,7 @@ ScrollAnimatorMac::~ScrollAnimatorMac() = default;
 
 bool ScrollAnimatorMac::isRubberBandInProgress() const
 {
-    return m_scrollController.isRubberBandInProgress();
+    return m_physics->controller.isRubberBandInProgress();
 }
 
 void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
@@ -75,8 +78,8 @@ void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
 bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
     protect(scrollableArea())->scrollbarsController().setScrollbarAnimationsUnsuspendedByUserInteraction(true);
-    m_scrollController.updateGestureInProgressState(wheelEvent);
-    m_scrollController.handleWheelEventDuringSpringAnimation(wheelEvent);
+    m_physics->controller.updateGestureInProgressState(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
+    m_physics->controller.handleWheelEventDuringSpringAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
 
     // Events in the PlatformWheelEventPhase::MayBegin phase have no deltas, and therefore never passes through the scroll handling logic below.
     // This causes us to return with an 'unhandled' return state, even though this event was successfully processed.
@@ -173,7 +176,7 @@ bool ScrollAnimatorMac::shouldRubberBandOnSide(BoxSide, FloatSize) const
 
 bool ScrollAnimatorMac::processWheelEventForScrollSnap(const PlatformWheelEvent& wheelEvent)
 {
-    return m_scrollController.processWheelEventForScrollSnap(wheelEvent);
+    return m_physics->controller.processWheelEventForScrollSnap(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
 }
 
 } // namespace WebCore

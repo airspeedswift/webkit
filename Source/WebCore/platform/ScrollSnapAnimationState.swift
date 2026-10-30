@@ -25,7 +25,7 @@
 
 // ScrollingEffectsController's scroll snap state: which snap offset is active in each axis, which box is
 // snapped, and the snap and glide animations. The snap offsets are copied out of the controller's
-// LayoutScrollSnapOffsetsInfo when it is set; closestSnapOffset() is the C++ one, run on that info.
+// LayoutScrollSnapOffsetsInfo when it is set. closestSnapOffset() is implemented below.
 
 internal import WebCore_Private.Core.ScrollExtents
 internal import WebCore_Private.Core.ScrollSnapOffsetsInfo
@@ -366,16 +366,15 @@ final class ScrollSnapAnimationState {
     ) {
         let layoutViewportSize = WebCore.LayoutSize(viewportSize.floatSize)
         let layoutDestinationOffset = WebCore.LayoutPoint(scrollDestinationOffset.floatPoint)
-        let result = c.closestSnapOffset(
-            axis,
-            layoutViewportSize,
-            layoutDestinationOffset,
-            velocity,
-            originalPosition != nil,
-            originalPosition ?? 0,
-            selectionMethod
+        let geometry = SnapSelectionGeometry(
+            viewportWidth: layoutViewportSize.width().rawValue(),
+            viewportHeight: layoutViewportSize.height().rawValue(),
+            destinationX: layoutDestinationOffset.x().rawValue(),
+            destinationY: layoutDestinationOffset.y().rawValue()
         )
-        return (result.first.rawValue(), Optional(fromCxx: result.second))
+        // As LayoutUnit(float).
+        let originalOffset = originalPosition.map { layoutUnitRawValue($0) }
+        return layoutClosestSnapOffset(&c, axis, geometry, velocity, originalOffset, selectionMethod)
     }
 
     private func closestSnapPointForOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
@@ -902,4 +901,425 @@ final class ScrollSnapAnimationState {
         let clampedTarget = layoutUnitRawValue(clampTo(layoutUnitToFloat(targetOffset), minScrollOffset, maxScrollOffset) * pageScale)
         return (layoutUnitToFloat(clampedTarget), snapIndex)
     }
+}
+
+// LayoutScrollSnapOffsetsInfo::closestSnapOffset() and its helpers in ScrollSnapOffsetsInfo.cpp, reading the client's
+// snap offsets and snap areas in place. LayoutUnit values are raw values, with LayoutUnit's saturating arithmetic.
+
+// LayoutUnit's operator-: saturatingDifference<int32_t>().
+@inline(always)
+private func layoutUnitDifference(_ a: Int32, _ b: Int32) -> Int32 {
+    let (difference, overflow) = a.subtractingReportingOverflow(b)
+    if overflow {
+        return a < 0 ? .min : .max
+    }
+    return difference
+}
+
+// LayoutUnit's operator*: boundedMultiply().
+@inline(always)
+private func layoutUnitProduct(_ a: Int32, _ b: Int32) -> Int32 {
+    var result = (Int64(a) * Int64(b)) / 64
+    let high = Int32(truncatingIfNeeded: result >> 32)
+    let low = Int32(truncatingIfNeeded: result)
+    if high != low >> 31 {
+        result = Int64(UInt32(bitPattern: a ^ b) >> 31) + Int64(Int32.max)
+    }
+    return Int32(truncatingIfNeeded: result)
+}
+
+// The snapport size and the scroll destination, as LayoutUnit raw values.
+private struct SnapSelectionGeometry {
+    var viewportWidth: Int32
+    var viewportHeight: Int32
+    var destinationX: Int32
+    var destinationY: Int32
+
+    func viewportLength(_ axis: WebCore.ScrollEventAxis) -> Int32 {
+        axis == .Horizontal ? viewportWidth : viewportHeight
+    }
+
+    func destination(_ axis: WebCore.ScrollEventAxis) -> Int32 {
+        axis == .Horizontal ? destinationX : destinationY
+    }
+}
+
+private struct SnapCandidate {
+    var offset: Int32
+    var index: UInt32
+
+    var result: (offset: Int32, index: UInt32?) { (offset, index) }
+}
+
+private struct PotentialSnapPointSearchResult {
+    var previous: SnapCandidate?
+    var next: SnapCandidate?
+    var snapStop: SnapCandidate?
+    var landedInsideSnapAreaThatConsumesViewport: Bool
+}
+
+@inline(always)
+private func rangeForAxis(_ rect: WebCore.LayoutRect, _ axis: WebCore.ScrollEventAxis) -> (min: Int32, max: Int32) {
+    axis == .Horizontal ? (rect.x().rawValue(), rect.maxX().rawValue()) : (rect.y().rawValue(), rect.maxY().rawValue())
+}
+
+@inline(always)
+private func snapAreaForOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ index: UInt32,
+    _ areaIndex: UInt32
+) -> WebCore.LayoutRect {
+    let snapAreaIndex = c.snapOffsetAreaIndex(axis, index, areaIndex)
+    return c.snapArea(CUnsignedInt(snapAreaIndex))
+}
+
+// ScrollSnapOffsetsInfo::snapOffsetCoversSnapport().
+private func snapOffsetCoversSnapport<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ index: UInt32,
+    _ axisOffset: Int32,
+    _ viewportLength: Int32
+) -> Bool {
+    if !c.snapOffsetHasSnapAreaLargerThanViewport(axis, index) {
+        return false
+    }
+
+    // Tolerance is required because scroll offsets are integral, but snap offsets can be fractional.
+    let tolerance = layoutUnitRawValue(0.5)
+    for areaIndex in 0..<c.snapOffsetAreaIndexCount(axis, index) {
+        let (areaMin, areaMax) = rangeForAxis(snapAreaForOffset(&c, axis, index, areaIndex), axis)
+        if layoutUnitDifference(areaMin, tolerance) <= axisOffset
+            && layoutUnitSum(areaMax, tolerance) >= layoutUnitSum(axisOffset, viewportLength)
+        {
+            return true
+        }
+    }
+
+    return false
+}
+
+private func searchForPotentialSnapPoints<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ viewportLength: Int32,
+    _ destinationOffset: Int32,
+    _ originalOffset: Int32?
+) -> PotentialSnapPointSearchResult {
+    var previous: SnapCandidate?
+    var next: SnapCandidate?
+    var exact: SnapCandidate?
+    var snapStop: SnapCandidate?
+    var landedInsideSnapAreaThatConsumesViewport = false
+
+    // A particular snap stop is better if it's between the original offset and destination offset and closer original
+    // offset than the previously selected snap stop. We always want to stop at the snap stop closest to the original offset.
+    func isBetterSnapStop(_ candidate: Int32) -> Bool {
+        guard let original = originalOffset else {
+            return false
+        }
+        if candidate <= min(destinationOffset, original) || candidate >= max(destinationOffset, original) {
+            return false
+        }
+        guard let snapStop else {
+            return true
+        }
+        return abs(layoutUnitToFloat(layoutUnitDifference(candidate, original)))
+            < abs(layoutUnitToFloat(layoutUnitDifference(snapStop.offset, original)))
+    }
+
+    for i in 0..<c.snapOffsetCount(axis) {
+        if !landedInsideSnapAreaThatConsumesViewport
+            && snapOffsetCoversSnapport(&c, axis, i, destinationOffset, viewportLength)
+        {
+            landedInsideSnapAreaThatConsumesViewport = true
+        }
+
+        let potentialSnapOffset = c.snapOffset(axis, i).rawValue()
+        if potentialSnapOffset == destinationOffset {
+            exact = SnapCandidate(offset: potentialSnapOffset, index: i)
+        } else if potentialSnapOffset < destinationOffset {
+            previous = SnapCandidate(offset: potentialSnapOffset, index: i)
+        } else if next == nil && potentialSnapOffset > destinationOffset {
+            next = SnapCandidate(offset: potentialSnapOffset, index: i)
+        }
+
+        if c.snapOffsetStopsAlways(axis, i) && isBetterSnapStop(potentialSnapOffset) {
+            snapStop = SnapCandidate(offset: potentialSnapOffset, index: i)
+        }
+    }
+
+    if let exact {
+        return PotentialSnapPointSearchResult(
+            previous: exact,
+            next: exact,
+            snapStop: snapStop,
+            landedInsideSnapAreaThatConsumesViewport: landedInsideSnapAreaThatConsumesViewport
+        )
+    }
+    return PotentialSnapPointSearchResult(
+        previous: previous,
+        next: next,
+        snapStop: snapStop,
+        landedInsideSnapAreaThatConsumesViewport: landedInsideSnapAreaThatConsumesViewport
+    )
+}
+
+private func offsetHasVisibleSnapArea<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ index: UInt32,
+    _ otherIndex: UInt32,
+    _ geometry: SnapSelectionGeometry
+) -> Bool {
+    let other = otherAxis(axis)
+    let viewportLengthInOtherAxis = axis == .Horizontal ? geometry.viewportHeight : geometry.viewportWidth
+    let otherOffset = c.snapOffset(other, otherIndex).rawValue()
+
+    for areaIndex in 0..<c.snapOffsetAreaIndexCount(axis, index) {
+        let (otherAxisMin, otherAxisMax) = rangeForAxis(snapAreaForOffset(&c, axis, index, areaIndex), other)
+        if layoutUnitSum(otherOffset, viewportLengthInOtherAxis) > otherAxisMin && otherOffset <= otherAxisMax {
+            return true
+        }
+    }
+    return false
+}
+
+// The position in the snap offset's snapAreaIndices of the first compatible snap area.
+private func findCompatibleSnapArea<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ index: UInt32,
+    _ geometry: SnapSelectionGeometry
+) -> UInt32? {
+    let other = otherAxis(axis)
+    let viewportLength = geometry.viewportLength(axis)
+    let viewportLengthInOtherAxis = geometry.viewportLength(other)
+    let scrollDestinationInOtherAxis = geometry.destination(other)
+    let snapOffset = c.snapOffset(axis, index).rawValue()
+    for areaIndex in 0..<c.snapOffsetAreaIndexCount(axis, index) {
+        let snapArea = snapAreaForOffset(&c, axis, index, areaIndex)
+        let (axisMin, axisMax) = rangeForAxis(snapArea, axis)
+        let (otherAxisMin, otherAxisMax) = rangeForAxis(snapArea, other)
+        if c.snapOffsetCount(other) == 0
+            && (layoutUnitSum(scrollDestinationInOtherAxis, viewportLengthInOtherAxis) < otherAxisMin
+                || scrollDestinationInOtherAxis > otherAxisMax)
+        {
+            continue
+        }
+        if layoutUnitSum(snapOffset, viewportLength) > axisMin && snapOffset <= axisMax {
+            return areaIndex
+        }
+    }
+    return nil
+}
+
+private func adjustPreviousAndNextForOnScreenSnapAreas<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ geometry: SnapSelectionGeometry,
+    _ searchResult: inout PotentialSnapPointSearchResult
+) {
+    // findCompatibleSnapArea needs to look at all compatible snap areas, which might be a large
+    // number for snap areas arranged in a grid. Since this might be expensive, this code tries
+    // to look at the mostly closest compatible snap areas first.
+    if let previous = searchResult.previous {
+        let oldIndex = previous.index
+        searchResult.previous = nil
+        for index in (0...oldIndex).reversed() where findCompatibleSnapArea(&c, axis, index, geometry) != nil {
+            searchResult.previous = SnapCandidate(offset: c.snapOffset(axis, index).rawValue(), index: index)
+            break
+        }
+    }
+
+    if let next = searchResult.next {
+        let oldIndex = next.index
+        searchResult.next = nil
+        for index in oldIndex..<c.snapOffsetCount(axis) where findCompatibleSnapArea(&c, axis, index, geometry) != nil {
+            searchResult.next = SnapCandidate(offset: c.snapOffset(axis, index).rawValue(), index: index)
+            break
+        }
+    }
+}
+
+private func isNearEnoughToOffsetForProximity(
+    _ isProximity: Bool,
+    _ candidateSnapOffset: Int32,
+    _ scrollDestinationOffset: Int32,
+    _ viewportLength: Int32
+) -> Bool {
+    if !isProximity {
+        return true
+    }
+
+    // This is an arbitrary choice for what it means to be "in proximity" of a snap offset. We should play around with
+    // this and see what feels best.
+    // The C++ rounds the double 0.3 to float.
+    let ratioOfScrollPortAxisLengthToBeConsideredForProximity = Float(0.3 as Double)
+    return abs(layoutUnitToFloat(layoutUnitDifference(candidateSnapOffset, scrollDestinationOffset)))
+        <= layoutUnitToFloat(viewportLength) * ratioOfScrollPortAxisLengthToBeConsideredForProximity
+}
+
+private func closestSnapOffsetForAxis<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ geometry: SnapSelectionGeometry,
+    _ velocity: Float,
+    _ originalOffsetForDirectionalSnapping: Int32?,
+    _ selectionMethod: WebCore.ScrollSnapPointSelectionMethod
+) -> (offset: Int32, index: UInt32?) {
+    let scrollDestinationOffset = geometry.destination(axis)
+    let pairForNoSnapping: (offset: Int32, index: UInt32?) = (scrollDestinationOffset, nil)
+    let snapOffsetCount = c.snapOffsetCount(axis)
+    if snapOffsetCount == 0 {
+        return pairForNoSnapping
+    }
+
+    let viewportLength = geometry.viewportLength(axis)
+    var searchResult = searchForPotentialSnapPoints(
+        &c,
+        axis,
+        viewportLength,
+        scrollDestinationOffset,
+        originalOffsetForDirectionalSnapping
+    )
+    if let snapStop = searchResult.snapStop {
+        return snapStop.result
+    }
+
+    adjustPreviousAndNextForOnScreenSnapAreas(&c, axis, geometry, &searchResult)
+    var previous = searchResult.previous
+    var next = searchResult.next
+
+    // From https://www.w3.org/TR/css-scroll-snap-1/#snap-overflow
+    // "If the snap area is larger than the snapport in a particular axis, then any scroll position
+    // in which the snap area covers the snapport, and the distance between the geometrically
+    // previous and subsequent snap positions in that axis is larger than size of the snapport in
+    // that axis, is a valid snap position in that axis."
+    if searchResult.landedInsideSnapAreaThatConsumesViewport {
+        guard let previousCandidate = previous, let nextCandidate = next,
+            layoutUnitDifference(nextCandidate.offset, previousCandidate.offset) < viewportLength
+        else {
+            return pairForNoSnapping
+        }
+    }
+
+    let isProximity = c.snapStrictnessIsProximity()
+
+    let first = SnapCandidate(offset: c.snapOffset(axis, 0).rawValue(), index: 0)
+    if scrollDestinationOffset <= first.offset {
+        if !isNearEnoughToOffsetForProximity(isProximity, first.offset, scrollDestinationOffset, viewportLength) {
+            return pairForNoSnapping
+        }
+        return first.result
+    }
+
+    let lastIndex = snapOffsetCount - 1
+    let last = SnapCandidate(offset: c.snapOffset(axis, lastIndex).rawValue(), index: lastIndex)
+    if scrollDestinationOffset >= last.offset {
+        if !isNearEnoughToOffsetForProximity(isProximity, last.offset, scrollDestinationOffset, viewportLength) {
+            return pairForNoSnapping
+        }
+        return last.result
+    }
+
+    if let candidate = previous,
+        !isNearEnoughToOffsetForProximity(isProximity, candidate.offset, scrollDestinationOffset, viewportLength)
+    {
+        previous = nil
+    }
+    if let candidate = next,
+        !isNearEnoughToOffsetForProximity(isProximity, candidate.offset, scrollDestinationOffset, viewportLength)
+    {
+        next = nil
+    }
+
+    if let originalOffset = originalOffsetForDirectionalSnapping {
+        // For a directional scroll, we never snap back to the original scroll position or before it,
+        // always preferring the snap offset in the scroll direction. Prefer the actual scroll
+        // direction (velocity) to decide which side to discard; only fall back to the destination
+        // for non-directional scrolls where velocity is 0.
+        let scrollingForward = velocity != 0 ? velocity > 0 : scrollDestinationOffset > originalOffset
+        let scrollingBackward = velocity != 0 ? velocity < 0 : scrollDestinationOffset < originalOffset
+        if scrollingForward, let candidate = previous, candidate.offset <= originalOffset {
+            previous = nil
+        }
+        if scrollingBackward, let candidate = next, candidate.offset >= originalOffset {
+            next = nil
+        }
+    }
+
+    guard let previousCandidate = previous else {
+        guard let nextCandidate = next else {
+            return pairForNoSnapping
+        }
+        return nextCandidate.result
+    }
+    guard let nextCandidate = next else {
+        return previousCandidate.result
+    }
+
+    // Paging (Page Down / Space) must not skip over snap points: land on the within-page candidate.
+    if selectionMethod == .Paging, let originalOffset = originalOffsetForDirectionalSnapping {
+        let scrollingForward = velocity != 0 ? velocity > 0 : scrollDestinationOffset > originalOffset
+        return scrollingForward ? previousCandidate.result : nextCandidate.result
+    }
+
+    // Both remaining candidates are valid targets in the scroll direction. Prefer whichever is closest
+    // to the scroll destination, and fall back to the scroll direction to break an exact tie.
+    let distanceToPrevious = layoutUnitDifference(scrollDestinationOffset, previousCandidate.offset)
+    let distanceToNext = layoutUnitDifference(nextCandidate.offset, scrollDestinationOffset)
+    if distanceToPrevious == distanceToNext {
+        return velocity < 0 ? previousCandidate.result : nextCandidate.result
+    }
+    return distanceToPrevious < distanceToNext ? previousCandidate.result : nextCandidate.result
+}
+
+// LayoutScrollSnapOffsetsInfo::closestSnapOffset(): both axes, then ensureVisibleTarget().
+private func layoutClosestSnapOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
+    _ c: inout C,
+    _ axis: WebCore.ScrollEventAxis,
+    _ geometry: SnapSelectionGeometry,
+    _ velocity: Float,
+    _ originalOffsetForDirectionalSnapping: Int32?,
+    _ selectionMethod: WebCore.ScrollSnapPointSelectionMethod
+) -> (offset: Int32, index: UInt32?) {
+    var horizontal = closestSnapOffsetForAxis(
+        &c,
+        .Horizontal,
+        geometry,
+        velocity,
+        originalOffsetForDirectionalSnapping,
+        selectionMethod
+    )
+    var vertical = closestSnapOffsetForAxis(
+        &c,
+        .Vertical,
+        geometry,
+        velocity,
+        originalOffsetForDirectionalSnapping,
+        selectionMethod
+    )
+
+    if let horizontalIndex = horizontal.index, let verticalIndex = vertical.index,
+        !offsetHasVisibleSnapArea(&c, .Horizontal, horizontalIndex, verticalIndex, geometry),
+        !offsetHasVisibleSnapArea(&c, .Vertical, verticalIndex, horizontalIndex, geometry),
+        let compatibleHorizontalSnapArea = findCompatibleSnapArea(&c, .Horizontal, horizontalIndex, geometry),
+        let compatibleVerticalSnapArea = findCompatibleSnapArea(&c, .Vertical, verticalIndex, geometry)
+    {
+        let horizontalSnapArea = snapAreaForOffset(&c, .Horizontal, horizontalIndex, compatibleHorizontalSnapArea)
+        let verticalSnapArea = snapAreaForOffset(&c, .Vertical, verticalIndex, compatibleVerticalSnapArea)
+
+        func squaredDistance(_ area: WebCore.LayoutRect) -> Int32 {
+            let dx = layoutUnitDifference(area.x().rawValue(), geometry.destinationX)
+            let dy = layoutUnitDifference(area.y().rawValue(), geometry.destinationY)
+            return layoutUnitSum(layoutUnitProduct(dx, dx), layoutUnitProduct(dy, dy))
+        }
+        let closerSnapArea =
+            squaredDistance(horizontalSnapArea) > squaredDistance(verticalSnapArea) ? verticalSnapArea : horizontalSnapArea
+        horizontal = (closerSnapArea.x().rawValue(), nil)
+        vertical = (closerSnapArea.y().rawValue(), nil)
+    }
+    return axis == .Horizontal ? horizontal : vertical
 }

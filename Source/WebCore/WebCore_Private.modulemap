@@ -43,6 +43,9 @@ framework module WebCore_Private [system] {
         // WebCore's Swift imports it as WebCore_Private.ScrollingTreeScrollPhysicsClient.
         exclude header "ScrollingTreeScrollPhysicsClient.h"
 
+        // WebCore's Swift imports it as WebCore_Private.ScrollAnimatorScrollPhysicsClient.
+        exclude header "ScrollAnimatorScrollPhysicsClient.h"
+
         // WebCore's Swift imports them as WebCore_Private.ScrollerPairMacTypes and
         // WebCore_Private.ScrollerImpDelegateBinding.
         exclude header "ScrollerPairMacTypes.h"
@@ -61,6 +64,12 @@ framework module WebCore_Private [system] {
 
     explicit module ScrollingTreeScrollPhysicsClient {
         header "ScrollingTreeScrollPhysicsClient.h"
+        requires cplusplus
+        export *
+    }
+
+    explicit module ScrollAnimatorScrollPhysicsClient {
+        header "ScrollAnimatorScrollPhysicsClient.h"
         requires cplusplus
         export *
     }

@@ -51,9 +51,6 @@ class ScrollableArea;
 class WheelEventTestMonitor;
 struct ScrollExtents;
 
-class ScrollPhysicsClient;
-struct ScrollPhysicsControllerHolder;
-
 class ScrollingEffectsControllerTimer : public RunLoop::TimerBase {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(ScrollingEffectsControllerTimer, WEBCORE_EXPORT);
 public:
@@ -143,74 +140,14 @@ public:
 };
 
 class WEBCORE_EXPORT ScrollingEffectsController {
-    WTF_MAKE_NONCOPYABLE(ScrollingEffectsController);
 
 public:
-    explicit ScrollingEffectsController(ScrollingEffectsControllerClient&);
-    virtual ~ScrollingEffectsController();
-
-    NODELETE bool usesScrollSnap() const;
-    void stopAllTimers();
-    void scrollPositionChanged();
-
-    bool startAnimatedScrollToDestination(FloatPoint startOffset, FloatPoint destinationOffset, ScrollAnimationCurve = ScrollAnimationCurve::Default);
-    bool retargetAnimatedScroll(FloatPoint newDestinationOffset, ScrollAnimationCurve);
-    bool retargetAnimatedScrollBy(FloatSize);
-    std::optional<FloatPoint> animatedScrollDestinationOffset() const;
-
-    void stopAnimatedScroll();
-    void stopAnimatedNonRubberbandingScroll();
-    void stopSpringAnimation();
-
-    void stopKeyboardScrolling();
-
-    bool startKeyboardScroll(const KeyboardScroll&);
-
-    void finishKeyboardScroll(bool immediate);
-    
-    // Should be called periodically by the client. Started by startAnimationCallback(), stopped by stopAnimationCallback().
-    void animationCallback(MonotonicTime);
-
-    void updateGestureInProgressState(const PlatformWheelEvent&);
-    
-    void contentsSizeChanged();
-
-    void setSnapOffsetsInfo(const LayoutScrollSnapOffsetsInfo&);
-    NODELETE const LayoutScrollSnapOffsetsInfo* snapOffsetsInfo() const;
-    void setActiveScrollSnapIndexForAxis(ScrollEventAxis, std::optional<unsigned>);
-    void updateActiveScrollSnapIndexForClientOffset();
-    void resnapAfterLayout();
-
-    NODELETE std::optional<unsigned> activeScrollSnapIndexForAxis(ScrollEventAxis) const;
-    float adjustedScrollDestination(ScrollEventAxis, FloatPoint destinationOffset, float velocity, std::optional<float> originalOffset, ScrollSnapPointSelectionMethod = ScrollSnapPointSelectionMethod::Closest) const;
-
-    bool activeScrollSnapIndexDidChange() const;
-
-    // Returns true if handled.
-    bool handleWheelEvent(const PlatformWheelEvent&);
-
-    bool isScrollSnapInProgress() const;
-    NODELETE bool isUserScrollInProgress() const;
 
 #if PLATFORM(MAC)
-    // Stops a running spring animation, or ignores the rest of a momentum scroll while one runs. Called before the wheel event
-    // scrolls anything, including for events with PlatformWheelEventPhase::MayBegin.
-    void handleWheelEventDuringSpringAnimation(const PlatformWheelEvent&);
 
     NODELETE static FloatSize wheelDeltaBiasingTowardsVertical(const FloatSize&);
     NODELETE static bool isScrollDeltaOpposingStretch(IntSize stretch, ScrollEventAxis, float delta);
 
-    // Returns true if handled.
-    bool processWheelEventForScrollSnap(const PlatformWheelEvent&);
-
-    void stopRubberBanding();
-    void startRubberBandSnapBack();
-    void rubberBandTargetOffsetDidChange();
-    NODELETE bool isRubberBandInProgress() const;
-    RectEdges<bool> rubberBandingEdges() const;
-
-    std::optional<RubberbandingState> captureRubberbandingState() const;
-    bool restoreRubberbandingState(const RubberbandingState&);
 #if HAVE(APPKIT_GESTURES_SUPPORT)
     NODELETE FloatSize computeDampedStretchDelta(FloatSize delta, bool horizontalDeltaOpposesStretch, bool verticalDeltaOpposesStretch);
     NODELETE float deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch);
@@ -221,12 +158,8 @@ public:
 #endif
 
 private:
-    bool isSpringAnimationRunning() const;
 
 #if PLATFORM(MAC)
-    void discreteSnapTransitionTimerFired();
-    void scrollendTimerFired();
-    void scheduleScrollendTimer();
 #endif
 
 #if ENABLE(KINETIC_SCROLLING) && !PLATFORM(MAC)
@@ -242,13 +175,6 @@ private:
     } m_previousKineticAnimationInfo;
 #endif
 
-    ScrollingEffectsControllerClient& m_client;
-
-    friend class ScrollPhysicsClient;
-    template<typename> friend class ScrollSnapPhysicsClient;
-    std::unique_ptr<ScrollPhysicsControllerHolder> m_physics;
-    std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
-
 #if PLATFORM(MAC)
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
@@ -257,15 +183,9 @@ private:
 #elif HAVE(NSREFRESHCONTROLLER)
 #endif
 
-    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
-    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
-
 #if HAVE(RUBBER_BANDING)
 #endif
 
-#if ASSERT_ENABLED
-    bool m_timersWereStopped { false };
-#endif
 #endif
 };
 

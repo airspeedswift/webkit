@@ -75,6 +75,7 @@
 
 #include "TransformationMatrix.h"
 
+#include "ScrollAnimatorScrollPhysicsClient.h"
 #include "ScrollPhysicsTypes.h"
 #include "ScrollerPairMacTypes.h"
 #include "ScrollingTreeScrollPhysicsClient.h"

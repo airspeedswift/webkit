@@ -44,9 +44,29 @@
 #include <algorithm>
 #include <wtf/TZoneMallocInlines.h>
 
+#include "ScrollAnimatorScrollPhysicsClient.h"
+#include "ScrollPhysicsControllerHolder.h"
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollAnimator);
+
+// Swift may use ScrollAnimatorScrollPhysicsClient only in place (ScrollAnimatorScrollPhysicsClient.h).
+static_assert(std::is_empty_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_polymorphic_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_default_constructible_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_copy_constructible_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_copy_assignable_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_move_assignable_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(std::is_move_constructible_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_trivially_destructible_v<ScrollAnimatorScrollPhysicsClient>);
+
+ScrollAnimatorScrollPhysicsClient::ScrollAnimatorScrollPhysicsClient(ScrollAnimatorScrollPhysicsClient&&)
+{
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
+ScrollAnimatorScrollPhysicsClient::~ScrollAnimatorScrollPhysicsClient() = default;
 
 #if !PLATFORM(IOS_FAMILY) && !PLATFORM(MAC)
 std::unique_ptr<ScrollAnimator> ScrollAnimator::create(ScrollableArea& scrollableArea)
@@ -57,14 +77,13 @@ std::unique_ptr<ScrollAnimator> ScrollAnimator::create(ScrollableArea& scrollabl
 
 ScrollAnimator::ScrollAnimator(ScrollableArea& scrollableArea)
     : m_scrollableArea(scrollableArea)
-    , m_scrollController(*this)
+    , m_physics(makeUnique<ScrollPhysicsControllerHolder>())
     , m_keyboardScrollingAnimator(makeUniqueRef<KeyboardScrollingAnimator>(scrollableArea))
 {
 }
 
 ScrollAnimator::~ScrollAnimator()
 {
-    m_scrollController.stopAllTimers();
 }
 
 KeyboardScrollingAnimator* ScrollAnimator::keyboardScrollingAnimator() const
@@ -79,12 +98,12 @@ bool ScrollAnimator::singleAxisScroll(ScrollEventAxis axis, float scrollDelta, E
 
     auto delta = setValueForAxis(FloatSize { }, axis, scrollDelta);
 
-    if (behavior.contains(ScrollBehavior::RespectScrollSnap) && m_scrollController.usesScrollSnap()) {
+    if (behavior.contains(ScrollBehavior::RespectScrollSnap) && usesScrollSnap()) {
         auto currentOffset = offsetFromPosition(currentPosition());
         auto newOffset = currentOffset + delta;
         auto velocity = copysignf(1.0f, scrollDelta);
         auto selectionMethod = behavior.contains(ScrollBehavior::Paged) ? ScrollSnapPointSelectionMethod::Paging : ScrollSnapPointSelectionMethod::Directional;
-        auto newOffsetOnAxis = m_scrollController.adjustedScrollDestination(axis, newOffset, velocity, valueForAxis(currentOffset, axis), selectionMethod);
+        auto newOffsetOnAxis = m_physics->controller.adjustedScrollDestination(ScrollAnimatorScrollPhysicsClientState(*this).facade(), axis, newOffset, velocity, true, valueForAxis(currentOffset, axis), selectionMethod);
         newOffset = setValueForAxis(newOffset, axis, newOffsetOnAxis);
         delta = newOffset - currentOffset;
     } else {
@@ -103,10 +122,10 @@ bool ScrollAnimator::singleAxisScroll(ScrollEventAxis axis, float scrollDelta, E
             // Request the edge itself, rather than a delta that is relative to a position that may be out of date while an animation runs.
             options.animationCurve = documentEdgeScrollAnimationCurve();
             // On the other axis, keep the destination of an animation running on the main thread, such as the inline edge that Home and End scroll to first.
-            if (auto destinationOffset = m_scrollController.animatedScrollDestinationOffset())
+            if (auto destinationOffset = m_physics->controller.animatedScrollDestinationOffset(ScrollAnimatorScrollPhysicsClientState(*this).facade()))
                 newPosition = setValueForAxis(positionFromOffset(*destinationOffset), axis, valueForAxis(newPosition, axis));
         } else {
-            if (m_scrollController.retargetAnimatedScrollBy(delta))
+            if (m_physics->controller.retargetAnimatedScrollBy(ScrollAnimatorScrollPhysicsClientState(*this).facade(), delta))
                 return true;
             options.originalScrollDelta = delta;
         }
@@ -128,7 +147,7 @@ bool ScrollAnimator::scrollToPositionWithoutAnimation(const FloatPoint& position
     if (adjustedPosition == currentPosition && adjustedPosition == scrollableArea->scrollPosition() && !scrollableArea->scrollOriginChanged())
         return false;
 
-    m_scrollController.stopAnimatedScroll();
+    m_physics->controller.stopAnimatedScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade());
 
     setCurrentPosition(adjustedPosition, NotifyScrollableArea::Yes);
     scrollableArea->scrollDidEnd();
@@ -143,13 +162,13 @@ bool ScrollAnimator::scrollToPositionWithAnimation(const FloatPoint& position, S
     if (!positionChanged && !scrollableArea->scrollOriginChanged())
         return false;
 
-    return m_scrollController.startAnimatedScrollToDestination(offsetFromPosition(m_currentPosition), offsetFromPosition(adjustedPosition), curve);
+    return m_physics->controller.startAnimatedScrollToDestination(ScrollAnimatorScrollPhysicsClientState(*this).facade(), offsetFromPosition(m_currentPosition), offsetFromPosition(adjustedPosition), curve);
 }
 
 bool ScrollAnimator::retargetRunningAnimation(const FloatPoint& newPosition, ScrollAnimationCurve curve)
 {
     ASSERT(scrollableArea().scrollAnimationStatus() == ScrollAnimationStatus::Animating);
-    return m_scrollController.retargetAnimatedScroll(offsetFromPosition(newPosition), curve);
+    return m_physics->controller.retargetAnimatedScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), offsetFromPosition(newPosition), curve);
 }
 
 FloatPoint ScrollAnimator::offsetFromPosition(const FloatPoint& position) const
@@ -164,22 +183,24 @@ FloatPoint ScrollAnimator::positionFromOffset(const FloatPoint& offset) const
 
 bool ScrollAnimator::activeScrollSnapIndexDidChange() const
 {
-    return m_scrollController.activeScrollSnapIndexDidChange();
+    return m_physics->controller.activeScrollSnapIndexDidChange();
 }
 
 std::optional<unsigned> ScrollAnimator::activeScrollSnapIndexForAxis(ScrollEventAxis axis) const
 {
-    return m_scrollController.activeScrollSnapIndexForAxis(axis);
+    // Swift returns -1 for no index.
+    auto index = m_physics->controller.activeScrollSnapIndexForAxis(axis);
+    return index < 0 ? std::nullopt : std::optional<unsigned> { static_cast<unsigned>(index) };
 }
 
 void ScrollAnimator::setActiveScrollSnapIndexForAxis(ScrollEventAxis axis, std::optional<unsigned> index)
 {
-    return m_scrollController.setActiveScrollSnapIndexForAxis(axis, index);
+    m_physics->controller.setActiveScrollSnapIndexForAxis(axis, index ? int64_t { *index } : -1);
 }
 
 void ScrollAnimator::resnapAfterLayout()
 {
-    m_scrollController.resnapAfterLayout();
+    m_physics->controller.resnapAfterLayout(ScrollAnimatorScrollPhysicsClientState(*this).facade());
 }
 
 bool ScrollAnimator::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
@@ -194,7 +215,7 @@ bool ScrollAnimator::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
     if (protect(scrollableArea())->hasSteppedScrolling())
         return handleSteppedScrolling(wheelEvent);
 
-    return m_scrollController.handleWheelEvent(wheelEvent);
+    return m_physics->controller.handleWheelEvent(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
 }
 
 // "Stepped scrolling" is only used by RenderListBox. It's special in that it has no rubberbanding, and scroll deltas respect Scrollbar::pixelStep().
@@ -251,7 +272,7 @@ bool ScrollAnimator::handleSteppedScrolling(const PlatformWheelEvent& wheelEvent
 
 void ScrollAnimator::stopKeyboardScrollAnimation()
 {
-    m_scrollController.stopKeyboardScrolling();
+    protect(keyboardScrollingAnimator())->handleKeyUpEvent();
 }
 
 #if ENABLE(TOUCH_EVENTS)
@@ -283,7 +304,7 @@ void ScrollAnimator::setCurrentPosition(const FloatPoint& position, NotifyScroll
 
 void ScrollAnimator::updateActiveScrollSnapIndexForOffset()
 {
-    m_scrollController.updateActiveScrollSnapIndexForClientOffset();
+    m_physics->controller.updateActiveScrollSnapIndexForClientOffset(ScrollAnimatorScrollPhysicsClientState(*this).facade());
 }
 
 void ScrollAnimator::notifyPositionChanged(const FloatSize& delta)
@@ -291,17 +312,18 @@ void ScrollAnimator::notifyPositionChanged(const FloatSize& delta)
     CheckedRef scrollableArea = m_scrollableArea;
     scrollableArea->scrollbarsController().notifyContentAreaScrolled(delta);
     scrollableArea->setScrollPositionFromAnimation(roundedIntPoint(m_currentPosition));
-    m_scrollController.scrollPositionChanged();
+    m_physics->controller.scrollPositionChanged(ScrollAnimatorScrollPhysicsClientState(*this).facade());
 }
 
 void ScrollAnimator::setSnapOffsetsInfo(const LayoutScrollSnapOffsetsInfo& info)
 {
-    m_scrollController.setSnapOffsetsInfo(info);
+    m_snapOffsetsInfo = info.isEmpty() ? std::nullopt : std::make_optional(info);
+    m_physics->controller.setSnapOffsetsInfo(ScrollAnimatorScrollPhysicsClientState(*this).facade(), !!m_snapOffsetsInfo);
 }
 
 const LayoutScrollSnapOffsetsInfo* ScrollAnimator::snapOffsetsInfo() const
 {
-    return m_scrollController.snapOffsetsInfo();
+    return m_snapOffsetsInfo ? &m_snapOffsetsInfo.value() : nullptr;
 }
 
 FloatPoint ScrollAnimator::scrollOffset() const
@@ -424,6 +446,24 @@ std::unique_ptr<ScrollingEffectsControllerTimer> ScrollAnimator::createTimer(Fun
     return makeUnique<ScrollingEffectsControllerTimer>(RunLoop::currentSingleton(), WTF::move(callback));
 }
 
+void ScrollAnimator::discreteSnapTransitionTimerFired()
+{
+    m_discreteSnapTransitionTimer = nullptr;
+    m_physics->controller.discreteSnapTransitionTimerFired(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+}
+
+void ScrollAnimator::scheduleScrollendTimer()
+{
+    static const Seconds discreteScrollDelay = 100_ms;
+
+    if (!m_discreteScrollendTimer) {
+        m_discreteScrollendTimer = createTimer([this] {
+            didStopWheelEventScroll();
+        });
+    }
+    m_discreteScrollendTimer->startOneShot(discreteScrollDelay);
+}
+
 void ScrollAnimator::startAnimationCallback(ScrollingEffectsController&)
 {
     startAnimationCallback();
@@ -468,33 +508,33 @@ bool ScrollAnimator::scrollAnimationEnabled() const
 
 void ScrollAnimator::cancelAnimations()
 {
-    m_scrollController.stopAnimatedScroll();
+    m_physics->controller.stopAnimatedScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade());
     protect(scrollableArea())->scrollbarsController().cancelAnimations();
 }
 
 bool ScrollAnimator::isUserScrollInProgress() const
 {
-    return m_scrollController.isUserScrollInProgress();
+    return m_physics->controller.isUserScrollInProgress();
 }
 
 bool ScrollAnimator::isScrollSnapInProgress() const
 {
-    return m_scrollController.isScrollSnapInProgress();
+    return m_physics->controller.isScrollSnapInProgress(m_discreteSnapTransitionTimer && m_discreteSnapTransitionTimer->isActive());
 }
 
 bool ScrollAnimator::usesScrollSnap() const
 {
-    return m_scrollController.usesScrollSnap();
+    return !!m_snapOffsetsInfo;
 }
 
 void ScrollAnimator::contentsSizeChanged()
 {
-    m_scrollController.contentsSizeChanged();
+    m_physics->controller.contentsSizeChanged(ScrollAnimatorScrollPhysicsClientState(*this).facade());
 }
 
 FloatPoint ScrollAnimator::scrollOffsetAdjustedForSnapping(const FloatPoint& offset, ScrollSnapPointSelectionMethod method) const
 {
-    if (!m_scrollController.usesScrollSnap())
+    if (!usesScrollSnap())
         return offset;
 
     auto result = FloatPoint {
@@ -508,7 +548,7 @@ FloatPoint ScrollAnimator::scrollOffsetAdjustedForSnapping(const FloatPoint& off
 
 float ScrollAnimator::scrollOffsetAdjustedForSnapping(ScrollEventAxis axis, const FloatPoint& newOffset, ScrollSnapPointSelectionMethod method) const
 {
-    if (!m_scrollController.usesScrollSnap())
+    if (!usesScrollSnap())
         return axis == ScrollEventAxis::Horizontal ? newOffset.x() : newOffset.y();
 
     std::optional<float> originalOffset;
@@ -521,13 +561,13 @@ float ScrollAnimator::scrollOffsetAdjustedForSnapping(ScrollEventAxis axis, cons
         velocityInScrollAxis = axis == ScrollEventAxis::Horizontal ? velocity.width() : velocity.height();
     }
 
-    return m_scrollController.adjustedScrollDestination(axis, newOffset, velocityInScrollAxis, originalOffset);
+    return m_physics->controller.adjustedScrollDestination(ScrollAnimatorScrollPhysicsClientState(*this).facade(), axis, newOffset, velocityInScrollAxis, originalOffset.has_value(), originalOffset.value_or(0), ScrollSnapPointSelectionMethod::Closest);
 }
 
 ScrollAnimationStatus ScrollAnimator::serviceScrollAnimation(MonotonicTime time)
 {
     if (m_scrollAnimationScheduled)
-        m_scrollController.animationCallback(time);
+        m_physics->controller.animationCallback(ScrollAnimatorScrollPhysicsClientState(*this).facade(), time.secondsSinceEpoch().value());
     return m_scrollAnimationScheduled ? ScrollAnimationStatus::Animating : ScrollAnimationStatus::NotAnimating;
 }
 

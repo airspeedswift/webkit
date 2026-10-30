@@ -77,20 +77,12 @@ protocol ScrollPhysicsClientProtocol: ~Copyable {
     mutating func snapAreaIDCount() -> CUnsignedInt
     mutating func snapAreaID(_ index: CUnsignedInt) -> UInt64
     mutating func scrollerHasVerticalWritingMode() -> Bool
-    mutating func closestSnapOffset(
-        _ axis: WebCore.ScrollEventAxis,
-        _ viewportSize: WebCore.LayoutSize,
-        _ destination: WebCore.LayoutPoint,
-        _ velocity: Float,
-        _ hasOriginalPosition: Bool,
-        _ originalPosition: Float,
-        _ method: WebCore.ScrollSnapPointSelectionMethod
-    ) -> WebCore.ClosestSnapOffset
+    mutating func snapOffsetStopsAlways(_ axis: WebCore.ScrollEventAxis, _ index: CUnsignedInt) -> Bool
+    mutating func snapOffsetHasSnapAreaLargerThanViewport(_ axis: WebCore.ScrollEventAxis, _ index: CUnsignedInt) -> Bool
+    mutating func snapStrictnessIsProximity() -> Bool
 
     mutating func isDiscreteSnapTimerActive() -> Bool
     mutating func startDiscreteSnapTimer()
     mutating func stopDiscreteSnapTimer() -> Bool
     mutating func startScrollendTimer()
 }
-
-extension WebCore.ScrollPhysicsClient: ScrollPhysicsClientProtocol {}

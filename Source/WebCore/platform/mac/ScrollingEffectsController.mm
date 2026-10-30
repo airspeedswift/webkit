@@ -47,29 +47,6 @@
 
 namespace WebCore {
 
-ScrollingEffectsController::~ScrollingEffectsController()
-{
-    ASSERT(m_timersWereStopped);
-}
-
-void ScrollingEffectsController::stopAllTimers()
-{
-    // Hand the timers to the client for destruction rather than stopping them here: they may fire on
-    // another thread (e.g. the scrolling thread) than the one tearing down the controller, and stopping
-    // or destroying a timer off its run loop's thread races with an in-flight callback.
-    if (m_discreteSnapTransitionTimer) {
-        m_client.destroyTimer(WTF::move(m_discreteSnapTransitionTimer));
-        m_client.didStopScrollSnapAnimation();
-    }
-
-    if (m_discreteScrollendTimer)
-        m_client.destroyTimer(WTF::move(m_discreteScrollendTimer));
-
-#if ASSERT_ENABLED
-    m_timersWereStopped = true;
-#endif
-}
-
 NODELETE static ScrollEventAxis dominantAxisFavoringVertical(FloatSize delta)
 {
     if (std::abs(delta.height()) >= std::abs(delta.width()))
@@ -102,16 +79,6 @@ static FloatSize hyperbolicReboundDeltaForElasticDelta(IntSize stretchAmount, fl
     return { static_cast<float>(width), static_cast<float>(height) };
 }
 #endif
-
-void ScrollingEffectsController::handleWheelEventDuringSpringAnimation(const PlatformWheelEvent& wheelEvent)
-{
-    m_physics->controller.handleWheelEventDuringSpringAnimation(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent);
-}
-
-bool ScrollingEffectsController::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
-{
-    return m_physics->controller.handleWheelEvent(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
-}
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
 float ScrollingEffectsController::deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch)
@@ -214,92 +181,6 @@ bool ScrollingEffectsController::isScrollDeltaOpposingStretch(IntSize stretch, S
         return false;
 
     return (stretchOnAxis > 0 && delta < 0) || (stretchOnAxis < 0 && delta > 0);
-}
-
-void ScrollingEffectsController::scrollPositionChanged()
-{
-    m_physics->controller.scrollPositionChanged(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
-}
-
-bool ScrollingEffectsController::isUserScrollInProgress() const
-{
-    return m_physics->controller.isUserScrollInProgress();
-}
-
-bool ScrollingEffectsController::isRubberBandInProgress() const
-{
-    return m_physics->controller.isRubberBandInProgress();
-}
-
-RectEdges<bool> ScrollingEffectsController::rubberBandingEdges() const
-{
-    return m_physics->controller.rubberBandingEdges();
-}
-
-bool ScrollingEffectsController::isScrollSnapInProgress() const
-{
-    return m_physics->controller.isScrollSnapInProgress(m_discreteSnapTransitionTimer && m_discreteSnapTransitionTimer->isActive());
-}
-
-void ScrollingEffectsController::stopRubberBanding()
-{
-    m_physics->controller.stopRubberBanding(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
-}
-
-void ScrollingEffectsController::startRubberBandSnapBack()
-{
-    m_physics->controller.startRubberBandSnapBack(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
-}
-
-void ScrollingEffectsController::rubberBandTargetOffsetDidChange()
-{
-    m_physics->controller.rubberBandTargetOffsetDidChange(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
-}
-
-void ScrollingEffectsController::scheduleScrollendTimer()
-{
-    static const Seconds discreteScrollDelay = 100_ms;
-
-    if (!m_discreteScrollendTimer) {
-        m_discreteScrollendTimer = m_client.createTimer([this] {
-            scrollendTimerFired();
-        });
-    }
-    m_discreteScrollendTimer->startOneShot(discreteScrollDelay);
-}
-
-void ScrollingEffectsController::discreteSnapTransitionTimerFired()
-{
-    m_discreteSnapTransitionTimer = nullptr;
-    m_physics->controller.discreteSnapTransitionTimerFired(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
-}
-
-void ScrollingEffectsController::scrollendTimerFired()
-{
-    m_client.didStopWheelEventScroll();
-}
-
-bool ScrollingEffectsController::processWheelEventForScrollSnap(const PlatformWheelEvent& wheelEvent)
-{
-    return m_physics->controller.processWheelEventForScrollSnap(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent);
-}
-
-void ScrollingEffectsController::updateGestureInProgressState(const PlatformWheelEvent& wheelEvent)
-{
-    m_physics->controller.updateGestureInProgressState(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent);
-}
-
-std::optional<RubberbandingState> ScrollingEffectsController::captureRubberbandingState() const
-{
-    RubberbandingState state;
-    if (!m_physics->controller.captureRubberbandingState(ScrollPhysicsClientState(m_client, nullptr, m_snapOffsetsInfo).facade(), state))
-        return std::nullopt;
-    return state;
-}
-
-bool ScrollingEffectsController::restoreRubberbandingState(const RubberbandingState& state)
-{
-    return m_physics->controller.restoreRubberbandingState(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), state);
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
