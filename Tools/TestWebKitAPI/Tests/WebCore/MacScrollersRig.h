@@ -62,7 +62,9 @@ inline uint8_t threadTag()
 
 // Runs the work the scrollbars queued for the main thread, in a run loop mode of its own: AppKit's animation
 // timers run in the default modes and do not fire here, so a session sees the animations its scrollbars start
-// but never their progress, which depends on time.
+// but never their progress, which depends on time. WTF's main run loop source is in the common modes only, so
+// this mode is one of them, and the timers AppKit adds to the common modes (the overlay scrollers' state timers)
+// can fire here.
 inline void runScrollbarTasks()
 {
     static CFStringRef const mode = CFSTR("TestWebKitAPIScrollbarTasks");
@@ -164,7 +166,7 @@ public:
         auto animations = std::exchange(m_pendingScrollAnimations, { });
         for (auto& [id, request] : animations) {
             if (RefPtr node = dynamicDowncast<ScrollingTreeScrollingNode>(nodeForID(id)))
-                node->startAnimatedScrollToPosition(request.destinationPosition(node->currentScrollPosition()));
+                node->startAnimatedScrollToPosition(request.destinationPosition(node->currentScrollPosition()), request.animationCurve);
         }
         auto keyboardScrolls = std::exchange(m_pendingKeyboardScrolls, { });
         for (auto& [id, request] : keyboardScrolls) {
@@ -892,6 +894,32 @@ inline void scrollbarStateCommitsShape(ScrollbarsSession& scrollbars)
     }
 }
 
+// Scrolling nodes made and destroyed: each round replaces the main frame, as a navigation does, with a new one
+// and three overflow nodes, and sends each overflow node a wheel event that begins a gesture. The commit of the
+// next round, and the end of the session after the last, destroys the nodes and their scrollers.
+inline void teardownChurnShape(ScrollbarsSession& scrollbars)
+{
+    auto& session = scrollbars.session();
+    for (unsigned round = 0; round < 6; ++round) {
+        scrollbars.addRoot(mainFrameSetup({ 0, 100.0f * round }));
+        for (unsigned variant = 0; variant < 3; ++variant)
+            scrollbars.addOverflow(scrollbarsOverflowSetup({ 0, 50.0f * (round + variant) }, variant));
+        session.commit();
+        for (unsigned index = 1; index <= 3; ++index)
+            session.wheel(index, { PlatformWheelEventPhase::MayBegin, PlatformWheelEventPhase::None, { } });
+    }
+}
+
+// The recommended scroller style follows the system's pointing devices unless AppleShowScrollBars says otherwise.
+// Setting it in the argument domain, before the first scrollers, gives every run the same style.
+inline void pinShowScrollBarsDefault()
+{
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    RetainPtr arguments = adoptNS([[defaults volatileDomainForName:NSArgumentDomain] mutableCopy] ?: [[NSMutableDictionary alloc] init]);
+    [arguments setObject:@"WhenScrolling" forKey:@"AppleShowScrollBars"];
+    [defaults setVolatileDomain:arguments.get() forName:NSArgumentDomain];
+}
+
 // AppKit decides the system's recommended scroller style once a process makes its first scrollers, and then tells
 // every scroller pair, which would change the style of a session's scrollbars partway through. A first session,
 // run once per process, lets that happen before any shape runs.
@@ -899,6 +927,7 @@ inline void settleRecommendedScrollerStyle()
 {
     static std::once_flag once;
     std::call_once(once, [] {
+        pinShowScrollBarsDefault();
         @autoreleasepool {
             Digest digest;
             ScrollbarsSession scrollbars(digest, true);

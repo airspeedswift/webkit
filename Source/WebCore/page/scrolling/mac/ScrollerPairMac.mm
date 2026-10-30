@@ -47,6 +47,18 @@
 #import "ColorCocoa.h"
 #import "ScrollerImpDelegateBinding.h"
 #import "ScrollerPairMacState.h"
+#if USE_SWIFT_SCROLLERS_IN_DELEGATE
+#import <wtf/BlockPtr.h>
+#endif
+#endif
+
+#if USE_SWIFT_SCROLLERS_IN_DELEGATE
+#if !USE_SWIFT_MAC_SCROLLERS
+#error "USE_SWIFT_SCROLLERS_IN_DELEGATE requires USE_SWIFT_MAC_SCROLLERS"
+#endif
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
+#error "USE_SWIFT_SCROLLERS_IN_DELEGATE requires USE_SWIFT_SCROLLING_TREE_DELEGATE"
+#endif
 #endif
 
 #if !USE_SWIFT_MAC_SCROLLERS
@@ -287,7 +299,11 @@ void ScrollerPairMac::updateValues()
 void ScrollerPairMac::init()
 {
     m_state->scrollerImpPair = adoptNS([[NSScrollerImpPair alloc] init]);
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     m_scrollbarStyle = m_state->scrollers.setUpScrollerImpPair(m_state->scrollerImpPair.get());
+#else
+    m_state->scrollers.setUpScrollerImpPair(m_state->scrollerImpPair.get());
+#endif
     m_state->scrollers.attachScrollers(this);
 }
 
@@ -308,6 +324,7 @@ ScrollerPairMac::~ScrollerPairMac()
     });
 }
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
 void ScrollerPairMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
 {
     ensureOnMainThreadWithProtectedThis([phase](auto& scrollerPair) {
@@ -356,6 +373,7 @@ void ScrollerPairMac::contentAreaScrolledInDirection(FloatSize delta)
         scrollerPair.m_state->scrollers.contentAreaScrolledInDirectionOnMainThread(scrollerPair.m_state->scrollerImpPair.get(), delta.width(), delta.height());
     });
 }
+#endif
 #endif
 
 FloatSize ScrollerPairMac::visibleSize() const
@@ -455,6 +473,7 @@ void ScrollerPairMac::setScrollbarStyle(ScrollbarStyle style)
 }
 
 #else
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
 bool ScrollerPairMac::hasScrollerImp()
 {
     return m_state->scrollers.hasScrollerImp();
@@ -499,9 +518,11 @@ void ScrollerPairMac::setScrollbarStyle(ScrollbarStyle style)
         scrollerPair.m_state->scrollers.updateScrollbarStyleOnMainThread(&scrollerPair, scrollerPair.m_state->scrollerImpPair.get(), style);
     });
 }
+#endif
 
 #endif
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
 void ScrollerPairMac::ensureOnMainThreadWithProtectedThis(Function<void(ScrollerPairMac&)>&& task)
 {
     ensureOnMainThread([protectedThis = Ref { *this }, task = WTF::move(task)]() mutable {
@@ -511,6 +532,7 @@ void ScrollerPairMac::ensureOnMainThreadWithProtectedThis(Function<void(Scroller
         task(protectedThis.get());
     });
 }
+#endif
 
 #if !USE_SWIFT_MAC_SCROLLERS
 void ScrollerPairMac::mouseEnteredContentArea()
@@ -615,6 +637,7 @@ void ScrollerPairMac::updateScrollbarPainters()
 }
 
 #else
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
 void ScrollerPairMac::mouseEnteredContentArea()
 {
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollerPairMac for [" << protect(m_scrollingNode)->scrollingNodeID() << "] mouseEnteredContentArea");
@@ -666,6 +689,7 @@ void ScrollerPairMac::updateScrollbarPainters()
 {
     m_state->scrollers.updateScrollbarPainters(this);
 }
+#endif
 
 MacScrollerPair& ScrollerPairMac::scrollers()
 {
@@ -683,6 +707,21 @@ RetainPtr<NSScrollerImp> ScrollerPairMac::scrollerImp(ScrollbarOrientation orien
     Locker locker { m_state->referencesLock };
     return m_state->references(orientation).scrollerImp;
 }
+
+#if USE_SWIFT_SCROLLERS_IN_DELEGATE
+NSScrollerImp *ScrollerPairMac::retainedScrollerImp(ScrollbarOrientation orientation) const
+{
+    return scrollerImp(orientation).leakRef();
+}
+
+void ScrollerPairMac::ensureOnMainThreadWithScrollerImp(NSScrollerImp *scrollerImp, void (^task)(NSScrollerImpPair *, NSScrollerImp *)) const
+{
+    ensureOnMainThread([protectedThis = Ref { *this }, scrollerImp = RetainPtr { scrollerImp }, task = makeBlockPtr(task)] {
+        RELEASE_ASSERT(isMainThread());
+        task(protectedThis->m_state->scrollerImpPair.get(), scrollerImp.get());
+    });
+}
+#endif
 
 bool ScrollerPairMac::isHostLayer(ScrollbarOrientation orientation, CALayer *layer) const
 {
