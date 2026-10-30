@@ -61,7 +61,7 @@ namespace WebCore {
 class ScrollerPairMac : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<ScrollerPairMac> {
     WTF_MAKE_TZONE_ALLOCATED(ScrollerPairMac);
 public:
-    void init();
+    void init() CF_SWIFT_UNAVAILABLE("For C++ callers");
 
     static Ref<ScrollerPairMac> create(ScrollingTreeScrollingNode& node)
     {
@@ -69,13 +69,6 @@ public:
     }
 
     ~ScrollerPairMac();
-
-    void handleWheelEventPhase(PlatformWheelEventPhase);
-
-    void setUsePresentationValues(bool);
-    bool isUsingPresentationValues() const { return m_usingPresentationValues; }
-
-    void updateValues();
 
     FloatSize visibleSize() const;
 
@@ -85,36 +78,7 @@ public:
     };
     Values valuesForOrientation(ScrollbarOrientation);
 
-    void releaseReferencesToScrollerImpsOnTheMainThread();
-
-    bool hasScrollerImp();
-
-    void viewWillStartLiveResize();
-    void viewWillEndLiveResize();
-    void contentsSizeChanged();
-
-    String scrollbarStateForOrientation(ScrollbarOrientation) const;
-
-    ScrollbarStyle scrollbarStyle() const { return m_scrollbarStyle; }
-    void setScrollbarStyle(ScrollbarStyle);
-
-    void setVerticalScrollerImp(NSScrollerImp *);
-    void setHorizontalScrollerImp(NSScrollerImp *);
-    
-    void mouseEnteredContentArea();
-    void mouseExitedContentArea();
-    void mouseMovedInContentArea(const MouseLocationState&);
-    void mouseIsInScrollbar(ScrollbarHoverState);
-    void scrollbarColorChanged(const std::optional<ScrollbarColor>&);
-
-    void ensureOnMainThreadWithProtectedThis(Function<void(ScrollerPairMac&)>&&);
     RefPtr<ScrollingTreeScrollingNode> node() const { return m_scrollingNode.get(); }
-
-    void setUseDarkAppearance(bool);
-
-    void setScrollbarWidth(ScrollbarWidth);
-
-    void updateScrollbarPainters();
 
     // The scrollers (ScrollerPairMac.swift).
     MacScrollerPair& scrollers() CF_SWIFT_UNAVAILABLE("For C++ callers");
@@ -126,18 +90,19 @@ public:
     void setScrollerImpProgress(ScrollbarOrientation, ScrollbarPartFeature, double value);
     void setScrollerReferences(ScrollbarOrientation, NSScrollerImp *, CALayer *);
 
-    void contentAreaScrolledInDirection(FloatSize);
-    void notifyScrollerImpOfMouse(ScrollbarOrientation, bool mouseEntered);
+    // Runs the block on the main thread, synchronously if called on the main thread, with the NSScrollerImpPair
+    // and the NSScrollerImp, which may be null, keeping this and the NSScrollerImp alive until it has run.
+    // The block and what it captures may be released on the calling thread; callers hold this across the call.
+    void ensureOnMainThreadWithScrollerImp(NSScrollerImp *, void (^ __attribute__((swift_attr("@Sendable"))))(NSScrollerImpPair *, NSScrollerImp *)) const __attribute__((nonnull(3)));
+    // The copy of the scroller's NSScrollerImp, retained for the caller.
+    NSScrollerImp *retainedScrollerImp(ScrollbarOrientation) const NS_RETURNS_RETAINED;
 private:
-    void notifyScrollerImpPair(ScrollerImpPairNotification);
 
     ScrollerPairMac(ScrollingTreeScrollingNode&);
 
     ThreadSafeWeakPtr<ScrollingTreeScrollingNode> m_scrollingNode;
 
     std::unique_ptr<ScrollerPairMacState> m_state;
-    std::atomic<bool> m_usingPresentationValues { false };
-    std::atomic<ScrollbarStyle> m_scrollbarStyle { ScrollbarStyle::AlwaysVisible };
 };
 
 }

@@ -41,6 +41,16 @@ internal import WebCore_Private.Core.ScrollingTreeFrameScrollingNode
 internal import WebCore_Private.Core.ScrollingTreeScrollingNode
 internal import WebCore_Private.ScrollPhysicsTypes
 internal import WebCore_Private.ScrollingTreeScrollPhysicsClient
+internal import AppKit
+internal import QuartzCore
+internal import WebCore_Private.Core.ColorCocoa
+internal import WebCore_Private.Core.ScrollingStateNode
+internal import WebCore_Private.Core.ScrollingStateScrollingNode
+internal import WebCore_Private.ScrollerPairMacTypes
+
+// The scrollers handleWheelEvent() tells when momentum starts and ends: the Swift scrollers of the node's
+// ScrollerPairMac, or the ScrollerPairMac.
+typealias NodeScrollerPair = MacScrollerPair
 
 @_expose(Cxx)
 final class ScrollingTreeScrollPhysicsDelegate {
@@ -162,7 +172,7 @@ final class ScrollingTreeScrollPhysicsDelegate {
     @_expose(Cxx)
     func handleWheelEvent(
         client c: inout WebCore.ScrollingTreeScrollPhysicsClient,
-        _ scrollerPair: WebCore.ScrollerPairMac,
+        _ scrollerPair: NodeScrollerPair,
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent,
         _ timestamp: Double
     ) -> Bool {
@@ -299,11 +309,119 @@ final class ScrollingTreeScrollPhysicsDelegate {
         }
     }
 
-    /// The caller holds `scrollerPair` for the call.
+    /// The scrollbar part of ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode().
+    ///
+    /// The caller holds `scrollerPair`, which owns `scrollers`, for the call. The other arguments are the state node's
+    /// changed properties (as OptionSet<ScrollingStateNodeProperty>::toRaw()) and its scrollbar values; each scrollbar
+    /// layer is nil unless it changed.
+    ///
+    /// The scrollable area parameters and the scrollbar color are the const state node's own members, borrowed for the
+    /// call. Nothing called here reaches the state node: the scrollers and their main-thread tasks reach only the
+    /// ScrollerPairMac, its scrolling tree node and AppKit.
     @_expose(Cxx)
-    func updateScrollbarPainters(_ scrollerPair: WebCore.ScrollerPairMac) {
-        if inMomentumPhase && scrollerPair.hasScrollerImp() && scrollerPair.isUsingPresentationValues() {
-            scrollerPair.updateScrollbarPainters()
+    func updateScrollbars(
+        _ scrollerPair: WebCore.ScrollerPairMac,
+        _ scrollers: MacScrollerPair,
+        _ changedProperties: UInt64,
+        _ horizontalScrollerImp: NSScrollerImp?,
+        _ verticalScrollerImp: NSScrollerImp?,
+        _ scrollbarHoverState: WebCore.ScrollbarHoverState,
+        _ horizontalScrollbarLayer: CALayer?,
+        _ verticalScrollbarLayer: CALayer?,
+        _ scrollableAreaParameters: WebCore.ScrollableAreaParameters,
+        _ scrollbarEnabledState: WebCore.ScrollbarEnabledState,
+        _ scrollbarLayoutDirection: WebCore.UserInterfaceLayoutDirection,
+        _ scrollbarWidth: WebCore.ScrollbarWidth,
+        _ useDarkAppearanceForScrollbars: Bool,
+        _ mouseIsOverContentArea: Bool,
+        _ mouseLocationState: WebCore.MouseLocationState,
+        _ scrollbarColor: WebCore.OptionalScrollbarColor
+    ) {
+        func hasChangedProperty(_ property: WebCore.ScrollingStateNodeProperty) -> Bool {
+            changedProperties & property.rawValue != 0
+        }
+
+        if hasChangedProperty(.PainterForScrollbar) {
+            if horizontalScrollerImp != nil || verticalScrollerImp != nil {
+                scrollers.releaseReferencesToScrollerImpsOnTheMainThread(scrollerPair)
+                scrollers.setScrollerImp(scrollerPair, .Horizontal, horizontalScrollerImp)
+                scrollers.setScrollerImp(scrollerPair, .Vertical, verticalScrollerImp)
+            }
+        }
+
+        if hasChangedProperty(.ScrollbarHoverState) {
+            scrollers.mouseIsInScrollbar(scrollerPair, scrollbarHoverState)
+        }
+
+        if hasChangedProperty(.HorizontalScrollbarLayer) {
+            scrollers.setHostLayer(scrollerPair, .Horizontal, horizontalScrollbarLayer)
+        }
+
+        if hasChangedProperty(.VerticalScrollbarLayer) {
+            scrollers.setHostLayer(scrollerPair, .Vertical, verticalScrollbarLayer)
+        }
+
+        if hasChangedProperty(.ScrollableAreaParams) {
+            scrollers.setHiddenByStyle(scrollerPair, .Horizontal, scrollableAreaParameters.horizontalNativeScrollbarVisibility)
+            scrollers.setHiddenByStyle(scrollerPair, .Vertical, scrollableAreaParameters.verticalNativeScrollbarVisibility)
+        }
+
+        if hasChangedProperty(.ScrollbarEnabledState) {
+            scrollers.setEnabled(.Horizontal, scrollbarEnabledState.horizontalScrollbarIsEnabled)
+            scrollers.setEnabled(.Vertical, scrollbarEnabledState.verticalScrollbarIsEnabled)
+        }
+
+        if hasChangedProperty(.ScrollbarLayoutDirection) {
+            scrollers.setScrollbarLayoutDirection(scrollerPair, .Horizontal, scrollbarLayoutDirection)
+            scrollers.setScrollbarLayoutDirection(scrollerPair, .Vertical, scrollbarLayoutDirection)
+        }
+
+        if hasChangedProperty(.ScrollbarWidth) {
+            scrollers.setScrollbarWidth(scrollerPair, scrollbarWidth)
+        }
+
+        if hasChangedProperty(.UseDarkAppearanceForScrollbars) {
+            scrollers.setUseDarkAppearance(useDarkAppearanceForScrollbars)
+        }
+
+        if hasChangedProperty(.ContentAreaHoverState) {
+            if mouseIsOverContentArea {
+                scrollers.notifyScrollerImpPair(scrollerPair, .MouseEnteredContentArea)
+            } else {
+                scrollers.mouseExitedContentArea()
+                scrollers.notifyScrollerImpPair(scrollerPair, .MouseExitedContentArea)
+            }
+        }
+
+        if hasChangedProperty(.MouseActivityState) {
+            scrollers.mouseMovedInContentArea(mouseLocationState)
+            scrollers.notifyScrollerImpPair(scrollerPair, .MouseMovedInContentArea)
+        }
+
+        if hasChangedProperty(.ScrollbarColor) {
+            // Each scroller gets its own NSColors, the horizontal one first.
+            for orientation: WebCore.ScrollbarOrientation in [.Horizontal, .Vertical] {
+                if let color = scrollbarColor.value {
+                    scrollers.scrollbarColorChanged(
+                        scrollerPair,
+                        orientation,
+                        WebCore.cocoaColor(color.trackColor).get(),
+                        WebCore.cocoaColor(color.thumbColor).get()
+                    )
+                } else {
+                    scrollers.scrollbarColorChanged(scrollerPair, orientation, nil, nil)
+                }
+            }
+        }
+
+        scrollers.updateValues(scrollerPair)
+    }
+
+    /// The caller holds `scrollerPair`, which owns `scrollers`, for the call.
+    @_expose(Cxx)
+    func updateScrollbarPainters(_ scrollerPair: WebCore.ScrollerPairMac, _ scrollers: MacScrollerPair) {
+        if inMomentumPhase && scrollers.hasScrollerImp() && scrollers.isUsingPresentationValues {
+            scrollers.updateScrollbarPainters(scrollerPair)
         }
     }
 }

@@ -27,6 +27,9 @@
 // transition animations. Each scroller's lock and the AppKit objects used under it are a MacScrollerImpState;
 // ScrollerPairMac keeps the NSScrollerImpPair, which no lock guards.
 
+// PLATFORM(MAC), as ScrollerPairMac.mm and ScrollerMac.mm, the C++ this replaces.
+#if os(macOS)
+
 internal import AppKit
 internal import QuartzCore
 internal import Synchronization
@@ -45,6 +48,8 @@ internal import WebCore_Private.ScrollerPairMacTypes
 internal import pal.spi.mac.NSScrollerImpSPI
 internal import wtf.Core.text.Latin1Character
 internal import wtf.Core.text.WTFString
+internal import wtf.Core.MainThread
+internal import wtf.Core.cocoa.MainThreadBlocks
 
 // MARK: - MacScrollerPair
 
@@ -61,6 +66,8 @@ final class MacScrollerPair: Sendable {
     fileprivate let useDarkAppearance = Atomic<Bool>(false)
     fileprivate let inLiveResize = Atomic<Bool>(false)
     private let mouseInContentArea = Atomic<Bool>(false)
+    private let style = Atomic<UInt8>(WebCore.ScrollbarStyle.AlwaysVisible.rawValue)
+    private let usingPresentationValues = Atomic<Bool>(false)
 
     @_expose(Cxx)
     init(_ pair: consuming WebCore.ScrollerPairMacWeakPtr) {
@@ -90,6 +97,7 @@ final class MacScrollerPair: Sendable {
         WebCore.bindScrollerImpPairDelegate(scrollerImpPair, delegate)
         let style = WebCore.ScrollerStyle.recommendedScrollerStyle()
         scrollerImpPair.scrollerStyle = style
+        self.style.store(WebCore.scrollbarStyle(style).rawValue, ordering: .sequentiallyConsistent)
         return WebCore.scrollbarStyle(style)
     }
 
@@ -123,7 +131,6 @@ final class MacScrollerPair: Sendable {
     // MARK: Any thread
 
     /// Returns whether the value changed.
-    @_expose(Cxx)
     func setInLiveResize(_ inLiveResize: Bool) -> Bool {
         self.inLiveResize.exchange(inLiveResize, ordering: .relaxed) != inLiveResize
     }
@@ -149,7 +156,11 @@ final class MacScrollerPair: Sendable {
         if offsetChanged {
             let scrollbarRevealBehavior = node.takeScrollbarRevealBehaviorForNextScrollbarUpdate()
             if let lastOffset, scrollbarRevealBehavior == .Default {
-                pair.contentAreaScrolledInDirection(WebCore.FloatSize(offset.x - lastOffset.x, offset.y - lastOffset.y))
+                let width = offset.x - lastOffset.x
+                let height = offset.y - lastOffset.y
+                pair.ensureOnMainThreadWithScrollerImp(nil) { [self] scrollerImpPair, _ in
+                    contentAreaScrolledInDirectionOnMainThread(scrollerImpPair, width, height)
+                }
             }
         }
 
@@ -157,12 +168,10 @@ final class MacScrollerPair: Sendable {
         verticalScroller.updateValues(pair)
     }
 
-    @_expose(Cxx)
     func mouseExitedContentArea() {
         mouseInContentArea.store(false, ordering: .relaxed)
     }
 
-    @_expose(Cxx)
     func mouseMovedInContentArea(_ state: WebCore.MouseLocationState) {
         mouseInContentArea.store(true, ordering: .relaxed)
         horizontalScroller.setLastKnownMousePositionInScrollbar(state.locationInHorizontalScrollbar)
@@ -170,19 +179,17 @@ final class MacScrollerPair: Sendable {
     }
 
     /// Tells each scroller whose hover state changed, the vertical one first.
-    @_expose(Cxx)
     func mouseIsInScrollbar(_ pair: WebCore.ScrollerPairMac, _ hoverState: WebCore.ScrollbarHoverState) {
         if isMouseOverVerticalScrollbar.load(ordering: .relaxed) != hoverState.mouseIsOverVerticalScrollbar {
-            pair.notifyScrollerImpOfMouse(.Vertical, hoverState.mouseIsOverVerticalScrollbar)
+            notifyScrollerImpOfMouse(pair, .Vertical, hoverState.mouseIsOverVerticalScrollbar)
         }
         if isMouseOverHorizontalScrollbar.load(ordering: .relaxed) != hoverState.mouseIsOverHorizontalScrollbar {
-            pair.notifyScrollerImpOfMouse(.Horizontal, hoverState.mouseIsOverHorizontalScrollbar)
+            notifyScrollerImpOfMouse(pair, .Horizontal, hoverState.mouseIsOverHorizontalScrollbar)
         }
         isMouseOverVerticalScrollbar.store(hoverState.mouseIsOverVerticalScrollbar, ordering: .relaxed)
         isMouseOverHorizontalScrollbar.store(hoverState.mouseIsOverHorizontalScrollbar, ordering: .relaxed)
     }
 
-    @_expose(Cxx)
     func setUseDarkAppearance(_ useDarkAppearance: Bool) {
         if self.useDarkAppearance.exchange(useDarkAppearance, ordering: .relaxed) == useDarkAppearance {
             return
@@ -191,7 +198,6 @@ final class MacScrollerPair: Sendable {
         verticalScroller.setNeedsDisplay()
     }
 
-    @_expose(Cxx)
     func setScrollbarWidth(_ pair: WebCore.ScrollerPairMac, _ scrollbarWidth: WebCore.ScrollbarWidth) {
         if self.scrollbarWidth.exchange(scrollbarWidth.rawValue, ordering: .relaxed) == scrollbarWidth.rawValue {
             return
@@ -200,7 +206,6 @@ final class MacScrollerPair: Sendable {
         verticalScroller.updateScrollbarStyle(self, pair)
     }
 
-    @_expose(Cxx)
     func setEnabled(_ orientation: WebCore.ScrollbarOrientation, _ enabled: Bool) {
         scroller(orientation).isEnabled.store(enabled, ordering: .relaxed)
     }
@@ -212,7 +217,6 @@ final class MacScrollerPair: Sendable {
 
     // MARK: Under one scroller's lock
 
-    @_expose(Cxx)
     func setHostLayer(_ pair: WebCore.ScrollerPairMac, _ orientation: WebCore.ScrollbarOrientation, _ layer: CALayer?) {
         if pair.isHostLayer(orientation, layer) {
             return
@@ -220,7 +224,6 @@ final class MacScrollerPair: Sendable {
         scroller(orientation).setHostLayer(pair, layer)
     }
 
-    @_expose(Cxx)
     func setHiddenByStyle(
         _ pair: WebCore.ScrollerPairMac,
         _ orientation: WebCore.ScrollbarOrientation,
@@ -229,7 +232,6 @@ final class MacScrollerPair: Sendable {
         scroller(orientation).setHiddenByStyle(self, pair, visibility != .Visible)
     }
 
-    @_expose(Cxx)
     func setScrollerImp(
         _ pair: WebCore.ScrollerPairMac,
         _ orientation: WebCore.ScrollbarOrientation,
@@ -238,7 +240,6 @@ final class MacScrollerPair: Sendable {
         scroller(orientation).setScrollerImp(pair, scrollerImp)
     }
 
-    @_expose(Cxx)
     func setScrollbarLayoutDirection(
         _ pair: WebCore.ScrollerPairMac,
         _ orientation: WebCore.ScrollbarOrientation,
@@ -248,7 +249,6 @@ final class MacScrollerPair: Sendable {
     }
 
     /// Stores the scroller's colors, then updates its values.
-    @_expose(Cxx)
     func scrollbarColorChanged(
         _ pair: WebCore.ScrollerPairMac,
         _ orientation: WebCore.ScrollbarOrientation,
@@ -259,20 +259,18 @@ final class MacScrollerPair: Sendable {
     }
 
     /// Tells the horizontal, then the vertical NSScrollerImp.
-    @_expose(Cxx)
     func setUsePresentationValues(_ inMomentumPhase: Bool) {
+        usingPresentationValues.store(inMomentumPhase, ordering: .sequentiallyConsistent)
         horizontalScroller.setUsePresentationValue(inMomentumPhase)
         verticalScroller.setUsePresentationValue(inMomentumPhase)
     }
 
-    @_expose(Cxx)
     func hasScrollerImp() -> Bool {
         verticalScroller.hasScrollerImp() || horizontalScroller.hasScrollerImp()
     }
 
     /// If either scroller has an NSScrollerImp, takes the vertical, then the horizontal one, keeping them for
     /// releaseTakenScrollerImpsOnMainThread, and returns true.
-    @_expose(Cxx)
     func takeScrollerImps(_ pair: WebCore.ScrollerPairMac) -> Bool {
         if !hasScrollerImp() {
             return false
@@ -283,13 +281,11 @@ final class MacScrollerPair: Sendable {
     }
 
     /// Releases the NSScrollerImps of the oldest takeScrollerImps call, the horizontal one first.
-    @_expose(Cxx)
     func releaseTakenScrollerImpsOnMainThread() {
         horizontalScroller.releaseTakenScrollerImp()
         verticalScroller.releaseTakenScrollerImp()
     }
 
-    @_expose(Cxx)
     func scrollbarState(_ orientation: WebCore.ScrollbarOrientation, _ style: WebCore.ScrollbarStyle) -> WTF.String {
         if orientation == .Vertical {
             return verticalScroller.scrollbarState(style).text
@@ -337,7 +333,6 @@ final class MacScrollerPair: Sendable {
 
     /// Takes the horizontal, then the vertical scroller's lock, and turns each NSScrollerImp's presentation value on
     /// when its value is not zero.
-    @_expose(Cxx)
     func updateScrollbarPainters(_ pair: WebCore.ScrollerPairMac) {
         horizontalScroller.state.withLock { _ in
             verticalScroller.state.withLock { _ in
@@ -354,11 +349,93 @@ final class MacScrollerPair: Sendable {
         }
     }
 
+    // MARK: Main-thread hops
+
+    // Each hop runs on the main thread, synchronously if called on the main thread, and keeps ScrollerPairMac alive
+    // until it has run.
+
+    @_expose(Cxx)
+    func handleWheelEventPhase(_ pair: WebCore.ScrollerPairMac, _ phase: WebCore.PlatformWheelEventPhase) {
+        pair.ensureOnMainThreadWithScrollerImp(nil) { [self] scrollerImpPair, _ in
+            handleWheelEventPhaseOnMainThread(scrollerImpPair, phase)
+        }
+    }
+
+    @_expose(Cxx)
+    func notifyScrollerImpPair(_ pair: WebCore.ScrollerPairMac, _ notification: WebCore.ScrollerImpPairNotification) {
+        pair.ensureOnMainThreadWithScrollerImp(nil) { [self] scrollerImpPair, _ in
+            notifyScrollerImpPairOnMainThread(scrollerImpPair, notification)
+        }
+    }
+
+    @_expose(Cxx)
+    func viewWillStartLiveResize(_ pair: WebCore.ScrollerPairMac) {
+        if setInLiveResize(true) {
+            notifyScrollerImpPair(pair, .StartLiveResize)
+        }
+    }
+
+    @_expose(Cxx)
+    func viewWillEndLiveResize(_ pair: WebCore.ScrollerPairMac) {
+        if setInLiveResize(false) {
+            notifyScrollerImpPair(pair, .EndLiveResize)
+        }
+    }
+
+    /// Stores the style, then gives the scrollers new NSScrollerImps and the NSScrollerImpPair the style on the main
+    /// thread.
+    fileprivate func setScrollbarStyle(_ pair: WebCore.ScrollerPairMac, _ style: WebCore.ScrollbarStyle) {
+        self.style.store(style.rawValue, ordering: .sequentiallyConsistent)
+        pair.ensureOnMainThreadWithScrollerImp(nil) { [self] scrollerImpPair, _ in
+            guard let pair = self.pair.get().get() else {
+                return
+            }
+            updateScrollbarStyleOnMainThread(pair, scrollerImpPair, style)
+        }
+    }
+
+    // FIXME: This is a workaround in place for the time being since NSScrollerImps cannot be deallocated
+    // on a non-main thread. rdar://problem/24535055
+    func releaseReferencesToScrollerImpsOnTheMainThread(_ pair: WebCore.ScrollerPairMac) {
+        if takeScrollerImps(pair) {
+            WTF.callOnMainThreadWithBlock { [self] in
+                precondition(WTF.isMainThread())
+                releaseTakenScrollerImpsOnMainThread()
+            }
+        }
+    }
+
+    /// Only legacy scrollbars tell their NSScrollerImp that the mouse entered or left it.
+    private func notifyScrollerImpOfMouse(
+        _ pair: WebCore.ScrollerPairMac,
+        _ orientation: WebCore.ScrollbarOrientation,
+        _ mouseEntered: Bool
+    ) {
+        pair.ensureOnMainThreadWithScrollerImp(pair.retainedScrollerImp(orientation)) { [self] scrollerImpPair, scrollerImp in
+            notifyScrollerImpOfMouseOnMainThread(scrollerImpPair, scrollerImp, mouseEntered, scrollbarStyle())
+        }
+    }
+
+    // MARK: Read by the node's delegate
+
+    @_expose(Cxx)
+    func scrollbarStyle() -> WebCore.ScrollbarStyle {
+        WebCore.ScrollbarStyle(rawValue: style.load(ordering: .sequentiallyConsistent)) ?? .AlwaysVisible
+    }
+
+    @_expose(Cxx)
+    func scrollbarStateForOrientation(_ orientation: WebCore.ScrollbarOrientation) -> WTF.String {
+        scrollbarState(orientation, scrollbarStyle())
+    }
+
+    var isUsingPresentationValues: Bool {
+        usingPresentationValues.load(ordering: .sequentiallyConsistent)
+    }
+
     // MARK: Main thread
 
     // ScrollerPairMac's main-thread tasks call these, after checking that they run on the main thread.
 
-    @_expose(Cxx)
     func handleWheelEventPhaseOnMainThread(_ scrollerImpPair: NSScrollerImpPair?, _ phase: WebCore.PlatformWheelEventPhase) {
         switch phase {
         case .Began:
@@ -374,7 +451,6 @@ final class MacScrollerPair: Sendable {
     }
 
     /// Tells the NSScrollerImpPair, unless its overlay scroller state is locked.
-    @_expose(Cxx)
     func notifyScrollerImpPairOnMainThread(
         _ scrollerImpPair: NSScrollerImpPair?,
         _ notification: WebCore.ScrollerImpPairNotification
@@ -400,13 +476,11 @@ final class MacScrollerPair: Sendable {
         }
     }
 
-    @_expose(Cxx)
     func contentAreaScrolledInDirectionOnMainThread(_ scrollerImpPair: NSScrollerImpPair?, _ width: Float, _ height: Float) {
         scrollerImpPair?.contentAreaScrolled(inDirection: NSPoint(x: CGFloat(width), y: CGFloat(height)))
     }
 
     /// Gives the horizontal, then the vertical scroller a new NSScrollerImp, then the NSScrollerImpPair the style.
-    @_expose(Cxx)
     func updateScrollbarStyleOnMainThread(
         _ pair: WebCore.ScrollerPairMac,
         _ scrollerImpPair: NSScrollerImpPair?,
@@ -417,21 +491,7 @@ final class MacScrollerPair: Sendable {
         scrollerImpPair?.scrollerStyle = WebCore.nsScrollerStyle(style)
     }
 
-    @_expose(Cxx)
-    func setPairScrollerImpOnMainThread(
-        _ scrollerImpPair: NSScrollerImpPair?,
-        _ orientation: WebCore.ScrollbarOrientation,
-        _ scrollerImp: NSScrollerImp?
-    ) {
-        if orientation == .Vertical {
-            scrollerImpPair?.verticalScrollerImp = scrollerImp
-        } else {
-            scrollerImpPair?.horizontalScrollerImp = scrollerImp
-        }
-    }
-
     /// Only legacy scrollbars tell their NSScrollerImp that the mouse entered or left it.
-    @_expose(Cxx)
     func notifyScrollerImpOfMouseOnMainThread(
         _ scrollerImpPair: NSScrollerImpPair?,
         _ scrollerImp: NSScrollerImp?,
@@ -486,7 +546,7 @@ private final class MacScroller: Sendable {
 
     private func makeScrollerImp(_ scrollerPair: MacScrollerPair, _ pair: WebCore.ScrollerPairMac) -> NSScrollerImp? {
         NSScrollerImp(
-            style: WebCore.nsScrollerStyle(pair.scrollbarStyle()),
+            style: WebCore.nsScrollerStyle(scrollerPair.scrollbarStyle()),
             controlSize: WebCore.nsControlSizeFromScrollbarWidth(scrollerPair.scrollbarWidthStyle),
             horizontal: orientation == .Horizontal,
             replacingScrollerImp: nil
@@ -588,10 +648,13 @@ private final class MacScroller: Sendable {
 
     /// Hands the scroller's NSScrollerImp to the NSScrollerImpPair, on the main thread.
     private func updatePairScrollerImps(_ pair: WebCore.ScrollerPairMac, _ state: borrowing MacScrollerImpState.Locked) {
-        if orientation == .Vertical {
-            pair.setVerticalScrollerImp(state.scrollerImp)
-        } else {
-            pair.setHorizontalScrollerImp(state.scrollerImp)
+        let orientation = orientation
+        pair.ensureOnMainThreadWithScrollerImp(state.scrollerImp) { scrollerImpPair, scrollerImp in
+            if orientation == .Vertical {
+                scrollerImpPair?.verticalScrollerImp = scrollerImp
+            } else {
+                scrollerImpPair?.horizontalScrollerImp = scrollerImp
+            }
         }
     }
 
@@ -982,11 +1045,11 @@ private final class WebScrollerImpPairDelegateMac: NSObject, NSScrollerImpPairDe
         _ scrollerImpPair: NSScrollerImpPair!,
         updateScrollerStyleForNewRecommendedScrollerStyle newRecommendedScrollerStyle: NSScroller.Style
     ) {
-        guard let (_, pair) = liveScrollerPair else {
+        guard let (scrollerPair, pair) = liveScrollerPair else {
             return
         }
 
-        pair.setScrollbarStyle(WebCore.scrollbarStyle(newRecommendedScrollerStyle))
+        scrollerPair.setScrollbarStyle(pair, WebCore.scrollbarStyle(newRecommendedScrollerStyle))
     }
 }
 
@@ -1272,3 +1335,5 @@ private final class WebScrollbarPartAnimationMac: NSAnimation {
         isInvalidated.store(true, ordering: .relaxed)
     }
 }
+
+#endif // os(macOS)

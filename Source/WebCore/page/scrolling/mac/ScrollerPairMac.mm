@@ -46,6 +46,7 @@
 #import "ColorCocoa.h"
 #import "ScrollerImpDelegateBinding.h"
 #import "ScrollerPairMacState.h"
+#import <wtf/BlockPtr.h>
 
 namespace WebCore {
 
@@ -61,7 +62,7 @@ ScrollerPairMac::ScrollerPairMac(ScrollingTreeScrollingNode& node)
 void ScrollerPairMac::init()
 {
     m_state->scrollerImpPair = adoptNS([[NSScrollerImpPair alloc] init]);
-    m_scrollbarStyle = m_state->scrollers.setUpScrollerImpPair(m_state->scrollerImpPair.get());
+    m_state->scrollers.setUpScrollerImpPair(m_state->scrollerImpPair.get());
     m_state->scrollers.attachScrollers(this);
 }
 
@@ -79,55 +80,6 @@ ScrollerPairMac::~ScrollerPairMac()
     ensureOnMainThread([state = WTF::move(m_state)] {
         RELEASE_ASSERT(isMainThread());
         state->scrollers.scrollersWillBeDestroyed();
-    });
-}
-
-void ScrollerPairMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
-{
-    ensureOnMainThreadWithProtectedThis([phase](auto& scrollerPair) {
-        scrollerPair.m_state->scrollers.handleWheelEventPhaseOnMainThread(scrollerPair.m_state->scrollerImpPair.get(), phase);
-    });
-}
-
-void ScrollerPairMac::notifyScrollerImpPair(ScrollerImpPairNotification notification)
-{
-    ensureOnMainThreadWithProtectedThis([notification](auto& scrollerPair) {
-        scrollerPair.m_state->scrollers.notifyScrollerImpPairOnMainThread(scrollerPair.m_state->scrollerImpPair.get(), notification);
-    });
-}
-
-void ScrollerPairMac::viewWillStartLiveResize()
-{
-    if (m_state->scrollers.setInLiveResize(true))
-        notifyScrollerImpPair(ScrollerImpPairNotification::StartLiveResize);
-}
-
-void ScrollerPairMac::viewWillEndLiveResize()
-{
-    if (m_state->scrollers.setInLiveResize(false))
-        notifyScrollerImpPair(ScrollerImpPairNotification::EndLiveResize);
-}
-
-void ScrollerPairMac::contentsSizeChanged()
-{
-    notifyScrollerImpPair(ScrollerImpPairNotification::ContentAreaDidResize);
-}
-
-void ScrollerPairMac::setUsePresentationValues(bool inMomentumPhase)
-{
-    m_usingPresentationValues = inMomentumPhase;
-    m_state->scrollers.setUsePresentationValues(m_usingPresentationValues);
-}
-
-void ScrollerPairMac::updateValues()
-{
-    m_state->scrollers.updateValues(this);
-}
-
-void ScrollerPairMac::contentAreaScrolledInDirection(FloatSize delta)
-{
-    ensureOnMainThreadWithProtectedThis([delta](auto& scrollerPair) {
-        scrollerPair.m_state->scrollers.contentAreaScrolledInDirectionOnMainThread(scrollerPair.m_state->scrollerImpPair.get(), delta.width(), delta.height());
     });
 }
 
@@ -168,111 +120,6 @@ ScrollerPairMac::Values ScrollerPairMac::valuesForOrientation(ScrollbarOrientati
     return { value, proportion };
 }
 
-bool ScrollerPairMac::hasScrollerImp()
-{
-    return m_state->scrollers.hasScrollerImp();
-}
-
-void ScrollerPairMac::releaseReferencesToScrollerImpsOnTheMainThread()
-{
-    // FIXME: This is a workaround in place for the time being since NSScrollerImps cannot be deallocated
-    // on a non-main thread. rdar://problem/24535055
-    if (m_state->scrollers.takeScrollerImps(this)) {
-        WTF::callOnMainThread([scrollers = m_state->scrollers]() mutable {
-            RELEASE_ASSERT(isMainThread());
-            scrollers.releaseTakenScrollerImpsOnMainThread();
-        });
-    }
-}
-
-String ScrollerPairMac::scrollbarStateForOrientation(ScrollbarOrientation orientation) const
-{
-    return m_state->scrollers.scrollbarState(orientation, scrollbarStyle());
-}
-
-void ScrollerPairMac::setVerticalScrollerImp(NSScrollerImp *scrollerImp)
-{
-    ensureOnMainThreadWithProtectedThis([scrollerImp = RetainPtr { scrollerImp }](auto& scrollerPair) {
-        scrollerPair.m_state->scrollers.setPairScrollerImpOnMainThread(scrollerPair.m_state->scrollerImpPair.get(), ScrollbarOrientation::Vertical, scrollerImp.get());
-    });
-}
-
-void ScrollerPairMac::setHorizontalScrollerImp(NSScrollerImp *scrollerImp)
-{
-    ensureOnMainThreadWithProtectedThis([scrollerImp = RetainPtr { scrollerImp }](auto& scrollerPair) {
-        scrollerPair.m_state->scrollers.setPairScrollerImpOnMainThread(scrollerPair.m_state->scrollerImpPair.get(), ScrollbarOrientation::Horizontal, scrollerImp.get());
-    });
-}
-
-void ScrollerPairMac::setScrollbarStyle(ScrollbarStyle style)
-{
-    m_scrollbarStyle = style;
-
-    ensureOnMainThreadWithProtectedThis([style](auto& scrollerPair) {
-        scrollerPair.m_state->scrollers.updateScrollbarStyleOnMainThread(&scrollerPair, scrollerPair.m_state->scrollerImpPair.get(), style);
-    });
-}
-
-void ScrollerPairMac::ensureOnMainThreadWithProtectedThis(Function<void(ScrollerPairMac&)>&& task)
-{
-    ensureOnMainThread([protectedThis = Ref { *this }, task = WTF::move(task)]() mutable {
-        RELEASE_ASSERT(isMainThread());
-        task(protectedThis.get());
-    });
-}
-
-void ScrollerPairMac::mouseEnteredContentArea()
-{
-    LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollerPairMac for [" << protect(m_scrollingNode)->scrollingNodeID() << "] mouseEnteredContentArea");
-    notifyScrollerImpPair(ScrollerImpPairNotification::MouseEnteredContentArea);
-}
-
-void ScrollerPairMac::mouseExitedContentArea()
-{
-    m_state->scrollers.mouseExitedContentArea();
-    LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollerPairMac for [" << protect(m_scrollingNode)->scrollingNodeID() << "] mouseExitedContentArea");
-    notifyScrollerImpPair(ScrollerImpPairNotification::MouseExitedContentArea);
-}
-
-void ScrollerPairMac::mouseMovedInContentArea(const MouseLocationState& state)
-{
-    m_state->scrollers.mouseMovedInContentArea(state);
-    notifyScrollerImpPair(ScrollerImpPairNotification::MouseMovedInContentArea);
-}
-
-void ScrollerPairMac::mouseIsInScrollbar(ScrollbarHoverState hoverState)
-{
-    m_state->scrollers.mouseIsInScrollbar(this, hoverState);
-}
-
-void ScrollerPairMac::notifyScrollerImpOfMouse(ScrollbarOrientation orientation, bool mouseEntered)
-{
-    ensureOnMainThreadWithProtectedThis([scrollerImp = scrollerImp(orientation), mouseEntered](auto& scrollerPair) {
-        scrollerPair.m_state->scrollers.notifyScrollerImpOfMouseOnMainThread(scrollerPair.m_state->scrollerImpPair.get(), scrollerImp.get(), mouseEntered, scrollerPair.scrollbarStyle());
-    });
-}
-
-void ScrollerPairMac::setUseDarkAppearance(bool useDarkAppearance)
-{
-    m_state->scrollers.setUseDarkAppearance(useDarkAppearance);
-}
-
-void ScrollerPairMac::setScrollbarWidth(ScrollbarWidth scrollbarWidth)
-{
-    m_state->scrollers.setScrollbarWidth(this, scrollbarWidth);
-}
-
-void ScrollerPairMac::scrollbarColorChanged(const std::optional<ScrollbarColor>& scrollbarColor)
-{
-    for (auto orientation : { ScrollbarOrientation::Horizontal, ScrollbarOrientation::Vertical })
-        m_state->scrollers.scrollbarColorChanged(this, orientation, scrollbarColor ? cocoaColor(scrollbarColor->trackColor).get() : nil, scrollbarColor ? cocoaColor(scrollbarColor->thumbColor).get() : nil);
-}
-
-void ScrollerPairMac::updateScrollbarPainters()
-{
-    m_state->scrollers.updateScrollbarPainters(this);
-}
-
 MacScrollerPair& ScrollerPairMac::scrollers()
 {
     return m_state->scrollers;
@@ -288,6 +135,19 @@ RetainPtr<NSScrollerImp> ScrollerPairMac::scrollerImp(ScrollbarOrientation orien
 {
     Locker locker { m_state->referencesLock };
     return m_state->references(orientation).scrollerImp;
+}
+
+NSScrollerImp *ScrollerPairMac::retainedScrollerImp(ScrollbarOrientation orientation) const
+{
+    return scrollerImp(orientation).leakRef();
+}
+
+void ScrollerPairMac::ensureOnMainThreadWithScrollerImp(NSScrollerImp *scrollerImp, void (^task)(NSScrollerImpPair *, NSScrollerImp *)) const
+{
+    ensureOnMainThread([protectedThis = Ref { *this }, scrollerImp = RetainPtr { scrollerImp }, task = makeBlockPtr(task)] {
+        RELEASE_ASSERT(isMainThread());
+        task(protectedThis->m_state->scrollerImpPair.get(), scrollerImp.get());
+    });
 }
 
 bool ScrollerPairMac::isHostLayer(ScrollbarOrientation orientation, CALayer *layer) const
