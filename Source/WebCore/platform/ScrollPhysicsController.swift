@@ -24,14 +24,15 @@
  */
 
 // ScrollingEffectsController's state and logic (ScrollingEffectsController.h). The C++ class holds one
-// ScrollPhysicsController and forwards each member to it.
+// ScrollPhysicsController and forwards each member to it. With USE_SWIFT_SCROLL_ANIMATOR_PHYSICS, ScrollAnimator
+// holds it instead and calls it directly, with a ScrollAnimatorScrollPhysicsClient.
 //
-// Every entry point takes the controller's client as a ScrollPhysicsClient. The caller, a member of
-// ScrollingEffectsController, makes it on its own stack for the call, and nothing else reaches it, so
-// Swift has sole access to it for the call. A client call can call back into the controller
-// (ScrollAnimator::immediateScrollBy() calls scrollPositionChanged() and
-// updateActiveScrollSnapIndexForClientOffset()); that call makes its own ScrollPhysicsClient, and no
-// access to the controller's stored state is held across a client call.
+// Every main-thread entry point takes its client as a MainThreadScrollPhysicsClient, which the calling member of
+// ScrollAnimator (or of ScrollingEffectsController, without USE_SWIFT_SCROLL_ANIMATOR_PHYSICS) makes on its own stack
+// for the call; nothing else reaches it, so Swift has sole access to it for the call. A client call can call back into
+// the controller (ScrollAnimator::immediateScrollBy() calls scrollPositionChanged() and
+// updateActiveScrollSnapIndexForClientOffset()); that call makes its own client, and no access to the controller's
+// stored state is held across a client call.
 //
 // Threads: a controller is used on one thread at a time, as ScrollingEffectsController is: the main thread for
 // ScrollAnimator, and the scrolling thread or the UI process's event dispatcher, under the scrolling
@@ -48,6 +49,16 @@ internal import WebCore_Private.Core.ScrollExtents
 internal import WebCore_Private.Core.ScrollSnapOffsetsInfo
 internal import WebCore_Private.Core.ScrollingEffectsClock
 internal import WebCore_Private.ScrollPhysicsTypes
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+internal import WebCore_Private.ScrollAnimatorScrollPhysicsClient
+#endif
+
+// The client of the main thread's entry points.
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+typealias MainThreadScrollPhysicsClient = WebCore.ScrollAnimatorScrollPhysicsClient
+#else
+typealias MainThreadScrollPhysicsClient = WebCore.ScrollPhysicsClient
+#endif
 
 private let scrollVelocityZeroingTimeout = 0.1
 private let rubberbandDirectionLockStretchRatio: Float = 1
@@ -278,9 +289,9 @@ final class ScrollPhysicsController {
 
     // MARK: Animation callbacks
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func animationCallback(client c: inout WebCore.ScrollPhysicsClient, _ currentTime: Double) {
+    func animationCallback(client c: inout MainThreadScrollPhysicsClient, _ currentTime: Double) {
         animationCallback(&c, currentTime)
     }
 
@@ -342,11 +353,13 @@ final class ScrollPhysicsController {
         startOrStopAnimationCallbacks(&c)
     }
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     @_expose(Cxx)
     func startKeyboardScroll(client c: inout WebCore.ScrollPhysicsClient, _ scrollData: WebCore.KeyboardScroll) -> Bool {
         return startKeyboardScroll(&c, scrollData)
     }
+    #endif
 
     func startKeyboardScroll<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ scrollData: WebCore.KeyboardScroll) -> Bool {
         stopCurrentAnimation(&c)
@@ -356,11 +369,13 @@ final class ScrollPhysicsController {
         return keyboardAnimation.startKeyboardScroll(&c, self, scrollData)
     }
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     @_expose(Cxx)
     func finishKeyboardScroll(client c: inout WebCore.ScrollPhysicsClient, _ immediate: Bool) {
         finishKeyboardScroll(&c, immediate)
     }
+    #endif
 
     func finishKeyboardScroll<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ immediate: Bool) {
         if currentAnimationType == .keyboard {
@@ -370,10 +385,10 @@ final class ScrollPhysicsController {
 
     // MARK: Animated scrolls
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
     func startAnimatedScrollToDestination(
-        client c: inout WebCore.ScrollPhysicsClient,
+        client c: inout MainThreadScrollPhysicsClient,
         _ startOffset: WebCore.FloatPoint,
         _ destinationOffset: WebCore.FloatPoint
     ) -> Bool {
@@ -394,9 +409,9 @@ final class ScrollPhysicsController {
         return smoothAnimation.startAnimatedScrollToDestination(&c, self, ScrollPoint(startOffset), ScrollPoint(destinationOffset))
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func retargetAnimatedScroll(client c: inout WebCore.ScrollPhysicsClient, _ newDestinationOffset: WebCore.FloatPoint) -> Bool {
+    func retargetAnimatedScroll(client c: inout MainThreadScrollPhysicsClient, _ newDestinationOffset: WebCore.FloatPoint) -> Bool {
         return retargetAnimatedScroll(&c, newDestinationOffset)
     }
 
@@ -410,9 +425,9 @@ final class ScrollPhysicsController {
         return smoothAnimation.retargetActiveAnimation(&c, self, ScrollPoint(newDestinationOffset))
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func retargetAnimatedScrollBy(client c: inout WebCore.ScrollPhysicsClient, _ offset: WebCore.FloatSize) -> Bool {
+    func retargetAnimatedScrollBy(client c: inout MainThreadScrollPhysicsClient, _ offset: WebCore.FloatSize) -> Bool {
         return retargetAnimatedScrollBy(&c, offset)
     }
 
@@ -423,11 +438,13 @@ final class ScrollPhysicsController {
         return smoothAnimation.retargetActiveAnimation(&c, self, smoothAnimation.destinationOffset + ScrollSize(offset))
     }
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     @_expose(Cxx)
     func stopAnimatedNonRubberbandingScroll(client c: inout WebCore.ScrollPhysicsClient) {
         stopAnimatedNonRubberbandingScroll(&c)
     }
+    #endif
 
     func stopAnimatedNonRubberbandingScroll<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         guard let type = currentAnimationType else {
@@ -451,9 +468,9 @@ final class ScrollPhysicsController {
         stopCurrentAnimation(&c)
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func stopAnimatedScroll(client c: inout WebCore.ScrollPhysicsClient) {
+    func stopAnimatedScroll(client c: inout MainThreadScrollPhysicsClient) {
         stopAnimatedScroll(&c)
     }
 
@@ -502,9 +519,9 @@ final class ScrollPhysicsController {
         startOrStopAnimationCallbacks(&c)
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func contentsSizeChanged(client c: inout WebCore.ScrollPhysicsClient) {
+    func contentsSizeChanged(client c: inout MainThreadScrollPhysicsClient) {
         contentsSizeChanged(&c)
     }
 
@@ -519,9 +536,9 @@ final class ScrollPhysicsController {
 
     // MARK: Scroll snap
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func setSnapOffsetsInfo(client c: inout WebCore.ScrollPhysicsClient, _ hasSnapOffsets: Bool) {
+    func setSnapOffsetsInfo(client c: inout MainThreadScrollPhysicsClient, _ hasSnapOffsets: Bool) {
         setSnapOffsetsInfo(&c, hasSnapOffsets)
     }
 
@@ -566,10 +583,10 @@ final class ScrollPhysicsController {
         activeScrollSnapIndexDidChangeValue
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
     func adjustedScrollDestination(
-        client c: inout WebCore.ScrollPhysicsClient,
+        client c: inout MainThreadScrollPhysicsClient,
         _ axis: WebCore.ScrollEventAxis,
         _ destinationOffset: WebCore.FloatPoint,
         _ velocity: Float,
@@ -607,9 +624,9 @@ final class ScrollPhysicsController {
         )
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func updateActiveScrollSnapIndexForClientOffset(client c: inout WebCore.ScrollPhysicsClient) {
+    func updateActiveScrollSnapIndexForClientOffset(client c: inout MainThreadScrollPhysicsClient) {
         updateActiveScrollSnapIndexForClientOffset(&c)
     }
 
@@ -626,9 +643,9 @@ final class ScrollPhysicsController {
         }
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func resnapAfterLayout(client c: inout WebCore.ScrollPhysicsClient) {
+    func resnapAfterLayout(client c: inout MainThreadScrollPhysicsClient) {
         resnapAfterLayout(&c)
     }
 
@@ -726,7 +743,7 @@ final class ScrollPhysicsController {
 
     // MARK: Wheel events
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     ///
     /// `wheelEvent` is the caller's `const PlatformWheelEvent&` (ScrollAnimator, the scrolling tree's node delegates),
     /// live for the call. Swift passes it to the client's allowsHorizontalStretching() and allowsVerticalStretching()
@@ -738,7 +755,7 @@ final class ScrollPhysicsController {
     /// conditions on it use ?: or commas.
     @_expose(Cxx)
     func handleWheelEvent(
-        client c: inout WebCore.ScrollPhysicsClient,
+        client c: inout MainThreadScrollPhysicsClient,
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent,
         _ timestamp: Double
     ) -> Bool {
@@ -1213,9 +1230,9 @@ final class ScrollPhysicsController {
         updateRubberBandingState(&c)
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func scrollPositionChanged(client c: inout WebCore.ScrollPhysicsClient) {
+    func scrollPositionChanged(client c: inout MainThreadScrollPhysicsClient) {
         scrollPositionChanged(&c)
     }
 
@@ -1256,11 +1273,13 @@ final class ScrollPhysicsController {
         return discreteSnapTransitionTimerIsActive
     }
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     @_expose(Cxx)
     func stopRubberBanding(client c: inout WebCore.ScrollPhysicsClient) {
         stopRubberBanding(&c)
     }
+    #endif
 
     func stopRubberBanding<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         stopRubberBandAnimation(&c)
@@ -1326,11 +1345,13 @@ final class ScrollPhysicsController {
         c.removeWheelEventTestCompletionDeferral(.RubberbandInProgress)
     }
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     @_expose(Cxx)
     func startRubberBandSnapBack(client c: inout WebCore.ScrollPhysicsClient) {
         startRubberBandSnapBack(&c)
     }
+    #endif
 
     func startRubberBandSnapBack<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         let stretchAmount = c.stretchAmount()
@@ -1343,11 +1364,13 @@ final class ScrollPhysicsController {
         _ = startRubberBandAnimation(&c, .zero, ScrollSize(stretchAmount))
     }
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     @_expose(Cxx)
     func rubberBandTargetOffsetDidChange(client c: inout WebCore.ScrollPhysicsClient) {
         rubberBandTargetOffsetDidChange(&c)
     }
+    #endif
 
     func rubberBandTargetOffsetDidChange<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         if !isAnimatingRubberBand {
@@ -1491,9 +1514,9 @@ final class ScrollPhysicsController {
         c.deferWheelEventTestCompletion(.ScrollSnapInProgress)
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
-    func discreteSnapTransitionTimerFired(client c: inout WebCore.ScrollPhysicsClient) {
+    func discreteSnapTransitionTimerFired(client c: inout MainThreadScrollPhysicsClient) {
         discreteSnapTransitionTimerFired(&c)
     }
 
@@ -1543,7 +1566,7 @@ final class ScrollPhysicsController {
         }
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     ///
     /// `wheelEvent` is the caller's `const PlatformWheelEvent&`, or handleWheelEvent()'s, live for the call. Swift
     /// passes it only to ScrollPhysicsClient::scrollingVelocity(), which reads it. No client member can reach it.
@@ -1551,7 +1574,7 @@ final class ScrollPhysicsController {
     /// Most scrollers have no snap state: test for it before setting up the frame the snapping work needs.
     @_expose(Cxx)
     func processWheelEventForScrollSnap(
-        client c: inout WebCore.ScrollPhysicsClient,
+        client c: inout MainThreadScrollPhysicsClient,
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent
     ) -> Bool {
         return processWheelEventForScrollSnap(&c, wheelEvent)
@@ -1622,12 +1645,12 @@ final class ScrollPhysicsController {
         return isMomentumScrolling && shouldOverrideMomentumScrolling()
     }
 
-    /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
+    /// `c` is made on the caller's stack for this call; nothing else reaches it.
     ///
     /// `wheelEvent` is the caller's `const PlatformWheelEvent&`. It is read before any client call, and no client
     /// member can reach it.
     @_expose(Cxx)
-    func updateGestureInProgressState(client c: inout WebCore.ScrollPhysicsClient, _ wheelEvent: WebCore.PlatformWheelEvent) {
+    func updateGestureInProgressState(client c: inout MainThreadScrollPhysicsClient, _ wheelEvent: WebCore.PlatformWheelEvent) {
         updateGestureInProgressState(&c, wheelEvent)
     }
 
@@ -1643,6 +1666,7 @@ final class ScrollPhysicsController {
 
     // MARK: Rubber banding state across a swap of scrolling trees
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     ///
     /// `state` is a local of ScrollingEffectsController::captureRubberbandingState(). The client members Swift calls
@@ -1653,6 +1677,7 @@ final class ScrollPhysicsController {
     func captureRubberbandingState(client c: inout WebCore.ScrollPhysicsClient, _ state: inout WebCore.RubberbandingState) -> Bool {
         return captureRubberbandingState(&c, &state)
     }
+    #endif
 
     func captureRubberbandingState<C: ScrollPhysicsClientProtocol & ~Copyable>(
         _ c: inout C,
@@ -1686,6 +1711,7 @@ final class ScrollPhysicsController {
         return true
     }
 
+    #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     /// `c` is made for this call on the calling ScrollingEffectsController member's stack; nothing else reaches it.
     ///
     /// `state` is the caller's `const RubberbandingState&`: ScrollingTreeScrollingNodeDelegateMac passes its
@@ -1695,6 +1721,7 @@ final class ScrollPhysicsController {
     func restoreRubberbandingState(client c: inout WebCore.ScrollPhysicsClient, _ state: WebCore.RubberbandingState) -> Bool {
         return restoreRubberbandingState(&c, state)
     }
+    #endif
 
     func restoreRubberbandingState<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ state: WebCore.RubberbandingState) -> Bool {
         if !shouldAttemptRubberbandingRestoration(&c, state) {

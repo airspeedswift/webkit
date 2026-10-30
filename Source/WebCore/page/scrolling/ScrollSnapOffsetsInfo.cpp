@@ -624,6 +624,7 @@ std::pair<UnitType, std::optional<unsigned>> static ensureVisibleTarget(const In
     return axis == ScrollEventAxis::Horizontal ? horizontal : vertical;
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 template <> template <>
 std::pair<LayoutUnit, std::optional<unsigned>> LayoutScrollSnapOffsetsInfo::closestSnapOffset(ScrollEventAxis axis, const LayoutSize& viewportSize, LayoutPoint scrollDestinationOffset, float velocity, std::optional<LayoutUnit> originalPositionForDirectionalSnapping, ScrollSnapPointSelectionMethod selectionMethod) const
 {
@@ -631,6 +632,7 @@ std::pair<LayoutUnit, std::optional<unsigned>> LayoutScrollSnapOffsetsInfo::clos
     auto vertical = closestSnapOffsetWithInfoAndAxis(*this, ScrollEventAxis::Vertical, viewportSize, scrollDestinationOffset, velocity, originalPositionForDirectionalSnapping, selectionMethod);
     return ensureVisibleTarget(*this, horizontal, vertical, axis, viewportSize, scrollDestinationOffset);
 }
+#endif
 
 template <> template<>
 std::pair<float, std::optional<unsigned>> FloatScrollSnapOffsetsInfo::closestSnapOffset(ScrollEventAxis axis, const FloatSize& viewportSize, FloatPoint scrollDestinationOffset, float velocity, std::optional<float> originalPositionForDirectionalSnapping, ScrollSnapPointSelectionMethod selectionMethod) const

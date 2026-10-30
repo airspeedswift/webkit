@@ -2254,6 +2254,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/ScrollAnimationMomentum.h
     platform/ScrollAnimationSmooth.h
     platform/ScrollAnimator.h
+    platform/ScrollAnimatorScrollPhysicsClient.h
     platform/ScrollPhysicsTypes.h
     platform/ScrollSnapAnimatorState.h
     platform/ScrollTypes.h
