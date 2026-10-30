@@ -75,7 +75,11 @@ class ScrollerPairMac : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<S
     friend class ScrollerMac;
 #endif
 public:
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void init();
+#else
+    void init() CF_SWIFT_UNAVAILABLE("For C++ callers");
+#endif
 
     static Ref<ScrollerPairMac> create(ScrollingTreeScrollingNode& node)
     {
@@ -84,17 +88,21 @@ public:
 
     ~ScrollerPairMac();
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void handleWheelEventPhase(PlatformWheelEventPhase);
 
     void setUsePresentationValues(bool);
     bool isUsingPresentationValues() const { return m_usingPresentationValues; }
+#endif
 
 #if !USE_SWIFT_MAC_SCROLLERS
     void setVerticalScrollbarPresentationValue(float);
     void setHorizontalScrollbarPresentationValue(float);
 #endif
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void updateValues();
+#endif
 
     FloatSize visibleSize() const;
 #if !USE_SWIFT_MAC_SCROLLERS
@@ -108,6 +116,7 @@ public:
     };
     Values valuesForOrientation(ScrollbarOrientation);
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void releaseReferencesToScrollerImpsOnTheMainThread();
 
     bool hasScrollerImp();
@@ -115,6 +124,7 @@ public:
     void viewWillStartLiveResize();
     void viewWillEndLiveResize();
     void contentsSizeChanged();
+#endif
 #if !USE_SWIFT_MAC_SCROLLERS
     bool inLiveResize() const { return m_inLiveResize; }
 
@@ -123,6 +133,7 @@ public:
     ScrollerMac& horizontalScroller() { return m_horizontalScroller.get(); }
 #endif
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     String scrollbarStateForOrientation(ScrollbarOrientation) const;
 
     ScrollbarStyle scrollbarStyle() const { return m_scrollbarStyle; }
@@ -136,22 +147,27 @@ public:
     void mouseMovedInContentArea(const MouseLocationState&);
     void mouseIsInScrollbar(ScrollbarHoverState);
     void scrollbarColorChanged(const std::optional<ScrollbarColor>&);
+#endif
 
 #if !USE_SWIFT_MAC_SCROLLERS
     NSScrollerImpPair *scrollerImpPair() const { return m_scrollerImpPair.get(); }
 #endif
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void ensureOnMainThreadWithProtectedThis(Function<void(ScrollerPairMac&)>&&);
+#endif
     RefPtr<ScrollingTreeScrollingNode> node() const { return m_scrollingNode.get(); }
 
 #if !USE_SWIFT_MAC_SCROLLERS
     bool mouseInContentArea() const { return m_mouseInContentArea; }
 #endif
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void setUseDarkAppearance(bool);
 
     void setScrollbarWidth(ScrollbarWidth);
 
     void updateScrollbarPainters();
+#endif
 
 #if USE_SWIFT_MAC_SCROLLERS
     // The scrollers (ScrollerPairMac.swift).
@@ -164,12 +180,23 @@ public:
     void setScrollerImpProgress(ScrollbarOrientation, ScrollbarPartFeature, double value);
     void setScrollerReferences(ScrollbarOrientation, NSScrollerImp *, CALayer *);
 
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void contentAreaScrolledInDirection(FloatSize);
     void notifyScrollerImpOfMouse(ScrollbarOrientation, bool mouseEntered);
+#else
+    // Runs the block on the main thread, synchronously if called on the main thread, with the NSScrollerImpPair
+    // and the NSScrollerImp, which may be null, keeping this and the NSScrollerImp alive until it has run.
+    // The block and what it captures may be released on the calling thread; callers hold this across the call.
+    void ensureOnMainThreadWithScrollerImp(NSScrollerImp *, void (^ __attribute__((swift_attr("@Sendable"))))(NSScrollerImpPair *, NSScrollerImp *)) const __attribute__((nonnull(3)));
+    // The copy of the scroller's NSScrollerImp, retained for the caller.
+    NSScrollerImp *retainedScrollerImp(ScrollbarOrientation) const NS_RETURNS_RETAINED;
+#endif
 #endif
 private:
 #if USE_SWIFT_MAC_SCROLLERS
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     void notifyScrollerImpPair(ScrollerImpPairNotification);
+#endif
 #endif
 
     ScrollerPairMac(ScrollingTreeScrollingNode&);
@@ -191,8 +218,10 @@ private:
 #else
     std::unique_ptr<ScrollerPairMacState> m_state;
 #endif
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     std::atomic<bool> m_usingPresentationValues { false };
     std::atomic<ScrollbarStyle> m_scrollbarStyle { ScrollbarStyle::AlwaysVisible };
+#endif
 #if !USE_SWIFT_MAC_SCROLLERS
     bool m_useDarkAppearance { false };
     bool m_inLiveResize { false };
