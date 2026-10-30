@@ -127,6 +127,10 @@ public:
 
     WEBCORE_EXPORT ScrollAnimationStatus serviceScrollAnimation(MonotonicTime);
 
+    // Replaces the run loop timers createTimer() makes. Pass nullptr to go back to them.
+    using TimerFactory = std::unique_ptr<ScrollingEffectsControllerTimer> (*)(Function<void()>&&);
+    WEBCORE_EXPORT static void setTimerFactoryForTesting(TimerFactory);
+
 protected:
     bool handleSteppedScrolling(const PlatformWheelEvent&);
 
