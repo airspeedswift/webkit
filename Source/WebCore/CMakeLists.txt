@@ -3458,6 +3458,10 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         "-Xcc -fignore-exceptions"
         "-Xcc -O2"
         "-Xllvm -enable-dfa-jump-thread"
+        # SwiftArrayPropertyOpt keeps one basic-block bit per level of a loop nest, and a recursive tree's
+        # destruction inlined level by level nests deeper than it has bits: with assertions on, the frontend
+        # aborts with "too many/large bit fields allocated in function" (SILBitfield.h).
+        "-Xllvm -sil-disable-pass=array-property-opt"
         # As WebCore.xcconfig: Swift zero-initializes a C++ type with no default constructor and only warns
         # that this is deprecated; such a value can hold a null pointer the type never allows.
         "-Werror DeprecatedDeclaration"
