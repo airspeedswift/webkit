@@ -411,6 +411,11 @@ std::unique_ptr<ScrollingEffectsControllerTimer> ScrollAnimator::createTimer(Fun
 
 void ScrollAnimator::startAnimationCallback(ScrollingEffectsController&)
 {
+    startAnimationCallback();
+}
+
+void ScrollAnimator::startAnimationCallback()
+{
     if (!m_scrollAnimationScheduled) {
         m_scrollAnimationScheduled = true;
         protect(scrollableArea())->didStartScrollAnimation();
@@ -418,6 +423,11 @@ void ScrollAnimator::startAnimationCallback(ScrollingEffectsController&)
 }
 
 void ScrollAnimator::stopAnimationCallback(ScrollingEffectsController&)
+{
+    stopAnimationCallback();
+}
+
+void ScrollAnimator::stopAnimationCallback()
 {
     m_scrollAnimationScheduled = false;
 }
