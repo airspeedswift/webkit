@@ -27,13 +27,14 @@
 
 #if PLATFORM(MAC)
 
+#include <wtf/TZoneMallocInlines.h>
 #include "ScrollPhysicsInputs.h"
 #include <cstdlib>
 
-// Scroll sessions through ScrollingEffectsController: one test per shape. Each test runs one pass and checks
-// its checksum, a hash of every scroll the controller asks for and every member's return value. With
+// Scroll sessions through a scrollable area's ScrollAnimator: one test per shape. Each test runs one pass and
+// checks its checksum, a hash of every scroll the animator makes and every member's return value. With
 // WEBKIT_RUN_BENCHMARKS=1 it runs the pass about a second's worth of times and prints
-// `<Shape>: <ms> ms <rate> MB/s checksum=<hex>`, where the rate is millions of controller calls per second.
+// `<Shape>: <ms> ms <rate> MB/s checksum=<hex>`, where the rate is millions of animator calls per second.
 
 namespace TestWebKitAPI {
 
@@ -62,42 +63,42 @@ static void runScrollPhysicsShape(Case (*make)(), const char* name, unsigned ful
 
 TEST(ScrollPhysicsBench, SmoothScroll)
 {
-    runScrollPhysicsShape(smoothScrollShape, "SmoothScroll", 16000, 0x56d947dc2bceeef8ull);
+    runScrollPhysicsShape(smoothScrollShape, "SmoothScroll", 3000, 0xb6b169e9d2e062e1ull);
 }
 
 TEST(ScrollPhysicsBench, SmoothRetarget)
 {
-    runScrollPhysicsShape(smoothRetargetShape, "SmoothRetarget", 18000, 0xa223e45da716324dull);
+    runScrollPhysicsShape(smoothRetargetShape, "SmoothRetarget", 4000, 0xa59fb757e1c59ee1ull);
 }
 
 TEST(ScrollPhysicsBench, KeyboardScroll)
 {
-    runScrollPhysicsShape(keyboardScrollShape, "KeyboardScroll", 19000, 0x656a5fb3c2419ca1ull);
+    runScrollPhysicsShape(keyboardScrollShape, "KeyboardScroll", 11000, 0x8741f6b92939e57aull);
 }
 
 TEST(ScrollPhysicsBench, TrackpadGesture)
 {
-    runScrollPhysicsShape(trackpadGestureShape, "TrackpadGesture", 11000, 0xaa13b0eb60fbf183ull);
+    runScrollPhysicsShape(trackpadGestureShape, "TrackpadGesture", 4000, 0x2760f553db787737ull);
 }
 
 TEST(ScrollPhysicsBench, RubberBand)
 {
-    runScrollPhysicsShape(rubberBandShape, "RubberBand", 17500, 0x9ecc024e503c6888ull);
+    runScrollPhysicsShape(rubberBandShape, "RubberBand", 8500, 0x1cb00a711dcd7538ull);
 }
 
 TEST(ScrollPhysicsBench, ScrollSnapGesture)
 {
-    runScrollPhysicsShape(scrollSnapGestureShape, "ScrollSnapGesture", 500, 0x5defe3a339dede6bull);
+    runScrollPhysicsShape(scrollSnapGestureShape, "ScrollSnapGesture", 700, 0x237cc0f019572b8aull);
 }
 
 TEST(ScrollPhysicsBench, DiscreteWheelSnap)
 {
-    runScrollPhysicsShape(discreteWheelSnapShape, "DiscreteWheelSnap", 500, 0xd567b575abc9c990ull);
+    runScrollPhysicsShape(discreteWheelSnapShape, "DiscreteWheelSnap", 550, 0x10f1dd0bcc7c966dull);
 }
 
 TEST(ScrollPhysicsBench, MixedSession)
 {
-    runScrollPhysicsShape(mixedSessionShape, "MixedSession", 2500, 0x9f209150997892ccull);
+    runScrollPhysicsShape(mixedSessionShape, "MixedSession", 1500, 0x0e4827fdd49e9173ull);
 }
 
 } // namespace TestWebKitAPI

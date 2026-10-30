@@ -38,6 +38,11 @@
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/text/TextStream.h>
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+#import "ScrollAnimatorScrollPhysicsClient.h"
+#import "ScrollPhysicsControllerHolder.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollAnimatorMac);
@@ -56,7 +61,11 @@ ScrollAnimatorMac::~ScrollAnimatorMac() = default;
 
 bool ScrollAnimatorMac::isRubberBandInProgress() const
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.isRubberBandInProgress();
+#else
     return m_scrollController.isRubberBandInProgress();
+#endif
 }
 
 void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
@@ -75,8 +84,13 @@ void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
 bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
     protect(scrollableArea())->scrollbarsController().setScrollbarAnimationsUnsuspendedByUserInteraction(true);
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.updateGestureInProgressState(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
+    m_physics->controller.handleWheelEventDuringSpringAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
+#else
     m_scrollController.updateGestureInProgressState(wheelEvent);
     m_scrollController.handleWheelEventDuringSpringAnimation(wheelEvent);
+#endif
 
     // Events in the PlatformWheelEventPhase::MayBegin phase have no deltas, and therefore never passes through the scroll handling logic below.
     // This causes us to return with an 'unhandled' return state, even though this event was successfully processed.
@@ -173,7 +187,11 @@ bool ScrollAnimatorMac::shouldRubberBandOnSide(BoxSide, FloatSize) const
 
 bool ScrollAnimatorMac::processWheelEventForScrollSnap(const PlatformWheelEvent& wheelEvent)
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.processWheelEventForScrollSnap(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
+#else
     return m_scrollController.processWheelEventForScrollSnap(wheelEvent);
+#endif
 }
 
 } // namespace WebCore
