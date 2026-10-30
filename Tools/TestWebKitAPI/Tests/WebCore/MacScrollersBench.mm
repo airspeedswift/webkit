@@ -80,6 +80,11 @@ TEST(MacScrollersBench, StateCommits)
     runMacScrollersShape(scrollbarStateCommitsShape, "StateCommits", 570, 0xb3c3baeb77441fe4ull);
 }
 
+TEST(MacScrollersBench, TeardownChurn)
+{
+    runMacScrollersShape(teardownChurnShape, "TeardownChurn", 500, 0x777fa77a6a055e15ull);
+}
+
 } // namespace TestWebKitAPI
 
 #endif // PLATFORM(MAC)
