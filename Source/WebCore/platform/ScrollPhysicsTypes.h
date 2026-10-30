@@ -37,8 +37,10 @@ namespace WebCore {
 
 // For Swift, which cannot name RectEdges<bool>.
 using RubberBandingEdges = RectEdges<bool>;
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 // For Swift, which cannot name std::pair<LayoutUnit, std::optional<unsigned>>.
 using ClosestSnapOffset = std::pair<LayoutUnit, std::optional<unsigned>>;
+#endif
 
 // The snap offsets and the discrete scroll snap timer that a scroll physics client gives Swift. Derived provides
 // snapOffsetsInfo(), createSnapTimer(), and snapTimerOwner(), which holds m_discreteSnapTransitionTimer and whose
@@ -62,7 +64,13 @@ public:
     unsigned snapAreaIDCount() { return snapOffsetsInfo().snapAreasIDs.size(); }
     uint64_t snapAreaID(unsigned index) { return snapOffsetsInfo().snapAreasIDs[index].toUInt64(); }
     bool scrollerHasVerticalWritingMode() { return snapOffsetsInfo().scrollerHasVerticalWritingMode; }
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    bool snapOffsetStopsAlways(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].stop == ScrollSnapStop::Always; }
+    bool snapOffsetHasSnapAreaLargerThanViewport(ScrollEventAxis axis, unsigned index) { return snapOffsets(axis)[index].hasSnapAreaLargerThanViewport; }
+    bool snapStrictnessIsProximity() { return snapOffsetsInfo().strictness == ScrollSnapStrictness::Proximity; }
+#else
     ClosestSnapOffset closestSnapOffset(ScrollEventAxis axis, const LayoutSize& viewportSize, LayoutPoint destination, float velocity, bool hasOriginalPosition, float originalPosition, ScrollSnapPointSelectionMethod method) { return snapOffsetsInfo().closestSnapOffset(axis, viewportSize, destination, velocity, hasOriginalPosition ? std::make_optional(LayoutUnit(originalPosition)) : std::nullopt, method); }
+#endif
 
     // The discrete scroll snap timer.
     bool isDiscreteSnapTimerActive()
@@ -101,11 +109,17 @@ private:
     const Vector<SnapOffset<LayoutUnit>>& snapOffsets(ScrollEventAxis axis) { return axis == ScrollEventAxis::Horizontal ? snapOffsetsInfo().horizontalSnapOffsets : snapOffsetsInfo().verticalSnapOffsets; }
 };
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+// The scroll physics' static helpers, which Swift calls for every client.
+class ScrollPhysicsClient {
+#else
 // What ScrollingEffectsController's Swift implementation calls back into: the controller's client,
 // and the timers the controller owns. Only ScrollPhysicsClientState makes one, on the stack of a
 // ScrollingEffectsController member, for one call into Swift.
 class __attribute__((swift_attr("~Sendable"))) ScrollPhysicsClient : public ScrollSnapPhysicsClient<ScrollPhysicsClient> {
+#endif
 public:
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     // Swift takes this only inout, and must not copy, move or relocate it. Swift imports the class only if it has a
     // move constructor, so one is declared; it is never called.
     ScrollPhysicsClient(const ScrollPhysicsClient&) = delete;
@@ -148,6 +162,7 @@ public:
 
     // The controller's scrollend timer.
     void startScrollendTimer() { controller().scheduleScrollendTimer(); }
+#endif
 
     static bool platformMomentumScrollingPredictionEnabled();
 
@@ -158,6 +173,7 @@ public:
     static MonotonicTime monotonicTime(double seconds) { return MonotonicTime::fromRawSeconds(seconds); }
     static FloatSize scrollingVelocity(const PlatformWheelEvent& event) { return event.scrollingVelocity(); }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 protected:
     ScrollPhysicsClient() = default;
 
@@ -169,8 +185,10 @@ private:
     const LayoutScrollSnapOffsetsInfo& snapOffsetsInfo();
     ScrollingEffectsController& snapTimerOwner() { return controller(); }
     std::unique_ptr<ScrollingEffectsControllerTimer> createSnapTimer(Function<void()>&& function) { return client().createTimer(WTF::move(function)); }
+#endif
 };
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 class ScrollPhysicsClientState final : public ScrollPhysicsClient {
     WTF_FORBID_HEAP_ALLOCATION;
 public:
@@ -208,6 +226,7 @@ inline const LayoutScrollSnapOffsetsInfo& ScrollPhysicsClient::snapOffsetsInfo()
 {
     return *static_cast<ScrollPhysicsClientState&>(*this).m_snapOffsetsInfo;
 }
+#endif
 
 } // namespace WebCore
 

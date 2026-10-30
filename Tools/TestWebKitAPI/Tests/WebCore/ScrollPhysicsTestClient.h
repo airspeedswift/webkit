@@ -25,29 +25,30 @@
 
 #pragma once
 
-// A ScrollingEffectsControllerClient that answers from a scripted scroll state and records every call the
-// controller makes, a replaced clock, test-fired timers, and a driver that replays a list of steps through
-// the controller's public members. ScrollPhysics.cpp and ScrollPhysicsBench.cpp share it.
+// A ScrollableArea that answers from a scripted scroll state and records every call its ScrollAnimator makes on
+// it and on its scrollbars controller, a replaced clock, test-fired timers, and a driver that runs a list of
+// steps through the animator's public members. ScrollPhysics.cpp and ScrollPhysicsBench.cpp share it.
 //
-// The controller is built in a fixed-size buffer and only its out-of-line members are called, so a binary
-// built against one configuration of ScrollingEffectsController.h can drive a WebCore built with another.
+// Only the animator's out-of-line and virtual members are called, so a binary built against one configuration of
+// ScrollAnimator.h can drive a WebCore built with another.
 
 #include <WebCore/FloatPoint.h>
 #include <WebCore/FloatSize.h>
+#include <WebCore/IntPoint.h>
+#include <WebCore/IntRect.h>
 #include <WebCore/IntSize.h>
-#include <WebCore/KeyboardScroll.h>
+#include <WebCore/KeyboardScrollingAnimator.h>
 #include <WebCore/LayoutRect.h>
 #include <WebCore/LayoutUnit.h>
 #include <WebCore/PlatformWheelEvent.h>
-#include <WebCore/RectEdges.h>
-#include <WebCore/RubberbandingState.h>
-#include <WebCore/ScrollExtents.h>
+#include <WebCore/ScrollAnimator.h>
 #include <WebCore/ScrollSnapOffsetsInfo.h>
 #include <WebCore/ScrollTypes.h>
+#include <WebCore/ScrollableArea.h>
+#include <WebCore/Scrollbar.h>
+#include <WebCore/ScrollbarsController.h>
 #include <WebCore/ScrollingEffectsClock.h>
-#include <WebCore/ScrollingEffectsController.h>
 #include <WebCore/ScrollingMomentumCalculator.h>
-#include <WebCore/WheelEventTestMonitor.h>
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -55,10 +56,10 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
-#include <new>
 #include <optional>
 #include <string>
 #include <vector>
+#include <wtf/CheckedRef.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/RunLoop.h>
 
@@ -70,8 +71,8 @@ using namespace WebCore;
 // MARK: - Trace
 
 enum class TraceLevel : uint8_t {
-    Full, // Every client call, clock read, timer event, entry and return value.
-    Light, // immediateScrollBy() deltas and entry return values only.
+    Full, // Every call on the scrollable area, clock read, timer event, entry and return value.
+    Light, // setScrollOffset() offsets and entry return values only.
 };
 
 class Trace {
@@ -113,9 +114,10 @@ private:
     uint64_t m_entries { 0 };
 };
 
-// One event: a kind ('C' client call, 'E' entry, 'R' return, 'K' clock read, 'T' timer, 'S' snapshot,
-// 'X' case boundary), a name and its values. An event is hashed only when the trace is Full, or when
-// it is marked light. Each value's key names it in the call site; keys are not hashed.
+// One event: a kind ('C' call on the scrollable area or its scrollbars controller, 'E' entry, 'R' return,
+// 'K' clock read, 'T' timer, 'S' snapshot, 'X' case boundary), a name and its values. An event is hashed only
+// when the trace is Full, or when it is marked light. Each value's key names it in the call site; keys are not
+// hashed.
 class TraceLine {
 public:
     TraceLine(Trace& trace, char kind, const char* name, bool light = false)
@@ -164,6 +166,7 @@ public:
     TraceLine& sz(const char* key, FloatSize value) { return f(key, value.width()).f("", value.height()); }
     TraceLine& pt(const char* key, FloatPoint value) { return f(key, value.x()).f("", value.y()); }
     TraceLine& isz(const char* key, IntSize value) { return u(key, static_cast<uint32_t>(value.width())).u("", static_cast<uint32_t>(value.height())); }
+    TraceLine& ipt(const char* key, IntPoint value) { return u(key, static_cast<uint32_t>(value.x())).u("", static_cast<uint32_t>(value.y())); }
     TraceLine& t(const char* key, MonotonicTime value) { return d(key, value.secondsSinceEpoch().value()); }
     TraceLine& s(const char* key, Seconds value) { return d(key, value.value()); }
 
@@ -195,7 +198,7 @@ private:
 
 // MARK: - Clock
 
-// The clock ScrollingEffectsController reads through scrollingEffectsClockNow(). Each read is traced.
+// The clock the scroll physics read through scrollingEffectsClockNow(). Each read is traced.
 struct ScriptedClock {
     double now { 1000 };
     double stepPerRead { 0 };
@@ -290,72 +293,64 @@ inline void traceWheel(TraceLine& line, const WheelDescription& wheel)
 
 enum class ReentryAction : uint8_t {
     None,
-    StopAnimatedScroll,
-    StartAnimatedScroll,
-    StartKeyboardScroll,
+    CancelAnimations,
+    ScrollToPositionWithAnimation,
+    KeyboardPageScroll,
 };
 
 struct ScriptedConfig {
     FloatSize contentsSize { 800, 4000 };
     FloatSize viewportSize { 800, 600 };
     FloatSize snapportSize { 800, 600 };
+    // Whether each scrollbar is enabled, which is what ScrollableArea::allows*Scrolling() reads.
     bool allowsHorizontalScrolling { true };
     bool allowsVerticalScrolling { true };
+    // Automatic elasticity when set, none otherwise.
     bool allowsHorizontalStretching { true };
     bool allowsVerticalStretching { true };
-    // Bits 0-3: BoxSide Top, Right, Bottom, Left. Without an override, pinning follows the offset.
-    std::optional<uint8_t> pinnedSides;
-    uint8_t rubberBandSides { 0xF };
+    bool hasScrollableOrRubberbandableAncestor { false };
     float pageScaleFactor { 1 };
-    bool hasRefreshController { false };
-    float refreshControllerSnappingThreshold { 0 };
-    FloatSize rubberBandTargetOffset;
-    bool scrollAnimationEnabled { true };
-    bool roundScrollOffset { true };
-    // Mirrors ScrollAnimator: a scroll that moves the offset calls scrollPositionChanged() and
-    // updateActiveScrollSnapIndexForClientOffset() on the controller before returning.
-    bool reentrant { false };
+    bool scrollAnimatorEnabled { true };
+    // The area calls back into its animator from inside its reentryAtScroll'th setScrollOffset().
     ReentryAction reentryAction { ReentryAction::None };
     uint32_t reentryAtScroll { 0 };
     FloatPoint reentryDestination;
-    uint64_t scrollingNodeID { 7 };
 };
 
-inline ScrollExtents extentsFor(const ScriptedConfig& config)
+inline IntSize clampedIntSize(FloatSize size)
 {
-    return { config.contentsSize, config.viewportSize, config.snapportSize };
+    return flooredIntSize(size);
 }
 
-class ControllerHost;
+// MARK: - Timers
 
-// MARK: - Recording client
-
-class RecordingClient final : public ScrollingEffectsControllerClient {
+// Makes the timers ScrollAnimator asks for, through ScrollAnimator::setTimerFactoryForTesting(), and fires them when
+// a step says so instead of from the run loop.
+class TimerRecorder {
+    WTF_MAKE_NONCOPYABLE(TimerRecorder);
 public:
-    RecordingClient(Trace& trace, const ScriptedConfig& config, FloatPoint offset)
+    explicit TimerRecorder(Trace& trace)
         : m_trace(trace)
-        , m_config(config)
-        , m_offset(offset)
     {
     }
-
-    ~RecordingClient() = default;
-
-    void setHost(ControllerHost* host) { m_host = host; }
-
-    ScriptedConfig& config() { return m_config; }
-    const ScriptedConfig& config() const { return m_config; }
-    FloatPoint offset() const { return m_offset; }
-    void setOffset(FloatPoint offset) { m_offset = offset; }
-    bool animationCallbacksRunning() const { return m_animationCallbacksRunning; }
-    uint64_t scrollCount() const { return m_scrollCount; }
 
     struct TimerRecord {
         uint64_t id { 0 };
         ScrollingEffectsControllerTimer* timer { nullptr };
         bool alive { false };
     };
-    std::vector<TimerRecord>& timers() { return m_timers; }
+    const std::vector<TimerRecord>& timers() const { return m_timers; }
+
+    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&& callback)
+    {
+        uint64_t id = m_timers.size() + 1;
+        TraceLine(m_trace, 'C', "createTimer").u("id", id);
+        auto timer = makeUnique<ScrollingEffectsControllerTimer>(RunLoop::currentSingleton(), [callback = WTF::move(callback), lifetime = TimerLifetime(*this, id - 1)] {
+            callback();
+        });
+        m_timers.push_back({ id, timer.get(), true });
+        return timer;
+    }
 
     // Fires each live, scheduled timer in creation order, as its run loop would: the one-shot timer is
     // invalidated, then fired. A callback may destroy its own timer.
@@ -376,240 +371,29 @@ public:
         return fired;
     }
 
-    // ScrollingEffectsControllerClient
-    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&& callback) final
+    static TimerRecorder*& current()
     {
-        uint64_t id = m_timers.size() + 1;
-        TraceLine(m_trace, 'C', "createTimer").u("id", id);
-        auto timer = makeUnique<ScrollingEffectsControllerTimer>(RunLoop::currentSingleton(), [callback = WTF::move(callback), lifetime = TimerLifetime(*this, id - 1)] {
-            callback();
-        });
-        m_timers.push_back({ id, timer.get(), true });
-        return timer;
+        static TimerRecorder* recorder;
+        return recorder;
     }
 
-    void destroyTimer(std::unique_ptr<ScrollingEffectsControllerTimer> timer) final
+    static std::unique_ptr<ScrollingEffectsControllerTimer> makeTimer(Function<void()>&& callback)
     {
-        TraceLine(m_trace, 'C', "destroyTimer").u("id", idForTimer(timer.get()));
-        timer = nullptr;
-    }
-
-    void startAnimationCallback(ScrollingEffectsController&) final
-    {
-        TraceLine(m_trace, 'C', "startAnimationCallback").b("wasRunning", m_animationCallbacksRunning);
-        m_animationCallbacksRunning = true;
-    }
-
-    void stopAnimationCallback(ScrollingEffectsController&) final
-    {
-        TraceLine(m_trace, 'C', "stopAnimationCallback").b("wasRunning", m_animationCallbacksRunning);
-        m_animationCallbacksRunning = false;
-    }
-
-    KeyboardScrollingAnimator* keyboardScrollingAnimator() const final
-    {
-        TraceLine(m_trace, 'C', "keyboardScrollingAnimator");
-        return nullptr;
-    }
-
-    bool allowsHorizontalScrolling() const final
-    {
-        TraceLine(m_trace, 'C', "allowsHorizontalScrolling").b("r", m_config.allowsHorizontalScrolling);
-        return m_config.allowsHorizontalScrolling;
-    }
-
-    bool allowsVerticalScrolling() const final
-    {
-        TraceLine(m_trace, 'C', "allowsVerticalScrolling").b("r", m_config.allowsVerticalScrolling);
-        return m_config.allowsVerticalScrolling;
-    }
-
-    inline void immediateScrollBy(const FloatSize&, ScrollClamping = ScrollClamping::Clamped) final;
-
-    void adjustScrollPositionToBoundsIfNecessary() final
-    {
-        TraceLine(m_trace, 'C', "adjustScrollPositionToBoundsIfNecessary");
-        auto constrained = clampedOffset(m_offset);
-        immediateScrollBy(constrained - m_offset, ScrollClamping::Clamped);
-    }
-
-    bool allowsHorizontalStretching(const PlatformWheelEvent&) const final
-    {
-        TraceLine(m_trace, 'C', "allowsHorizontalStretching").b("r", m_config.allowsHorizontalStretching);
-        return m_config.allowsHorizontalStretching;
-    }
-
-    bool allowsVerticalStretching(const PlatformWheelEvent&) const final
-    {
-        TraceLine(m_trace, 'C', "allowsVerticalStretching").b("r", m_config.allowsVerticalStretching);
-        return m_config.allowsVerticalStretching;
-    }
-
-    IntSize stretchAmount() const final
-    {
-        auto stretch = currentStretch();
-        TraceLine(m_trace, 'C', "stretchAmount").isz("r", stretch);
-        return stretch;
-    }
-
-    bool isScrollDeltaOpposingStretch(ScrollEventAxis axis, float delta) const final
-    {
-        bool result = ScrollingEffectsController::isScrollDeltaOpposingStretch(currentStretch(), axis, delta);
-        TraceLine(m_trace, 'C', "isScrollDeltaOpposingStretch").u("axis", static_cast<uint8_t>(axis)).f("delta", delta).b("r", result);
-        return result;
-    }
-
-    bool isPinnedOnSide(BoxSide side) const final
-    {
-        bool result = pinned(side);
-        TraceLine(m_trace, 'C', "isPinnedOnSide").u("side", static_cast<uint8_t>(side)).b("r", result);
-        return result;
-    }
-
-    RectEdges<bool> edgePinnedState() const final
-    {
-        RectEdges<bool> result { pinned(BoxSide::Top), pinned(BoxSide::Right), pinned(BoxSide::Bottom), pinned(BoxSide::Left) };
-        TraceLine(m_trace, 'C', "edgePinnedState").edges("r", result);
-        return result;
-    }
-
-    bool shouldRubberBandOnSide(BoxSide side, FloatSize delta) const final
-    {
-        bool result = m_config.rubberBandSides & (1 << static_cast<uint8_t>(side));
-        TraceLine(m_trace, 'C', "shouldRubberBandOnSide").u("side", static_cast<uint8_t>(side)).sz("delta", delta).b("r", result);
-        return result;
-    }
-
-    void willStartRubberBandAnimation() final { TraceLine(m_trace, 'C', "willStartRubberBandAnimation"); }
-    void didStopRubberBandAnimation() final { TraceLine(m_trace, 'C', "didStopRubberBandAnimation"); }
-    void rubberBandingStateChanged(bool inRubberBand) final { TraceLine(m_trace, 'C', "rubberBandingStateChanged").b("v", inRubberBand); }
-
-    FloatSize rubberBandTargetOffset() const final
-    {
-        TraceLine(m_trace, 'C', "rubberBandTargetOffset").sz("r", m_config.rubberBandTargetOffset);
-        return m_config.rubberBandTargetOffset;
-    }
-
-    bool hasRefreshController() const final
-    {
-        TraceLine(m_trace, 'C', "hasRefreshController").b("r", m_config.hasRefreshController);
-        return m_config.hasRefreshController;
-    }
-
-    float refreshControllerSnappingThreshold() const final
-    {
-        TraceLine(m_trace, 'C', "refreshControllerSnappingThreshold").f("r", m_config.refreshControllerSnappingThreshold);
-        return m_config.refreshControllerSnappingThreshold;
-    }
-
-    void deferWheelEventTestCompletionForReason(ScrollingNodeID nodeID, WheelEventTestMonitor::DeferReason reason) const final
-    {
-        TraceLine(m_trace, 'C', "deferWheelEventTestCompletionForReason").u("node", nodeID.object().toUInt64()).u("reason", static_cast<uint16_t>(reason));
-    }
-
-    void removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID nodeID, WheelEventTestMonitor::DeferReason reason) const final
-    {
-        TraceLine(m_trace, 'C', "removeWheelEventTestCompletionDeferralForReason").u("node", nodeID.object().toUInt64()).u("reason", static_cast<uint16_t>(reason));
-    }
-
-    FloatPoint scrollOffset() const final
-    {
-        auto result = reportedOffset();
-        TraceLine(m_trace, 'C', "scrollOffset").pt("r", result);
-        return result;
-    }
-
-    void willStartAnimatedScroll() final { TraceLine(m_trace, 'C', "willStartAnimatedScroll"); }
-    void didStopAnimatedScroll() final { TraceLine(m_trace, 'C', "didStopAnimatedScroll"); }
-    void willStartWheelEventScroll() final { TraceLine(m_trace, 'C', "willStartWheelEventScroll"); }
-    void didStopWheelEventScroll() final { TraceLine(m_trace, 'C', "didStopWheelEventScroll"); }
-    void willStartScrollSnapAnimation() final { TraceLine(m_trace, 'C', "willStartScrollSnapAnimation"); }
-    void didStopScrollSnapAnimation() final { TraceLine(m_trace, 'C', "didStopScrollSnapAnimation"); }
-
-    float pageScaleFactor() const final
-    {
-        TraceLine(m_trace, 'C', "pageScaleFactor").f("r", m_config.pageScaleFactor);
-        return m_config.pageScaleFactor;
-    }
-
-    ScrollExtents scrollExtents() const final
-    {
-        TraceLine(m_trace, 'C', "scrollExtents").sz("contents", m_config.contentsSize).sz("viewport", m_config.viewportSize).sz("snapport", m_config.snapportSize);
-        return extentsFor(m_config);
-    }
-
-    bool scrollAnimationEnabled() const final
-    {
-        TraceLine(m_trace, 'C', "scrollAnimationEnabled").b("r", m_config.scrollAnimationEnabled);
-        return m_config.scrollAnimationEnabled;
-    }
-
-    ScrollingNodeID scrollingNodeIDForTesting() const final
-    {
-        TraceLine(m_trace, 'C', "scrollingNodeIDForTesting").u("r", m_config.scrollingNodeID);
-        return ScrollingNodeID { ObjectIdentifier<ScrollingNodeIDType>(m_config.scrollingNodeID), ProcessIdentifier(1) };
-    }
-
-    FloatPoint maximumOffset() const { return extentsFor(m_config).maximumScrollOffset(); }
-
-    FloatPoint clampedOffset(FloatPoint offset) const
-    {
-        auto maximum = maximumOffset();
-        return { std::clamp(offset.x(), 0.0f, maximum.x()), std::clamp(offset.y(), 0.0f, maximum.y()) };
-    }
-
-    FloatPoint reportedOffset() const
-    {
-        if (!m_config.roundScrollOffset)
-            return m_offset;
-        return { std::round(m_offset.x()), std::round(m_offset.y()) };
-    }
-
-    IntSize currentStretch() const
-    {
-        auto offset = reportedOffset();
-        auto maximum = maximumOffset();
-        auto stretch = [](float value, float maximum) -> int {
-            if (value < 0)
-                return static_cast<int>(value);
-            if (value > maximum)
-                return static_cast<int>(value - maximum);
-            return 0;
-        };
-        return { stretch(offset.x(), maximum.x()), stretch(offset.y(), maximum.y()) };
-    }
-
-    bool pinned(BoxSide side) const
-    {
-        if (m_config.pinnedSides)
-            return *m_config.pinnedSides & (1 << static_cast<uint8_t>(side));
-        auto offset = reportedOffset();
-        auto maximum = maximumOffset();
-        switch (side) {
-        case BoxSide::Top:
-            return offset.y() <= 0;
-        case BoxSide::Right:
-            return offset.x() >= maximum.x();
-        case BoxSide::Bottom:
-            return offset.y() >= maximum.y();
-        case BoxSide::Left:
-            return offset.x() <= 0;
-        }
-        return false;
+        return current()->createTimer(WTF::move(callback));
     }
 
 private:
-    // Captured by each timer's callback: its destruction is the timer's.
+    // Held by each timer's callback, so it is destroyed with the timer.
     class TimerLifetime {
     public:
-        TimerLifetime(RecordingClient& client, size_t index)
-            : m_client(&client)
+        TimerLifetime(TimerRecorder& recorder, size_t index)
+            : m_recorder(&recorder)
             , m_index(index)
         {
         }
 
         TimerLifetime(TimerLifetime&& other)
-            : m_client(std::exchange(other.m_client, nullptr))
+            : m_recorder(std::exchange(other.m_recorder, nullptr))
             , m_index(other.m_index)
         {
         }
@@ -618,109 +402,354 @@ private:
 
         ~TimerLifetime()
         {
-            if (!m_client)
+            if (!m_recorder)
                 return;
-            auto& record = m_client->m_timers[m_index];
+            auto& record = m_recorder->m_timers[m_index];
             record.alive = false;
             record.timer = nullptr;
-            TraceLine(m_client->m_trace, 'T', "destroyed").u("id", record.id);
+            TraceLine(m_recorder->m_trace, 'T', "destroyed").u("id", record.id);
         }
 
     private:
-        RecordingClient* m_client;
+        TimerRecorder* m_recorder;
         size_t m_index;
     };
 
-    uint64_t idForTimer(ScrollingEffectsControllerTimer* timer) const
-    {
-        for (auto& record : m_timers) {
-            if (record.alive && record.timer == timer)
-                return record.id;
-        }
-        return 0;
-    }
-
-    inline void reenter();
-
     Trace& m_trace;
-    ScriptedConfig m_config;
-    FloatPoint m_offset;
-    ControllerHost* m_host { nullptr };
-    bool m_animationCallbacksRunning { false };
-    uint64_t m_scrollCount { 0 };
     std::vector<TimerRecord> m_timers;
 };
 
-// MARK: - Controller host
-
-// Holds a ScrollingEffectsController without depending on its size or layout: the object is constructed in a
-// buffer larger than any configuration of the class, and destroyed with a non-virtual destructor call. Only
-// out-of-line members are called through it.
-class ControllerHost {
-    WTF_MAKE_NONCOPYABLE(ControllerHost);
+class TimerFactoryScope {
+    WTF_MAKE_NONCOPYABLE(TimerFactoryScope);
 public:
-    static constexpr size_t storageSize = 4096;
-    static constexpr size_t storageAlignment = 64;
-
-    explicit ControllerHost(RecordingClient& client)
-        : m_client(client)
+    explicit TimerFactoryScope(TimerRecorder& recorder)
     {
-        static_assert(sizeof(ScrollingEffectsController) <= storageSize / 4, "ControllerHost storage must leave a wide margin");
-        static_assert(alignof(ScrollingEffectsController) <= storageAlignment);
-        std::memset(m_storage, 0xA5, sizeof(m_storage));
-        m_controller = new (m_storage) ScrollingEffectsController(client);
-        client.setHost(this);
+        TimerRecorder::current() = &recorder;
+        ScrollAnimator::setTimerFactoryForTesting(TimerRecorder::makeTimer);
     }
 
-    ~ControllerHost()
+    ~TimerFactoryScope()
     {
-        m_controller->stopAllTimers();
-        m_controller->ScrollingEffectsController::~ScrollingEffectsController();
-        m_client.setHost(nullptr);
+        ScrollAnimator::setTimerFactoryForTesting(nullptr);
+        TimerRecorder::current() = nullptr;
+    }
+};
+
+// MARK: - Recording scrollbars controller
+
+// Records the calls ScrollAnimator makes on the scrollbars, and keeps the scrollbars from making scroller
+// implementations, so no window or AppKit state is involved.
+class RecordingScrollbarsController final : public ScrollbarsController {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(RecordingScrollbarsController);
+public:
+    RecordingScrollbarsController(ScrollableArea& area, Trace& trace)
+        : ScrollbarsController(area)
+        , m_trace(trace)
+    {
     }
 
-    ScrollingEffectsController& controller() { return *m_controller; }
+    bool shouldRegisterScrollbars() const final { return false; }
+    void notifyContentAreaScrolled(const FloatSize& delta) final { TraceLine(m_trace, 'C', "notifyContentAreaScrolled").sz("delta", delta); }
+    void cancelAnimations() final { TraceLine(m_trace, 'C', "scrollbarsCancelAnimations"); }
+    void didBeginScrollGesture() final { TraceLine(m_trace, 'C', "didBeginScrollGesture"); }
+    void didEndScrollGesture() final { TraceLine(m_trace, 'C', "didEndScrollGesture"); }
+    void mayBeginScrollGesture() final { TraceLine(m_trace, 'C', "mayBeginScrollGesture"); }
 
 private:
-    alignas(storageAlignment) unsigned char m_storage[storageSize];
-    RecordingClient& m_client;
-    ScrollingEffectsController* m_controller { nullptr };
+    Trace& m_trace;
+};
+
+// MARK: - Recording scrollable area
+
+class RecordingScrollableArea final : public CanMakeCheckedPtr<RecordingScrollableArea, WTF::DefaultedOperatorEqual::No, WTF::CheckedPtrDeleteCheckException::Yes>, public ScrollableArea {
+    WTF_MAKE_NONCOPYABLE(RecordingScrollableArea);
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(RecordingScrollableArea);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RecordingScrollableArea);
+public:
+    RecordingScrollableArea(Trace& trace, const ScriptedConfig& config, FloatPoint position)
+        : m_trace(trace)
+        , m_config(config)
+    {
+        m_horizontalScrollbar = Scrollbar::createNativeScrollbar(*this, ScrollbarOrientation::Horizontal, ScrollbarWidth::Auto);
+        m_verticalScrollbar = Scrollbar::createNativeScrollbar(*this, ScrollbarOrientation::Vertical, ScrollbarWidth::Auto);
+        applyConfig();
+        setPosition(position);
+        m_ready = true;
+    }
+
+    ~RecordingScrollableArea()
+    {
+        m_ready = false;
+        m_horizontalScrollbar = nullptr;
+        m_verticalScrollbar = nullptr;
+    }
+
+    // CheckedPtr interface
+    uint32_t checkedPtrCount() const final { return CanMakeCheckedPtr::checkedPtrCount(); }
+    uint32_t checkedPtrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::checkedPtrCountWithoutThreadCheck(); }
+    void incrementCheckedPtrCount() const final { CanMakeCheckedPtr::incrementCheckedPtrCount(); }
+    void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
+    void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
+
+    ScriptedConfig& config() { return m_config; }
+    IntPoint position() const { return m_position; }
+    uint64_t scrollCount() const { return m_scrollCount; }
+    bool animationRequested() const { return m_animationRequested; }
+    void animationEnded() { m_animationRequested = false; }
+
+    // The scroll position as WebKit reports one from outside the animator: the area's integral position, and the
+    // animator's own position.
+    void setPosition(FloatPoint position)
+    {
+        m_position = roundedIntPoint(position);
+        scrollAnimator().setCurrentPosition(position);
+    }
+
+    // Applies the scripted extents and policies to the scrollbars, as layout does for a frame.
+    void applyConfig()
+    {
+        auto visible = visibleSize();
+        auto contents = contentsSize();
+        m_horizontalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visible.width()), Scrollbar::pageStep(visible.width()));
+        m_verticalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visible.height()), Scrollbar::pageStep(visible.height()));
+        m_horizontalScrollbar->setProportion(visible.width(), contents.width());
+        m_verticalScrollbar->setProportion(visible.height(), contents.height());
+        m_horizontalScrollbar->setEnabled(m_config.allowsHorizontalScrolling);
+        m_verticalScrollbar->setEnabled(m_config.allowsVerticalScrolling);
+        setHorizontalScrollElasticity(m_config.allowsHorizontalStretching ? ScrollElasticity::Automatic : ScrollElasticity::None);
+        setVerticalScrollElasticity(m_config.allowsVerticalStretching ? ScrollElasticity::Automatic : ScrollElasticity::None);
+    }
+
+    // ScrollableArea
+    bool isActive() const final { return true; }
+    bool isScrollCornerVisible() const final { return false; }
+    IntRect scrollCornerRect() const final { return { }; }
+    bool forceUpdateScrollbarsOnMainThreadForPerformanceTesting() const final { return false; }
+    ScrollableArea* enclosingScrollableArea() const final { return nullptr; }
+    IntRect scrollableAreaBoundingBox(bool* = nullptr) const final { return { { }, visibleSize() }; }
+    bool shouldPlaceVerticalScrollbarOnLeft() const final { return false; }
+    String debugDescription() const final { return "RecordingScrollableArea"_s; }
+    void invalidateScrollbarRect(Scrollbar&, const IntRect&) final { }
+    void invalidateScrollCornerRect(const IntRect&) final { }
+
+    void createScrollbarsController() final
+    {
+        setScrollbarsController(makeUnique<RecordingScrollbarsController>(*this, m_trace));
+    }
+
+    // Not traced: how often the scrollbars are asked for depends on whether they are overlay scrollbars, which
+    // follows the system's scroller style.
+    Scrollbar* horizontalScrollbar() const final { return m_horizontalScrollbar.get(); }
+    Scrollbar* verticalScrollbar() const final { return m_verticalScrollbar.get(); }
+
+    ScrollPosition scrollPosition() const final
+    {
+        TraceLine(m_trace, 'C', "scrollPosition").ipt("r", m_position);
+        return m_position;
+    }
+
+    ScrollPosition minimumScrollPosition() const final
+    {
+        auto result = ScrollableArea::minimumScrollPosition();
+        TraceLine(m_trace, 'C', "minimumScrollPosition").ipt("r", result);
+        return result;
+    }
+
+    ScrollPosition maximumScrollPosition() const final
+    {
+        auto result = ScrollableArea::maximumScrollPosition();
+        TraceLine(m_trace, 'C', "maximumScrollPosition").ipt("r", result);
+        return result;
+    }
+
+    IntSize visibleSize() const final
+    {
+        auto result = clampedIntSize(m_config.viewportSize);
+        TraceLine(m_trace, 'C', "visibleSize").isz("r", result);
+        return result;
+    }
+
+    IntSize snapportSize() const final
+    {
+        auto result = clampedIntSize(m_config.snapportSize);
+        TraceLine(m_trace, 'C', "snapportSize").isz("r", result);
+        return result;
+    }
+
+    IntSize contentsSize() const final
+    {
+        auto result = clampedIntSize(m_config.contentsSize);
+        TraceLine(m_trace, 'C', "contentsSize").isz("r", result);
+        return result;
+    }
+
+    // As ScrollView: how far the position is past the extents.
+    IntSize overhangAmount() const final
+    {
+        auto position = m_position;
+        auto minimum = ScrollableArea::minimumScrollPosition();
+        auto maximum = ScrollableArea::maximumScrollPosition();
+        auto overhang = [](int value, int minimum, int maximum) -> int {
+            if (value < minimum)
+                return value - minimum;
+            if (value > maximum)
+                return value - maximum;
+            return 0;
+        };
+        IntSize result { overhang(position.x(), minimum.x(), maximum.x()), overhang(position.y(), minimum.y(), maximum.y()) };
+        TraceLine(m_trace, 'C', "overhangAmount").isz("r", result);
+        return result;
+    }
+
+    bool isScrollableOrRubberbandable() final
+    {
+        TraceLine(m_trace, 'C', "isScrollableOrRubberbandable");
+        return true;
+    }
+
+    bool hasScrollableOrRubberbandableAncestor() final
+    {
+        TraceLine(m_trace, 'C', "hasScrollableOrRubberbandableAncestor").b("r", m_config.hasScrollableOrRubberbandableAncestor);
+        return m_config.hasScrollableOrRubberbandableAncestor;
+    }
+
+    float pageScaleFactor() const final
+    {
+        TraceLine(m_trace, 'C', "pageScaleFactor").f("r", m_config.pageScaleFactor);
+        return m_config.pageScaleFactor;
+    }
+
+    bool scrollAnimatorEnabled() const final
+    {
+        TraceLine(m_trace, 'C', "scrollAnimatorEnabled").b("r", m_config.scrollAnimatorEnabled);
+        return m_config.scrollAnimatorEnabled;
+    }
+
+    bool isUserScrollInProgress() const final
+    {
+        bool result = existingScrollAnimator() && existingScrollAnimator()->isUserScrollInProgress();
+        TraceLine(m_trace, 'C', "isUserScrollInProgress").b("r", result);
+        return result;
+    }
+
+    bool isRubberBandInProgress() const final
+    {
+        bool result = existingScrollAnimator() && existingScrollAnimator()->isRubberBandInProgress();
+        TraceLine(m_trace, 'C', "isRubberBandInProgress").b("r", result);
+        return result;
+    }
+
+    bool isScrollSnapInProgress() const final
+    {
+        bool result = existingScrollAnimator() && existingScrollAnimator()->isScrollSnapInProgress();
+        TraceLine(m_trace, 'C', "isScrollSnapInProgress").b("r", result);
+        return result;
+    }
+
+    bool requestScrollToPosition(const ScrollPosition& position, const ScrollPositionChangeOptions& options) final
+    {
+        TraceLine(m_trace, 'C', "requestScrollToPosition").ipt("position", position).u("type", static_cast<uint8_t>(options.type)).u("clamping", static_cast<uint8_t>(options.clamping)).u("animated", static_cast<uint8_t>(options.animated));
+        return false;
+    }
+
+    bool requestStartKeyboardScrollAnimation(const KeyboardScroll& scroll) final
+    {
+        TraceLine(m_trace, 'C', "requestStartKeyboardScrollAnimation").sz("offset", scroll.offset).u("granularity", static_cast<uint8_t>(scroll.granularity)).u("direction", static_cast<uint8_t>(scroll.direction));
+        return false;
+    }
+
+    bool requestStopKeyboardScrollAnimation(bool immediate) final
+    {
+        TraceLine(m_trace, 'C', "requestStopKeyboardScrollAnimation").b("immediate", immediate);
+        return false;
+    }
+
+    void didStartScrollAnimation() final
+    {
+        TraceLine(m_trace, 'C', "didStartScrollAnimation").b("wasRequested", m_animationRequested);
+        m_animationRequested = true;
+    }
+
+    void animatedScrollDidEnd() final { TraceLine(m_trace, 'C', "animatedScrollDidEnd"); }
+    void scrollDidEnd() final { TraceLine(m_trace, 'C', "scrollDidEnd"); }
+
+    void setScrollOffset(const ScrollOffset& offset) final
+    {
+        TraceLine(m_trace, 'C', "setScrollOffset", true).ipt("offset", offset);
+        ++m_scrollCount;
+        auto previous = m_position;
+        m_position = scrollPositionFromOffset(offset);
+        if (m_ready && m_position != previous)
+            reenter();
+    }
+
+private:
+    void reenter()
+    {
+        if (m_config.reentryAction == ReentryAction::None || m_scrollCount != m_config.reentryAtScroll)
+            return;
+        auto& animator = scrollAnimator();
+        switch (m_config.reentryAction) {
+        case ReentryAction::None:
+            break;
+        case ReentryAction::CancelAnimations:
+            TraceLine(m_trace, 'E', "reentry.cancelAnimations");
+            m_trace.countEntry();
+            animator.cancelAnimations();
+            break;
+        case ReentryAction::ScrollToPositionWithAnimation: {
+            TraceLine(m_trace, 'E', "reentry.scrollToPositionWithAnimation").pt("to", m_config.reentryDestination);
+            m_trace.countEntry();
+            bool result = animator.scrollToPositionWithAnimation(m_config.reentryDestination);
+            TraceLine(m_trace, 'R', "reentry.scrollToPositionWithAnimation", true).b("r", result);
+            break;
+        }
+        case ReentryAction::KeyboardPageScroll: {
+            TraceLine(m_trace, 'E', "reentry.beginKeyboardScrollGesture");
+            m_trace.countEntry();
+            bool result = animator.keyboardScrollingAnimator()->beginKeyboardScrollGesture(ScrollDirection::ScrollDown, ScrollGranularity::Page, false);
+            TraceLine(m_trace, 'R', "reentry.beginKeyboardScrollGesture", true).b("r", result);
+            break;
+        }
+        }
+    }
+
+    Trace& m_trace;
+    ScriptedConfig m_config;
+    IntPoint m_position;
+    RefPtr<Scrollbar> m_horizontalScrollbar;
+    RefPtr<Scrollbar> m_verticalScrollbar;
+    bool m_ready { false };
+    bool m_animationRequested { false };
+    uint64_t m_scrollCount { 0 };
 };
 
 // MARK: - Steps
 
 enum class Op : uint8_t {
-    Wheel, // updateGestureInProgressState() then handleWheelEvent(), as ScrollAnimator does.
-    WheelOnly, // handleWheelEvent() alone, as the scrolling tree's delegate does.
-    GestureState, // updateGestureInProgressState() alone.
+    Wheel, // handleWheelEvent(), as the event handler sends a wheel event to a scrollable area.
     WheelForScrollSnap, // processWheelEventForScrollSnap().
-    Frames, // animationCallback() at 120 Hz while the client's callbacks run, at most count frames.
-    RetargetFrames, // As Frames, with retargetAnimatedScroll() before each frame.
+    Frames, // serviceScrollAnimation() at 120 Hz while the area has an animation scheduled, at most count frames.
+    RetargetFrames, // As Frames, with retargetRunningAnimation() before each frame.
     AdvanceClock,
-    StartAnimatedScroll,
-    RetargetAnimatedScroll, // To a, or with flag to the client's offset.
-    RetargetAnimatedScrollBy,
-    StopAnimatedScroll,
-    StopAnimatedNonRubberbandingScroll,
-    StartKeyboardScroll,
-    FinishKeyboardScroll,
+    ScrollToPositionWithAnimation, // To a, clamped unless flag.
+    ScrollToPositionWithoutAnimation, // To a.
+    RetargetRunningAnimation, // To a, or with flag to the area's position.
+    SingleAxisScroll, // By value on axis; count holds the ScrollBehavior bits.
+    CancelAnimations,
+    SetCurrentPosition, // To a, as when the position changes from outside the animator.
+    KeyboardScrollGesture, // KeyboardScrollingAnimator::beginKeyboardScrollGesture(); flag for a key repeat.
+    KeyUp, // KeyboardScrollingAnimator::handleKeyUpEvent(), or with flag stopScrollingImmediately().
+    StopKeyboardScrollAnimation,
     ContentsSizeChanged,
     SetSnapOffsetsInfo,
     SetActiveScrollSnapIndex,
-    UpdateActiveScrollSnapIndex,
     ResnapAfterLayout,
-    AdjustedScrollDestination,
-    ScrollPositionChanged,
-    StopRubberBanding,
-    StartRubberBandSnapBack,
-    RubberBandTargetOffsetDidChange,
-    CaptureRestoreRubberbanding, // captureRubberbandingState(), then restoreRubberbandingState() of the result.
-    RestoreRubberbanding,
+    ScrollOffsetAdjustedForSnapping, // On axis, or with flag on both axes.
     FireTimers,
-    SetConfig, // Replaces the scripted configuration; flag also sets the offset to a.
+    SetConfig, // Replaces the scripted configuration; flag also sets the position to a.
     SetPrediction,
     Snapshot,
-    WheelDeltaBiasingTowardsVertical,
 };
 
 struct Step {
@@ -731,15 +760,14 @@ struct Step {
     unsigned count { 0 };
     bool flag { false };
     ScrollEventAxis axis { ScrollEventAxis::Vertical };
-    std::optional<float> optionalFloat { };
     std::optional<unsigned> optionalIndex { };
     float value { 0 };
     ScrollSnapPointSelectionMethod method { ScrollSnapPointSelectionMethod::Closest };
-    KeyboardScroll keyboard { };
+    ScrollDirection direction { ScrollDirection::ScrollDown };
+    ScrollGranularity granularity { ScrollGranularity::Line };
     unsigned snapInfo { 0 };
     double seconds { 0 };
     ScriptedConfig config { };
-    RubberbandingState rubberbanding { };
 };
 
 struct Case {
@@ -764,18 +792,20 @@ public:
         : m_trace(trace)
         , m_case(testCase)
         , m_snapshotEveryStep(snapshotEveryStep)
-        , m_client(trace, testCase.config, testCase.offset)
+        , m_timers(trace)
     {
     }
 
-    // Runs the case from a new controller to its destruction.
+    // Runs the case from a new scrollable area to its destruction.
     void run()
     {
         TraceLine(m_trace, 'X', "case").u("group", m_case.group);
         ScrollingMomentumCalculator::setPlatformMomentumScrollingPredictionEnabled(m_case.predictionEnabled);
+        uint64_t scrolls = 0;
         {
-            ControllerHost host(m_client);
-            m_host = &host;
+            TimerFactoryScope timerScope(m_timers);
+            RecordingScrollableArea area(m_trace, m_case.config, m_case.offset);
+            m_area = &area;
             for (auto& step : m_case.steps) {
                 perform(step);
                 if (m_snapshotEveryStep && step.op != Op::Snapshot)
@@ -783,22 +813,21 @@ public:
             }
             if (m_trace.level() == TraceLevel::Full)
                 snapshot();
-            m_host = nullptr;
+            scrolls = area.scrollCount();
+            m_area = nullptr;
         }
         ScrollingMomentumCalculator::setPlatformMomentumScrollingPredictionEnabled(true);
-        TraceLine(m_trace, 'X', "end").u("scrolls", m_client.scrollCount()).u("clockReads", scriptedClock().reads);
+        TraceLine(m_trace, 'X', "end").u("scrolls", scrolls).u("clockReads", scriptedClock().reads);
     }
 
-    RecordingClient& client() { return m_client; }
-    ScrollingEffectsController& controller() { return m_host->controller(); }
+    RecordingScrollableArea& area() { return *m_area; }
+    ScrollAnimator& animator() { return m_area->scrollAnimator(); }
 
     void perform(const Step& step)
     {
-        auto& controller = m_host->controller();
+        auto& animator = this->animator();
         switch (step.op) {
         case Op::Wheel:
-        case Op::WheelOnly:
-        case Op::GestureState:
         case Op::WheelForScrollSnap: {
             // The event comes `seconds` after the previous one, and never before the clock.
             auto& clock = scriptedClock();
@@ -807,49 +836,34 @@ public:
             m_lastEventTime = wheel.timestamp;
             clock.now = wheel.timestamp;
             TestWheelEvent event(wheel);
-            if (step.op == Op::Wheel || step.op == Op::GestureState) {
-                {
-                    TraceLine line(m_trace, 'E', "updateGestureInProgressState");
-                    traceWheel(line, wheel);
-                }
-                m_trace.countEntry();
-                controller.updateGestureInProgressState(event);
+            const char* name = step.op == Op::Wheel ? "handleWheelEvent" : "processWheelEventForScrollSnap";
+            {
+                TraceLine line(m_trace, 'E', name);
+                traceWheel(line, wheel);
             }
-            if (step.op == Op::Wheel || step.op == Op::WheelOnly) {
-                {
-                    TraceLine line(m_trace, 'E', "handleWheelEvent");
-                    traceWheel(line, wheel);
-                }
-                m_trace.countEntry();
-                bool handled = controller.handleWheelEvent(event);
-                TraceLine(m_trace, 'R', "handleWheelEvent", true).b("r", handled);
-            }
-            if (step.op == Op::WheelForScrollSnap) {
-                {
-                    TraceLine line(m_trace, 'E', "processWheelEventForScrollSnap");
-                    traceWheel(line, wheel);
-                }
-                m_trace.countEntry();
-                bool handled = controller.processWheelEventForScrollSnap(event);
-                TraceLine(m_trace, 'R', "processWheelEventForScrollSnap", true).b("r", handled);
-            }
+            m_trace.countEntry();
+            bool handled = step.op == Op::Wheel ? animator.handleWheelEvent(event) : animator.processWheelEventForScrollSnap(event);
+            TraceLine(m_trace, 'R', name, true).b("r", handled);
             break;
         }
         case Op::Frames:
         case Op::RetargetFrames: {
             unsigned limit = step.count ? step.count : defaultFrameLimit;
-            for (unsigned frame = 0; frame < limit && m_client.animationCallbacksRunning(); ++frame) {
+            for (unsigned frame = 0; frame < limit && m_area->animationRequested(); ++frame) {
                 if (step.op == Op::RetargetFrames) {
                     // A destination that moves every frame: a + size * ((frame % 7) - 3).
                     float k = static_cast<float>(static_cast<int>(frame % 7) - 3);
-                    retargetAnimatedScroll(controller, FloatPoint(step.a.x() + step.size.width() * k, step.a.y() + step.size.height() * k));
+                    retargetRunningAnimation(FloatPoint(step.a.x() + step.size.width() * k, step.a.y() + step.size.height() * k));
                 }
                 auto& clock = scriptedClock();
                 clock.now += frameInterval;
                 auto time = MonotonicTime::fromRawSeconds(clock.now);
-                TraceLine(m_trace, 'E', "animationCallback").t("t", time);
+                TraceLine(m_trace, 'E', "serviceScrollAnimation").t("t", time);
                 m_trace.countEntry();
-                controller.animationCallback(time);
+                auto status = animator.serviceScrollAnimation(time);
+                TraceLine(m_trace, 'R', "serviceScrollAnimation", true).u("r", static_cast<uint8_t>(status));
+                if (status == ScrollAnimationStatus::NotAnimating)
+                    m_area->animationEnded();
             }
             break;
         }
@@ -857,45 +871,70 @@ public:
             scriptedClock().now += step.seconds;
             TraceLine(m_trace, 'T', "advance").d("s", step.seconds);
             break;
-        case Op::StartAnimatedScroll: {
-            TraceLine(m_trace, 'E', "startAnimatedScrollToDestination").pt("from", step.a).pt("to", FloatPoint(step.size));
+        case Op::ScrollToPositionWithAnimation: {
+            auto clamping = step.flag ? ScrollClamping::Unclamped : ScrollClamping::Clamped;
+            TraceLine(m_trace, 'E', "scrollToPositionWithAnimation").pt("to", step.a).u("clamping", static_cast<uint8_t>(clamping));
             m_trace.countEntry();
-            bool result = controller.startAnimatedScrollToDestination(step.a, FloatPoint(step.size));
-            TraceLine(m_trace, 'R', "startAnimatedScrollToDestination", true).b("r", result);
+            bool result = animator.scrollToPositionWithAnimation(step.a, clamping);
+            TraceLine(m_trace, 'R', "scrollToPositionWithAnimation", true).b("r", result);
             break;
         }
-        case Op::RetargetAnimatedScroll:
-            retargetAnimatedScroll(controller, step.flag ? m_client.offset() : step.a);
-            break;
-        case Op::RetargetAnimatedScrollBy: {
-            TraceLine(m_trace, 'E', "retargetAnimatedScrollBy").sz("delta", step.size);
+        case Op::ScrollToPositionWithoutAnimation: {
+            TraceLine(m_trace, 'E', "scrollToPositionWithoutAnimation").pt("to", step.a);
             m_trace.countEntry();
-            bool result = controller.retargetAnimatedScrollBy(step.size);
-            TraceLine(m_trace, 'R', "retargetAnimatedScrollBy", true).b("r", result);
+            bool result = animator.scrollToPositionWithoutAnimation(step.a);
+            TraceLine(m_trace, 'R', "scrollToPositionWithoutAnimation", true).b("r", result);
             break;
         }
-        case Op::StopAnimatedScroll:
-            TraceLine(m_trace, 'E', "stopAnimatedScroll");
-            m_trace.countEntry();
-            controller.stopAnimatedScroll();
+        case Op::RetargetRunningAnimation:
+            retargetRunningAnimation(step.flag ? FloatPoint(m_area->position()) : step.a);
             break;
-        case Op::StopAnimatedNonRubberbandingScroll:
-            TraceLine(m_trace, 'E', "stopAnimatedNonRubberbandingScroll");
+        case Op::SingleAxisScroll: {
+            EnumSet<ScrollAnimator::ScrollBehavior> behavior;
+            for (auto candidate : { ScrollAnimator::ScrollBehavior::RespectScrollSnap, ScrollAnimator::ScrollBehavior::Paged, ScrollAnimator::ScrollBehavior::NeverAnimate }) {
+                if (step.count & (1u << static_cast<uint8_t>(candidate)))
+                    behavior.add(candidate);
+            }
+            TraceLine(m_trace, 'E', "singleAxisScroll").u("axis", static_cast<uint8_t>(step.axis)).f("delta", step.value).u("behavior", step.count);
             m_trace.countEntry();
-            controller.stopAnimatedNonRubberbandingScroll();
+            bool result = animator.singleAxisScroll(step.axis, step.value, behavior);
+            TraceLine(m_trace, 'R', "singleAxisScroll", true).b("r", result);
             break;
-        case Op::StartKeyboardScroll:
-            startKeyboardScroll(controller, step.keyboard);
-            break;
-        case Op::FinishKeyboardScroll:
-            TraceLine(m_trace, 'E', "finishKeyboardScroll").b("immediate", step.flag);
+        }
+        case Op::CancelAnimations:
+            TraceLine(m_trace, 'E', "cancelAnimations");
             m_trace.countEntry();
-            controller.finishKeyboardScroll(step.flag);
+            animator.cancelAnimations();
+            break;
+        case Op::SetCurrentPosition:
+            TraceLine(m_trace, 'E', "setCurrentPosition").pt("to", step.a);
+            m_trace.countEntry();
+            m_area->setPosition(step.a);
+            break;
+        case Op::KeyboardScrollGesture: {
+            TraceLine(m_trace, 'E', "beginKeyboardScrollGesture").u("direction", static_cast<uint8_t>(step.direction)).u("granularity", static_cast<uint8_t>(step.granularity)).b("repeat", step.flag);
+            m_trace.countEntry();
+            bool result = animator.keyboardScrollingAnimator()->beginKeyboardScrollGesture(step.direction, step.granularity, step.flag);
+            TraceLine(m_trace, 'R', "beginKeyboardScrollGesture", true).b("r", result);
+            break;
+        }
+        case Op::KeyUp:
+            TraceLine(m_trace, 'E', step.flag ? "stopScrollingImmediately" : "handleKeyUpEvent");
+            m_trace.countEntry();
+            if (step.flag)
+                animator.keyboardScrollingAnimator()->stopScrollingImmediately();
+            else
+                animator.keyboardScrollingAnimator()->handleKeyUpEvent();
+            break;
+        case Op::StopKeyboardScrollAnimation:
+            TraceLine(m_trace, 'E', "stopKeyboardScrollAnimation");
+            m_trace.countEntry();
+            animator.stopKeyboardScrollAnimation();
             break;
         case Op::ContentsSizeChanged:
             TraceLine(m_trace, 'E', "contentsSizeChanged");
             m_trace.countEntry();
-            controller.contentsSizeChanged();
+            animator.contentsSizeChanged();
             break;
         case Op::SetSnapOffsetsInfo: {
             const auto& info = m_case.snapInfos.at(step.snapInfo);
@@ -904,75 +943,45 @@ public:
                 traceSnapInfo(line, info);
             }
             m_trace.countEntry();
-            controller.setSnapOffsetsInfo(info);
+            animator.setSnapOffsetsInfo(info);
             m_lastSnapInfo = &info;
             break;
         }
         case Op::SetActiveScrollSnapIndex:
             TraceLine(m_trace, 'E', "setActiveScrollSnapIndexForAxis").u("axis", static_cast<uint8_t>(step.axis)).optu("index", step.optionalIndex);
             m_trace.countEntry();
-            controller.setActiveScrollSnapIndexForAxis(step.axis, step.optionalIndex);
-            break;
-        case Op::UpdateActiveScrollSnapIndex:
-            TraceLine(m_trace, 'E', "updateActiveScrollSnapIndexForClientOffset");
-            m_trace.countEntry();
-            controller.updateActiveScrollSnapIndexForClientOffset();
+            animator.setActiveScrollSnapIndexForAxis(step.axis, step.optionalIndex);
             break;
         case Op::ResnapAfterLayout:
             TraceLine(m_trace, 'E', "resnapAfterLayout");
             m_trace.countEntry();
-            controller.resnapAfterLayout();
+            animator.resnapAfterLayout();
             break;
-        case Op::AdjustedScrollDestination: {
-            TraceLine(m_trace, 'E', "adjustedScrollDestination").u("axis", static_cast<uint8_t>(step.axis)).pt("destination", step.a).f("velocity", step.value).optf("original", step.optionalFloat).u("method", static_cast<uint8_t>(step.method));
+        case Op::ScrollOffsetAdjustedForSnapping: {
+            TraceLine(m_trace, 'E', "scrollOffsetAdjustedForSnapping").b("both", step.flag).u("axis", static_cast<uint8_t>(step.axis)).pt("offset", step.a).u("method", static_cast<uint8_t>(step.method));
             m_trace.countEntry();
-            float result = controller.adjustedScrollDestination(step.axis, step.a, step.value, step.optionalFloat, step.method);
-            TraceLine(m_trace, 'R', "adjustedScrollDestination", true).f("r", result);
+            if (step.flag) {
+                auto result = animator.scrollOffsetAdjustedForSnapping(step.a, step.method);
+                TraceLine(m_trace, 'R', "scrollOffsetAdjustedForSnapping", true).pt("r", result);
+            } else {
+                float result = animator.scrollOffsetAdjustedForSnapping(step.axis, step.a, step.method);
+                TraceLine(m_trace, 'R', "scrollOffsetAdjustedForSnapping", true).f("r", result);
+            }
             break;
         }
-        case Op::ScrollPositionChanged:
-            TraceLine(m_trace, 'E', "scrollPositionChanged");
-            m_trace.countEntry();
-            controller.scrollPositionChanged();
-            break;
-        case Op::StopRubberBanding:
-            TraceLine(m_trace, 'E', "stopRubberBanding");
-            m_trace.countEntry();
-            controller.stopRubberBanding();
-            break;
-        case Op::StartRubberBandSnapBack:
-            TraceLine(m_trace, 'E', "startRubberBandSnapBack");
-            m_trace.countEntry();
-            controller.startRubberBandSnapBack();
-            break;
-        case Op::RubberBandTargetOffsetDidChange:
-            TraceLine(m_trace, 'E', "rubberBandTargetOffsetDidChange");
-            m_trace.countEntry();
-            controller.rubberBandTargetOffsetDidChange();
-            break;
-        case Op::CaptureRestoreRubberbanding: {
-            auto state = captureRubberbandingState(controller);
-            if (step.seconds)
-                scriptedClock().now += step.seconds;
-            if (state)
-                restoreRubberbandingState(controller, *state);
-            break;
-        }
-        case Op::RestoreRubberbanding:
-            restoreRubberbandingState(controller, step.rubberbanding);
-            break;
         case Op::FireTimers: {
             if (step.seconds)
                 scriptedClock().now += step.seconds;
-            unsigned fired = m_client.fireTimers();
+            unsigned fired = m_timers.fireTimers();
             TraceLine(m_trace, 'T', "fired").u("n", fired);
             break;
         }
         case Op::SetConfig:
-            m_client.config() = step.config;
+            m_area->config() = step.config;
+            m_area->applyConfig();
             if (step.flag)
-                m_client.setOffset(step.a);
-            TraceLine(m_trace, 'T', "config").pt("offset", m_client.offset());
+                m_area->setPosition(step.a);
+            TraceLine(m_trace, 'T', "config").ipt("position", m_area->position());
             break;
         case Op::SetPrediction:
             TraceLine(m_trace, 'E', "setPlatformMomentumScrollingPredictionEnabled").b("v", step.flag);
@@ -981,49 +990,42 @@ public:
         case Op::Snapshot:
             snapshot();
             break;
-        case Op::WheelDeltaBiasingTowardsVertical: {
-            TraceLine(m_trace, 'E', "wheelDeltaBiasingTowardsVertical").sz("delta", step.size);
-            m_trace.countEntry();
-            auto result = ScrollingEffectsController::wheelDeltaBiasingTowardsVertical(step.size);
-            TraceLine(m_trace, 'R', "wheelDeltaBiasingTowardsVertical", true).sz("r", result);
-            break;
-        }
         }
     }
 
-    // State read through the controller's out-of-line members, and the client's own state.
+    // State read through the animator's out-of-line and virtual members, and the area's own state.
     void snapshot()
     {
-        auto& controller = m_host->controller();
+        auto& animator = this->animator();
         m_trace.countEntry();
-        bool userScroll = controller.isUserScrollInProgress();
+        bool userScroll = animator.isUserScrollInProgress();
         m_trace.countEntry();
-        bool snapInProgress = controller.isScrollSnapInProgress();
+        bool snapInProgress = animator.isScrollSnapInProgress();
         m_trace.countEntry();
-        bool rubberBand = controller.isRubberBandInProgress();
+        bool rubberBand = animator.isRubberBandInProgress();
         m_trace.countEntry();
-        bool usesSnap = controller.usesScrollSnap();
+        bool usesSnap = animator.usesScrollSnap();
         m_trace.countEntry();
-        auto horizontalIndex = controller.activeScrollSnapIndexForAxis(ScrollEventAxis::Horizontal);
+        auto horizontalIndex = animator.activeScrollSnapIndexForAxis(ScrollEventAxis::Horizontal);
         m_trace.countEntry();
-        auto verticalIndex = controller.activeScrollSnapIndexForAxis(ScrollEventAxis::Vertical);
+        auto verticalIndex = animator.activeScrollSnapIndexForAxis(ScrollEventAxis::Vertical);
         m_trace.countEntry();
-        auto* info = controller.snapOffsetsInfo();
-        {
-            TraceLine line(m_trace, 'S', "state");
-            line.b("user", userScroll).b("snap", snapInProgress).b("rubberBand", rubberBand).b("usesSnap", usesSnap)
-                .optu("indexH", horizontalIndex).optu("indexV", verticalIndex)
-                .b("info", !!info).b("infoEqual", info && m_lastSnapInfo && info->isEqual(*m_lastSnapInfo))
-                .pt("offset", m_client.offset()).b("callbacks", m_client.animationCallbacksRunning());
-            if (info)
-                traceSnapInfo(line, *info);
-            for (auto& record : m_client.timers()) {
-                line.u("timer", record.id).b("alive", record.alive);
-                if (record.alive)
-                    line.b("active", record.timer->isActive());
-            }
+        bool indexDidChange = animator.activeScrollSnapIndexDidChange();
+        m_trace.countEntry();
+        auto* info = animator.snapOffsetsInfo();
+        TraceLine line(m_trace, 'S', "state");
+        line.b("user", userScroll).b("snap", snapInProgress).b("rubberBand", rubberBand).b("usesSnap", usesSnap)
+            .optu("indexH", horizontalIndex).optu("indexV", verticalIndex).b("indexDidChange", indexDidChange)
+            .b("info", !!info).b("infoEqual", info && m_lastSnapInfo && info->isEqual(*m_lastSnapInfo))
+            .ipt("position", m_area->position()).b("animation", m_area->animationRequested())
+            .u("status", static_cast<uint8_t>(m_area->scrollAnimationStatus()));
+        if (info)
+            traceSnapInfo(line, *info);
+        for (auto& record : m_timers.timers()) {
+            line.u("timer", record.id).b("alive", record.alive);
+            if (record.alive)
+                line.b("active", record.timer->isActive());
         }
-        captureRubberbandingState(controller);
     }
 
     static void traceSnapInfo(TraceLine& line, const LayoutScrollSnapOffsetsInfo& info)
@@ -1053,111 +1055,22 @@ public:
     }
 
 private:
-    void retargetAnimatedScroll(ScrollingEffectsController& controller, FloatPoint destination)
+    void retargetRunningAnimation(FloatPoint destination)
     {
-        TraceLine(m_trace, 'E', "retargetAnimatedScroll").pt("to", destination);
+        TraceLine(m_trace, 'E', "retargetRunningAnimation").pt("to", destination);
         m_trace.countEntry();
-        bool result = controller.retargetAnimatedScroll(destination);
-        TraceLine(m_trace, 'R', "retargetAnimatedScroll", true).b("r", result);
-    }
-
-    void startKeyboardScroll(ScrollingEffectsController& controller, const KeyboardScroll& scroll)
-    {
-        TraceLine(m_trace, 'E', "startKeyboardScroll").sz("offset", scroll.offset).sz("maximumVelocity", scroll.maximumVelocity).sz("force", scroll.force)
-            .u("granularity", static_cast<uint8_t>(scroll.granularity)).u("direction", static_cast<uint8_t>(scroll.direction));
-        m_trace.countEntry();
-        bool result = controller.startKeyboardScroll(scroll);
-        TraceLine(m_trace, 'R', "startKeyboardScroll", true).b("r", result);
-    }
-
-    std::optional<RubberbandingState> captureRubberbandingState(ScrollingEffectsController& controller)
-    {
-        TraceLine(m_trace, 'E', "captureRubberbandingState");
-        m_trace.countEntry();
-        auto state = controller.captureRubberbandingState();
-        TraceLine line(m_trace, 'R', "captureRubberbandingState", true);
-        line.b("r", !!state);
-        if (state)
-            line.sz("velocity", state->initialVelocity).sz("overscroll", state->initialOverscroll).sz("target", state->targetOverscroll)
-                .t("start", state->animationStartTime).t("capture", state->captureTime).edges("edges", state->rubberbandingEdges);
-        return state;
-    }
-
-    void restoreRubberbandingState(ScrollingEffectsController& controller, const RubberbandingState& state)
-    {
-        TraceLine(m_trace, 'E', "restoreRubberbandingState").sz("velocity", state.initialVelocity).sz("overscroll", state.initialOverscroll).sz("target", state.targetOverscroll)
-            .t("start", state.animationStartTime).t("capture", state.captureTime).edges("edges", state.rubberbandingEdges);
-        m_trace.countEntry();
-        bool result = controller.restoreRubberbandingState(state);
-        TraceLine(m_trace, 'R', "restoreRubberbandingState", true).b("r", result);
+        bool result = animator().retargetRunningAnimation(destination);
+        TraceLine(m_trace, 'R', "retargetRunningAnimation", true).b("r", result);
     }
 
     Trace& m_trace;
     const Case& m_case;
     bool m_snapshotEveryStep;
-    RecordingClient m_client;
-    ControllerHost* m_host { nullptr };
+    TimerRecorder m_timers;
+    RecordingScrollableArea* m_area { nullptr };
     const LayoutScrollSnapOffsetsInfo* m_lastSnapInfo { nullptr };
     double m_lastEventTime { caseStartTime };
 };
-
-inline void RecordingClient::immediateScrollBy(const FloatSize& delta, ScrollClamping clamping)
-{
-    TraceLine(m_trace, 'C', "immediateScrollBy", true).f("w", delta.width()).f("h", delta.height()).u("clamping", static_cast<uint8_t>(clamping));
-    ++m_scrollCount;
-    auto previous = m_offset;
-    auto next = m_offset + delta;
-    if (clamping == ScrollClamping::Clamped)
-        next = clampedOffset(next);
-    m_offset = next;
-    if (next != previous)
-        reenter();
-}
-
-inline void RecordingClient::reenter()
-{
-    if (!m_host)
-        return;
-    auto& controller = m_host->controller();
-    if (m_config.reentryAction != ReentryAction::None && m_scrollCount == m_config.reentryAtScroll) {
-        switch (m_config.reentryAction) {
-        case ReentryAction::None:
-            break;
-        case ReentryAction::StopAnimatedScroll:
-            TraceLine(m_trace, 'E', "reentry.stopAnimatedScroll");
-            m_trace.countEntry();
-            controller.stopAnimatedScroll();
-            break;
-        case ReentryAction::StartAnimatedScroll: {
-            TraceLine(m_trace, 'E', "reentry.startAnimatedScrollToDestination").pt("to", m_config.reentryDestination);
-            m_trace.countEntry();
-            bool result = controller.startAnimatedScrollToDestination(reportedOffset(), m_config.reentryDestination);
-            TraceLine(m_trace, 'R', "reentry.startAnimatedScrollToDestination", true).b("r", result);
-            break;
-        }
-        case ReentryAction::StartKeyboardScroll: {
-            KeyboardScroll scroll;
-            scroll.offset = { 0, 40 };
-            scroll.direction = ScrollDirection::ScrollDown;
-            scroll.maximumVelocity = scroll.offset.scaled(KeyboardScrollParameters::parameters().maximumVelocityMultiplier);
-            scroll.force = scroll.maximumVelocity.scaled(KeyboardScrollParameters::parameters().springMass / KeyboardScrollParameters::parameters().timeToMaximumVelocity);
-            TraceLine(m_trace, 'E', "reentry.startKeyboardScroll");
-            m_trace.countEntry();
-            bool result = controller.startKeyboardScroll(scroll);
-            TraceLine(m_trace, 'R', "reentry.startKeyboardScroll", true).b("r", result);
-            break;
-        }
-        }
-    }
-    if (!m_config.reentrant)
-        return;
-    TraceLine(m_trace, 'E', "reentry.scrollPositionChanged");
-    m_trace.countEntry();
-    controller.scrollPositionChanged();
-    TraceLine(m_trace, 'E', "reentry.updateActiveScrollSnapIndexForClientOffset");
-    m_trace.countEntry();
-    controller.updateActiveScrollSnapIndexForClientOffset();
-}
 
 // Runs a list of cases with the scripted clock in place, and returns the trace's digest.
 inline uint64_t runCases(Trace& trace, const std::vector<Case>& cases, bool snapshotEveryStep)
