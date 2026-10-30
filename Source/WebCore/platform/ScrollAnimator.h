@@ -129,9 +129,6 @@ public:
 
 protected:
     bool handleSteppedScrolling(const PlatformWheelEvent&);
-#if HAVE(RUBBER_BANDING)
-    IntSize stretchAmount() const final;
-#endif
 
 private:
     void notifyPositionChanged(const FloatSize& delta);
@@ -143,10 +140,13 @@ private:
 
     FloatPoint adjustScrollPositionIfNecessary(const FloatPoint&) const;
 
+public:
     // ScrollingEffectsControllerClient.
     std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&) final;
     void startAnimationCallback(ScrollingEffectsController&) final;
     void stopAnimationCallback(ScrollingEffectsController&) final;
+    void startAnimationCallback();
+    void stopAnimationCallback();
 
     FloatPoint scrollOffset() const final;
     float pageScaleFactor() const final;
@@ -174,6 +174,12 @@ private:
 
 #if USE(COORDINATED_GRAPHICS)
     bool scrollAnimationEnabled() const final;
+#endif
+
+#if HAVE(RUBBER_BANDING)
+    IntSize stretchAmount() const final;
+    using ScrollingEffectsControllerClient::allowsHorizontalStretching;
+    using ScrollingEffectsControllerClient::allowsVerticalStretching;
 #endif
 
 protected:
