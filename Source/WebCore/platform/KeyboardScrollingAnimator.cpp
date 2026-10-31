@@ -34,15 +34,33 @@
 #include <wtf/SortedArrayMap.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_SCROLL_ANIMATOR
+#include "ScrollAnimatorScrollPhysicsClient.h"
+#include "ScrollPhysicsControllerHolder.h"
+
+// KeyboardScrollingAnimator.swift accepts a key identifier unit as PackedASCIILiteral's parse() does: at most 0x7F.
+static_assert(isASCII(char16_t { 0x7F }) && !isASCII(char16_t { 0x80 }));
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(KeyboardScrollingAnimator);
+
+#if USE_SWIFT_SCROLL_ANIMATOR
+static ScrollAnimator& owningScrollAnimator(ScrollableArea& scrollableArea)
+{
+    auto* animator = scrollableArea.existingScrollAnimator();
+    RELEASE_ASSERT(animator);
+    return *animator;
+}
+#endif
 
 KeyboardScrollingAnimator::KeyboardScrollingAnimator(ScrollableArea& scrollableArea)
     : m_scrollableArea(scrollableArea)
 {
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 const std::optional<KeyboardScrollingKey> keyboardScrollingKeyForKeyboardEvent(const KeyboardEvent& event)
 {
     auto* platformEvent = event.underlyingPlatformEvent();
@@ -73,9 +91,11 @@ const std::optional<KeyboardScrollingKey> keyboardScrollingKeyForKeyboardEvent(c
 
     return { };
 }
+#endif
 
 const std::optional<ScrollDirection> scrollDirectionForKeyboardEvent(const KeyboardEvent& event)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     auto key = keyboardScrollingKeyForKeyboardEvent(event);
     if (!key)
         return { };
@@ -102,10 +122,15 @@ const std::optional<ScrollDirection> scrollDirectionForKeyboardEvent(const Keybo
     }();
 
     return direction;
+#else
+    auto* platformEvent = event.underlyingPlatformEvent();
+    return platformEvent ? keyboardScrollDirection(platformEvent->type(), platformEvent->keyIdentifier(), platformEvent->text(), event.modifierKeys().toRaw()) : std::nullopt;
+#endif
 }
 
 const std::optional<ScrollGranularity> scrollGranularityForKeyboardEvent(const KeyboardEvent& event)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     auto key = keyboardScrollingKeyForKeyboardEvent(event);
     if (!key)
         return { };
@@ -142,8 +167,13 @@ const std::optional<ScrollGranularity> scrollGranularityForKeyboardEvent(const K
 
     RELEASE_ASSERT_NOT_REACHED();
     return { };
+#else
+    auto* platformEvent = event.underlyingPlatformEvent();
+    return platformEvent ? keyboardScrollGranularity(platformEvent->type(), platformEvent->keyIdentifier(), platformEvent->text(), event.modifierKeys().toRaw()) : std::nullopt;
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 float KeyboardScrollingAnimator::scrollDistance(ScrollDirection direction, ScrollGranularity granularity) const
 {
     CheckedRef scrollableArea = m_scrollableArea;
@@ -204,9 +234,11 @@ std::optional<KeyboardScroll> KeyboardScrollingAnimator::makeKeyboardScroll(Scro
 
     return scroll;
 }
+#endif
 
 bool KeyboardScrollingAnimator::beginKeyboardScrollGesture(ScrollDirection direction, ScrollGranularity granularity, bool isKeyRepeat)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     auto scroll = makeKeyboardScroll(direction, granularity);
     if (!scroll)
         return false;
@@ -259,22 +291,36 @@ bool KeyboardScrollingAnimator::beginKeyboardScrollGesture(ScrollDirection direc
     scrollableArea->beginKeyboardScroll(*scroll);
 
     return true;
+#else
+    auto& animator = owningScrollAnimator(m_scrollableArea);
+    return animator.m_physics->controller.keyboardScrollingAnimatorBeginKeyboardScrollGesture(ScrollAnimatorScrollPhysicsClientState(animator).facade(), direction, granularity, isKeyRepeat);
+#endif
 }
 
 void KeyboardScrollingAnimator::handleKeyUpEvent()
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     if (!m_scrollTriggeringKeyIsPressed)
         return;
 
     m_scrollTriggeringKeyIsPressed = false;
 
     protect(m_scrollableArea)->endKeyboardScroll(false);
+#else
+    auto& animator = owningScrollAnimator(m_scrollableArea);
+    animator.m_physics->controller.keyboardScrollingAnimatorHandleKeyUpEvent(ScrollAnimatorScrollPhysicsClientState(animator).facade());
+#endif
 }
 
 void KeyboardScrollingAnimator::stopScrollingImmediately()
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     m_scrollTriggeringKeyIsPressed = false;
     protect(m_scrollableArea)->endKeyboardScroll(true);
+#else
+    auto& animator = owningScrollAnimator(m_scrollableArea);
+    animator.m_physics->controller.keyboardScrollingAnimatorStopScrollingImmediately(ScrollAnimatorScrollPhysicsClientState(animator).facade());
+#endif
 }
 
 } // namespace WebCore
