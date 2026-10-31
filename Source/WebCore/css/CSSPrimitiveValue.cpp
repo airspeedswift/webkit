@@ -210,6 +210,10 @@ Ref<CSSPrimitiveValue> CSSPrimitiveValue::create(double value, CSSUnitType type)
             return result.releaseNonNull();
         break;
     default:
+        // The unit becomes the tag of m_value: Calc would make `value`'s bits a CSSCalc::Value pointer, and the
+        // 7-bit m_primitiveUnitType keeps only the low bits of a unit past the last enumerator.
+        static_assert(std::to_underlying(CSSUnitType::QuirkyEm) < 128);
+        RELEASE_ASSERT(std::to_underlying(type) <= std::to_underlying(CSSUnitType::QuirkyEm) && type != CSSUnitType::Calc);
         break;
     }
     return adoptRef(*new CSSPrimitiveValue(value, type));
