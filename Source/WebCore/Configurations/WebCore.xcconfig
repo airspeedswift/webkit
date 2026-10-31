@@ -82,7 +82,7 @@ WK_SWIFT_SCROLL_ANIMATOR_PHYSICS_CONDITIONS_YES[sdk=macosx*] = USE_SWIFT_SCROLL_
 // Implements ScrollAnimator, ScrollAnimatorMac and KeyboardScrollingAnimator in Swift on macOS. It needs
 // WK_USE_SWIFT_SCROLL_ANIMATOR_PHYSICS. The define changes ScrollAnimator's layout, so WebKit's BaseTarget.xcconfig
 // and TestWebKitAPI's Base.xcconfig declare the same setting; WebKitLegacy.xcconfig declares it for ScrollableArea.h.
-WK_USE_SWIFT_SCROLL_ANIMATOR = NO;
+WK_USE_SWIFT_SCROLL_ANIMATOR = YES;
 WK_SWIFT_SCROLL_ANIMATOR_DEFINES_YES = USE_SWIFT_SCROLL_ANIMATOR=0;
 WK_SWIFT_SCROLL_ANIMATOR_DEFINES_YES[sdk=macosx*] = USE_SWIFT_SCROLL_ANIMATOR=1;
 WK_SWIFT_SCROLL_ANIMATOR_DEFINES_NO = USE_SWIFT_SCROLL_ANIMATOR=0;
