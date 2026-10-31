@@ -36,6 +36,7 @@ namespace WebCore {
 
 class PlatformKeyboardEvent;
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 enum class KeyboardScrollingKey : uint8_t {
     LeftArrow,
     RightArrow,
@@ -49,6 +50,7 @@ enum class KeyboardScrollingKey : uint8_t {
 };
 
 WEBCORE_EXPORT const std::optional<KeyboardScrollingKey> keyboardScrollingKeyForKeyboardEvent(const KeyboardEvent&);
+#endif
 WEBCORE_EXPORT const std::optional<ScrollDirection> scrollDirectionForKeyboardEvent(const KeyboardEvent&);
 WEBCORE_EXPORT const std::optional<ScrollGranularity> scrollGranularityForKeyboardEvent(const KeyboardEvent&);
 
@@ -64,12 +66,18 @@ public:
     WEBCORE_EXPORT void stopScrollingImmediately();
 
 private:
+#if !USE_SWIFT_SCROLL_ANIMATOR
     std::optional<KeyboardScroll> makeKeyboardScroll(ScrollDirection, ScrollGranularity) const;
     float scrollDistance(ScrollDirection, ScrollGranularity) const;
     RectEdges<bool> scrollingDirections() const;
+#endif
 
     WeakRef<ScrollableArea> m_scrollableArea;
     bool m_scrollTriggeringKeyIsPressed { false };
+
+#if USE_SWIFT_SCROLL_ANIMATOR
+    friend class ScrollAnimatorScrollPhysicsClient;
+#endif
 };
 
 } // namespace WebCore

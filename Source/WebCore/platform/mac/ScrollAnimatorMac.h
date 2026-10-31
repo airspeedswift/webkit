@@ -53,11 +53,13 @@ private:
 
     bool processWheelEventForScrollSnap(const PlatformWheelEvent&) final;
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
     // ScrollingEffectsControllerClient.
     bool allowsHorizontalStretching(const PlatformWheelEvent&) const final;
     bool allowsVerticalStretching(const PlatformWheelEvent&) const final;
     bool shouldRubberBandOnSide(BoxSide, FloatSize) const final;
     bool isScrollDeltaOpposingStretch(ScrollEventAxis, float) const final;
+#endif
 };
 
 } // namespace WebCore
