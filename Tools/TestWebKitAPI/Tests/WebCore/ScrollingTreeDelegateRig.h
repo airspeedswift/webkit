@@ -169,6 +169,7 @@ struct SnapDescription {
     float areaLength { 300 };
     ScrollSnapStrictness strictness { ScrollSnapStrictness::Mandatory };
     std::optional<unsigned> stopAlways;
+    bool areasLargerThanViewport { false };
 };
 
 inline FloatScrollSnapOffsetsInfo snapOffsets(const SnapDescription& description)
@@ -183,6 +184,7 @@ inline FloatScrollSnapOffsetsInfo snapOffsets(const SnapDescription& description
             info.snapAreas.append(axis == ScrollEventAxis::Vertical ? FloatRect(0, position, 400, description.areaLength) : FloatRect(position, 0, description.areaLength, 400));
             info.snapAreasIDs.append(NodeIdentifier(areaIndex + 1));
             SnapOffset<float> offset { position, description.stopAlways && *description.stopAlways == i ? ScrollSnapStop::Always : ScrollSnapStop::Normal, false, false, false, NodeIdentifier(areaIndex + 1), { } };
+            offset.hasSnapAreaLargerThanViewport = description.areasLargerThanViewport;
             offset.snapAreaIndices.append(areaIndex);
             list.append(WTF::move(offset));
         }
@@ -300,7 +302,7 @@ public:
         auto animations = std::exchange(m_pendingScrollAnimations, { });
         for (auto& [id, request] : animations) {
             if (RefPtr node = dynamicDowncast<ScrollingTreeScrollingNode>(nodeForID(id)))
-                node->startAnimatedScrollToPosition(request.destinationPosition(node->currentScrollPosition()));
+                node->startAnimatedScrollToPosition(request.destinationPosition(node->currentScrollPosition()), request.animationCurve);
         }
         auto keyboardScrolls = std::exchange(m_pendingKeyboardScrolls, { });
         for (auto& [id, request] : keyboardScrolls) {
@@ -529,6 +531,29 @@ public:
     {
         RigClock::now() += frameInterval;
         m_tree->displayDidRefreshAt(RigClock::read());
+        ++m_entries;
+        observe();
+    }
+
+    // Runs the scrolling thread's run loop until the discrete scroll snap and scrollend timers the nodes started have
+    // fired. Their 100 ms delay is in real time, not on RigClock, so this runs the run loop in 10 ms slices until no
+    // timer due within 150 ms of the call remains. After 2 s it stops and records that in the digest.
+    void fireDiscreteScrollTimers()
+    {
+        auto runLoop = CFRunLoopGetCurrent();
+        auto start = CFAbsoluteTimeGetCurrent();
+        auto due = start + 0.15;
+        auto limit = start + 2;
+        while (true) {
+            auto next = CFRunLoopGetNextTimerFireDate(runLoop, kCFRunLoopDefaultMode);
+            if (!next || next > due)
+                break;
+            if (CFAbsoluteTimeGetCurrent() >= limit) {
+                m_digest.u(~0ull);
+                break;
+            }
+            CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.01, false);
+        }
         ++m_entries;
         observe();
     }
@@ -818,6 +843,77 @@ inline void mixedSessionShape(Session& session)
             break;
         }
         }
+    }
+}
+
+inline void discreteWheelSnapShape(Session& session)
+{
+    session.addRoot(mainFrameSetup({ 0, 3800 }));
+    session.state(0)->setSnapOffsetsInfo(snapOffsets({ { }, evenlySpaced(0, 380, 50), 380, ScrollSnapStrictness::Mandatory, std::nullopt }));
+    session.commit();
+    // Two bursts, so a pass waits on the timers only twice: three ticks down, then one tick up.
+    static constexpr struct {
+        unsigned ticks;
+        float delta;
+    } bursts[] = { { 3, -40 }, { 1, 40 } };
+    for (auto burst : bursts) {
+        for (unsigned tick = 0; tick < burst.ticks; ++tick)
+            session.wheel(0, { PlatformWheelEventPhase::None, PlatformWheelEventPhase::None, { 0, burst.delta }, PlatformWheelEventGranularity::ScrollByPixelWheelEvent, false }, tick ? 0.03 : 0.2);
+        session.fireDiscreteScrollTimers();
+        session.framesUntilIdle();
+    }
+}
+
+// Snap offsets on one or both axes: none, one, two, a few or many, with snap areas smaller or larger than the
+// snapport, either strictness, and a scroll-snap-stop: always offset in some.
+inline SnapDescription snapSelectionOffsets(unsigned variant)
+{
+    static constexpr unsigned counts[] = { 0, 1, 2, 5, 50 };
+    unsigned horizontalCount = counts[variant % 5];
+    unsigned verticalCount = counts[(variant / 5) % 5];
+    if (!horizontalCount && !verticalCount)
+        verticalCount = 50;
+    bool large = variant % 3 == 2;
+    float spacing = large ? 1000 : 350.3f;
+    SnapDescription description { evenlySpaced(0, spacing, horizontalCount), evenlySpaced(0, spacing, verticalCount), large ? 900.0f : 300.0f, variant % 2 ? ScrollSnapStrictness::Proximity : ScrollSnapStrictness::Mandatory, std::nullopt, large };
+    if (variant % 7 == 3)
+        description.stopAlways = 1;
+    return description;
+}
+
+inline void snapSelectionShape(Session& session)
+{
+    auto setup = mainFrameSetup({ 0, 0 });
+    setup.contents = { 60000, 60000 };
+    session.addRoot(setup);
+    session.commit();
+    Lcg random(10);
+    for (unsigned i = 0; i < 100; ++i) {
+        auto description = snapSelectionOffsets(i);
+        // A position at or near a snap offset on each axis: at one, a pixel or half a pixel off it, a proximity
+        // threshold off it, or halfway to the next. The commit clamps it to the scroll range.
+        auto positionNear = [&](const std::vector<float>& offsets, float viewportLength) {
+            if (offsets.empty())
+                return random.between(0, 2000);
+            float offset = offsets[random.range(0, static_cast<int>(offsets.size()) - 1)];
+            static constexpr float shifts[] = { 0, 0, 0.5f, -0.5f, 1, -1, 0.3f, -0.3f };
+            unsigned kind = random.range(0, 8);
+            float shift = kind < 8 ? shifts[kind] : 0.5f * (offsets.size() > 1 ? offsets[1] - offsets[0] : viewportLength);
+            if (kind == 6 || kind == 7)
+                shift *= viewportLength;
+            return offset + shift;
+        };
+        FloatPoint destination { positionNear(description.horizontal, 800), positionNear(description.vertical, 600) };
+        session.state(0)->setSnapOffsetsInfo(FloatScrollSnapOffsetsInfo { });
+        session.requestScroll(0, ScrollRequestType::PositionUpdate, destination);
+        session.commit();
+        session.state(0)->setSnapOffsetsInfo(snapOffsets(description));
+        session.commit();
+        // A gesture that does not move: it reports the snap indices the commit chose, and its end chooses again.
+        Session::Gesture gesture;
+        gesture.gapBefore = 0.2;
+        session.gesture(0, gesture);
+        session.framesUntilIdle();
     }
 }
 
