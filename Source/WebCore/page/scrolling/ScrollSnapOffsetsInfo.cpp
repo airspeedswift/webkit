@@ -42,6 +42,16 @@
 #include "StyleComputedStyle+GettersInlines.h"
 #include <ranges>
 
+#if !defined(USE_SWIFT_SCROLL_SNAP)
+#define USE_SWIFT_SCROLL_SNAP 0
+#endif
+
+#if USE_SWIFT_SCROLL_SNAP
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+#error "USE_SWIFT_SCROLL_SNAP requires USE_SWIFT_SCROLL_ANIMATOR_PHYSICS"
+#endif
+#endif
+
 namespace WebCore {
 
 template <typename UnitType, typename RectType>
@@ -70,6 +80,7 @@ bool ScrollSnapOffsetsInfo<UnitType, RectType>::snapOffsetCoversSnapport(const S
 template bool LayoutScrollSnapOffsetsInfo::snapOffsetCoversSnapport(const SnapOffset<LayoutUnit>&, ScrollEventAxis, LayoutUnit, LayoutUnit) const;
 template bool FloatScrollSnapOffsetsInfo::snapOffsetCoversSnapport(const SnapOffset<float>&, ScrollEventAxis, float, float) const;
 
+#if !USE_SWIFT_SCROLL_SNAP
 template <typename UnitType>
 struct PotentialSnapPointSearchResult {
     std::optional<std::pair<UnitType, unsigned>> previous;
@@ -288,6 +299,7 @@ static std::pair<LayoutType, std::optional<unsigned>> closestSnapOffsetWithInfoA
         return velocity < 0 ? *previous : *next;
     return distanceToPrevious < distanceToNext ? *previous : *next;
 }
+#endif
 
 static LayoutRect computeScrollSnapPortRect(const Style::ComputedStyle& style, const LayoutRect& rect)
 {
@@ -601,6 +613,7 @@ FloatScrollSnapOffsetsInfo LayoutScrollSnapOffsetsInfo::convertUnits(float devic
 
 }
 
+#if !USE_SWIFT_SCROLL_SNAP
 template <typename InfoType, typename UnitType, typename SizeType, typename PointType>
 std::pair<UnitType, std::optional<unsigned>> static ensureVisibleTarget(const InfoType& info, std::pair<UnitType, std::optional<unsigned>>& horizontal, std::pair<UnitType, std::optional<unsigned>>& vertical, ScrollEventAxis axis, const SizeType& viewportSize, PointType scrollDestinationOffset)
 {
@@ -623,6 +636,7 @@ std::pair<UnitType, std::optional<unsigned>> static ensureVisibleTarget(const In
     }
     return axis == ScrollEventAxis::Horizontal ? horizontal : vertical;
 }
+#endif
 
 #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 template <> template <>
@@ -634,6 +648,7 @@ std::pair<LayoutUnit, std::optional<unsigned>> LayoutScrollSnapOffsetsInfo::clos
 }
 #endif
 
+#if !USE_SWIFT_SCROLL_SNAP
 template <> template<>
 std::pair<float, std::optional<unsigned>> FloatScrollSnapOffsetsInfo::closestSnapOffset(ScrollEventAxis axis, const FloatSize& viewportSize, FloatPoint scrollDestinationOffset, float velocity, std::optional<float> originalPositionForDirectionalSnapping, ScrollSnapPointSelectionMethod selectionMethod) const
 {
@@ -641,5 +656,6 @@ std::pair<float, std::optional<unsigned>> FloatScrollSnapOffsetsInfo::closestSna
     auto vertical = closestSnapOffsetWithInfoAndAxis(*this, ScrollEventAxis::Vertical, viewportSize, scrollDestinationOffset, velocity, originalPositionForDirectionalSnapping, selectionMethod);
     return ensureVisibleTarget(*this, horizontal, vertical, axis, viewportSize, scrollDestinationOffset);
 }
+#endif
 
 }
