@@ -54,4 +54,6 @@
 
 #include "CSSParserFastPathsSwiftTypes.h"
 
+#include "CSSCalcSwiftTypes.h"
+
 #include "WebCoreSwift-Generated.h"

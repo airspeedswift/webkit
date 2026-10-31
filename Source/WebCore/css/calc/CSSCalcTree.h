@@ -36,6 +36,8 @@
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
+#include <WebCore/CSSCalcSwiftTypes.h>
+
 namespace WebCore {
 
 namespace Style {
@@ -298,8 +300,20 @@ struct Children {
 
 enum class Stage : bool { Specified, Computed };
 
+// A tree as records (CSSCalcSwiftTypes.h), and the values they name by index: anchor names, random() sharing (auto,
+// a key, or a fixed value) and calc-mix() weights.
+using Payload = Variant<CSS::CustomIdent, RandomSharingAuto, RandomSharingKey, CSS::Number<CSS::ClosedUnitRange>, CSS::Percentage<CSS::ClosedPercentageRange>>;
+struct TreeStorage {
+    Vector<CSSCalcNodeRecord, 4> nodes;
+    Vector<Payload> payloads;
+
+    // Compares the records, and for each record the payload it names rather than the payload's index.
+    WEBCORE_EXPORT bool operator==(const TreeStorage&) const;
+};
+
 struct Tree {
-    Child root;
+    TreeStorage storage;
+    bool rootIsPercentage() const { return storage.nodes[0].kind == static_cast<uint8_t>(CSSCalcNodeKind::Percentage); }
     Type type;
     Stage stage;
 
@@ -308,6 +322,9 @@ struct Tree {
 
     bool operator==(const Tree&) const = default;
 };
+
+// The tree of a Typed OM expression, which builds it as nodes.
+Tree makeTree(const Child&, Type, Stage, bool requiresConversionData);
 
 struct Sum {
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(Sum);
@@ -957,34 +974,9 @@ std::optional<Type> toType(const Sum&);
 std::optional<Type> toType(const Product&);
 std::optional<Type> toType(const Negate&);
 std::optional<Type> toType(const Invert&);
-NODELETE std::optional<Type> toType(const Deg2Rad&);
 std::optional<Type> toType(const Min&);
 std::optional<Type> toType(const Max&);
 std::optional<Type> toType(const Clamp&);
-std::optional<Type> toType(const RoundNearest&);
-std::optional<Type> toType(const RoundUp&);
-std::optional<Type> toType(const RoundDown&);
-std::optional<Type> toType(const RoundToZero&);
-std::optional<Type> toType(const Mod&);
-std::optional<Type> toType(const Rem&);
-std::optional<Type> toType(const Sin&);
-std::optional<Type> toType(const Cos&);
-std::optional<Type> toType(const Tan&);
-std::optional<Type> toType(const Asin&);
-std::optional<Type> toType(const Acos&);
-std::optional<Type> toType(const Atan&);
-std::optional<Type> toType(const Atan2&);
-std::optional<Type> toType(const Pow&);
-std::optional<Type> toType(const Sqrt&);
-std::optional<Type> toType(const Hypot&);
-std::optional<Type> toType(const Log&);
-std::optional<Type> toType(const Exp&);
-std::optional<Type> toType(const Abs&);
-std::optional<Type> toType(const Sign&);
-std::optional<Type> toType(const Random&);
-std::optional<Type> toType(const Progress&);
-std::optional<Type> toType(const ProgressNoClamp&);
-std::optional<Type> toType(const CalcMix&);
 
 // MARK: CSSUnitType Evaluation
 
@@ -1012,21 +1004,10 @@ constexpr CSSUnitType toCSSUnit(const NonCanonicalDimension& dimension) { return
 
 // MARK: Predicates
 
-bool isNumeric(const Child& root);
-
 // Convenience constructors
 
 // Makes the appropriate child type (number, percentage, canonical-dimensions, non-canonical-dimension) based on the CSSUnitType.
 NODELETE Child makeNumeric(double, CSSUnitType);
-
-Sum add(Child&& a, Child&& b);
-Product multiply(Child&& a, Child&& b);
-Sum subtract(Child&& a, Child&& b);
-
-NODELETE Child makeChildWithValueBasedOn(double value, const Number&);
-NODELETE Child makeChildWithValueBasedOn(double value, const Percentage&);
-NODELETE Child makeChildWithValueBasedOn(double value, const CanonicalDimension&);
-NODELETE Child makeChildWithValueBasedOn(double value, const NonCanonicalDimension&);
 
 // MARK: Tuple Conformance
 

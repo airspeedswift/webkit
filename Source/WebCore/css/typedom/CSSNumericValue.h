@@ -90,8 +90,6 @@ public:
 
     static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSS::UnevaluatedCalcBase&);
     static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSSCalc::Tree&);
-    static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSSCalc::Child&);
-    static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSSCalc::ChildOrNone&);
 
 protected:
     ExceptionOr<Ref<CSSNumericValue>> addInternal(Vector<Ref<CSSNumericValue>>&&);

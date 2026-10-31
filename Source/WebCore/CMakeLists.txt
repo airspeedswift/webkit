@@ -3303,6 +3303,24 @@ list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES
     "(^|/)XMLDocumentParserLibxml2\\.cpp( |$)")
 list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSTokenizer\\.cpp( |$)")
 list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSParserFastPaths\\.cpp( |$)")
+# The calc sources that call CSSCalcSwift.swift include WebCore-Swift.h, so they compile
+# in WebCore_SwiftInterop, after WebCore's Swift module.
+set(_webcore_css_calc_swift_interop_sources
+    css/calc/CSSCalcTree+Evaluation.cpp
+    css/calc/CSSCalcTree+Parser.cpp
+    css/calc/CSSCalcTree+Serialization.cpp
+    css/calc/CSSCalcTree+Simplification.cpp
+    css/typedom/CSSNumericValue.cpp
+    style/calc/StyleCalculationTree+Conversion.cpp
+    style/calc/StyleCalculationTree+Evaluation.cpp
+    style/calc/StyleCalculationTree+Substitution.cpp
+    style/calc/StyleCalculationTree.cpp)
+foreach (_source IN LISTS _webcore_css_calc_swift_interop_sources)
+    get_filename_component(_name "${_source}" NAME)
+    string(REPLACE "+" "\\+" _name "${_name}")
+    string(REPLACE "." "\\." _name "${_name}")
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)${_name}( |$)")
+endforeach ()
 
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
@@ -3397,6 +3415,13 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/SIMDHighBitMask.swift
         ${WEBCORE_DIR}/SIMDSaturatingSubtract.swift
         ${WEBCORE_DIR}/SIMDTableLookup.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcEvaluation.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcNode.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcParser.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSerialization.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSimplification.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSwift.swift
+        ${WEBCORE_DIR}/css/calc/StyleCalculationSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
@@ -3441,6 +3466,11 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
 
     list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSParserFastPaths.cpp)
     list(APPEND _webcore_swift_core_submodules css/parser/CSSParserFastPathsSwiftTypes.h)
+
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_css_calc_swift_interop_sources})
+    list(APPEND _webcore_swift_core_submodules css/calc/CSSCalcSwiftTypes.h css/parser/CSSParserToken.h
+        style/AnchorPositionEvaluator.h)
+    list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 
     webkit_target_add_swift_options(WebCore
         "-library-level spi"

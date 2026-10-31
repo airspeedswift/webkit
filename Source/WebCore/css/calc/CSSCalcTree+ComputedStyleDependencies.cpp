@@ -84,7 +84,34 @@ void collectComputedStyleDependencies(const Child& root, ComputedStyleDependenci
 
 void collectComputedStyleDependencies(const Tree& tree, ComputedStyleDependencies& dependencies)
 {
-    collectComputedStyleDependencies(tree.root, dependencies);
+    auto& nodes = tree.storage.nodes;
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        auto& node = nodes[i];
+        switch (static_cast<CSSCalcNodeKind>(node.kind)) {
+        case CSSCalcNodeKind::NonCanonicalDimension:
+        case CSSCalcNodeKind::Symbol:
+            if (auto lengthUnit = CSS::toLengthUnit(static_cast<CSSUnitType>(node.unit)))
+                CSS::collectComputedStyleDependencies(dependencies, *lengthUnit);
+            break;
+        case CSSCalcNodeKind::SiblingCount:
+        case CSSCalcNodeKind::SiblingIndex:
+            dependencies.siblingFunctions = true;
+            break;
+        case CSSCalcNodeKind::CalcMixItem:
+            if (node.payload != UINT32_MAX)
+                CSS::collectComputedStyleDependencies(dependencies, std::get<CSS::Percentage<CSS::ClosedPercentageRange>>(tree.storage.payloads[node.payload]));
+            break;
+        case CSSCalcNodeKind::Anchor:
+        case CSSCalcNodeKind::AnchorSize:
+            dependencies.anchorFunctions = true;
+            // An anchor side given as a percentage has no dependencies of its own.
+            if (node.flags & CSSCalcNodeFlagSideIsChild)
+                i += nodes[i + 1].subtreeSize;
+            break;
+        default:
+            break;
+        }
+    }
 }
 
 } // namespace CSSCalc
