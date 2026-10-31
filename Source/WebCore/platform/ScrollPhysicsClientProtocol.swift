@@ -39,7 +39,12 @@ protocol ScrollPhysicsClientProtocol: ~Copyable {
 
     mutating func allowsHorizontalScrolling() -> Bool
     mutating func allowsVerticalScrolling() -> Bool
+    #if USE_SWIFT_SCROLL_ANIMATOR
+    // The controller is the one calling, so that a client in Swift can update it without a C++ call.
+    mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping, _ controller: ScrollPhysicsController)
+    #else
     mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping)
+    #endif
 
     mutating func allowsHorizontalStretching(_ event: borrowing @_addressable WebCore.PlatformWheelEvent) -> Bool
     mutating func allowsVerticalStretching(_ event: borrowing @_addressable WebCore.PlatformWheelEvent) -> Bool

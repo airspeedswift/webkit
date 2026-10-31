@@ -74,6 +74,7 @@ using namespace WebCore;
 enum class TraceLevel : uint8_t {
     Full, // Every call on the scrollable area, clock read, timer event, entry and return value.
     Light, // setScrollOffset() offsets and entry return values only.
+    All, // Full, plus the area's answers to the queries that only configurable areas vary.
 };
 
 class Trace {
@@ -107,9 +108,25 @@ public:
 
     void countEvent() { ++m_events; }
 
+    // Sees each recorded event's kind and name, for counting.
+    using Observer = void (*)(void* context, char kind, const char* name);
+    void setObserver(Observer observer, void* context)
+    {
+        m_observer = observer;
+        m_observerContext = context;
+    }
+
+    void observe(char kind, const char* name)
+    {
+        if (m_observer)
+            m_observer(m_observerContext, kind, name);
+    }
+
 private:
     static constexpr uint64_t initialHash = 14695981039346656037ull;
     TraceLevel m_level;
+    Observer m_observer { nullptr };
+    void* m_observerContext { nullptr };
     uint64_t m_hash { initialHash };
     uint64_t m_events { 0 };
     uint64_t m_entries { 0 };
@@ -119,16 +136,23 @@ private:
 // 'K' clock read, 'T' timer, 'S' snapshot, 'X' case boundary), a name and its values. An event is hashed only
 // when the trace is Full, or when it is marked light. Each value's key names it in the call site; keys are not
 // hashed.
+// An All trace hashes every event a Full trace does.
 class TraceLine {
 public:
     TraceLine(Trace& trace, char kind, const char* name, bool light = false)
         : m_trace(trace)
         , m_active(trace.level() == TraceLevel::Full || light)
     {
+        m_active = m_active || trace.level() == TraceLevel::All;
         if (!m_active)
             return;
         m_trace.countEvent();
+        m_trace.observe(kind, name);
         if (m_trace.level() == TraceLevel::Full) {
+            m_trace.bytes(&kind, 1);
+            m_trace.bytes(name, std::strlen(name) + 1);
+        }
+        if (m_trace.level() == TraceLevel::All) {
             m_trace.bytes(&kind, 1);
             m_trace.bytes(name, std::strlen(name) + 1);
         }
@@ -297,6 +321,8 @@ enum class ReentryAction : uint8_t {
     CancelAnimations,
     ScrollToPositionWithAnimation,
     KeyboardPageScroll,
+    SetCurrentPosition,
+    ScrollToPositionWithoutAnimation,
 };
 
 struct ScriptedConfig {
@@ -316,6 +342,28 @@ struct ScriptedConfig {
     ReentryAction reentryAction { ReentryAction::None };
     uint32_t reentryAtScroll { 0 };
     FloatPoint reentryDestination;
+    // Without a scrollbar the area returns null for it.
+    bool hasHorizontalScrollbar { true };
+    bool hasVerticalScrollbar { true };
+    // Each scrollbar's pixels per step, by which stepped scrolling multiplies a wheel delta.
+    int horizontalPixelStep { 1 };
+    int verticalPixelStep { 1 };
+    // Replaces the elasticity that allows*Stretching gives, when set.
+    std::optional<ScrollElasticity> horizontalScrollElasticity;
+    std::optional<ScrollElasticity> verticalScrollElasticity;
+    OverscrollBehavior horizontalOverscrollBehavior { OverscrollBehavior::Auto };
+    OverscrollBehavior verticalOverscrollBehavior { OverscrollBehavior::Auto };
+    // As a list box: wheel events scroll by whole steps.
+    bool hasSteppedScrolling { false };
+    // Non-zero for right-to-left or bottom-to-top content.
+    IntPoint scrollOrigin;
+    // Taken off the vertical page step, as for fixed headers and footers.
+    float fixedContentPageStepAdjustment { 0 };
+    // Makes isUserScrollInProgress() answer true whatever the animator says.
+    bool userScrollInProgress { false };
+    // What requestStartKeyboardScrollAnimation() and requestStopKeyboardScrollAnimation() answer.
+    bool startsKeyboardScrollAnimation { false };
+    bool stopsKeyboardScrollAnimation { false };
 };
 
 inline IntSize clampedIntSize(FloatSize size)
@@ -483,6 +531,8 @@ public:
         m_ready = false;
         m_horizontalScrollbar = nullptr;
         m_verticalScrollbar = nullptr;
+        m_hiddenHorizontalScrollbar = nullptr;
+        m_hiddenVerticalScrollbar = nullptr;
     }
 
     // CheckedPtr interface
@@ -509,16 +559,34 @@ public:
     // Applies the scripted extents and policies to the scrollbars, as layout does for a frame.
     void applyConfig()
     {
+        if (m_hiddenHorizontalScrollbar)
+            m_horizontalScrollbar = std::exchange(m_hiddenHorizontalScrollbar, nullptr);
+        if (m_hiddenVerticalScrollbar)
+            m_verticalScrollbar = std::exchange(m_hiddenVerticalScrollbar, nullptr);
+        // As layout sets the origin, but leaving scrollOriginChanged() false: ScrollableArea::setScrollOrigin() is
+        // not exported.
+        const_cast<IntPoint&>(scrollOrigin()) = m_config.scrollOrigin;
         auto visible = visibleSize();
         auto contents = contentsSize();
         m_horizontalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visible.width()), Scrollbar::pageStep(visible.width()));
         m_verticalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visible.height()), Scrollbar::pageStep(visible.height()));
+        m_horizontalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visible.width()), Scrollbar::pageStep(visible.width()), m_config.horizontalPixelStep);
+        m_verticalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visible.height()), Scrollbar::pageStep(visible.height()), m_config.verticalPixelStep);
         m_horizontalScrollbar->setProportion(visible.width(), contents.width());
         m_verticalScrollbar->setProportion(visible.height(), contents.height());
         m_horizontalScrollbar->setEnabled(m_config.allowsHorizontalScrolling);
         m_verticalScrollbar->setEnabled(m_config.allowsVerticalScrolling);
         setHorizontalScrollElasticity(m_config.allowsHorizontalStretching ? ScrollElasticity::Automatic : ScrollElasticity::None);
         setVerticalScrollElasticity(m_config.allowsVerticalStretching ? ScrollElasticity::Automatic : ScrollElasticity::None);
+        if (m_config.horizontalScrollElasticity)
+            setHorizontalScrollElasticity(*m_config.horizontalScrollElasticity);
+        if (m_config.verticalScrollElasticity)
+            setVerticalScrollElasticity(*m_config.verticalScrollElasticity);
+        // An area without a scrollbar keeps it aside, so that the scrollbar's own state carries over.
+        if (!m_config.hasHorizontalScrollbar)
+            m_hiddenHorizontalScrollbar = std::exchange(m_horizontalScrollbar, nullptr);
+        if (!m_config.hasVerticalScrollbar)
+            m_hiddenVerticalScrollbar = std::exchange(m_verticalScrollbar, nullptr);
     }
 
     // ScrollableArea
@@ -542,6 +610,44 @@ public:
     // follows the system's scroller style.
     Scrollbar* horizontalScrollbar() const final { return m_horizontalScrollbar.get(); }
     Scrollbar* verticalScrollbar() const final { return m_verticalScrollbar.get(); }
+
+    // Traced only in an All trace, so that Full digests do not depend on them.
+    bool hasSteppedScrolling() const final
+    {
+        if (m_trace.level() == TraceLevel::All)
+            TraceLine(m_trace, 'C', "hasSteppedScrolling").b("r", m_config.hasSteppedScrolling);
+        return m_config.hasSteppedScrolling;
+    }
+
+    OverscrollBehavior horizontalOverscrollBehavior() const final
+    {
+        if (m_trace.level() == TraceLevel::All)
+            TraceLine(m_trace, 'C', "horizontalOverscrollBehavior").u("r", static_cast<uint8_t>(m_config.horizontalOverscrollBehavior));
+        return m_config.horizontalOverscrollBehavior;
+    }
+
+    OverscrollBehavior verticalOverscrollBehavior() const final
+    {
+        if (m_trace.level() == TraceLevel::All)
+            TraceLine(m_trace, 'C', "verticalOverscrollBehavior").u("r", static_cast<uint8_t>(m_config.verticalOverscrollBehavior));
+        return m_config.verticalOverscrollBehavior;
+    }
+
+    float adjustVerticalPageScrollStepForFixedContent(float step) final
+    {
+        float result = step - m_config.fixedContentPageStepAdjustment;
+        if (m_trace.level() == TraceLevel::All)
+            TraceLine(m_trace, 'C', "adjustVerticalPageScrollStepForFixedContent").f("step", step).f("r", result);
+        return result;
+    }
+
+    // Seen as the scroll anchor being cleared.
+    ScrollAnchoringController* scrollAnchoringController() const final
+    {
+        if (m_trace.level() == TraceLevel::All)
+            TraceLine(m_trace, 'C', "scrollAnchoringController");
+        return nullptr;
+    }
 
     ScrollPosition scrollPosition() const final
     {
@@ -628,6 +734,10 @@ public:
 
     bool isUserScrollInProgress() const final
     {
+        if (m_config.userScrollInProgress) {
+            TraceLine(m_trace, 'C', "isUserScrollInProgress").b("r", true);
+            return true;
+        }
         bool result = existingScrollAnimator() && existingScrollAnimator()->isUserScrollInProgress();
         TraceLine(m_trace, 'C', "isUserScrollInProgress").b("r", result);
         return result;
@@ -656,12 +766,18 @@ public:
     bool requestStartKeyboardScrollAnimation(const KeyboardScroll& scroll) final
     {
         TraceLine(m_trace, 'C', "requestStartKeyboardScrollAnimation").sz("offset", scroll.offset).u("granularity", static_cast<uint8_t>(scroll.granularity)).u("direction", static_cast<uint8_t>(scroll.direction));
+        if (m_trace.level() == TraceLevel::All)
+            TraceLine(m_trace, 'C', "keyboardScrollForce").sz("maximumVelocity", scroll.maximumVelocity).sz("force", scroll.force);
+        if (m_config.startsKeyboardScrollAnimation)
+            return true;
         return false;
     }
 
     bool requestStopKeyboardScrollAnimation(bool immediate) final
     {
         TraceLine(m_trace, 'C', "requestStopKeyboardScrollAnimation").b("immediate", immediate);
+        if (m_config.stopsKeyboardScrollAnimation)
+            return true;
         return false;
     }
 
@@ -712,6 +828,18 @@ private:
             TraceLine(m_trace, 'R', "reentry.beginKeyboardScrollGesture", true).b("r", result);
             break;
         }
+        case ReentryAction::SetCurrentPosition:
+            TraceLine(m_trace, 'E', "reentry.setCurrentPosition").pt("to", m_config.reentryDestination);
+            m_trace.countEntry();
+            animator.setCurrentPosition(m_config.reentryDestination, ScrollAnimator::NotifyScrollableArea::Yes);
+            break;
+        case ReentryAction::ScrollToPositionWithoutAnimation: {
+            TraceLine(m_trace, 'E', "reentry.scrollToPositionWithoutAnimation").pt("to", m_config.reentryDestination);
+            m_trace.countEntry();
+            bool result = animator.scrollToPositionWithoutAnimation(m_config.reentryDestination);
+            TraceLine(m_trace, 'R', "reentry.scrollToPositionWithoutAnimation", true).b("r", result);
+            break;
+        }
         }
     }
 
@@ -720,6 +848,8 @@ private:
     IntPoint m_position;
     RefPtr<Scrollbar> m_horizontalScrollbar;
     RefPtr<Scrollbar> m_verticalScrollbar;
+    RefPtr<Scrollbar> m_hiddenHorizontalScrollbar;
+    RefPtr<Scrollbar> m_hiddenVerticalScrollbar;
     bool m_ready { false };
     bool m_animationRequested { false };
     uint64_t m_scrollCount { 0 };
@@ -734,10 +864,12 @@ enum class Op : uint8_t {
     RetargetFrames, // As Frames, with retargetRunningAnimation() before each frame.
     AdvanceClock,
     ScrollToPositionWithAnimation, // To a, clamped unless flag.
+    // ScrollToPositionWithoutAnimation is clamped unless flag.
     ScrollToPositionWithoutAnimation, // To a.
     RetargetRunningAnimation, // To a, or with flag to the area's position.
     SingleAxisScroll, // By value on axis; count holds the ScrollBehavior bits.
     CancelAnimations,
+    // SetCurrentPosition with flag notifies the area.
     SetCurrentPosition, // To a, as when the position changes from outside the animator.
     KeyboardScrollGesture, // KeyboardScrollingAnimator::beginKeyboardScrollGesture(); flag for a key repeat.
     KeyUp, // KeyboardScrollingAnimator::handleKeyUpEvent(), or with flag stopScrollingImmediately().
@@ -750,6 +882,7 @@ enum class Op : uint8_t {
     FireTimers,
     SetConfig, // Replaces the scripted configuration; flag also sets the position to a.
     SetPrediction,
+    WheelEventPhase, // handleWheelEventPhase() with the wheel's phase.
     Snapshot,
 };
 
@@ -881,6 +1014,13 @@ public:
             break;
         }
         case Op::ScrollToPositionWithoutAnimation: {
+            if (step.flag) {
+                TraceLine(m_trace, 'E', "scrollToPositionWithoutAnimation").pt("to", step.a).b("unclamped", true);
+                m_trace.countEntry();
+                bool result = animator.scrollToPositionWithoutAnimation(step.a, ScrollClamping::Unclamped);
+                TraceLine(m_trace, 'R', "scrollToPositionWithoutAnimation", true).b("r", result);
+                break;
+            }
             TraceLine(m_trace, 'E', "scrollToPositionWithoutAnimation").pt("to", step.a);
             m_trace.countEntry();
             bool result = animator.scrollToPositionWithoutAnimation(step.a);
@@ -908,6 +1048,12 @@ public:
             animator.cancelAnimations();
             break;
         case Op::SetCurrentPosition:
+            if (step.flag) {
+                TraceLine(m_trace, 'E', "setCurrentPositionNotifying").pt("to", step.a);
+                m_trace.countEntry();
+                animator.setCurrentPosition(step.a, ScrollAnimator::NotifyScrollableArea::Yes);
+                break;
+            }
             TraceLine(m_trace, 'E', "setCurrentPosition").pt("to", step.a);
             m_trace.countEntry();
             m_area->setPosition(step.a);
@@ -988,6 +1134,11 @@ public:
             TraceLine(m_trace, 'E', "setPlatformMomentumScrollingPredictionEnabled").b("v", step.flag);
             ScrollingMomentumCalculator::setPlatformMomentumScrollingPredictionEnabled(step.flag);
             break;
+        case Op::WheelEventPhase:
+            TraceLine(m_trace, 'E', "handleWheelEventPhase").u("phase", static_cast<uint8_t>(step.wheel.phase));
+            m_trace.countEntry();
+            animator.handleWheelEventPhaseForTesting(step.wheel.phase);
+            break;
         case Op::Snapshot:
             snapshot();
             break;
@@ -1027,6 +1178,14 @@ public:
             if (record.alive)
                 line.b("active", record.timer->isActive());
         }
+        if (m_trace.level() == TraceLevel::All) {
+            // The animator's own position, which can be fractional, and the scrollbar animations flag, cleared so
+            // that the next snapshot shows whether a later entry set it.
+            auto& scrollbars = m_area->scrollbarsController();
+            line.pt("currentPosition", animator.currentPosition()).b("unsuspended", scrollbars.scrollbarAnimationsUnsuspendedByUserInteraction())
+                .b("originChanged", m_area->scrollOriginChanged()).u("clamping", static_cast<uint8_t>(m_area->scrollClamping()));
+            scrollbars.setScrollbarAnimationsUnsuspendedByUserInteraction(false);
+        }
     }
 
     static void traceSnapInfo(TraceLine& line, const LayoutScrollSnapOffsetsInfo& info)
@@ -1060,7 +1219,7 @@ private:
     {
         TraceLine(m_trace, 'E', "retargetRunningAnimation").pt("to", destination);
         m_trace.countEntry();
-        bool result = animator().retargetRunningAnimation(destination);
+        bool result = animator().retargetRunningAnimation(destination, ScrollAnimationCurve::Default);
         TraceLine(m_trace, 'R', "retargetRunningAnimation", true).b("r", result);
     }
 

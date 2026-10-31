@@ -37,6 +37,12 @@ namespace WebCore {
 
 // For Swift, which cannot name RectEdges<bool>.
 using RubberBandingEdges = RectEdges<bool>;
+#if USE_SWIFT_SCROLL_ANIMATOR
+// For Swift, which cannot name the std::optional specializations that the keyboard event's scroll direction and
+// granularity functions return.
+using OptionalScrollDirection = std::optional<ScrollDirection>;
+using OptionalScrollGranularity = std::optional<ScrollGranularity>;
+#endif
 #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 // For Swift, which cannot name std::pair<LayoutUnit, std::optional<unsigned>>.
 using ClosestSnapOffset = std::pair<LayoutUnit, std::optional<unsigned>>;
