@@ -120,7 +120,8 @@ final class ScrollingTreeScrollPhysicsDelegate {
     @_expose(Cxx)
     func startAnimatedScrollToPosition(
         client c: inout WebCore.ScrollingTreeScrollPhysicsClient,
-        _ destinationPosition: WebCore.FloatPoint
+        _ destinationPosition: WebCore.FloatPoint,
+        _ curve: WebCore.ScrollAnimationCurve
     ) -> Bool {
         let node = c.node()
         let scrollOrigin = node.scrollOrigin()
@@ -130,13 +131,19 @@ final class ScrollingTreeScrollPhysicsDelegate {
             destinationPosition.x() + Float(scrollOrigin.x()),
             destinationPosition.y() + Float(scrollOrigin.y())
         )
-        return controller.startAnimatedScrollToDestination(&c, currentOffset, destinationOffset)
+        return controller.startAnimatedScrollToDestination(&c, currentOffset, destinationOffset, curve)
     }
 
     /// `c` is made for this call on the calling C++ member's stack; nothing else reaches it.
     @_expose(Cxx)
     func stopAnimatedScroll(client c: inout WebCore.ScrollingTreeScrollPhysicsClient) {
         controller.stopAnimatedScroll(&c)
+    }
+
+    /// `c` is made for this call on the calling C++ member's stack; nothing else reaches it.
+    @_expose(Cxx)
+    func stopSpringAnimation(client c: inout WebCore.ScrollingTreeScrollPhysicsClient) {
+        controller.stopSpringAnimation(&c)
     }
 
     /// `c` is made for this call on the calling C++ member's stack; nothing else reaches it.
@@ -214,6 +221,7 @@ final class ScrollingTreeScrollPhysicsDelegate {
         if isInUserScroll != wasInUserScroll {
             node.setUserScrollInProgress(isInUserScroll)
         }
+        controller.handleWheelEventDuringSpringAnimation(&c, wheelEvent)
 
         // PlatformWheelEventPhase::MayBegin fires when two fingers touch the trackpad, and is used to flash overlay
         // scrollbars. We know we're scrollable at this point, so handle the event.
@@ -467,6 +475,12 @@ extension WebCore.ScrollingTreeScrollPhysicsClient: ScrollPhysicsClientProtocol 
     mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping) {
         node().scrollBy(delta, clamping)
     }
+
+    #if USE_SWIFT_SCROLL_ANIMATOR
+    mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping, _ controller: ScrollPhysicsController) {
+        immediateScrollBy(delta, clamping)
+    }
+    #endif
 
     mutating func allowsHorizontalStretching(_ event: borrowing @_addressable WebCore.PlatformWheelEvent) -> Bool {
         let node = self.node()

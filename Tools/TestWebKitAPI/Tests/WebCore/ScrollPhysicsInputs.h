@@ -99,6 +99,22 @@ inline Step scrollWithoutAnimation(FloatPoint to)
     return result;
 }
 
+inline Step scrollWithoutAnimation(FloatPoint to, bool unclamped)
+{
+    auto result = scrollWithoutAnimation(to);
+    result.flag = unclamped;
+    return result;
+}
+
+// As when the position changes from outside the animator; with `notify`, the animator tells the area.
+inline Step setCurrentPosition(FloatPoint to, bool notify = false)
+{
+    auto result = step(Op::SetCurrentPosition);
+    result.a = to;
+    result.flag = notify;
+    return result;
+}
+
 inline Step retarget(FloatPoint to)
 {
     auto result = step(Op::RetargetRunningAnimation);
@@ -622,6 +638,131 @@ inline Case mixedSessionShape()
     return result;
 }
 
+// Scrolls a script asks for: to a position with and without animation, by a line or a page on one axis, and snap
+// queries, on an area whose snap offsets come and go.
+inline Case programmaticScrollShape()
+{
+    Case result;
+    result.name = "ProgrammaticScroll";
+    result.config = benchConfig();
+    result.offset = { 0, 5000 };
+    SnapDescription snap;
+    snap.offsets = evenlySpaced(0, 500, 40);
+    snap.bothAxes = true;
+    result.snapInfos.push_back({ });
+    result.snapInfos.push_back(snapInfo(snap));
+    Lcg random(9);
+    auto maximum = maximumScrollOffset(result.config);
+    static constexpr ScrollSnapPointSelectionMethod methods[] = { ScrollSnapPointSelectionMethod::Closest, ScrollSnapPointSelectionMethod::Directional, ScrollSnapPointSelectionMethod::Paging };
+    auto anywhere = [&] {
+        // About one in ten is past the extents.
+        if (random.chance(10))
+            return FloatPoint { random.between(-200, maximum.x() + 200), random.chance(50) ? -300.0f : maximum.y() + 300 };
+        return FloatPoint { random.between(0, maximum.x()), random.between(0, maximum.y()) };
+    };
+    for (unsigned i = 0; i < 600; ++i) {
+        // Each draw is its own statement, so the order of draws does not depend on the order arguments are
+        // evaluated in.
+        switch (random.range(0, 6)) {
+        case 0: {
+            auto to = anywhere();
+            result.steps.push_back(scrollWithoutAnimation(to, random.chance(20)));
+            break;
+        }
+        case 1: {
+            auto to = anywhere();
+            result.steps.push_back(setCurrentPosition(to, random.chance(50)));
+            break;
+        }
+        case 2: {
+            auto axis = random.chance(70) ? ScrollEventAxis::Vertical : ScrollEventAxis::Horizontal;
+            bool paged = random.chance(40);
+            float delta = (random.chance(50) ? -1 : 1) * (paged ? 540 : 40);
+            unsigned behavior = behaviorBits({ ScrollAnimator::ScrollBehavior::NeverAnimate });
+            if (random.chance(50))
+                behavior |= behaviorBits({ ScrollAnimator::ScrollBehavior::RespectScrollSnap });
+            if (paged)
+                behavior |= behaviorBits({ ScrollAnimator::ScrollBehavior::Paged });
+            result.steps.push_back(singleAxisScroll(axis, delta, behavior));
+            break;
+        }
+        case 3: {
+            auto axis = random.chance(70) ? ScrollEventAxis::Vertical : ScrollEventAxis::Horizontal;
+            auto offset = anywhere();
+            auto method = methods[random.range(0, 2)];
+            result.steps.push_back(adjustedForSnapping(axis, offset, method, random.chance(30)));
+            break;
+        }
+        case 4: {
+            auto to = anywhere();
+            result.steps.push_back(smoothScroll(to, random.chance(10)));
+            result.steps.push_back(frames(random.range(2, 12)));
+            result.steps.push_back(scrollWithoutAnimation(anywhere()));
+            break;
+        }
+        case 5:
+            result.steps.push_back(setSnapInfo(random.chance(60) ? 1 : 0));
+            break;
+        case 6:
+            result.steps.push_back(step(Op::CancelAnimations));
+            break;
+        }
+    }
+    return result;
+}
+
+// Wheel events on an area that scrolls by whole steps, as a list box does: mouse wheel ticks, which animate,
+// trackpad gestures, which do not, page-sized ticks, and gestures that end against an edge.
+inline Case steppedWheelShape()
+{
+    Case result;
+    result.name = "SteppedWheel";
+    result.config = benchConfig();
+    result.config.contentsSize = { 1000, 12000 };
+    result.config.hasSteppedScrolling = true;
+    result.config.verticalPixelStep = 20;
+    result.config.horizontalPixelStep = 4;
+    result.offset = { 0, 4000 };
+    Lcg random(10);
+    auto maximum = maximumScrollOffset(result.config);
+    for (unsigned i = 0; i < 160; ++i) {
+        if (i % 16 == 15)
+            result.steps.push_back(setConfig(result.config, FloatPoint(0, random.chance(50) ? 0 : maximum.y())));
+        switch (random.range(0, 3)) {
+        case 0: {
+            float sign = random.chance(50) ? -1 : 1;
+            for (unsigned tick = 0, burst = random.range(1, 4); tick < burst; ++tick) {
+                float lines = random.range(1, 3);
+                result.steps.push_back(wheelStep(mouseWheelEvent({ 0, sign * lines }), tick ? 0.03 : 0.2));
+            }
+            result.steps.push_back(frames(random.range(4, 30)));
+            break;
+        }
+        case 1: {
+            GestureDescription gesture;
+            float sign = random.chance(50) ? -1 : 1;
+            FloatSize first { random.between(-1, 1), sign * random.between(0.5f, 6) };
+            gesture.deltas = decayingDeltas(first, 0.9f, random.range(6, 16));
+            if (random.chance(50)) {
+                FloatSize momentum { 0, sign * random.between(1, 8) };
+                gesture.momentumDeltas = decayingDeltas(momentum, 0.85f, random.range(6, 20));
+            }
+            appendGesture(result.steps, gesture);
+            break;
+        }
+        case 2:
+            result.steps.push_back(wheelStep(mouseWheelEvent({ 0, random.chance(50) ? -1.0f : 1.0f }, PlatformWheelEventGranularity::ScrollByPageWheelEvent), 0.2));
+            result.steps.push_back(frames());
+            break;
+        case 3:
+            result.steps.push_back(wheelStep(mouseWheelEvent({ random.chance(50) ? -2.0f : 2.0f, 0 }), 0.2));
+            result.steps.push_back(frames());
+            break;
+        }
+    }
+    return result;
+}
+
 // MARK: - Unit cases
 //
 // ScrollPhysics.cpp checks each one's full trace digest: the input classes a size, count or ordering in the
@@ -979,6 +1120,8 @@ inline const Shape* benchmarkShapes(size_t& count)
         { "ScrollSnapGesture", scrollSnapGestureShape },
         { "DiscreteWheelSnap", discreteWheelSnapShape },
         { "MixedSession", mixedSessionShape },
+        { "ProgrammaticScroll", programmaticScrollShape },
+        { "SteppedWheel", steppedWheelShape },
     };
     count = std::size(shapes);
     return shapes;

@@ -60,7 +60,11 @@ class ScrollAnimatorScrollPhysicsClient;
 struct ScrollPhysicsControllerHolder;
 #endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 class ScrollAnimator : private ScrollingEffectsControllerClient {
+#else
+class ScrollAnimator {
+#endif
     WTF_MAKE_TZONE_ALLOCATED(ScrollAnimator);
 public:
     static std::unique_ptr<ScrollAnimator> create(ScrollableArea&);
@@ -70,7 +74,11 @@ public:
 
     ScrollableArea& scrollableArea() const { return m_scrollableArea; }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
     WEBCORE_EXPORT KeyboardScrollingAnimator *keyboardScrollingAnimator() const final;
+#else
+    WEBCORE_EXPORT KeyboardScrollingAnimator* keyboardScrollingAnimator() const;
+#endif
 
     enum class ScrollBehavior : uint8_t {
         RespectScrollSnap,
@@ -146,9 +154,12 @@ public:
     WEBCORE_EXPORT static void setTimerFactoryForTesting(TimerFactory);
 
 protected:
+#if !USE_SWIFT_SCROLL_ANIMATOR
     bool handleSteppedScrolling(const PlatformWheelEvent&);
+#endif
 
 private:
+#if !USE_SWIFT_SCROLL_ANIMATOR
     void notifyPositionChanged(const FloatSize& delta);
 
     void updateActiveScrollSnapIndexForOffset();
@@ -157,6 +168,7 @@ private:
     FloatPoint positionFromOffset(const FloatPoint& offset) const;
 
     FloatPoint adjustScrollPositionIfNecessary(const FloatPoint&) const;
+#endif
 
 #if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     void discreteSnapTransitionTimerFired();
@@ -165,7 +177,11 @@ private:
     friend class ScrollAnimatorScrollPhysicsClient;
     template<typename> friend class ScrollSnapPhysicsClient;
 #endif
+#if USE_SWIFT_SCROLL_ANIMATOR
+    friend class KeyboardScrollingAnimator;
+#endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 public:
     // ScrollingEffectsControllerClient.
     std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&) final;
@@ -206,6 +222,10 @@ public:
     IntSize stretchAmount() const final;
     using ScrollingEffectsControllerClient::allowsHorizontalStretching;
     using ScrollingEffectsControllerClient::allowsVerticalStretching;
+#endif
+#else
+    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&);
+    void didStopWheelEventScroll();
 #endif
 
 protected:
