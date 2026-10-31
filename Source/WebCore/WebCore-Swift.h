@@ -74,4 +74,11 @@
 #include "CSSParserFastPathsSwiftTypes.h"
 #endif
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+#if USE_SWIFT_CSS_CALC
+#include "CSSCalcSwiftTypes.h"
+#endif
+
 #include "WebCoreSwift-Generated.h"

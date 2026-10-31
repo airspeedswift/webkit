@@ -30,10 +30,19 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 namespace Style {
 namespace Calculation {
 
+#if !USE_SWIFT_CSS_CALC
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Abs);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Acos);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Asin);
@@ -386,7 +395,126 @@ TextStream& operator<<(TextStream& ts, const Tree& tree)
 {
     return ts << tree.root;
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+static Vector<StyleCalcNodeRecord, 4> leaf(StyleCalcNodeKind kind, double value)
+{
+    return { { static_cast<uint8_t>(kind), 0, 0, 1, value } };
+}
+
+Child number(double value)
+{
+    return Child { leaf(StyleCalcNodeKind::Number, value) };
+}
+
+Child percentage(double value)
+{
+    return Child { leaf(StyleCalcNodeKind::Percentage, value) };
+}
+
+Child dimension(double value)
+{
+    return Child { leaf(StyleCalcNodeKind::Dimension, value) };
+}
+
+static Child combine(StyleCalcCombination combination, const Child& a, const Child& b, double progress)
+{
+    SwiftOutput output;
+    styleCalcCombine(static_cast<uint8_t>(combination), a.nodes.span(), b.nodes.span(), progress, output);
+    return output.take();
+}
+
+Child add(Child&& a, Child&& b)
+{
+    return combine(StyleCalcCombination::Add, a, b, 0);
+}
+
+Child multiply(Child&& a, Child&& b)
+{
+    return combine(StyleCalcCombination::Multiply, a, b, 0);
+}
+
+Child subtract(Child&& a, Child&& b)
+{
+    return combine(StyleCalcCombination::Subtract, a, b, 0);
+}
+
+Child blend(Child&& from, Child&& to, double progress)
+{
+    return combine(StyleCalcCombination::Blend, from, to, progress);
+}
+
+size_t computeDepth(const Tree& tree)
+{
+    return styleCalcDepth(tree.root.nodes.span());
+}
+
+size_t computeNodeCount(const Child& root)
+{
+    return root.nodes.size() - std::ranges::count(root.nodes, static_cast<uint8_t>(StyleCalcNodeKind::CalcMixItem), &StyleCalcNodeRecord::kind);
+}
+
+size_t computeNodeCount(const Tree& tree)
+{
+    return computeNodeCount(tree.root);
+}
+
+namespace {
+
+class SwiftDumpSink final : public StyleCalcSwiftDumpSink {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    explicit SwiftDumpSink(TextStream& ts)
+        : ts(ts)
+    {
+    }
+
+    TextStream& ts;
+};
+
+} // namespace (anonymous)
+
+TextStream& operator<<(TextStream& ts, const Tree& tree)
+{
+    SwiftDumpSink sink { ts };
+    styleCalcDump(tree.root.nodes.span(), sink);
+    return ts;
+}
+#endif
 
 } // namespace Calculation
 } // namespace Style
+
+#if USE_SWIFT_CSS_CALC
+static_assert(isCSSCalcSwiftFacade<StyleCalcSwiftOutput>);
+
+void StyleCalcSwiftOutput::adopt([[clang::noescape]] std::span<const StyleCalcNodeRecord> nodes)
+{
+    // Built before it replaces the records, which nodes may view.
+    static_cast<Style::Calculation::SwiftOutput&>(*this).nodes = Vector<StyleCalcNodeRecord, 4> { nodes };
+}
+
+static_assert(isCSSCalcSwiftFacade<StyleCalcSwiftDumpSink>);
+
+void StyleCalcSwiftDumpSink::appendLatin1([[clang::noescape]] std::span<const uint8_t> characters)
+{
+    static_cast<Style::Calculation::SwiftDumpSink&>(*this).ts << StringView { byteCast<Latin1Character>(characters) };
+}
+
+void StyleCalcSwiftDumpSink::appendNumber(double value, bool respectingIntegers)
+{
+    auto& ts = static_cast<Style::Calculation::SwiftDumpSink&>(*this).ts;
+    if (respectingIntegers)
+        ts << TextStream::FormatNumberRespectingIntegers(value);
+    else
+        ts << value;
+}
+
+void StyleCalcSwiftDumpSink::appendOperator(CSSCalc::Operator op)
+{
+    static_cast<Style::Calculation::SwiftDumpSink&>(*this).ts << op;
+}
+#endif
+
 } // namespace WebCore

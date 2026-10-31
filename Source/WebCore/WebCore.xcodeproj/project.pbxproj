@@ -321,6 +321,13 @@
 		07E047C3305A9DB000DFCC4B /* SwiftStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E047C2305A9DB000DFCC4B /* SwiftStub.swift */; };
 		5A1E00000000000000000002 /* SIMDHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000001 /* SIMDHelpers.swift */; };
 		C55B00000000000000000004 /* CSSParserFastPathsSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55B00000000000000000003 /* CSSParserFastPathsSwift.swift */; };
+		C55C00000000000000000004 /* CSSCalcSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C00000000000000000003 /* CSSCalcSwift.swift */; };
+		C55C00000000000000000006 /* CSSCalcNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C00000000000000000005 /* CSSCalcNode.swift */; };
+		C55C00000000000000000008 /* CSSCalcEvaluation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C00000000000000000007 /* CSSCalcEvaluation.swift */; };
+		C55C0000000000000000000A /* CSSCalcParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C00000000000000000009 /* CSSCalcParser.swift */; };
+		C55C0000000000000000000C /* CSSCalcSerialization.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C0000000000000000000B /* CSSCalcSerialization.swift */; };
+		C55C0000000000000000000E /* CSSCalcSimplification.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C0000000000000000000D /* CSSCalcSimplification.swift */; };
+		C55C00000000000000000010 /* StyleCalculationSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C0000000000000000000F /* StyleCalculationSwift.swift */; };
 		C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55A00000000000000000003 /* CSSTokenizerSwift.swift */; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
@@ -1203,6 +1210,7 @@
 		31815A311F9A6C8F00FCBF89 /* ImageBitmap.h in Headers */ = {isa = PBXBuildFile; fileRef = 31D26BBF1F86D189008FF255 /* ImageBitmap.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		318210D92C59B17E00C334B4 /* CSSTokenizer.h in Headers */ = {isa = PBXBuildFile; fileRef = BC7C5E8D2BE2A8FB00AE645C /* CSSTokenizer.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		C55B00000000000000000002 /* CSSParserFastPathsSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = C55B00000000000000000001 /* CSSParserFastPathsSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		C55C00000000000000000002 /* CSSCalcSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = C55C00000000000000000001 /* CSSCalcSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		C55A00000000000000000002 /* CSSTokenizerSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = C55A00000000000000000001 /* CSSTokenizerSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		318891611AB7EEA100EA627B /* missingImage@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = CDF419991AB0DA14004E64E1 /* missingImage@3x.png */; };
 		318EAD4D1FA91380008CEF86 /* ImageBitmapRenderingContextSettings.h in Headers */ = {isa = PBXBuildFile; fileRef = 318EAD4A1FA91157008CEF86 /* ImageBitmapRenderingContextSettings.h */; };
@@ -20025,6 +20033,14 @@
 		BC7C5E8F2BE2A8FB00AE645C /* CSSTokenizerInputStream.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSTokenizerInputStream.h; sourceTree = "<group>"; };
 		C55B00000000000000000003 /* CSSParserFastPathsSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSParserFastPathsSwift.swift; sourceTree = "<group>"; };
 		C55B00000000000000000001 /* CSSParserFastPathsSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSParserFastPathsSwiftTypes.h; sourceTree = "<group>"; };
+		C55C00000000000000000005 /* CSSCalcNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcNode.swift; sourceTree = "<group>"; };
+		C55C00000000000000000003 /* CSSCalcSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcSwift.swift; sourceTree = "<group>"; };
+		C55C00000000000000000007 /* CSSCalcEvaluation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcEvaluation.swift; sourceTree = "<group>"; };
+		C55C00000000000000000009 /* CSSCalcParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcParser.swift; sourceTree = "<group>"; };
+		C55C0000000000000000000B /* CSSCalcSerialization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcSerialization.swift; sourceTree = "<group>"; };
+		C55C0000000000000000000D /* CSSCalcSimplification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcSimplification.swift; sourceTree = "<group>"; };
+		C55C0000000000000000000F /* StyleCalculationSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleCalculationSwift.swift; sourceTree = "<group>"; };
+		C55C00000000000000000001 /* CSSCalcSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSCalcSwiftTypes.h; sourceTree = "<group>"; };
 		C55A00000000000000000003 /* CSSTokenizerSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSTokenizerSwift.swift; sourceTree = "<group>"; };
 		C55A00000000000000000001 /* CSSTokenizerSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSTokenizerSwiftTypes.h; sourceTree = "<group>"; };
 		BC7C5E902BE2A8FB00AE645C /* CSSSubstitutionParser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CSSSubstitutionParser.cpp; sourceTree = "<group>"; };
@@ -39590,12 +39606,19 @@
 		BCF1644D26629F9A0002F7EF /* calc */ = {
 			isa = PBXGroup;
 			children = (
+				C55C00000000000000000007 /* CSSCalcEvaluation.swift */,
 				BC4630B82E9D59D000EA911F /* CSSCalcExecutor.h */,
+				C55C00000000000000000005 /* CSSCalcNode.swift */,
 				BC4630BA2E9D59D000EA911F /* CSSCalcOperator.cpp */,
 				BC4630B92E9D59D000EA911F /* CSSCalcOperator.h */,
+				C55C00000000000000000009 /* CSSCalcParser.swift */,
 				BC3079442D0761AC00630D75 /* CSSCalcRandomCachingKey.h */,
 				BC3079432D07610100630D75 /* CSSCalcRandomCachingKeyMap.h */,
 				AEA6F2D310E7B97572112B8C /* CSSCalcRandomSharing.h */,
+				C55C0000000000000000000B /* CSSCalcSerialization.swift */,
+				C55C0000000000000000000D /* CSSCalcSimplification.swift */,
+				C55C00000000000000000003 /* CSSCalcSwift.swift */,
+				C55C00000000000000000001 /* CSSCalcSwiftTypes.h */,
 				BC33012B2BEBE8FB00A2A878 /* CSSCalcSymbolsAllowed.cpp */,
 				BC33012C2BEBE8FB00A2A878 /* CSSCalcSymbolsAllowed.h */,
 				BC709DDF266323CE00B9A21C /* CSSCalcSymbolTable.cpp */,
@@ -39621,6 +39644,7 @@
 				BC000BD82C5A96850033AA75 /* CSSCalcType.h */,
 				49AE2D8C134EE50C0072920A /* CSSCalcValue.cpp */,
 				49AE2D8D134EE50C0072920A /* CSSCalcValue.h */,
+				C55C0000000000000000000F /* StyleCalculationSwift.swift */,
 			);
 			path = calc;
 			sourceTree = "<group>";
@@ -45146,6 +45170,7 @@
 				BCA1C5000000000000000006 /* CSSCalcSizeFunction.h in Headers */,
 				BCA1C5000000000000000003 /* CSSCalcSizeValue.h in Headers */,
 				BC3301312BEC1AA700A2A878 /* CSSCalcSymbolsAllowed.h in Headers */,
+				C55C00000000000000000002 /* CSSCalcSwiftTypes.h in Headers */,
 				BC709DE0266323CF00B9A21C /* CSSCalcSymbolTable.h in Headers */,
 				BC000BE72C6011020033AA75 /* CSSCalcTree.h in Headers */,
 				BC000BE82C60110B0033AA75 /* CSSCalcType.h in Headers */,
@@ -51310,6 +51335,13 @@
 				07E047C3305A9DB000DFCC4B /* SwiftStub.swift in Sources */,
 				5A1E00000000000000000002 /* SIMDHelpers.swift in Sources */,
 				C55B00000000000000000004 /* CSSParserFastPathsSwift.swift in Sources */,
+				C55C00000000000000000006 /* CSSCalcNode.swift in Sources */,
+				C55C00000000000000000004 /* CSSCalcSwift.swift in Sources */,
+				C55C00000000000000000008 /* CSSCalcEvaluation.swift in Sources */,
+				C55C0000000000000000000A /* CSSCalcParser.swift in Sources */,
+				C55C0000000000000000000C /* CSSCalcSerialization.swift in Sources */,
+				C55C0000000000000000000E /* CSSCalcSimplification.swift in Sources */,
+				C55C00000000000000000010 /* StyleCalculationSwift.swift in Sources */,
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,

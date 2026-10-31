@@ -30,6 +30,10 @@
 #include <WebCore/CSSStyleValue.h>
 #include <wtf/HashMap.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
 namespace WebCore {
 
 namespace CSS {
@@ -90,8 +94,10 @@ public:
 
     static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSS::UnevaluatedCalcBase&);
     static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSSCalc::Tree&);
+#if !USE_SWIFT_CSS_CALC
     static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSSCalc::Child&);
     static ExceptionOr<Ref<CSSNumericValue>> reifyMathExpression(const CSSCalc::ChildOrNone&);
+#endif
 
 protected:
     ExceptionOr<Ref<CSSNumericValue>> addInternal(Vector<Ref<CSSNumericValue>>&&);

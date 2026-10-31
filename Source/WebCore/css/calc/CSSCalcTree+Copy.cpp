@@ -30,6 +30,7 @@
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_CALC
 static auto copy(const Random::Sharing&) -> Random::Sharing;
 static auto copy(const CSSValueID&) -> CSSValueID;
 static auto copy(const CSS::Keyword::None&) -> CSS::Keyword::None;
@@ -123,17 +124,23 @@ Child copy(const IndirectNode<AnchorSize>& anchorSize)
 
     return makeChild(WTF::move(copyAnchorSize), anchorSize.type);
 }
+#endif
 
 // MARK: Exposed functions
 
 Tree copy(const Tree& tree)
 {
+#if !USE_SWIFT_CSS_CALC
     return Tree {
         .root = copy(tree.root),
         .type = tree.type,
         .stage = tree.stage,
         .requiresConversionData = tree.requiresConversionData
     };
+#endif
+#if USE_SWIFT_CSS_CALC
+    return tree;
+#endif
 }
 
 } // namespace CSSCalc

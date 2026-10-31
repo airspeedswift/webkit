@@ -32,6 +32,7 @@ namespace WebCore {
 namespace Style {
 namespace Calculation {
 
+#if !USE_SWIFT_CSS_CALC
 static auto copy(const std::optional<Child>& root) -> std::optional<Child>;
 static auto copy(const Random::Fixed&) -> Random::Fixed;
 static auto copy(const CSS::Keyword::None&) -> CSS::Keyword::None;
@@ -102,6 +103,20 @@ template<typename Op> Child copy(const IndirectNode<Op>& root)
 {
     return makeChild(WTF::apply([](const auto& ...x) { return Op { copy(x)... }; } , *root));
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+Tree copy(const Tree& tree)
+{
+    return Tree { copy(tree.root) };
+}
+
+Child copy(const Child& root)
+{
+    auto nodes = root.nodes;
+    return Child { WTF::move(nodes) };
+}
+#endif
 
 } // namespace Calculation
 } // namespace Style
