@@ -187,7 +187,12 @@ CSSCalc::Value& UnevaluatedCalcBase::leakRef()
 
 bool UnevaluatedCalcBase::operator==(const UnevaluatedCalcBase& other) const
 {
+#if !USE_SWIFT_CSS_CALC
     return calcValue().tree().root == other.calcValue().tree().root;
+#endif
+#if USE_SWIFT_CSS_CALC
+    return calcValue().tree().storage == other.calcValue().tree().storage;
+#endif
 }
 
 Category UnevaluatedCalcBase::runtimeCategory() const
@@ -221,13 +226,23 @@ CSSUnitType UnevaluatedCalcBase::primitiveType() const
     case Category::LengthPercentage:
         if (!calcValue().tree().type.percentHint)
             return CSSUnitType::Px;
+#if !USE_SWIFT_CSS_CALC
         if (WTF::holdsAlternative<CSSCalc::Percentage>(calcValue().tree().root))
+#endif
+#if USE_SWIFT_CSS_CALC
+        if (calcValue().tree().rootIsPercentage())
+#endif
             return CSSUnitType::Percentage;
         return CSSUnitType::CalcPercentageWithLength;
     case Category::AnglePercentage:
         if (!calcValue().tree().type.percentHint)
             return CSSUnitType::Deg;
+#if !USE_SWIFT_CSS_CALC
         if (WTF::holdsAlternative<CSSCalc::Percentage>(calcValue().tree().root))
+#endif
+#if USE_SWIFT_CSS_CALC
+        if (calcValue().tree().rootIsPercentage())
+#endif
             return CSSUnitType::Percentage;
         return CSSUnitType::CalcPercentageWithAngle;
     }
@@ -238,7 +253,12 @@ CSSUnitType UnevaluatedCalcBase::primitiveType() const
 
 bool UnevaluatedCalcBase::rootNodeIsPercentage() const
 {
+#if !USE_SWIFT_CSS_CALC
     return WTF::holdsAlternative<CSSCalc::Percentage>(calcValue().tree().root);
+#endif
+#if USE_SWIFT_CSS_CALC
+    return calcValue().tree().rootIsPercentage();
+#endif
 }
 
 bool UnevaluatedCalcBase::requiresConversionData() const

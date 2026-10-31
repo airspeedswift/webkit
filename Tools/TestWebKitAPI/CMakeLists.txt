@@ -271,6 +271,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/CBORReaderTest.cpp
         Tests/WebCore/CBORValueTest.cpp
         Tests/WebCore/CBORWriterTest.cpp
+        Tests/WebCore/CSSCalcBench.cpp
         Tests/WebCore/CSSFastPathsBench.cpp
         Tests/WebCore/CSSParser.cpp
         Tests/WebCore/CSSParserFastPaths.cpp
