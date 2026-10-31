@@ -434,6 +434,28 @@ void ScrollAnimator::setTimerFactoryForTesting(TimerFactory factory)
     timerFactoryForTesting = factory;
 }
 
+bool ScrollAnimator::handleWheelEventForTesting(const PlatformWheelEvent& wheelEvent)
+{
+    return handleWheelEvent(wheelEvent);
+}
+
+bool ScrollAnimator::processWheelEventForScrollSnapForTesting(const PlatformWheelEvent& wheelEvent)
+{
+    return processWheelEventForScrollSnap(wheelEvent);
+}
+
+#if PLATFORM(COCOA)
+void ScrollAnimator::handleWheelEventPhaseForTesting(PlatformWheelEventPhase phase)
+{
+    handleWheelEventPhase(phase);
+}
+#endif
+
+bool ScrollAnimator::isRubberBandInProgressForTesting() const
+{
+    return isRubberBandInProgress();
+}
+
 std::unique_ptr<ScrollingEffectsControllerTimer> ScrollAnimator::createTimer(Function<void()>&& function)
 {
     auto callback = [function = WTF::move(function), weakScrollableArea = WeakPtr { m_scrollableArea.get() }] {

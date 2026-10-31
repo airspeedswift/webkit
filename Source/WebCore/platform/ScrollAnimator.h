@@ -105,6 +105,15 @@ public:
 
     virtual bool isRubberBandInProgress() const { return false; }
 
+    // For TestWebKitAPI: these call the virtual members above from inside WebCore, so that a test does not depend on
+    // this class's virtual function table.
+    WEBCORE_EXPORT bool handleWheelEventForTesting(const PlatformWheelEvent&);
+    WEBCORE_EXPORT bool processWheelEventForScrollSnapForTesting(const PlatformWheelEvent&);
+#if PLATFORM(COCOA)
+    WEBCORE_EXPORT void handleWheelEventPhaseForTesting(PlatformWheelEventPhase);
+#endif
+    WEBCORE_EXPORT bool isRubberBandInProgressForTesting() const;
+
     WEBCORE_EXPORT bool isUserScrollInProgress() const;
     WEBCORE_EXPORT bool isScrollSnapInProgress() const;
     WEBCORE_EXPORT bool usesScrollSnap() const;
