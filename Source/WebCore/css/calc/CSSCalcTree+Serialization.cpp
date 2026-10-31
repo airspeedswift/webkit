@@ -37,9 +37,19 @@
 #include <ranges>
 #include <wtf/text/StringBuilder.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "WebCore-Swift.h"
+#include <wtf/ForbidHeapAllocation.h>
+#endif
+
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_CALC
 struct SerializationState {
     enum class GroupingParenthesis {
         Omit,
@@ -776,6 +786,7 @@ void serializationForCSS(StringBuilder& builder, const Tree& tree, const Seriali
     };
     serializeMathFunction(builder, tree.root, state);
 }
+#endif
 
 String serializationForCSS(const Tree& tree, const SerializationOptions& options)
 {
@@ -784,6 +795,7 @@ String serializationForCSS(const Tree& tree, const SerializationOptions& options
     return builder.toString();
 }
 
+#if !USE_SWIFT_CSS_CALC
 void serializationForCSS(StringBuilder& builder, const Child& child, const SerializationOptions& options)
 {
     SerializationState state {
@@ -810,6 +822,89 @@ void serializationForCSSAsFunctionArgument(StringBuilder& builder, const Tree& t
     };
     serializeCalculationTree(builder, tree.root, state);
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+namespace {
+
+class SwiftSerializerState final : public CSSCalcSwiftSerializer {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    SwiftSerializerState(StringBuilder& builder, const CSS::SerializationContext& context, const TreeStorage& storage)
+        : builder(builder)
+        , context(context)
+        , storage(storage)
+    {
+    }
+
+    StringBuilder& builder;
+    const CSS::SerializationContext& context;
+    const TreeStorage& storage;
+};
+
+} // namespace (anonymous)
+
+static void serializeWithSwift(StringBuilder& builder, const Tree& tree, const SerializationOptions& options, bool asFunctionArgument)
+{
+    SwiftSerializerState serializer { builder, options.serializationContext, tree.storage };
+    cssCalcSerialize(tree.storage.nodes.span(), serializer, tree.stage == Stage::Computed, options.range.min, options.range.max, asFunctionArgument);
+}
+
+void serializationForCSS(StringBuilder& builder, const Tree& tree, const SerializationOptions& options)
+{
+    serializeWithSwift(builder, tree, options, false);
+}
+
+void serializationForCSSAsFunctionArgument(StringBuilder& builder, const Tree& tree, const SerializationOptions& options)
+{
+    serializeWithSwift(builder, tree, options, true);
+}
+#endif
 
 } // namespace CSSCalc
+
+#if USE_SWIFT_CSS_CALC
+static_assert(isCSSCalcSwiftFacade<CSSCalcSwiftSerializer>);
+
+void CSSCalcSwiftSerializer::appendLatin1([[clang::noescape]] std::span<const uint8_t> characters)
+{
+    static_cast<CSSCalc::SwiftSerializerState&>(*this).builder.append(byteCast<Latin1Character>(characters));
+}
+
+void CSSCalcSwiftSerializer::appendNumber(double value, uint16_t unit)
+{
+    auto& state = static_cast<CSSCalc::SwiftSerializerState&>(*this);
+    CSS::serializationForCSS(state.builder, state.context, CSS::SerializableNumber { value, unitTypeString(static_cast<CSSUnitType>(unit)) });
+}
+
+void CSSCalcSwiftSerializer::appendValueIDName(uint16_t valueID)
+{
+    RELEASE_ASSERT(valueID < numCSSValueKeywords);
+    static_cast<CSSCalc::SwiftSerializerState&>(*this).builder.append(nameLiteralForSerialization(static_cast<CSSValueID>(valueID)));
+}
+
+void CSSCalcSwiftSerializer::appendPayload(uint32_t payload)
+{
+    auto& state = static_cast<CSSCalc::SwiftSerializerState&>(*this);
+    WTF::switchOn(state.storage.payloads[payload],
+        [&](const CSSCalc::RandomSharingAuto&) { },
+        [&](const CSSCalc::RandomSharingKey& key) {
+            if (key.name)
+                CSS::serializationForCSS(state.builder, state.context, *key.name);
+        },
+        [&](const auto& value) { CSS::serializationForCSS(state.builder, state.context, value); });
+}
+
+CSSCalcSwiftRandomSharing CSSCalcSwiftSerializer::randomSharing(uint32_t payload)
+{
+    return WTF::switchOn(static_cast<CSSCalc::SwiftSerializerState&>(*this).storage.payloads[payload],
+        [](const CSSCalc::RandomSharingAuto&) -> CSSCalcSwiftRandomSharing { return { 0, 0, 0, 0 }; },
+        [](const CSSCalc::RandomSharingKey& key) -> CSSCalcSwiftRandomSharing {
+            return { 1, key.name.has_value(), key.elementScoped.has_value(), static_cast<uint8_t>(key.propertyScoped ? key.propertyScoped->index() + 1 : 0) };
+        },
+        [](const CSS::Number<CSS::ClosedUnitRange>&) -> CSSCalcSwiftRandomSharing { return { 2, 0, 0, 0 }; },
+        [](const auto&) -> CSSCalcSwiftRandomSharing { RELEASE_ASSERT_NOT_REACHED(); });
+}
+#endif
+
 } // namespace WebCore

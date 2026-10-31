@@ -36,6 +36,14 @@
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include <WebCore/CSSCalcSwiftTypes.h>
+#endif
+
 namespace WebCore {
 
 namespace Style {
@@ -298,8 +306,27 @@ struct Children {
 
 enum class Stage : bool { Specified, Computed };
 
+#if USE_SWIFT_CSS_CALC
+// A tree as records (CSSCalcSwiftTypes.h), and the values they name by index: anchor names, random() sharing (auto,
+// a key, or a fixed value) and calc-mix() weights.
+using Payload = Variant<CSS::CustomIdent, RandomSharingAuto, RandomSharingKey, CSS::Number<CSS::ClosedUnitRange>, CSS::Percentage<CSS::ClosedPercentageRange>>;
+struct TreeStorage {
+    Vector<CSSCalcNodeRecord, 4> nodes;
+    Vector<Payload> payloads;
+
+    // Compares the records, and for each record the payload it names rather than the payload's index.
+    WEBCORE_EXPORT bool operator==(const TreeStorage&) const;
+};
+#endif
+
 struct Tree {
+#if !USE_SWIFT_CSS_CALC
     Child root;
+#endif
+#if USE_SWIFT_CSS_CALC
+    TreeStorage storage;
+    bool rootIsPercentage() const { return storage.nodes[0].kind == static_cast<uint8_t>(CSSCalcNodeKind::Percentage); }
+#endif
     Type type;
     Stage stage;
 
@@ -308,6 +335,11 @@ struct Tree {
 
     bool operator==(const Tree&) const = default;
 };
+
+#if USE_SWIFT_CSS_CALC
+// The tree of a Typed OM expression, which builds it as nodes.
+Tree makeTree(const Child&, Type, Stage, bool requiresConversionData);
+#endif
 
 struct Sum {
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(Sum);
@@ -957,10 +989,13 @@ std::optional<Type> toType(const Sum&);
 std::optional<Type> toType(const Product&);
 std::optional<Type> toType(const Negate&);
 std::optional<Type> toType(const Invert&);
+#if !USE_SWIFT_CSS_CALC
 std::optional<Type> LEGACY_NODELETE toType(const Deg2Rad&);
+#endif
 std::optional<Type> toType(const Min&);
 std::optional<Type> toType(const Max&);
 std::optional<Type> toType(const Clamp&);
+#if !USE_SWIFT_CSS_CALC
 std::optional<Type> toType(const RoundNearest&);
 std::optional<Type> toType(const RoundUp&);
 std::optional<Type> toType(const RoundDown&);
@@ -985,6 +1020,7 @@ std::optional<Type> toType(const Random&);
 std::optional<Type> toType(const Progress&);
 std::optional<Type> toType(const ProgressNoClamp&);
 std::optional<Type> toType(const CalcMix&);
+#endif
 
 // MARK: CSSUnitType Evaluation
 
@@ -1012,21 +1048,27 @@ constexpr CSSUnitType toCSSUnit(const NonCanonicalDimension& dimension) { return
 
 // MARK: Predicates
 
+#if !USE_SWIFT_CSS_CALC
 bool isNumeric(const Child& root);
+#endif
 
 // Convenience constructors
 
 // Makes the appropriate child type (number, percentage, canonical-dimensions, non-canonical-dimension) based on the CSSUnitType.
 Child LEGACY_NODELETE makeNumeric(double, CSSUnitType);
 
+#if !USE_SWIFT_CSS_CALC
 Sum add(Child&& a, Child&& b);
 Product multiply(Child&& a, Child&& b);
 Sum subtract(Child&& a, Child&& b);
+#endif
 
+#if !USE_SWIFT_CSS_CALC
 Child LEGACY_NODELETE makeChildWithValueBasedOn(double value, const Number&);
 Child LEGACY_NODELETE makeChildWithValueBasedOn(double value, const Percentage&);
 Child LEGACY_NODELETE makeChildWithValueBasedOn(double value, const CanonicalDimension&);
 Child LEGACY_NODELETE makeChildWithValueBasedOn(double value, const NonCanonicalDimension&);
+#endif
 
 // MARK: Tuple Conformance
 

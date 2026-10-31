@@ -31,6 +31,7 @@ namespace WebCore {
 namespace Style {
 namespace Calculation {
 
+#if !USE_SWIFT_CSS_CALC
 // MARK: - forAllChildren
 
 // `forAllChildren` will call the provided `functor` on all direct children of the provided node. This will include values of type `Child`, `ChildOrNone` and `std::optional<Child>`.
@@ -89,6 +90,7 @@ template<typename F> void forAllChildren(const Child& root, NOESCAPE const F& fu
         [&](const auto& root) { forAllChildren(*root, functor); }
     );
 }
+#endif
 
 } // namespace Calculation
 } // namespace Style

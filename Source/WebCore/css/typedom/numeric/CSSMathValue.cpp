@@ -48,12 +48,17 @@ RefPtr<CSSCalc::Value> CSSMathValue::toCSSCalcValue() const
     ComputedStyleDependencies dependencies;
     CSSCalc::collectComputedStyleDependencies(*node, dependencies);
 
+#if !USE_SWIFT_CSS_CALC
     return CSSCalc::Value::create(*category, CSS::All, CSSCalc::Tree {
         .root = WTF::move(*node),
         .type = type,
         .stage = CSSCalc::Stage::Specified,
         .requiresConversionData = !dependencies.isAbsolute(),
     });
+#endif
+#if USE_SWIFT_CSS_CALC
+    return CSSCalc::Value::create(*category, CSS::All, CSSCalc::makeTree(*node, type, CSSCalc::Stage::Specified, !dependencies.isAbsolute()));
+#endif
 }
 
 RefPtr<CSSValue> CSSMathValue::toCSSValue() const
