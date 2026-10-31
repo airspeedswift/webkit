@@ -29,8 +29,9 @@
 // it and on its scrollbars controller, a replaced clock, test-fired timers, and a driver that runs a list of
 // steps through the animator's public members. ScrollPhysics.cpp and ScrollPhysicsBench.cpp share it.
 //
-// Only the animator's out-of-line and virtual members are called, so a binary built against one configuration of
-// ScrollAnimator.h can drive a WebCore built with another.
+// The animator's virtual members are called through the ...ForTesting() members, which call them from inside WebCore,
+// so a binary built against one configuration of ScrollAnimator.h can drive a WebCore built with another, while the
+// fields its inline members read keep their offsets.
 
 #include <WebCore/FloatPoint.h>
 #include <WebCore/FloatSize.h>
@@ -634,7 +635,7 @@ public:
 
     bool isRubberBandInProgress() const final
     {
-        bool result = existingScrollAnimator() && existingScrollAnimator()->isRubberBandInProgress();
+        bool result = existingScrollAnimator() && existingScrollAnimator()->isRubberBandInProgressForTesting();
         TraceLine(m_trace, 'C', "isRubberBandInProgress").b("r", result);
         return result;
     }
@@ -842,7 +843,7 @@ public:
                 traceWheel(line, wheel);
             }
             m_trace.countEntry();
-            bool handled = step.op == Op::Wheel ? animator.handleWheelEvent(event) : animator.processWheelEventForScrollSnap(event);
+            bool handled = step.op == Op::Wheel ? animator.handleWheelEventForTesting(event) : animator.processWheelEventForScrollSnapForTesting(event);
             TraceLine(m_trace, 'R', name, true).b("r", handled);
             break;
         }
@@ -993,7 +994,7 @@ public:
         }
     }
 
-    // State read through the animator's out-of-line and virtual members, and the area's own state.
+    // State read through the animator's out-of-line members, and the area's own state.
     void snapshot()
     {
         auto& animator = this->animator();
@@ -1002,7 +1003,7 @@ public:
         m_trace.countEntry();
         bool snapInProgress = animator.isScrollSnapInProgress();
         m_trace.countEntry();
-        bool rubberBand = animator.isRubberBandInProgress();
+        bool rubberBand = animator.isRubberBandInProgressForTesting();
         m_trace.countEntry();
         bool usesSnap = animator.usesScrollSnap();
         m_trace.countEntry();
