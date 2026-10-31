@@ -57,7 +57,7 @@ WK_ENGINEERING_BUILD_Production = 0;
 
 // WebCore's Swift calc() (WebCore.xcconfig). Set for every project, not only WebCore: USE_SWIFT_CSS_CALC changes the
 // layout of CSSCalc::Tree and Style::Calculation::Child, whose headers WebKit, WebKitLegacy and the tools include.
-WK_USE_SWIFT_CSS_CALC = NO;
+WK_USE_SWIFT_CSS_CALC = YES;
 WK_SWIFT_CSS_CALC_DEFINES_YES = USE_SWIFT_CSS_CALC=1;
 WK_SWIFT_CSS_CALC_DEFINES_NO = USE_SWIFT_CSS_CALC=0;
 
