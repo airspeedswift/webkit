@@ -85,6 +85,16 @@ TEST(ScrollingTreeDelegateBench, MixedSession)
     runScrollingTreeShape(mixedSessionShape, "MixedSession", 2000, 0x327f3ada241707d3ull);
 }
 
+TEST(ScrollingTreeDelegateBench, DiscreteWheelSnap)
+{
+    runScrollingTreeShape(discreteWheelSnapShape, "DiscreteWheelSnap", 4, 0xa42b68843454d307ull);
+}
+
+TEST(ScrollingTreeDelegateBench, SnapSelection)
+{
+    runScrollingTreeShape(snapSelectionShape, "SnapSelection", 1000, 0x9659dfc9a812ce66ull);
+}
+
 } // namespace TestWebKitAPI
 
 #endif // PLATFORM(MAC)
