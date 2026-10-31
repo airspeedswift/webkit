@@ -48,9 +48,9 @@ enum class KeyboardScrollingKey : uint8_t {
     End
 };
 
-const std::optional<KeyboardScrollingKey> keyboardScrollingKeyForKeyboardEvent(const KeyboardEvent&);
-const std::optional<ScrollDirection> scrollDirectionForKeyboardEvent(const KeyboardEvent&);
-const std::optional<ScrollGranularity> scrollGranularityForKeyboardEvent(const KeyboardEvent&);
+WEBCORE_EXPORT const std::optional<KeyboardScrollingKey> keyboardScrollingKeyForKeyboardEvent(const KeyboardEvent&);
+WEBCORE_EXPORT const std::optional<ScrollDirection> scrollDirectionForKeyboardEvent(const KeyboardEvent&);
+WEBCORE_EXPORT const std::optional<ScrollGranularity> scrollGranularityForKeyboardEvent(const KeyboardEvent&);
 
 class KeyboardScrollingAnimator final : public CanMakeWeakPtr<KeyboardScrollingAnimator>, public CanMakeCheckedPtr<KeyboardScrollingAnimator> {
     WTF_MAKE_TZONE_ALLOCATED(KeyboardScrollingAnimator);
