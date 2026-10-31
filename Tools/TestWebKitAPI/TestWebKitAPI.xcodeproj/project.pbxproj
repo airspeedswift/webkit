@@ -904,6 +904,7 @@
 				WebCore/IPAddressSpaceTests.cpp,
 				WebCore/IPAddressTests.cpp,
 				WebCore/ISOBox.cpp,
+				WebCore/KeyboardScrollingKeys.cpp,
 				WebCore/KeyedCoding.cpp,
 				WebCore/LayoutRoundedRectTests.cpp,
 				WebCore/LayoutUnitTests.cpp,

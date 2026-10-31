@@ -26,6 +26,8 @@
 internal import WebCore_Private.Core.PlatformWheelEvent
 internal import WebCore_Private.ScrollAnimatorScrollPhysicsClient
 internal import WebCore_Private.ScrollPhysicsTypes
+internal import WebCore_Private.Core.ScrollExtents
+internal import WebCore_Private.Core.ScrollTypes
 
 // ScrollAnimatorMac's scroll physics client members that are not C++ members of ScrollAnimatorScrollPhysicsClient:
 // ScrollingEffectsControllerClient's defaults, shouldRubberBandOnSide() and isScrollDeltaOpposingStretch().
@@ -68,4 +70,135 @@ extension WebCore.ScrollAnimatorScrollPhysicsClient: ScrollPhysicsClientProtocol
 
     mutating func didStopScrollSnapAnimation() {
     }
+
+    mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping, _ controller: ScrollPhysicsController) {
+        controller.scrollAnimatorImmediateScrollBy(&self, delta, clamping)
+    }
+
+    mutating func startAnimationCallback() {
+        if !scrollAnimationScheduled() {
+            setScrollAnimationScheduled(true)
+            didStartScrollAnimation()
+        }
+    }
+
+    mutating func stopAnimationCallback() {
+        setScrollAnimationScheduled(false)
+    }
+
+    // As ScrollAnimatorMac::allowsHorizontalStretching().
+    mutating func allowsHorizontalStretching(_ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent) -> Bool {
+        if horizontalOverscrollBehavior() == .None {
+            return false
+        }
+
+        switch horizontalScrollElasticity() {
+        case .Automatic:
+            var scrollbarsAllowStretching = scrollbarEnabled(.Horizontal)
+            if !scrollbarsAllowStretching {
+                scrollbarsAllowStretching = !scrollbarEnabled(.Vertical)
+            }
+            let relevantSide = stretchingTargetSide(wheelEvent, .Horizontal)
+            var eventPreventsStretching = false
+            if hasScrollableOrRubberbandableAncestor(), wheelEvent.isGestureStart(), let relevantSide {
+                eventPreventsStretching = isPinnedOnSide(relevantSide)
+            }
+            if !eventPreventsStretching {
+                eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, .Horizontal)
+            }
+            return scrollbarsAllowStretching && !eventPreventsStretching
+        case .None:
+            return false
+        case .Allowed:
+            return true
+        @unknown default:
+            return false
+        }
+    }
+
+    // As ScrollAnimatorMac::allowsVerticalStretching().
+    mutating func allowsVerticalStretching(_ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent) -> Bool {
+        if verticalOverscrollBehavior() == .None {
+            return false
+        }
+
+        switch verticalScrollElasticity() {
+        case .Automatic:
+            var scrollbarsAllowStretching = scrollbarEnabled(.Vertical)
+            if !scrollbarsAllowStretching {
+                scrollbarsAllowStretching = !scrollbarEnabled(.Horizontal)
+            }
+            let relevantSide = stretchingTargetSide(wheelEvent, .Vertical)
+            var eventPreventsStretching = false
+            if hasScrollableOrRubberbandableAncestor(), wheelEvent.isGestureStart(), let relevantSide {
+                eventPreventsStretching = isPinnedOnSide(relevantSide)
+            }
+            if !eventPreventsStretching {
+                eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, .Vertical)
+            }
+            return scrollbarsAllowStretching && !eventPreventsStretching
+        case .None:
+            return false
+        case .Allowed:
+            return true
+        @unknown default:
+            return false
+        }
+    }
+
+    // Whether a gesture's end should snap on the axis rather than stretch. The area's snap offsets are this
+    // animator's.
+    private mutating func gestureShouldBeginSnap(
+        _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent,
+        _ axis: WebCore.ScrollEventAxis
+    ) -> Bool {
+        if !hasSnapOffsets() {
+            return false
+        }
+
+        if snapOffsetCount(axis) == 0 {
+            return false
+        }
+
+        if wheelEvent.phase() != .Ended {
+            if !wheelEvent.isEndOfMomentumScroll() {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    mutating func scrollOffset() -> WebCore.FloatPoint {
+        let position = roundedIntPoint(ScrollPoint(currentPosition()))
+        let offset = scrollOffsetFromPosition(WebCore.IntPoint(position.x, position.y))
+        return WebCore.FloatPoint(Float(offset.x()), Float(offset.y()))
+    }
+
+    mutating func willStartAnimatedScroll() {
+        setScrollAnimationStatus(.Animating)
+    }
+
+    mutating func didStopAnimatedScroll() {
+        setScrollAnimationStatus(.NotAnimating)
+        animatedScrollDidEnd()
+        scrollDidEnd()
+    }
+
+    mutating func scrollExtents() -> WebCore.ScrollExtents {
+        var extents = WebCore.ScrollExtents()
+        extents.contentsSize = ScrollSize(totalContentsSize()).floatSize
+        extents.viewportSize = ScrollSize(visibleSize()).floatSize
+        extents.snapportSize = ScrollSize(snapportSize()).floatSize
+        return extents
+    }
+}
+
+// ScrollableArea::targetSideForScrollDelta() for the scroll the event asks for: wheel deltas are reversed from the
+// scrolling direction.
+private func stretchingTargetSide(
+    _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent,
+    _ axis: WebCore.ScrollEventAxis
+) -> WebCore.BoxSide? {
+    targetSideForScrollDelta(-ScrollSize(wheelEvent.delta()), axis)
 }

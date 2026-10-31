@@ -58,7 +58,7 @@ class ScrollingEffectsControllerTimer;
 class ScrollAnimatorScrollPhysicsClient;
 struct ScrollPhysicsControllerHolder;
 
-class ScrollAnimator : private ScrollingEffectsControllerClient {
+class ScrollAnimator {
     WTF_MAKE_TZONE_ALLOCATED(ScrollAnimator);
 public:
     static std::unique_ptr<ScrollAnimator> create(ScrollableArea&);
@@ -68,7 +68,7 @@ public:
 
     ScrollableArea& scrollableArea() const { return m_scrollableArea; }
 
-    WEBCORE_EXPORT KeyboardScrollingAnimator *keyboardScrollingAnimator() const final;
+    WEBCORE_EXPORT KeyboardScrollingAnimator* keyboardScrollingAnimator() const;
 
     enum class ScrollBehavior : uint8_t {
         RespectScrollSnap,
@@ -144,65 +144,18 @@ public:
     WEBCORE_EXPORT static void setTimerFactoryForTesting(TimerFactory);
 
 protected:
-    bool handleSteppedScrolling(const PlatformWheelEvent&);
 
 private:
-    void notifyPositionChanged(const FloatSize& delta);
-
-    void updateActiveScrollSnapIndexForOffset();
-
-    FloatPoint offsetFromPosition(const FloatPoint& position) const;
-    FloatPoint positionFromOffset(const FloatPoint& offset) const;
-
-    FloatPoint adjustScrollPositionIfNecessary(const FloatPoint&) const;
 
     void discreteSnapTransitionTimerFired();
     void scheduleScrollendTimer();
 
     friend class ScrollAnimatorScrollPhysicsClient;
     template<typename> friend class ScrollSnapPhysicsClient;
+    friend class KeyboardScrollingAnimator;
 
-public:
-    // ScrollingEffectsControllerClient.
-    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&) final;
-    void startAnimationCallback(ScrollingEffectsController&) final;
-    void stopAnimationCallback(ScrollingEffectsController&) final;
-    void startAnimationCallback();
-    void stopAnimationCallback();
-
-    FloatPoint scrollOffset() const final;
-    float pageScaleFactor() const final;
-    ScrollExtents scrollExtents() const final;
-
-    bool allowsHorizontalScrolling() const final;
-    bool allowsVerticalScrolling() const final;
-
-    void willStartAnimatedScroll() final;
-    void didStopAnimatedScroll() final;
-
-    void didStopWheelEventScroll() final;
-
-    void immediateScrollBy(const FloatSize&, ScrollClamping = ScrollClamping::Clamped) final;
-    void adjustScrollPositionToBoundsIfNecessary() final;
-
-#if HAVE(RUBBER_BANDING)
-    RectEdges<bool> edgePinnedState() const final;
-    bool isPinnedOnSide(BoxSide) const final;
-#endif
-
-    void deferWheelEventTestCompletionForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) const final;
-    void removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) const final;
-    ScrollingNodeID scrollingNodeIDForTesting() const final;
-
-#if USE(COORDINATED_GRAPHICS)
-    bool scrollAnimationEnabled() const final;
-#endif
-
-#if HAVE(RUBBER_BANDING)
-    IntSize stretchAmount() const final;
-    using ScrollingEffectsControllerClient::allowsHorizontalStretching;
-    using ScrollingEffectsControllerClient::allowsVerticalStretching;
-#endif
+    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&);
+    void didStopWheelEventScroll();
 
 protected:
     WeakRef<ScrollableArea> m_scrollableArea;

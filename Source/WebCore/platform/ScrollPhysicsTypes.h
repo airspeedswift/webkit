@@ -35,6 +35,10 @@ namespace WebCore {
 
 // For Swift, which cannot name RectEdges<bool>.
 using RubberBandingEdges = RectEdges<bool>;
+// For Swift, which cannot name the std::optional specializations that the keyboard event's scroll direction and
+// granularity functions return.
+using OptionalScrollDirection = std::optional<ScrollDirection>;
+using OptionalScrollGranularity = std::optional<ScrollGranularity>;
 
 // The snap offsets and the discrete scroll snap timer that a scroll physics client gives Swift. Derived provides
 // snapOffsetsInfo(), createSnapTimer(), and snapTimerOwner(), which holds m_discreteSnapTransitionTimer and whose

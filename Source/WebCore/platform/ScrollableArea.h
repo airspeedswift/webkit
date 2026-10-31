@@ -505,6 +505,7 @@ private:
 
     // NOTE: Only called from the ScrollAnimator.
     friend class ScrollAnimator;
+    friend class ScrollAnimatorScrollPhysicsClient;
     void setScrollPositionFromAnimation(const ScrollPosition&);
 
     // This function should be overridden by subclasses to perform the actual

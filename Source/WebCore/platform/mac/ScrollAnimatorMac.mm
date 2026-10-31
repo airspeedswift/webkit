@@ -64,114 +64,12 @@ bool ScrollAnimatorMac::isRubberBandInProgress() const
 
 void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
 {
-    LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollAnimatorMac " << this << " scrollableArea " << m_scrollableArea << " handleWheelEventPhase " << phase);
-
-    // FIXME: Need to ensure we get PlatformWheelEventPhase::Ended.
-    if (phase == PlatformWheelEventPhase::Began)
-        protect(scrollableArea())->scrollbarsController().didBeginScrollGesture();
-    else if (phase == PlatformWheelEventPhase::Ended || phase == PlatformWheelEventPhase::Cancelled)
-        protect(scrollableArea())->scrollbarsController().didEndScrollGesture();
-    else if (phase == PlatformWheelEventPhase::MayBegin)
-        protect(scrollableArea())->scrollbarsController().mayBeginScrollGesture();
+    m_physics->controller.scrollAnimatorMacHandleWheelEventPhase(ScrollAnimatorScrollPhysicsClientState(*this).facade(), phase);
 }
 
 bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
-    protect(scrollableArea())->scrollbarsController().setScrollbarAnimationsUnsuspendedByUserInteraction(true);
-    m_physics->controller.updateGestureInProgressState(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
-    m_physics->controller.handleWheelEventDuringSpringAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
-
-    // Events in the PlatformWheelEventPhase::MayBegin phase have no deltas, and therefore never passes through the scroll handling logic below.
-    // This causes us to return with an 'unhandled' return state, even though this event was successfully processed.
-    //
-    // We receive at least one PlatformWheelEventPhase::MayBegin when starting main-thread scrolling (see LocalFrameView::wheelEvent), which can
-    // fool the scrolling thread into attempting to handle the scroll, unless we treat the event as handled here.
-    if (wheelEvent.phase() == PlatformWheelEventPhase::MayBegin)
-        return true;
-
-    bool didHandleEvent = ScrollAnimator::handleWheelEvent(wheelEvent);
-    if (didHandleEvent || wheelEvent.delta().isZero())
-        handleWheelEventPhase(wheelEvent.phase());
-
-    return didHandleEvent;
-}
-
-static bool gestureShouldBeginSnap(const PlatformWheelEvent& wheelEvent, ScrollEventAxis axis, const LayoutScrollSnapOffsetsInfo* offsetInfo)
-{
-    if (!offsetInfo)
-        return false;
-
-    if (offsetInfo->offsetsForAxis(axis).isEmpty())
-        return false;
-
-    if (wheelEvent.phase() != PlatformWheelEventPhase::Ended && !wheelEvent.isEndOfMomentumScroll())
-        return false;
-
-    return true;
-}
-
-bool ScrollAnimatorMac::allowsVerticalStretching(const PlatformWheelEvent& wheelEvent) const
-{
-    CheckedRef scrollableArea = m_scrollableArea;
-    if (scrollableArea->verticalOverscrollBehavior() == OverscrollBehavior::None)
-        return false;
-    
-    switch (scrollableArea->verticalScrollElasticity()) {
-    case ScrollElasticity::Automatic: {
-        RefPtr hScroller = scrollableArea->horizontalScrollbar();
-        RefPtr vScroller = scrollableArea->verticalScrollbar();
-        bool scrollbarsAllowStretching = ((vScroller && vScroller->enabled()) || (!hScroller || !hScroller->enabled()));
-        auto relevantSide = ScrollableArea::targetSideForScrollDelta(-wheelEvent.delta(), ScrollEventAxis::Vertical);
-        bool eventPreventsStretching = scrollableArea->hasScrollableOrRubberbandableAncestor() && wheelEvent.isGestureStart() && relevantSide && scrollableArea->isPinnedOnSide(*relevantSide);
-        if (!eventPreventsStretching)
-            eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, ScrollEventAxis::Vertical, scrollableArea->snapOffsetsInfo());
-        return scrollbarsAllowStretching && !eventPreventsStretching;
-    }
-    case ScrollElasticity::None:
-        return false;
-    case ScrollElasticity::Allowed:
-        return true;
-    }
-
-    ASSERT_NOT_REACHED();
-    return false;
-}
-
-bool ScrollAnimatorMac::allowsHorizontalStretching(const PlatformWheelEvent& wheelEvent) const
-{
-    CheckedRef scrollableArea = m_scrollableArea;
-    if (scrollableArea->horizontalOverscrollBehavior() == OverscrollBehavior::None)
-        return false;
-    
-    switch (scrollableArea->horizontalScrollElasticity()) {
-    case ScrollElasticity::Automatic: {
-        RefPtr hScroller = scrollableArea->horizontalScrollbar();
-        RefPtr vScroller = scrollableArea->verticalScrollbar();
-        bool scrollbarsAllowStretching = ((hScroller && hScroller->enabled()) || (!vScroller || !vScroller->enabled()));
-        auto relevantSide = ScrollableArea::targetSideForScrollDelta(-wheelEvent.delta(), ScrollEventAxis::Horizontal);
-        bool eventPreventsStretching = scrollableArea->hasScrollableOrRubberbandableAncestor() && wheelEvent.isGestureStart() && relevantSide && scrollableArea->isPinnedOnSide(*relevantSide);
-        if (!eventPreventsStretching)
-            eventPreventsStretching = gestureShouldBeginSnap(wheelEvent, ScrollEventAxis::Horizontal, scrollableArea->snapOffsetsInfo());
-        return scrollbarsAllowStretching && !eventPreventsStretching;
-    }
-    case ScrollElasticity::None:
-        return false;
-    case ScrollElasticity::Allowed:
-        return true;
-    }
-
-    ASSERT_NOT_REACHED();
-    return false;
-}
-
-bool ScrollAnimatorMac::isScrollDeltaOpposingStretch(ScrollEventAxis axis, float delta) const
-{
-    return ScrollingEffectsController::isScrollDeltaOpposingStretch(stretchAmount(), axis, delta);
-}
-
-bool ScrollAnimatorMac::shouldRubberBandOnSide(BoxSide, FloatSize) const
-{
-    return false;
+    return m_physics->controller.scrollAnimatorMacHandleWheelEvent(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
 }
 
 bool ScrollAnimatorMac::processWheelEventForScrollSnap(const PlatformWheelEvent& wheelEvent)

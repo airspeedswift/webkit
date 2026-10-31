@@ -36,19 +36,6 @@ namespace WebCore {
 
 class PlatformKeyboardEvent;
 
-enum class KeyboardScrollingKey : uint8_t {
-    LeftArrow,
-    RightArrow,
-    UpArrow,
-    DownArrow,
-    Space,
-    PageUp,
-    PageDown,
-    Home,
-    End
-};
-
-WEBCORE_EXPORT const std::optional<KeyboardScrollingKey> keyboardScrollingKeyForKeyboardEvent(const KeyboardEvent&);
 WEBCORE_EXPORT const std::optional<ScrollDirection> scrollDirectionForKeyboardEvent(const KeyboardEvent&);
 WEBCORE_EXPORT const std::optional<ScrollGranularity> scrollGranularityForKeyboardEvent(const KeyboardEvent&);
 
@@ -64,12 +51,11 @@ public:
     WEBCORE_EXPORT void stopScrollingImmediately();
 
 private:
-    std::optional<KeyboardScroll> makeKeyboardScroll(ScrollDirection, ScrollGranularity) const;
-    float scrollDistance(ScrollDirection, ScrollGranularity) const;
-    RectEdges<bool> scrollingDirections() const;
 
     WeakRef<ScrollableArea> m_scrollableArea;
     bool m_scrollTriggeringKeyIsPressed { false };
+
+    friend class ScrollAnimatorScrollPhysicsClient;
 };
 
 } // namespace WebCore
