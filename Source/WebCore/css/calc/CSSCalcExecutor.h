@@ -33,9 +33,14 @@
 #include <wtf/Forward.h>
 #include <wtf/MathExtras.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_CALC
 // This file contains an implementation of math operations used by CSSCalc::Tree and Style::Calculation::Tree.
 
 template<auto> struct OperatorExecutor;
@@ -559,6 +564,7 @@ template<> struct OperatorExecutor<Operator::Random> {
         return value;
     }
 };
+#endif
 
 } // namespace CSSCalc
 } // namespace WebCore

@@ -61,7 +61,9 @@ struct EvaluationOptions {
 };
 
 std::optional<double> evaluateDouble(const Tree&, const EvaluationOptions&);
+#if !USE_SWIFT_CSS_CALC
 std::optional<double> evaluateWithoutFallback(const Anchor&, const EvaluationOptions&);
+#endif
 
 // Resolves a random() <random-key> to its base value in [0, 1] against the builder state.
 // Shared by random()'s evaluation and random-item()'s substitution-time resolution.

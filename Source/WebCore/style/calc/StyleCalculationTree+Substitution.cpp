@@ -30,10 +30,19 @@
 #include "StyleCalculationTree.h"
 #include <wtf/StdLibExtras.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 namespace Style {
 namespace Calculation {
 
+#if !USE_SWIFT_CSS_CALC
 static constexpr size_t maximumSubstitutionTreeDepth = 128;
 
 // MARK: - Leaf mapping
@@ -211,6 +220,37 @@ bool containsPercentage(const Tree& tree)
 {
     return contains<Percentage>(tree.root);
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+// styleCalcSubstituteSize's bound.
+static_assert(maximumCalcSizeNodeCount == 1024);
+
+std::optional<Tree> substituteSize(const Tree& tree, const Child& insertion)
+{
+    SwiftOutput output;
+    if (!styleCalcSubstituteSize(tree.root.nodes.span(), insertion.nodes.span(), output))
+        return std::nullopt;
+    return Tree { output.take() };
+}
+
+Tree dePercentify(const Tree& tree)
+{
+    SwiftOutput output;
+    styleCalcDePercentify(tree.root.nodes.span(), output);
+    return Tree { output.take() };
+}
+
+bool containsSize(const Tree& tree)
+{
+    return std::ranges::any_of(tree.root.nodes, [](auto& node) { return node.kind == static_cast<uint8_t>(StyleCalcNodeKind::Size); });
+}
+
+bool containsPercentage(const Tree& tree)
+{
+    return std::ranges::any_of(tree.root.nodes, [](auto& node) { return node.kind == static_cast<uint8_t>(StyleCalcNodeKind::Percentage); });
+}
+#endif
 
 } // namespace Calculation
 } // namespace Style

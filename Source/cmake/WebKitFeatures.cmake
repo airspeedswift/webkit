@@ -588,6 +588,15 @@ macro(WEBKIT_OPTION_END)
     if (WK_USE_SWIFT_CSS_FAST_PATHS)
         set(WK_BUILD_WEBCORE_SWIFT ON)
     endif ()
+    # The counterpart of CommonBase.xcconfig's WK_USE_SWIFT_CSS_CALC: calc()'s parser, simplifier, evaluators and
+    # serializer, and the operations on Style::Calculation trees, are the calc() Swift in css/calc.
+    option(WK_USE_SWIFT_CSS_CALC "Parse, simplify, evaluate and serialize CSS calc() with the calc() Swift in WebCore's css/calc" OFF)
+    if (WK_USE_SWIFT_CSS_CALC)
+        set(WK_BUILD_WEBCORE_SWIFT ON)
+    endif ()
+    # USE_SWIFT_CSS_CALC changes the layout of CSSCalc::Tree and Style::Calculation::Child, whose headers are included
+    # outside WebCore, so every target sees it, through cmakeconfig.h.
+    SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_CALC ${WK_USE_SWIFT_CSS_CALC})
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it

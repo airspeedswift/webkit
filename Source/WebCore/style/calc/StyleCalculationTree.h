@@ -32,6 +32,15 @@
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include <WebCore/CSSCalcSwiftTypes.h>
+#include <wtf/ForbidHeapAllocation.h>
+#endif
+
 namespace WebCore {
 namespace Style {
 namespace Calculation {
@@ -41,6 +50,7 @@ namespace Calculation {
 // Container.
 struct Tree;
 
+#if !USE_SWIFT_CSS_CALC
 // Math Operators.
 struct Sum;
 struct Product;
@@ -113,6 +123,7 @@ struct Dimension {
 
     bool operator==(const Dimension&) const = default;
 };
+#endif
 
 // The `size` keyword of calc-size(). Carries no value because it stands for the used value of the
 // calc-size basis, which is not known until layout resolves it.
@@ -122,6 +133,7 @@ struct Size {
     bool operator==(const Size&) const = default;
 };
 
+#if !USE_SWIFT_CSS_CALC
 template<typename Op> struct IndirectNode {
     UniqueRef<Op> op;
 
@@ -234,6 +246,30 @@ struct Children {
 
     bool operator==(const Children&) const = default;
 };
+#endif
+
+#if USE_SWIFT_CSS_CALC
+// A tree as records (CSSCalcSwiftTypes.h).
+struct Child {
+    Vector<StyleCalcNodeRecord, 4> nodes;
+
+    Child(Size) : nodes { { static_cast<uint8_t>(StyleCalcNodeKind::Size), 0, 0, 1, 0 } } { }
+    explicit Child(Vector<StyleCalcNodeRecord, 4>&& nodes) : nodes(WTF::move(nodes)) { }
+    Child(Child&&) = default;
+    Child& operator=(Child&&) = default;
+
+    bool operator==(const Child&) const = default;
+};
+
+// The state behind StyleCalcSwiftOutput: the tree it writes.
+class SwiftOutput final : public StyleCalcSwiftOutput {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    Child take() { return Child { WTF::move(nodes) }; }
+
+    Vector<StyleCalcNodeRecord, 4> nodes;
+};
+#endif
 
 struct Tree {
     Child root;
@@ -248,6 +284,7 @@ size_t computeDepth(const Tree&);
 size_t computeNodeCount(const Tree&);
 size_t computeNodeCount(const Child&);
 
+#if !USE_SWIFT_CSS_CALC
 // Math Operators.
 
 struct Sum {
@@ -586,6 +623,7 @@ template<typename Op> Child makeChild(Op&& op)
 {
     return ChildConstruction<Op>::make(WTF::move(op));
 }
+#endif
 
 // Convenience constructors
 
@@ -601,6 +639,7 @@ Child blend(Child&& from, Child&& to, double progress);
 
 TextStream& operator<<(TextStream&, const Tree&);
 
+#if !USE_SWIFT_CSS_CALC
 // MARK: Tuple Conformance
 
 // get<> overload (along with std::tuple_size and std::tuple_element below) to support destructuring of operation nodes.
@@ -835,11 +874,13 @@ Child::Child(T&& value)
     : value(std::forward<T>(value))
 {
 }
+#endif
 
 } // namespace Calculation
 } // namespace Style
 } // namespace WebCore
 
+#if !USE_SWIFT_CSS_CALC
 namespace std {
 
 #define OP_TUPLE_LIKE_CONFORMANCE(op, numberOfArguments) \
@@ -885,3 +926,4 @@ OP_TUPLE_LIKE_CONFORMANCE(CalcMix, 1);
 #undef OP_TUPLE_LIKE_CONFORMANCE
 
 } // namespace std
+#endif

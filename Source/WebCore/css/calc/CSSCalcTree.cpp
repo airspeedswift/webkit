@@ -176,6 +176,7 @@ AnchorSide::AnchorSide(Child&& child)
 {
 }
 
+#if !USE_SWIFT_CSS_CALC
 bool isNumeric(const Child& root)
 {
     return WTF::switchOn(root,
@@ -183,6 +184,7 @@ bool isNumeric(const Child& root)
         [](const auto&) { return false; }
     );
 }
+#endif
 
 Child makeNumeric(double value, CSSUnitType unit)
 {
@@ -286,6 +288,7 @@ Child makeNumeric(double value, CSSUnitType unit)
     return makeChild(Number { .value = 0 });
 }
 
+#if !USE_SWIFT_CSS_CALC
 Sum add(Child&& a, Child&& b)
 {
     Vector<Child> sumChildren;
@@ -327,6 +330,7 @@ Child makeChildWithValueBasedOn(double value, const NonCanonicalDimension& a)
 {
     return makeChild(NonCanonicalDimension { .value = value, .unit = a.unit });
 }
+#endif
 
 Type getType(CanonicalDimension::Dimension dimension)
 {
@@ -412,11 +416,13 @@ std::optional<Type> toType(const Invert& root)
     return Type::invert(getType(root.a));
 }
 
+#if !USE_SWIFT_CSS_CALC
 std::optional<Type> toType(const Deg2Rad&)
 {
     // Deg2Rad wraps an <angle> and produces a <number> (radians).
     return Type { };
 }
+#endif
 
 // Utilities to deduce the right input/merge/output policies from the operation.
 
@@ -464,6 +470,7 @@ std::optional<Type> toType(const Clamp& root)
     return transformTypeFor(root, type);
 }
 
+#if !USE_SWIFT_CSS_CALC
 std::optional<Type> toType(const RoundNearest& root)
 {
     auto type = getValidatedTypeFor(root, root.a);
@@ -614,11 +621,81 @@ std::optional<Type> toType(const CalcMix& root)
         type = mergeTypesFor(root, type, getValidatedTypeFor(root, root.children[i].value));
     return transformTypeFor(root, type);
 }
+#endif
 
 TextStream& operator<<(TextStream& ts, Tree tree)
 {
     return ts << "CSSCalc::Tree [ "_s << serializationForCSS(tree, { .range = CSS::All, .serializationContext = CSS::defaultSerializationContext() }) << " ]"_s;
 }
 
+#if USE_SWIFT_CSS_CALC
+// Typed OM expressions have only these nodes; a null operand is `none`.
+static void appendRecords(Vector<CSSCalcNodeRecord, 4>& nodes, const Child& child)
+{
+    auto start = nodes.size();
+    uint32_t childCount = 0;
+    auto append = [&](CSSCalcNodeKind kind, Type type, auto unit, double value, int flags) {
+        nodes.append({ static_cast<uint8_t>(kind), static_cast<uint8_t>(flags), static_cast<uint16_t>(unit), 1, UINT32_MAX, 0, std::bit_cast<uint64_t>(type), value });
+    };
+    auto appendOperation = [&](CSSCalcNodeKind kind, Type type, std::initializer_list<const Child*> operands, int flags) {
+        append(kind, type, 0, 0, flags);
+        for (auto* operand : operands) {
+            if (!operand)
+                continue;
+            ++childCount;
+            appendRecords(nodes, *operand);
+        }
+    };
+    auto appendVariadic = [&](CSSCalcNodeKind kind, Type type, const Children& operands) {
+        append(kind, type, 0, 0, 0);
+        for (auto& operand : operands)
+            appendRecords(nodes, operand);
+        childCount = static_cast<uint32_t>(operands.size());
+    };
+    WTF::switchOn(child,
+        [&](const Number& number) { append(CSSCalcNodeKind::Number, getType(number), CSSUnitType::Number, number.value, 0); },
+        [&](const Percentage& percentage) { append(CSSCalcNodeKind::Percentage, getType(percentage), percentage.hint ? static_cast<uint8_t>(*percentage.hint) : 0, percentage.value, percentage.hint ? CSSCalcNodeFlagPercentHint : 0); },
+        [&](const CanonicalDimension& dimension) { append(CSSCalcNodeKind::CanonicalDimension, getType(dimension), toCSSUnit(dimension), dimension.value, 0); },
+        [&](const NonCanonicalDimension& dimension) { append(CSSCalcNodeKind::NonCanonicalDimension, getType(dimension), dimension.unit, dimension.value, 0); },
+        [&](const IndirectNode<Sum>& node) { appendVariadic(CSSCalcNodeKind::Sum, node.type, node->children); },
+        [&](const IndirectNode<Product>& node) { appendVariadic(CSSCalcNodeKind::Product, node.type, node->children); },
+        [&](const IndirectNode<Min>& node) { appendVariadic(CSSCalcNodeKind::Min, node.type, node->children); },
+        [&](const IndirectNode<Max>& node) { appendVariadic(CSSCalcNodeKind::Max, node.type, node->children); },
+        [&](const IndirectNode<Negate>& node) { appendOperation(CSSCalcNodeKind::Negate, node.type, { &node->a }, 0); },
+        [&](const IndirectNode<Invert>& node) { appendOperation(CSSCalcNodeKind::Invert, node.type, { &node->a }, 0); },
+        [&](const IndirectNode<Clamp>& node) {
+            auto* min = std::get_if<Child>(&node->min.value);
+            auto* max = std::get_if<Child>(&node->max.value);
+            appendOperation(CSSCalcNodeKind::Clamp, node.type, { min, &node->val, max }, (min ? 0 : CSSCalcNodeFlagMinIsNone) | (max ? 0 : CSSCalcNodeFlagMaxIsNone));
+        },
+        [&](const auto&) { RELEASE_ASSERT_NOT_REACHED(); });
+    nodes[start].subtreeSize = static_cast<uint32_t>(nodes.size() - start);
+    nodes[start].childCount = childCount;
+}
+
+bool TreeStorage::operator==(const TreeStorage& other) const
+{
+    if (nodes.size() != other.nodes.size())
+        return false;
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        auto& a = nodes[i];
+        auto& b = other.nodes[i];
+        if (a.kind != b.kind || a.flags != b.flags || a.unit != b.unit || a.subtreeSize != b.subtreeSize || a.childCount != b.childCount || a.typeBits != b.typeBits || a.value != b.value)
+            return false;
+        if ((a.payload == UINT32_MAX) != (b.payload == UINT32_MAX))
+            return false;
+        if (a.payload != UINT32_MAX && !(payloads[a.payload] == other.payloads[b.payload]))
+            return false;
+    }
+    return true;
+}
+
+Tree makeTree(const Child& root, Type type, Stage stage, bool requiresConversionData)
+{
+    Tree tree { .storage = { }, .type = type, .stage = stage, .requiresConversionData = requiresConversionData };
+    appendRecords(tree.storage.nodes, root);
+    return tree;
+}
+#endif
 } // namespace CSSCalc
 } // namespace WebCore

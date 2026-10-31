@@ -3323,6 +3323,26 @@ endif ()
 if (WK_USE_SWIFT_CSS_FAST_PATHS)
     list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSParserFastPaths\\.cpp( |$)")
 endif ()
+# Set by WK_USE_SWIFT_CSS_CALC. The calc sources that call CSSCalcSwift.swift include WebCore-Swift.h, so they compile
+# in WebCore_SwiftInterop, after WebCore's Swift module.
+set(_webcore_css_calc_swift_interop_sources
+    css/calc/CSSCalcTree+Evaluation.cpp
+    css/calc/CSSCalcTree+Parser.cpp
+    css/calc/CSSCalcTree+Serialization.cpp
+    css/calc/CSSCalcTree+Simplification.cpp
+    css/typedom/CSSNumericValue.cpp
+    style/calc/StyleCalculationTree+Conversion.cpp
+    style/calc/StyleCalculationTree+Evaluation.cpp
+    style/calc/StyleCalculationTree+Substitution.cpp
+    style/calc/StyleCalculationTree.cpp)
+if (WK_USE_SWIFT_CSS_CALC)
+    foreach (_source IN LISTS _webcore_css_calc_swift_interop_sources)
+        get_filename_component(_name "${_source}" NAME)
+        string(REPLACE "+" "\\+" _name "${_name}")
+        string(REPLACE "." "\\." _name "${_name}")
+        list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)${_name}( |$)")
+    endforeach ()
+endif ()
 
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
@@ -3417,6 +3437,13 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/SIMDHighBitMask.swift
         ${WEBCORE_DIR}/SIMDSaturatingSubtract.swift
         ${WEBCORE_DIR}/SIMDTableLookup.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcEvaluation.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcNode.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcParser.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSerialization.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSimplification.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSwift.swift
+        ${WEBCORE_DIR}/css/calc/StyleCalculationSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
@@ -3489,6 +3516,16 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_FAST_PATHS" "-Xcc -DUSE_SWIFT_CSS_FAST_PATHS=1")
         list(APPEND _webcore_swift_core_submodules css/parser/CSSParserFastPathsSwiftTypes.h)
     endif ()
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_CSS_CALC: the Swift conditions. C++ sees USE_SWIFT_CSS_CALC in cmakeconfig.h
+    # (WebKitFeatures.cmake), in every target.
+    if (WK_USE_SWIFT_CSS_CALC)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_css_calc_swift_interop_sources})
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_CALC" "-Xcc -DUSE_SWIFT_CSS_CALC=1")
+        list(APPEND _webcore_swift_core_submodules css/calc/CSSCalcSwiftTypes.h css/parser/CSSParserToken.h
+            style/AnchorPositionEvaluator.h)
+    endif ()
+    list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 
     webkit_target_add_swift_options(WebCore
         "-library-level spi"
