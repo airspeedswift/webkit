@@ -44,6 +44,9 @@ extension SwiftTestingABI {
         var skip: [String]? = nil
         var repetitions: Int? = nil
         var parallel: Bool? = nil
+        // The event stream schema the records below are written for. Without it, Swift Testing uses its newest schema,
+        // which from 6.5 leaves out fields these records require ("messages" when empty, an issue's "isKnown").
+        var eventStreamVersion: String? = "6.4"
 
         init() {
         }
