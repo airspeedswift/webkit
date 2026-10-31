@@ -505,6 +505,9 @@ private:
 
     // NOTE: Only called from the ScrollAnimator.
     friend class ScrollAnimator;
+#if USE_SWIFT_SCROLL_ANIMATOR
+    friend class ScrollAnimatorScrollPhysicsClient;
+#endif
     void setScrollPositionFromAnimation(const ScrollPosition&);
 
     // This function should be overridden by subclasses to perform the actual

@@ -70,6 +70,7 @@ bool ScrollAnimatorMac::isRubberBandInProgress() const
 
 void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollAnimatorMac " << this << " scrollableArea " << m_scrollableArea << " handleWheelEventPhase " << phase);
 
     // FIXME: Need to ensure we get PlatformWheelEventPhase::Ended.
@@ -79,10 +80,14 @@ void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
         protect(scrollableArea())->scrollbarsController().didEndScrollGesture();
     else if (phase == PlatformWheelEventPhase::MayBegin)
         protect(scrollableArea())->scrollbarsController().mayBeginScrollGesture();
+#else
+    m_physics->controller.scrollAnimatorMacHandleWheelEventPhase(ScrollAnimatorScrollPhysicsClientState(*this).facade(), phase);
+#endif
 }
 
 bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     protect(scrollableArea())->scrollbarsController().setScrollbarAnimationsUnsuspendedByUserInteraction(true);
 #if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     m_physics->controller.updateGestureInProgressState(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent);
@@ -105,8 +110,12 @@ bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
         handleWheelEventPhase(wheelEvent.phase());
 
     return didHandleEvent;
+#else
+    return m_physics->controller.scrollAnimatorMacHandleWheelEvent(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 static bool gestureShouldBeginSnap(const PlatformWheelEvent& wheelEvent, ScrollEventAxis axis, const LayoutScrollSnapOffsetsInfo* offsetInfo)
 {
     if (!offsetInfo)
@@ -184,6 +193,7 @@ bool ScrollAnimatorMac::shouldRubberBandOnSide(BoxSide, FloatSize) const
 {
     return false;
 }
+#endif
 
 bool ScrollAnimatorMac::processWheelEventForScrollSnap(const PlatformWheelEvent& wheelEvent)
 {
