@@ -597,6 +597,14 @@ macro(WEBKIT_OPTION_END)
     # USE_SWIFT_CSS_CALC changes the layout of CSSCalc::Tree and Style::Calculation::Child, whose headers are included
     # outside WebCore, so every target sees it, through cmakeconfig.h.
     SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_CALC ${WK_USE_SWIFT_CSS_CALC})
+    # The counterpart of CommonBase.xcconfig's WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS: the numeric validators and the
+    # background-size, stroke-dasharray, animation-range, translate/rotate/scale and generated transform consumers are
+    # CSSPropertyConsumerSwift.swift and the generated CSSPropertyParsingSwift.swift.
+    option(WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS "Consume CSS property values with WebCore's CSSPropertyConsumerSwift.swift" OFF)
+    if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS AND NOT WK_USE_SWIFT_CSS_CALC)
+        message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS needs WK_USE_SWIFT_CSS_CALC: the consumers call calc()'s Swift parser")
+    endif ()
+    SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS})
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
