@@ -29,6 +29,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 struct PercentageValidator {
     static constexpr std::optional<CSS::PercentageUnit> validate(CSSUnitType unitType, CSS::PropertyParserState&, CSSPropertyParserOptions)
     {
@@ -40,6 +41,7 @@ struct PercentageValidator {
         return isValidCanonicalValue(raw);
     }
 };
+#endif
 
 template<auto R, typename V> struct ConsumerDefinition<CSS::Percentage<R, V>> {
     using FunctionToken = FunctionConsumerForCalcValues<CSS::Percentage<R, V>>;

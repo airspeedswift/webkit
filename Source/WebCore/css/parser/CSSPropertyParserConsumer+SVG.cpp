@@ -38,6 +38,9 @@
 #include "CSSPropertyParserConsumer+URL.h"
 #include "CSSPropertyParserState.h"
 #include "CSSValueKeywords.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+#include "CSSPropertyConsumerSwiftTypes.h"
+#endif
 #include "CSSValueList.h"
 
 namespace WebCore {
@@ -97,6 +100,7 @@ RefPtr<CSSValue> consumePaintOrder(CSSParserTokenRange& range, CSS::PropertyPars
     return CSSValueList::createSpaceSeparated(WTF::move(paintOrderList));
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 RefPtr<CSSValue> consumeStrokeDasharray(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <'stroke-dasharray'> = none | [ [ <length-percentage> | <number> ]+ ]#
@@ -117,6 +121,11 @@ RefPtr<CSSValue> consumeStrokeDasharray(CSSParserTokenRange& range, CSS::Propert
     } while (!range.atEnd());
     return CSSValueList::createCommaSeparated(WTF::move(dashes));
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+RefPtr<CSSValue> consumeStrokeDasharray(CSSParserTokenRange& range, CSS::PropertyParserState& state) { return consumePropertyWithSwift(range, state, std::to_underlying(CSSPropertyID::StrokeDasharray)); }
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

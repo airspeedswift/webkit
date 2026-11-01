@@ -42,6 +42,9 @@
 #include "CSSPropertyParserConsumer+Primitives.h"
 #include "CSSPropertyParserState.h"
 #include "CSSPropertyParsing.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+#include "CSSPropertyConsumerSwiftTypes.h"
+#endif
 #include "CSSTransformListValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePool.h"
@@ -53,6 +56,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 RefPtr<CSSValue> consumeRotate3dFunction(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // https://drafts.csswg.org/css-transforms-2/#funcdef-rotate3d
@@ -428,6 +432,13 @@ RefPtr<CSSValue> consumeScale(CSSParserTokenRange& range, CSS::PropertyParserSta
 
     return CSSValueList::createSpaceSeparated(x.releaseNonNull());
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+RefPtr<CSSValue> consumeTranslate(CSSParserTokenRange& range, CSS::PropertyParserState& state) { return consumePropertyWithSwift(range, state, std::to_underlying(CSSPropertyID::Translate)); }
+RefPtr<CSSValue> consumeRotate(CSSParserTokenRange& range, CSS::PropertyParserState& state) { return consumePropertyWithSwift(range, state, std::to_underlying(CSSPropertyID::Rotate)); }
+RefPtr<CSSValue> consumeScale(CSSParserTokenRange& range, CSS::PropertyParserState& state) { return consumePropertyWithSwift(range, state, std::to_underlying(CSSPropertyID::Scale)); }
+#endif
 
 std::optional<Style::Transform> parseTransformRaw(StringView string, const CSSParserContext& context, const Document& document)
 {

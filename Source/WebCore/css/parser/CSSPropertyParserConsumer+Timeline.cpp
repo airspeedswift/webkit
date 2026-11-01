@@ -34,6 +34,9 @@
 #include "CSSPropertyParserConsumer+List.h"
 #include "CSSPropertyParserState.h"
 #include "CSSPropertyParsing.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+#include "CSSPropertyConsumerSwiftTypes.h"
+#endif
 #include "CSSScrollValue.h"
 #include "CSSValuePair.h"
 #include "CSSViewValue.h"
@@ -61,12 +64,14 @@ bool isTimelineRangeName(CSSValueID id)
     >(id);
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 static RefPtr<CSSValue> consumeTimelineRangeName(CSSParserTokenRange& range)
 {
     if (isTimelineRangeName(range.peek().id()))
         return CSSKeywordValue::create(CSS::Keyword { range.consumeIncludingWhitespace().id() });
     return nullptr;
 }
+#endif
 
 std::optional<Style::SingleAnimationRangeName> parseTimelineRangeNameRaw(StringView rangeString)
 {
@@ -197,6 +202,7 @@ std::optional<Style::ViewTimelineInsetItem> parseAbsoluteSingleViewTimelineInset
     return Style::toStyleFromCSSValue<Style::ViewTimelineInsetItem>(*CheckedPtr { dummyState.ptr() }, *parsedValue);
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 RefPtr<CSSValue> consumeSingleAnimationRange(CSSParserTokenRange& range, CSS::PropertyParserState& state, Style::SingleAnimationRangeType type)
 {
     // <'animation-range-{start|end}'> = normal | <length-percentage> | <timeline-range-name> <length-percentage>?
@@ -230,6 +236,11 @@ RefPtr<CSSValue> consumeSingleAnimationRange(CSSParserTokenRange& range, CSS::Pr
     }
     return CSSPrimitiveValueResolver<CSS::LengthPercentage<>>::consumeAndResolve(range, state);
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+RefPtr<CSSValue> consumeSingleAnimationRange(CSSParserTokenRange& range, CSS::PropertyParserState& state, Style::SingleAnimationRangeType type) { return consumePropertyWithSwift(range, state, std::to_underlying(type == Style::SingleAnimationRangeType::Start ? CSSPropertyID::AnimationRangeStart : CSSPropertyID::AnimationRangeEnd)); }
+#endif
 
 RefPtr<CSSValue> consumeSingleAnimationRangeStart(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
