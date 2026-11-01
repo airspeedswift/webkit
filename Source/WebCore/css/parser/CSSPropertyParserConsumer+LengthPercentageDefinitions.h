@@ -30,6 +30,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 struct LengthPercentageValidator {
     static constexpr std::optional<CSS::LengthPercentageUnit> validate(CSSUnitType unitType, CSS::PropertyParserState& state, CSSPropertyParserOptions options)
     {
@@ -51,6 +52,7 @@ struct LengthPercentageValidator {
         return LengthValidator::shouldAcceptUnitlessValue(value, state, options);
     }
 };
+#endif
 
 template<auto R, typename V> struct ConsumerDefinition<CSS::LengthPercentage<R, V>> {
     using FunctionToken = FunctionConsumerForCalcValues<CSS::LengthPercentage<R, V>>;
