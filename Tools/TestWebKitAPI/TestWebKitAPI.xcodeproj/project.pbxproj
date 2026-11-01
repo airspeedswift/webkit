@@ -850,6 +850,7 @@
 				WebCore/CredentialStorage.cpp,
 				WebCore/CryptoDigest.cpp,
 				WebCore/CSSCalcBench.cpp,
+				WebCore/CSSConsumersBench.cpp,
 				WebCore/CSSFastPathsBench.cpp,
 				WebCore/CSSParser.cpp,
 				WebCore/CSSParserFastPaths.cpp,
