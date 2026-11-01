@@ -53,6 +53,9 @@
 #include "CSSPropertyParserState.h"
 #include "CSSPropertyParsing.h"
 #include "CSSValueKeywords.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+#include "CSSPropertyConsumerSwiftTypes.h"
+#endif
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
 #include "CSSWebkitBoxReflectValue.h"
@@ -421,6 +424,7 @@ std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange
 
 // MARK: - Background Size
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 template<CSSPropertyID property> static RefPtr<CSSValue> consumeBackgroundSize(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <bg-size> = [ <length-percentage [0,∞]> | auto ]{1,2} | cover | contain
@@ -459,6 +463,14 @@ template<CSSPropertyID property> static RefPtr<CSSValue> consumeBackgroundSize(C
         return CSSValuePair::create(horizontal.releaseNonNull(), vertical.releaseNonNull());
     return CSSValuePair::createNoncoalescing(horizontal.releaseNonNull(), vertical.releaseNonNull());
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS
+template<CSSPropertyID property> static RefPtr<CSSValue> consumeBackgroundSize(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumePropertyWithSwift(range, state, std::to_underlying(property));
+}
+#endif
 
 RefPtr<CSSValue> consumeSingleBackgroundSize(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {

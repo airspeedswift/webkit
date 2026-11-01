@@ -46,12 +46,14 @@ struct Transform;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 // MARK: <rotate3d()> consuming (CSSValue)
 RefPtr<CSSValue> consumeRotate3dFunction(CSSParserTokenRange&, CSS::PropertyParserState&);
 // MARK: <translate()> consuming (CSSValue)
 RefPtr<CSSValue> consumeTranslateFunction(CSSParserTokenRange&, CSS::PropertyParserState&);
 // MARK: <translate3d()> consuming (CSSValue)
 RefPtr<CSSValue> consumeTranslate3dFunction(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // MARK: <'translate'> consuming (CSSValue)
 RefPtr<CSSValue> consumeTranslate(CSSParserTokenRange&, CSS::PropertyParserState&);

@@ -474,4 +474,22 @@ TEST(CSSPropertyParser, CalcLongArgumentLists)
     }
 }
 
+TEST(CSSPropertyParser, TransformTokenCounts)
+{
+    // calc() arguments of 31 to 33 and 63 to 65 tokens.
+    std::pair<ASCIILiteral, ASCIILiteral> calcCases[] = {
+        { "translateX(calc(1px + (2px) + 3px + 4px + 5px + 6px + 7px + 1px))"_s, "translateX(calc(29px))"_s },
+        { "translateX(calc(1px + (2px) + 3px + 4px + 5px + 6px + 7px + 1px ))"_s, "translateX(calc(29px))"_s },
+        { "translateX(calc(1px + 2px + 3px + 4px + 5px + 6px + 7px + 1px + 2px))"_s, "translateX(calc(31px))"_s },
+        { "translateX(calc(1px + (2px) + 3px + 4px + 5px + 6px + 7px + 1px + 2px + 3px + 4px + 5px + 6px + 7px + 1px + 2px))"_s, "translateX(calc(59px))"_s },
+        { "translateX(calc(1px + (2px) + 3px + 4px + 5px + 6px + 7px + 1px + 2px + 3px + 4px + 5px + 6px + 7px + 1px + 2px ))"_s, "translateX(calc(59px))"_s },
+        { "translateX(calc(1px + 2px + 3px + 4px + 5px + 6px + 7px + 1px + 2px + 3px + 4px + 5px + 6px + 7px + 1px + 2px + 3px))"_s, "translateX(calc(62px))"_s },
+    };
+    for (auto& [input, output] : calcCases) {
+        auto properties = MutableStyleProperties::create();
+        ASSERT_TRUE(CSSParser::parseDeclarationList(properties, makeString("transform: "_s, input, ';'), strictCSSParserContext()));
+        EXPECT_EQ(properties->getPropertyValue(CSSPropertyID::Transform), output);
+    }
+}
+
 } // namespace TestWebKitAPI

@@ -32,6 +32,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS
 struct LengthValidator {
     static constexpr std::optional<CSS::LengthUnit> validate(CSSUnitType unitType, CSS::PropertyParserState& state, CSSPropertyParserOptions options)
     {
@@ -62,6 +63,7 @@ struct LengthValidator {
         return mode == HTMLQuirksMode && CSSProperty::acceptsQuirkyLength(state.currentProperty);
     }
 };
+#endif
 
 template<auto R, typename V> struct ConsumerDefinition<CSS::Length<R, V>> {
     using FunctionToken = FunctionConsumerForCalcValues<CSS::Length<R, V>>;
