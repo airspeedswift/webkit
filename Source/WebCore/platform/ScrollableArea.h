@@ -116,7 +116,7 @@ public:
     WEBCORE_EXPORT void setCurrentVerticalSnapPointIndex(std::optional<unsigned>);
 
     WEBCORE_EXPORT void resnapAfterLayout();
-    void doPostThumbMoveSnapping(ScrollbarOrientation);
+    WEBCORE_EXPORT void doPostThumbMoveSnapping(ScrollbarOrientation);
 
     void stopKeyboardScrollAnimation();
 
@@ -439,8 +439,8 @@ public:
     bool horizontalOverscrollBehaviorPreventsPropagation() const { return horizontalOverscrollBehavior() != OverscrollBehavior::Auto; }
     bool verticalOverscrollBehaviorPreventsPropagation() const { return verticalOverscrollBehavior() != OverscrollBehavior::Auto; }
     bool overscrollBehaviorAllowsRubberBand() const { return horizontalOverscrollBehavior() != OverscrollBehavior::None || verticalOverscrollBehavior() != OverscrollBehavior::None; }
-    bool shouldBlockScrollPropagation(const FloatSize&) const;
-    FloatSize deltaForPropagation(const FloatSize&) const;
+    WEBCORE_EXPORT bool shouldBlockScrollPropagation(const FloatSize&) const;
+    WEBCORE_EXPORT FloatSize deltaForPropagation(const FloatSize&) const;
 
     WEBCORE_EXPORT virtual float adjustVerticalPageScrollStepForFixedContent(float step);
 
