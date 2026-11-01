@@ -1508,3 +1508,66 @@ private func cssCalcParse(
         requiresConversionData: state.requiresConversionData ? 1 : 0
     )
 }
+
+/// `isCalcFunction`, for the property consumers.
+func cssCalcIsMathFunction(_ id: UInt16) -> Bool {
+    calcIsMathFunction(id)
+}
+
+/// The parse of the arguments `tokens` of a math function.
+///
+/// Records are held as in `cssCalcParseImpl`.
+func cssCalcParseArguments(
+    _ tokens: Span<WebCore.CSSCalcSwiftToken>,
+    _ parser: inout WebCore.CSSCalcSwiftParser,
+    _ resolver: inout WebCore.CSSCalcSwiftResolver,
+    _ output: inout WebCore.CSSCalcSwiftOutput,
+    _ options: CalcParseOptions
+) -> WebCore.CSSCalcSwiftParseResult {
+    let range = CalcRange(index: 0, end: tokens.count)
+    guard tokens.count <= 32 else {
+        var recordBuffer = [128 of CalcRecord](repeating: CalcRecord())
+        return cssCalcParseFunction(tokens, range, CalcArena(recordBuffer.mutableSpan), &parser, &resolver, &output, options)
+    }
+    var recordBuffer = [32 of CalcRecord](repeating: CalcRecord())
+    return cssCalcParseFunction(tokens, range, CalcArena(recordBuffer.mutableSpan), &parser, &resolver, &output, options)
+}
+
+/// `cssCalcParse` of the arguments `tokens[range]` of the math function `options.function`.
+@inline(never)
+private func cssCalcParseFunction(
+    _ tokens: Span<WebCore.CSSCalcSwiftToken>,
+    _ range: CalcRange,
+    _ arena: consuming CalcArena,
+    _ parser: inout WebCore.CSSCalcSwiftParser,
+    _ resolver: inout WebCore.CSSCalcSwiftResolver,
+    _ output: inout WebCore.CSSCalcSwiftOutput,
+    _ options: CalcParseOptions
+) -> WebCore.CSSCalcSwiftParseResult {
+    guard let category = WebCore.CSS.Category(rawValue: options.category) else {
+        preconditionFailure()
+    }
+    var state = CalcParser(tokens, arena, options.simplification)
+    let context = CalcParseContext(category: category, flags: options.flags, allowsSymbols: true, simplifies: true)
+    var range = range
+    let rootType = state.parseFunction(&range, options.function, 0, context, &parser, &resolver)
+
+    // A math function's arguments are all its tokens; a tree of the wrong category is no tree.
+    let consumedTokens = UInt32(truncatingIfNeeded: range.index) // At most the token count, a UInt32.
+    guard let rootType, range.atEnd, rootType.matches(category) else {
+        return WebCore.CSSCalcSwiftParseResult(typeBits: 0, consumedTokens: consumedTokens, ok: 0, requiresConversionData: 0)
+    }
+
+    precondition(state.arena.count > 0 && state.arena.end(0) == state.arena.count)
+    if state.simplifier.madeWeights {
+        calcWritePendingWeights(&state.arena, at: 0, &output)
+    }
+    assert(state.arena.span.isCalcTree)
+    output.adopt(state.arena.span)
+    return WebCore.CSSCalcSwiftParseResult(
+        typeBits: rootType.bits,
+        consumedTokens: consumedTokens,
+        ok: 1,
+        requiresConversionData: state.requiresConversionData ? 1 : 0
+    )
+}

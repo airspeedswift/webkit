@@ -53,6 +53,7 @@
 #include "CSSPropertyParserState.h"
 #include "CSSPropertyParsing.h"
 #include "CSSValueKeywords.h"
+#include "CSSPropertyConsumerSwiftTypes.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
 #include "CSSWebkitBoxReflectValue.h"
@@ -423,41 +424,7 @@ std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange
 
 template<CSSPropertyID property> static RefPtr<CSSValue> consumeBackgroundSize(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
-    // <bg-size> = [ <length-percentage [0,∞]> | auto ]{1,2} | cover | contain
-    // https://drafts.csswg.org/css-backgrounds/#propdef-background-size
-
-    if (identMatches<CSSValueID::Contain, CSSValueID::Cover>(range.peek().id()))
-        return consumeIdent(range);
-
-    bool shouldCoalesce = true;
-    RefPtr<CSSValue> horizontal = consumeIdent<CSSValueID::Auto>(range);
-    if (!horizontal) {
-        horizontal = CSSPrimitiveValueResolver<CSS::LengthPercentage<CSS::Nonnegative>>::consumeAndResolve(range, state);
-        if (!horizontal)
-            return nullptr;
-        shouldCoalesce = false;
-    }
-
-    RefPtr<CSSValue> vertical;
-    if (!range.atEnd()) {
-        vertical = consumeIdent<CSSValueID::Auto>(range);
-        if (!vertical)
-            vertical = CSSPrimitiveValueResolver<CSS::LengthPercentage<CSS::Nonnegative>>::consumeAndResolve(range, state);
-    }
-    if (!vertical) {
-        if constexpr (property == CSSPropertyID::WebkitBackgroundSize) {
-            // Legacy syntax: "-webkit-background-size: 10px" is equivalent to "background-size: 10px 10px".
-            vertical = horizontal;
-        } else if constexpr (property == CSSPropertyID::BackgroundSize) {
-            vertical = CSSKeywordValue::create(CSSValueID::Auto);
-        } else if constexpr (property == CSSPropertyID::MaskSize) {
-            return horizontal;
-        }
-    }
-
-    if (shouldCoalesce)
-        return CSSValuePair::create(horizontal.releaseNonNull(), vertical.releaseNonNull());
-    return CSSValuePair::createNoncoalescing(horizontal.releaseNonNull(), vertical.releaseNonNull());
+    return consumePropertyWithSwift(range, state, std::to_underlying(property));
 }
 
 RefPtr<CSSValue> consumeSingleBackgroundSize(CSSParserTokenRange& range, CSS::PropertyParserState& state)

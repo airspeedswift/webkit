@@ -328,6 +328,10 @@
 		C55C0000000000000000000C /* CSSCalcSerialization.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C0000000000000000000B /* CSSCalcSerialization.swift */; };
 		C55C0000000000000000000E /* CSSCalcSimplification.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C0000000000000000000D /* CSSCalcSimplification.swift */; };
 		C55C00000000000000000010 /* StyleCalculationSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55C0000000000000000000F /* StyleCalculationSwift.swift */; };
+		C55D00000000000000000002 /* CSSPropertyConsumerSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000001 /* CSSPropertyConsumerSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		C55D00000000000000000004 /* CSSPropertyConsumerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000003 /* CSSPropertyConsumerSwift.swift */; };
+		C55D00000000000000000006 /* CSSPropertyConsumerSwiftProperties.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000005 /* CSSPropertyConsumerSwiftProperties.swift */; };
+		C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */; };
 		C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55A00000000000000000003 /* CSSTokenizerSwift.swift */; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
@@ -2927,7 +2931,7 @@
 		71C916081D1483A300ACA47D /* UserInterfaceLayoutDirection.h in Headers */ = {isa = PBXBuildFile; fileRef = 71C916071D1483A300ACA47D /* UserInterfaceLayoutDirection.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		71D195762D61E2AB0085EB01 /* StyleOriginatedTimelinesController.h in Headers */ = {isa = PBXBuildFile; fileRef = 71D195742D61E2940085EB01 /* StyleOriginatedTimelinesController.h */; };
 		71D6EAFB2AFA914600A323CF /* AnimationEffectTiming.h in Headers */ = {isa = PBXBuildFile; fileRef = 71D6EAFA2AFA913800A323CF /* AnimationEffectTiming.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		71DB0FD929007C910071AC42 /* CSSTransformListValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 71DB0FD829007C750071AC42 /* CSSTransformListValue.h */; };
+		71DB0FD929007C910071AC42 /* CSSTransformListValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 71DB0FD829007C750071AC42 /* CSSTransformListValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		71DCB7021568197600862271 /* JSSVGZoomAndPan.h in Headers */ = {isa = PBXBuildFile; fileRef = 71DCB7001568197600862271 /* JSSVGZoomAndPan.h */; };
 		71E2C42621C935280024F8C8 /* AnimationEffectPhase.h in Headers */ = {isa = PBXBuildFile; fileRef = 71E2C42421C9351D0024F8C8 /* AnimationEffectPhase.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		71EADCD822087E720065A45F /* PointerID.h in Headers */ = {isa = PBXBuildFile; fileRef = 71EADCD622087E6D0065A45F /* PointerID.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -5052,7 +5056,7 @@
 		BC000BE82C60110B0033AA75 /* CSSCalcType.h in Headers */ = {isa = PBXBuildFile; fileRef = BC000BD82C5A96850033AA75 /* CSSCalcType.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC00F0150E0A189500FD04E3 /* JSFile.h in Headers */ = {isa = PBXBuildFile; fileRef = BC00F0110E0A189500FD04E3 /* JSFile.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC00F0170E0A189500FD04E3 /* JSFileList.h in Headers */ = {isa = PBXBuildFile; fileRef = BC00F0130E0A189500FD04E3 /* JSFileList.h */; };
-		BC02A63C0E09A9CF004B6D2B /* CSSFunctionValue.h in Headers */ = {isa = PBXBuildFile; fileRef = BC02A63B0E09A9CF004B6D2B /* CSSFunctionValue.h */; };
+		BC02A63C0E09A9CF004B6D2B /* CSSFunctionValue.h in Headers */ = {isa = PBXBuildFile; fileRef = BC02A63B0E09A9CF004B6D2B /* CSSFunctionValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC02CF5F2CE26E8B007DA764 /* CSSPrimitiveNumericRange.h in Headers */ = {isa = PBXBuildFile; fileRef = BC02CF5E2CE26E8B007DA764 /* CSSPrimitiveNumericRange.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC02CF742CE2E10A007DA764 /* JSDOMConvertUndefined.h in Headers */ = {isa = PBXBuildFile; fileRef = BC02CF732CE2E10A007DA764 /* JSDOMConvertUndefined.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC05ACCE2CEE610300750CB1 /* CSSSymbol.h in Headers */ = {isa = PBXBuildFile; fileRef = BC05ACCC2CEE600D00750CB1 /* CSSSymbol.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -20052,6 +20056,10 @@
 		C55C0000000000000000000B /* CSSCalcSerialization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcSerialization.swift; sourceTree = "<group>"; };
 		C55C0000000000000000000D /* CSSCalcSimplification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSCalcSimplification.swift; sourceTree = "<group>"; };
 		C55C0000000000000000000F /* StyleCalculationSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleCalculationSwift.swift; sourceTree = "<group>"; };
+		C55D00000000000000000001 /* CSSPropertyConsumerSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSPropertyConsumerSwiftTypes.h; sourceTree = "<group>"; };
+		C55D00000000000000000003 /* CSSPropertyConsumerSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyConsumerSwift.swift; sourceTree = "<group>"; };
+		C55D00000000000000000005 /* CSSPropertyConsumerSwiftProperties.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyConsumerSwiftProperties.swift; sourceTree = "<group>"; };
+		C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParsingSwift.swift; sourceTree = "<group>"; };
 		C55C00000000000000000001 /* CSSCalcSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSCalcSwiftTypes.h; sourceTree = "<group>"; };
 		C55A00000000000000000003 /* CSSTokenizerSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSTokenizerSwift.swift; sourceTree = "<group>"; };
 		C55A00000000000000000001 /* CSSTokenizerSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSTokenizerSwiftTypes.h; sourceTree = "<group>"; };
@@ -30502,6 +30510,7 @@
 				656580EF09D12B20000E61D7 /* CSSPropertyNames.h */,
 				BCEB8A91294B7DB5006F760C /* CSSPropertyParsing.cpp */,
 				BCEB8A90294B7DB4006F760C /* CSSPropertyParsing.h */,
+				C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */,
 				491342D92B43FAA700FEEF18 /* CSSSelectorEnums.h */,
 				491342DA2B43FAA800FEEF18 /* CSSSelectorInlines.h */,
 				BCEB8A94294B7DF8006F760C /* CSSStyleProperties+PropertyNames.idl */,
@@ -33818,6 +33827,9 @@
 				BC7C5E5D2BE2A8FB00AE645C /* CSSParserTokenRange.cpp */,
 				BC7C5E5E2BE2A8FB00AE645C /* CSSParserTokenRange.h */,
 				BC2650602D931D8B0027337D /* CSSParserTokenRangeGuard.h */,
+				C55D00000000000000000003 /* CSSPropertyConsumerSwift.swift */,
+				C55D00000000000000000005 /* CSSPropertyConsumerSwiftProperties.swift */,
+				C55D00000000000000000001 /* CSSPropertyConsumerSwiftTypes.h */,
 				BC7C5E5F2BE2A8FB00AE645C /* CSSPropertyParser.cpp */,
 				BC7C5E602BE2A8FB00AE645C /* CSSPropertyParser.h */,
 				BC6DA0F52C8CA935000ECE0F /* CSSPropertyParserConsumer+Align.cpp */,
@@ -45335,6 +45347,7 @@
 				BCFE79B32BE308D000114272 /* CSSParserEnum.h in Headers */,
 				45EA87922D35D30400DD0194 /* CSSParserFastPaths.h in Headers */,
 				C55B00000000000000000002 /* CSSParserFastPathsSwiftTypes.h in Headers */,
+				C55D00000000000000000002 /* CSSPropertyConsumerSwiftTypes.h in Headers */,
 				BCFE79B02BE308AD00114272 /* CSSParserIdioms.h in Headers */,
 				BCFE79AC2BE3081700114272 /* CSSParserMode.h in Headers */,
 				BCFE79AF2BE308A200114272 /* CSSParserToken.h in Headers */,
@@ -51394,6 +51407,9 @@
 				C55C0000000000000000000C /* CSSCalcSerialization.swift in Sources */,
 				C55C0000000000000000000E /* CSSCalcSimplification.swift in Sources */,
 				C55C00000000000000000010 /* StyleCalculationSwift.swift in Sources */,
+				C55D00000000000000000004 /* CSSPropertyConsumerSwift.swift in Sources */,
+				C55D00000000000000000006 /* CSSPropertyConsumerSwiftProperties.swift in Sources */,
+				C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */,
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,

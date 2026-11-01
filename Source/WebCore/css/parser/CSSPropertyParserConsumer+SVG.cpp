@@ -38,6 +38,7 @@
 #include "CSSPropertyParserConsumer+URL.h"
 #include "CSSPropertyParserState.h"
 #include "CSSValueKeywords.h"
+#include "CSSPropertyConsumerSwiftTypes.h"
 #include "CSSValueList.h"
 
 namespace WebCore {
@@ -97,26 +98,7 @@ RefPtr<CSSValue> consumePaintOrder(CSSParserTokenRange& range, CSS::PropertyPars
     return CSSValueList::createSpaceSeparated(WTF::move(paintOrderList));
 }
 
-RefPtr<CSSValue> consumeStrokeDasharray(CSSParserTokenRange& range, CSS::PropertyParserState& state)
-{
-    // <'stroke-dasharray'> = none | [ [ <length-percentage> | <number> ]+ ]#
-    // https://svgwg.org/svg2-draft/painting.html#StrokeDashing
-
-    CSSValueID id = range.peek().id();
-    if (id == CSSValueID::None)
-        return consumeIdent(range);
-    CSSValueListBuilder dashes;
-    do {
-        // FIXME: Figure out and document why overrideParserMode is explicitly set to HTMLStandardMode here or remove the special case.
-        auto dash = CSSPrimitiveValueResolver<CSS::LengthPercentage<CSS::Nonnegative>>::consumeAndResolve(range, state, { .overrideParserMode = HTMLStandardMode, .unitlessZeroLength = UnitlessZeroQuirk::Forbid });
-        if (!dash)
-            dash = CSSPrimitiveValueResolver<CSS::Number<CSS::Nonnegative>>::consumeAndResolve(range, state);
-        if (!dash || (consumeCommaIncludingWhitespace(range) && range.atEnd()))
-            return nullptr;
-        dashes.append(dash.releaseNonNull());
-    } while (!range.atEnd());
-    return CSSValueList::createCommaSeparated(WTF::move(dashes));
-}
+RefPtr<CSSValue> consumeStrokeDasharray(CSSParserTokenRange& range, CSS::PropertyParserState& state) { return consumePropertyWithSwift(range, state, std::to_underlying(CSSPropertyID::StrokeDasharray)); }
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

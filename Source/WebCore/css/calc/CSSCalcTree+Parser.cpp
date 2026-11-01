@@ -255,4 +255,73 @@ CSSCalcSwiftConsumed CSSCalcSwiftParser::consumeCalcMixWeight(uint32_t index)
     });
 }
 
+static_assert(isCSSCalcSwiftFacade<CSSPropertyConsumerSwiftValue>);
+
+// lengthUnit's masks in CSSPropertyConsumerSwift.swift are CSS::toLengthUnit's units, and one that does not map back to
+// itself sets every bit, matching no mask.
+static_assert([] {
+    std::array<uint64_t, 2> length { }, absolute { };
+    for (unsigned unit = 0; unit < 128; ++unit) {
+        if (auto lengthUnit = CSS::toLengthUnit(static_cast<CSSUnitType>(unit))) {
+            length[unit / 64] |= CSS::toCSSUnitType(*lengthUnit) == static_cast<CSSUnitType>(unit) ? uint64_t { 1 } << (unit % 64) : ~uint64_t { 0 };
+            absolute[unit / 64] |= uint64_t { !CSS::conversionToCanonicalUnitRequiresConversionData(*lengthUnit) } << (unit % 64);
+        }
+    }
+    return length[0] == 0xfdc1'ffff'fff8'0ff0 && length[1] == 0x23 && absolute[0] == 0x40'0000'0000'0fc0 && !absolute[1];
+}());
+// cssConsumeNumericSwift names each LengthUnit.
+static_assert(CSS::UnitTraits<CSS::LengthUnit>::count == 50);
+
+void CSSPropertyConsumerSwiftValue::setResult(CSSValue& value) const
+{
+    static_cast<const CSSPropertyConsumerSwiftValueState&>(*this).result = &value;
+}
+
+// cssConsumeProperty's consumer on range, which it advances past what the consumer consumed.
+RefPtr<CSSValue> consumePropertyWithSwift(CSSParserTokenRange& range, CSS::PropertyParserState& state, uint16_t consumer)
+{
+    RefPtr<CSSValue> result;
+    CSSPropertyConsumerSwiftValueState value { range.span(), state, result };
+    auto mode = state.context.mode;
+    uint8_t numericFlags = (state.absoluteLengthUnitsOnly ? CSSNumericConsumerSwiftAbsoluteLengthUnitsOnly : 0)
+        | (mode == HTMLQuirksMode && CSSProperty::acceptsQuirkyLength(state.currentProperty) ? CSSNumericConsumerSwiftQuirkyLength : 0)
+        | (mode == HTMLQuirksMode && CSSProperty::acceptsQuirkyAngle(state.currentProperty) ? CSSNumericConsumerSwiftQuirkyAngle : 0);
+    auto consumed = cssConsumeProperty(value, consumer, static_cast<uint8_t>(mode), numericFlags);
+    RELEASE_ASSERT(consumed.consumedTokens <= range.size());
+    range = range.span().subspan(consumed.consumedTokens);
+    if (!consumed.ok)
+        return nullptr;
+    return result;
+}
+
 } // namespace WebCore
+
+#include "CSSCalcValue.h"
+
+// UnevaluatedCalcBase::parseBase on the arguments: no conversion data, no symbols.
+auto WebCore::CSSPropertyConsumerSwiftValue::parseCalc(uint32_t argumentsStart, uint32_t argumentsEnd, uint16_t function, uint8_t category, uint32_t flags, double rangeMin, double rangeMax) const -> RefPtr<CSSPrimitiveValue>
+{
+    auto& value = static_cast<const CSSPropertyConsumerSwiftValueState&>(*this);
+    RELEASE_ASSERT(argumentsStart <= argumentsEnd && argumentsEnd <= value.tokens.size());
+    auto& state = value.propertyParserState;
+    CSSCalc::TreeStorage storage;
+    CSSCalc::ParserOptions options { .category = CSS::Category::Number, .range = CSS::All, .allowedSymbols = { }, .propertyOptions = { } };
+    CSSCalc::SwiftParserState parser { CSSParserTokenRange { value.tokens.subspan(argumentsStart, argumentsEnd - argumentsStart) }, state, options, storage };
+    std::optional<CSSToLengthConversionData> conversionData;
+    CSSCalcSymbolTable symbolTable;
+    CSSCalc::SwiftResolverState resolver { conversionData, symbolTable, storage };
+    CSSCalc::SwiftOutputState calcOutput { storage };
+    bool inStyleRule = state.currentRule == StyleRuleType::Style || state.currentRule == StyleRuleType::Keyframe;
+    flags |= (state.absoluteLengthUnitsOnly ? CSSCalcParseAbsoluteLengthUnitsOnly : 0)
+        | (state.context.cssRandomFunctionEnabled && inStyleRule && state.currentProperty != CSSPropertyID::Invalid && !state.randomFunctionsDisallowed ? CSSCalcParseAllowRandom : 0)
+        | (state.context.cssTreeCountingFunctionsEnabled && inStyleRule && (state.currentProperty != CSSPropertyID::Invalid || state.treeCountingFunctionsAllowed) ? CSSCalcParseAllowTreeCounting : 0)
+        | (state.context.cssCalcMixEnabled ? CSSCalcParseAllowCalcMix : 0);
+    auto parsed = cssConsumePropertyCalc(*this, parser, resolver, calcOutput, argumentsStart, argumentsEnd, function, category, flags);
+    if (!parsed.ok || parsed.consumedTokens != argumentsEnd - argumentsStart)
+        return nullptr;
+    RELEASE_ASSERT(!storage.nodes.isEmpty());
+    auto type = std::bit_cast<CSSCalc::Type>(parsed.typeBits);
+    RELEASE_ASSERT(category <= std::to_underlying(CSS::Category::AnglePercentage) && type.matches(static_cast<CSS::Category>(category)));
+    auto tree = CSSCalc::Tree { .storage = WTF::move(storage), .type = type, .stage = CSSCalc::Stage::Specified, .requiresConversionData = !!parsed.requiresConversionData };
+    return CSSPrimitiveValue::create(CSS::UnevaluatedCalcBase { CSSCalc::Value::create(static_cast<CSS::Category>(category), CSS::Range { rangeMin, rangeMax }, WTF::move(tree)) });
+}
