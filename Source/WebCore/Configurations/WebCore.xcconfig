@@ -91,7 +91,7 @@ WK_SWIFT_SCROLL_ANIMATOR_CONDITIONS_YES[sdk=macosx*] = USE_SWIFT_SCROLL_ANIMATOR
 // Does not compile the C++ snap point selection on macOS, where the Swift scroll physics chooses snap points for
 // ScrollAnimator and for the scrolling tree. It needs WK_USE_SWIFT_SCROLL_ANIMATOR_PHYSICS. No header uses the
 // define, so only WebCore declares the setting.
-WK_USE_SWIFT_SCROLL_SNAP = NO;
+WK_USE_SWIFT_SCROLL_SNAP = YES;
 WK_SWIFT_SCROLL_SNAP_DEFINES_YES = USE_SWIFT_SCROLL_SNAP=0;
 WK_SWIFT_SCROLL_SNAP_DEFINES_YES[sdk=macosx*] = USE_SWIFT_SCROLL_SNAP=1;
 WK_SWIFT_SCROLL_SNAP_DEFINES_NO = USE_SWIFT_SCROLL_SNAP=0;
