@@ -763,6 +763,288 @@ inline Case steppedWheelShape()
     return result;
 }
 
+// MARK: - Scrollable area shapes
+//
+// ScrollableArea's own members: scroll into view, re-snapping after layout, scrolls to a position or offset, and the
+// queries made for each wheel event.
+
+inline LayoutUnit layoutUnitFromRaw(int value)
+{
+    return LayoutUnit::fromRawValue(value);
+}
+
+inline LayoutRect layoutRect(float x, float y, float width, float height)
+{
+    return LayoutRect(LayoutPoint(LayoutUnit(x), LayoutUnit(y)), LayoutSize(LayoutUnit(width), LayoutUnit(height)));
+}
+
+inline ScrollAlignment scrollAlignment(ScrollAlignment::Behavior visible, ScrollAlignment::Behavior hidden, ScrollAlignment::Behavior partial, bool legacyHorizontalVisibilityThreshold = true)
+{
+    ScrollAlignment alignment { visible, hidden, partial };
+    if (!legacyHorizontalVisibilityThreshold)
+        alignment.disableLegacyHorizontalVisibilityThreshold();
+    return alignment;
+}
+
+// The alignments ScrollAlignment names, by value.
+inline std::vector<ScrollAlignment> namedScrollAlignments()
+{
+    using enum ScrollAlignment::Behavior;
+    return {
+        scrollAlignment(NoScroll, NoScroll, NoScroll), // noScroll
+        scrollAlignment(NoScroll, AlignCenter, NoScroll), // alignCenterIfNotVisible
+        scrollAlignment(NoScroll, AlignToClosestEdge, NoScroll), // alignToEdgeIfNotVisible
+        scrollAlignment(NoScroll, AlignCenter, AlignToClosestEdge), // alignCenterIfNeeded
+        scrollAlignment(NoScroll, AlignToClosestEdge, AlignToClosestEdge), // alignToEdgeIfNeeded
+        scrollAlignment(AlignCenter, AlignCenter, AlignCenter), // alignCenterAlways
+        scrollAlignment(AlignTop, AlignTop, AlignTop), // alignTopAlways
+        scrollAlignment(AlignRight, AlignRight, AlignRight), // alignRightAlways
+        scrollAlignment(AlignLeft, AlignLeft, AlignLeft), // alignLeftAlways
+        scrollAlignment(AlignBottom, AlignBottom, AlignBottom), // alignBottomAlways
+    };
+}
+
+inline Step scrollIntoView(const LayoutRect& visibleBounds, const LayoutRect& exposeRect, const ScrollAlignment& alignX, const ScrollAlignment& alignY, std::optional<LayoutRect> visibilityCheckRect = std::nullopt)
+{
+    auto result = step(Op::ScrollIntoView);
+    result.rect = visibleBounds;
+    result.otherRect = exposeRect;
+    result.alignX = alignX;
+    result.alignY = alignY;
+    result.checkRect = visibilityCheckRect;
+    return result;
+}
+
+// A rect on one axis around the visible bounds' [start, start + length), in LayoutUnits: inside, across either
+// edge, outside, smaller and larger than the visible length, with fractional edges.
+inline std::pair<int, int> exposeSpan(Lcg& random, int start, int length)
+{
+    int offset = random.range(-length * 2, length * 3);
+    int fraction = random.range(0, 63);
+    int size = random.range(0, 2) ? random.range(1, length) : random.range(length, length * 2);
+    int sizeFraction = random.range(0, 63);
+    return { (start + offset) * 64 + fraction, size * 64 + sizeFraction };
+}
+
+// Element.scrollIntoView() and focus scrolling over a grid of rects around a 1024x768 viewport, for each named
+// alignment on each axis; a third with a separate visibility check rect.
+inline Case scrollIntoViewShape()
+{
+    Case result;
+    result.name = "ScrollIntoView";
+    result.config = benchConfig();
+    result.offset = { 0, 5000 };
+    Lcg random(11);
+    auto alignments = namedScrollAlignments();
+    for (unsigned i = 0; i < 3000; ++i) {
+        int visibleX = random.range(0, 400);
+        int visibleY = random.range(0, 20000);
+        LayoutRect visible(LayoutPoint(LayoutUnit(visibleX), LayoutUnit(visibleY)), LayoutSize(LayoutUnit(1024), LayoutUnit(768)));
+        auto [x, width] = exposeSpan(random, visibleX, 1024);
+        auto [y, height] = exposeSpan(random, visibleY, 768);
+        LayoutRect expose(LayoutPoint(layoutUnitFromRaw(x), layoutUnitFromRaw(y)), LayoutSize(layoutUnitFromRaw(width), layoutUnitFromRaw(height)));
+        auto alignX = alignments[random.range(0, static_cast<int>(alignments.size()) - 1)];
+        auto alignY = alignments[random.range(0, static_cast<int>(alignments.size()) - 1)];
+        if (random.chance(20))
+            alignX.disableLegacyHorizontalVisibilityThreshold();
+        std::optional<LayoutRect> check;
+        if (!random.range(0, 2)) {
+            auto [checkX, checkWidth] = exposeSpan(random, visibleX, 1024);
+            auto [checkY, checkHeight] = exposeSpan(random, visibleY, 768);
+            check = LayoutRect(LayoutPoint(layoutUnitFromRaw(checkX), layoutUnitFromRaw(checkY)), LayoutSize(layoutUnitFromRaw(checkWidth), layoutUnitFromRaw(checkHeight)));
+        }
+        result.steps.push_back(scrollIntoView(visible, expose, alignX, alignY, check));
+    }
+    return result;
+}
+
+inline Step areaStep(Op op, FloatPoint a = { }, bool flag = false)
+{
+    auto result = step(op);
+    result.a = a;
+    result.flag = flag;
+    return result;
+}
+
+inline Step setPressedPart(ScrollEventAxis axis, ScrollbarPart part)
+{
+    auto result = step(Op::SetPressedPart);
+    result.axis = axis;
+    result.count = part;
+    return result;
+}
+
+// Layout passes on a two-axis snapping area with snap areas larger than the snapport: the contents change, the
+// position lands near a snap point, and the area re-snaps, either by scrolling there or by retargeting a running
+// animation, or not at all while a scrollbar is pressed.
+inline Case resnapAfterLayoutShape()
+{
+    Case result;
+    result.name = "ResnapAfterLayout";
+    result.config = benchConfig();
+    result.offset = { 0, 5000 };
+    SnapDescription snap;
+    snap.offsets = evenlySpaced(0, 700, 28);
+    snap.areaLength = 900;
+    snap.bothAxes = true;
+    result.snapInfos.push_back(snapInfo(snap));
+    result.steps.push_back(setSnapInfo(0));
+    Lcg random(12);
+    for (unsigned i = 0; i < 300; ++i) {
+        auto config = result.config;
+        config.contentsSize = { 1200.0f + random.range(-200, 200), 20000.0f + random.range(-400, 400) };
+        result.steps.push_back(setConfig(config));
+        unsigned index = random.range(0, 27);
+        float x = random.between(0, 400);
+        float y = index * 700.0f + random.range(-350, 350);
+        result.steps.push_back(setCurrentPosition({ x, y }));
+        result.steps.push_back(setActiveIndex(ScrollEventAxis::Vertical, random.chance(10) ? std::nullopt : std::optional<unsigned>(index)));
+        result.steps.push_back(setActiveIndex(ScrollEventAxis::Horizontal, random.chance(50) ? std::nullopt : std::optional<unsigned>(random.range(0, 1))));
+        bool animating = i % 4 == 3;
+        if (animating) {
+            result.steps.push_back(smoothScroll({ x, y + random.range(-300, 300) }));
+            result.steps.push_back(frames(3));
+            result.steps.push_back(areaStep(Op::SetScrollAnimationStatus, { }, true));
+        }
+        bool pressed = i % 7 == 6;
+        if (pressed)
+            result.steps.push_back(setPressedPart(i % 2 ? ScrollEventAxis::Vertical : ScrollEventAxis::Horizontal, ThumbPart));
+        result.steps.push_back(step(Op::AreaResnapAfterLayout));
+        if (pressed)
+            result.steps.push_back(setPressedPart(i % 2 ? ScrollEventAxis::Vertical : ScrollEventAxis::Horizontal, NoPart));
+        if (animating) {
+            result.steps.push_back(frames());
+            result.steps.push_back(areaStep(Op::SetScrollAnimationStatus, { }, false));
+        }
+    }
+    return result;
+}
+
+// Scrolls through ScrollableArea: arrow, page and document steps, CSSOM smooth scrolls retargeted while they run,
+// positions from the scrolling thread, scrolls to an offset, on one axis, and from Internals.
+inline Case areaScrollToShape()
+{
+    Case result;
+    result.name = "AreaScrollTo";
+    result.config = benchConfig();
+    result.offset = { 0, 5000 };
+    Lcg random(13);
+    auto maximum = maximumScrollOffset(result.config);
+    static constexpr ScrollDirection directions[] = { ScrollDirection::ScrollUp, ScrollDirection::ScrollDown, ScrollDirection::ScrollLeft, ScrollDirection::ScrollRight };
+    static constexpr ScrollGranularity granularities[] = { ScrollGranularity::Line, ScrollGranularity::Page, ScrollGranularity::Document, ScrollGranularity::Pixel };
+    auto anywhere = [&] {
+        if (random.chance(10))
+            return FloatPoint { random.between(-200, maximum.x() + 200), random.chance(50) ? -300.0f : maximum.y() + 300 };
+        return FloatPoint { random.between(0, maximum.x()), random.between(0, maximum.y()) };
+    };
+    for (unsigned i = 0; i < 400; ++i) {
+        switch (random.range(0, 5)) {
+        case 0: {
+            auto scroll = step(Op::AreaScroll);
+            scroll.direction = directions[random.range(0, 3)];
+            scroll.granularity = granularities[random.range(0, 3)];
+            scroll.count = random.range(1, 3);
+            result.steps.push_back(scroll);
+            result.steps.push_back(frames());
+            break;
+        }
+        case 1: {
+            auto to = anywhere();
+            auto scroll = areaStep(Op::AreaScrollToPositionWithAnimation, to, random.chance(10));
+            result.steps.push_back(scroll);
+            result.steps.push_back(frames(random.range(2, 10)));
+            scroll.a = anywhere();
+            result.steps.push_back(scroll);
+            result.steps.push_back(frames());
+            break;
+        }
+        case 2:
+            result.steps.push_back(areaStep(Op::NotifyScrollPositionChanged, anywhere()));
+            break;
+        case 3: {
+            auto to = anywhere();
+            result.steps.push_back(areaStep(Op::AreaScrollToOffsetWithoutAnimation, to, random.chance(10)));
+            break;
+        }
+        case 4: {
+            auto scroll = step(Op::AreaScrollToOffsetOnAxis);
+            scroll.axis = random.chance(70) ? ScrollEventAxis::Vertical : ScrollEventAxis::Horizontal;
+            scroll.value = random.between(-100, maximum.y() + 100);
+            result.steps.push_back(scroll);
+            break;
+        }
+        case 5:
+            result.steps.push_back(areaStep(Op::SetScrollOffsetFromInternals, anywhere()));
+            break;
+        }
+    }
+    return result;
+}
+
+// The queries the event handler makes for each wheel event, at and around the edges: pinned sides, propagation,
+// the target side, and the scrollbar value and overhang a scroller shows.
+inline Case edgeQueriesShape()
+{
+    Case result;
+    result.name = "EdgeQueries";
+    result.config = benchConfig();
+    result.offset = { 0, 0 };
+    Lcg random(14);
+    auto maximum = maximumScrollOffset(result.config);
+    static constexpr OverscrollBehavior behaviors[] = { OverscrollBehavior::Auto, OverscrollBehavior::Contain, OverscrollBehavior::None };
+    auto near = [&](float edge) {
+        return edge + random.range(-2, 2);
+    };
+    auto coordinate = [&](float extent) {
+        switch (random.range(0, 3)) {
+        case 0:
+            return near(0);
+        case 1:
+            return near(extent);
+        case 2:
+            return random.between(-50, 0);
+        default:
+            return random.between(0, extent);
+        }
+    };
+    for (unsigned i = 0; i < 1500; ++i) {
+        if (i % 64 == 63) {
+            auto config = result.config;
+            config.allowsHorizontalScrolling = random.chance(70);
+            config.allowsVerticalScrolling = random.chance(90);
+            config.horizontalOverscrollBehavior = behaviors[random.range(0, 2)];
+            config.verticalOverscrollBehavior = behaviors[random.range(0, 2)];
+            result.steps.push_back(setConfig(config));
+        }
+        float x = coordinate(maximum.x());
+        float y = coordinate(maximum.y());
+        result.steps.push_back(areaStep(Op::SetAreaPosition, { x, y }));
+        result.steps.push_back(step(Op::EdgeQueries));
+        FloatSize delta { random.between(-30, 30), random.between(-60, 60) };
+        if (random.chance(25))
+            delta.setWidth(0);
+        auto propagation = step(Op::PropagationQueries);
+        propagation.size = delta;
+        result.steps.push_back(propagation);
+        auto target = step(Op::TargetSideForScrollDelta);
+        target.size = delta;
+        target.axis = random.chance(70) ? ScrollEventAxis::Vertical : ScrollEventAxis::Horizontal;
+        result.steps.push_back(target);
+        auto value = step(Op::ScrollbarValueAndOverhang);
+        value.value = y;
+        value.size = { result.config.contentsSize.height(), result.config.viewportSize.height() };
+        result.steps.push_back(value);
+        auto constrain = step(Op::ConstrainScrollPositionForOverhang);
+        constrain.rect = layoutRect(x, y, result.config.viewportSize.width(), result.config.viewportSize.height());
+        constrain.otherRect = layoutRect(0, 0, result.config.contentsSize.width(), result.config.contentsSize.height());
+        constrain.point = LayoutPoint(LayoutUnit(x), LayoutUnit(y));
+        constrain.header = random.chance(20) ? 40 : 0;
+        constrain.footer = random.chance(20) ? 30 : 0;
+        result.steps.push_back(constrain);
+    }
+    return result;
+}
+
 // MARK: - Unit cases
 //
 // ScrollPhysics.cpp checks each one's full trace digest: the input classes a size, count or ordering in the
@@ -1122,6 +1404,10 @@ inline const Shape* benchmarkShapes(size_t& count)
         { "MixedSession", mixedSessionShape },
         { "ProgrammaticScroll", programmaticScrollShape },
         { "SteppedWheel", steppedWheelShape },
+        { "ScrollIntoView", scrollIntoViewShape },
+        { "ResnapAfterLayout", resnapAfterLayoutShape },
+        { "AreaScrollTo", areaScrollToShape },
+        { "EdgeQueries", edgeQueriesShape },
     };
     count = std::size(shapes);
     return shapes;
