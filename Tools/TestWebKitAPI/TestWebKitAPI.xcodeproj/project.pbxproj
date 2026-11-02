@@ -922,6 +922,7 @@
 				WebCore/SampleMap.cpp,
 				WebCore/ScrollPhysics.cpp,
 				WebCore/ScrollPhysicsBench.cpp,
+				WebCore/ScrollViewBench.cpp,
 				WebCore/ScrollingTreeDelegateBench.cpp,
 				WebCore/SecurityOrigin.cpp,
 				WebCore/SerializedScriptValue.cpp,
