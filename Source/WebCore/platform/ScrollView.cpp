@@ -47,10 +47,29 @@
 #include <wtf/text/MakeString.h>
 #include <wtf/text/TextStream.h>
 
+#if !defined(USE_SWIFT_SCROLL_VIEW)
+#define USE_SWIFT_SCROLL_VIEW 0
+#endif
+
+#if USE_SWIFT_SCROLL_VIEW
+#if !USE_SWIFT_SCROLLABLE_AREA
+#error "USE_SWIFT_SCROLL_VIEW requires USE_SWIFT_SCROLLABLE_AREA"
+#endif
+#include "ScrollAnimatorScrollPhysicsClient.h"
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollView);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollView::ProhibitScrollingWhenChangingContentSizeForScope);
+
+#if USE_SWIFT_SCROLL_VIEW
+bool ScrollAnimatorScrollPhysicsClient::hasPlatformWidget()
+{
+    return !!scrollView().platformWidget();
+}
+#endif
 
 ScrollView::ScrollView() = default;
 
@@ -87,6 +106,7 @@ bool ScrollView::setHasVerticalScrollbar(bool hasBar, bool* contentSizeAffected)
 
 bool ScrollView::setHasScrollbarInternal(RefPtr<Scrollbar>& scrollbar, ScrollbarOrientation orientation, bool hasBar, bool* contentSizeAffected)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (hasBar && !scrollbar) {
         scrollbar = createScrollbar(orientation);
         addChild(*scrollbar);
@@ -108,6 +128,11 @@ bool ScrollView::setHasScrollbarInternal(RefPtr<Scrollbar>& scrollbar, Scrollbar
     }
 
     return false;
+#else
+    UNUSED_PARAM(scrollbar);
+    bool ignored = false;
+    return scrollViewSetHasScrollbar(ScrollAnimatorScrollPhysicsClientState(*this).facade(), orientation, hasBar, contentSizeAffected ? *contentSizeAffected : ignored);
+#endif
 }
 
 Ref<Scrollbar> ScrollView::createScrollbar(ScrollbarOrientation orientation)
@@ -118,6 +143,7 @@ Ref<Scrollbar> ScrollView::createScrollbar(ScrollbarOrientation orientation)
 void ScrollView::setScrollbarModes(ScrollbarMode horizontalMode, ScrollbarMode verticalMode,
                                    bool horizontalLock, bool verticalLock)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     bool needsUpdate = false;
 
     if (horizontalMode != horizontalScrollbarMode() && !m_horizontalScrollbarLock) {
@@ -145,6 +171,13 @@ void ScrollView::setScrollbarModes(ScrollbarMode horizontalMode, ScrollbarMode v
         updateScrollbars(scrollPosition());
 
     scrollbarModesDidChange();
+#else
+    auto currentHorizontalMode = horizontalScrollbarMode();
+    auto currentVerticalMode = verticalScrollbarMode();
+    if (!scrollViewSetScrollbarModesChangesAnything(horizontalMode, currentHorizontalMode, m_horizontalScrollbarLock, horizontalLock, verticalMode, currentVerticalMode, m_verticalScrollbarLock, verticalLock))
+        return;
+    scrollViewSetScrollbarModes(ScrollAnimatorScrollPhysicsClientState(*this).facade(), horizontalMode, currentHorizontalMode, m_horizontalScrollbarLock, horizontalLock, verticalMode, currentVerticalMode, m_verticalScrollbarLock, verticalLock);
+#endif
 }
 
 void ScrollView::scrollbarModes(ScrollbarMode& horizontalMode, ScrollbarMode& verticalMode) const
@@ -159,6 +192,7 @@ void ScrollView::scrollbarModes(ScrollbarMode& horizontalMode, ScrollbarMode& ve
 
 void ScrollView::setCanHaveScrollbars(bool canScroll)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     ScrollbarMode newHorizontalMode;
     ScrollbarMode newVerticalMode;
     
@@ -175,6 +209,9 @@ void ScrollView::setCanHaveScrollbars(bool canScroll)
         newHorizontalMode = ScrollbarMode::AlwaysOff;
     
     setScrollbarModes(newHorizontalMode, newVerticalMode);
+#else
+    setScrollbarModes(scrollViewCanHaveScrollbarsMode(canScroll, horizontalScrollbarMode()), scrollViewCanHaveScrollbarsMode(canScroll, verticalScrollbarMode()));
+#endif
 }
 
 void ScrollView::setCanBlitOnScroll(bool b)
@@ -261,6 +298,7 @@ void ScrollView::setExposedViewRect(const ViewFloatRect& rect)
 
 void ScrollView::adjustExposedContentRectForProgrammaticScroll(ScrollPosition newPosition)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!m_delegatedScrollingGeometry)
         return;
 
@@ -275,6 +313,9 @@ void ScrollView::adjustExposedContentRectForProgrammaticScroll(ScrollPosition ne
     auto movedRect = m_delegatedScrollingGeometry->exposedViewRect.raw();
     movedRect.move(delta);
     m_delegatedScrollingGeometry->exposedViewRect = inViewSpace(movedRect);
+#else
+    scrollViewAdjustExposedContentRect(ScrollAnimatorScrollPhysicsClientState(*this).facade(), newPosition);
+#endif
 }
 
 FloatSize ScrollView::unobscuredContentSize() const
@@ -311,9 +352,13 @@ IntRect ScrollView::unobscuredContentRect(VisibleContentRectIncludesScrollbars s
 
 IntRect ScrollView::unobscuredContentRectInternal(VisibleContentRectIncludesScrollbars scrollbarInclusion) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     FloatSize visibleContentSize = sizeForUnobscuredContent(scrollbarInclusion);
     visibleContentSize.scale(1 / visibleContentScaleFactor());
     return IntRect(m_scrollPosition, expandedIntSize(visibleContentSize));
+#else
+    return scrollViewUnobscuredContentRect(sizeForUnobscuredContent(scrollbarInclusion), visibleContentScaleFactor(), m_scrollPosition);
+#endif
 }
 
 IntSize ScrollView::sizeForVisibleContent(VisibleContentRectIncludesScrollbars scrollbarInclusion) const
@@ -335,11 +380,15 @@ IntSize ScrollView::sizeForUnobscuredContent(VisibleContentRectIncludesScrollbar
     if (platformWidget())
         return platformVisibleContentSize(scrollbarInclusion == VisibleContentRectIncludesScrollbars::Yes);
 
+#if !USE_SWIFT_SCROLL_VIEW
     auto obscuredContentInsets = this->obscuredContentInsets();
     return sizeForVisibleContent(scrollbarInclusion) - roundedIntSize(FloatSize {
         obscuredContentInsets.left() + obscuredContentInsets.right(),
         obscuredContentInsets.top() + obscuredContentInsets.bottom()
     });
+#else
+    return scrollViewSizeForUnobscuredContent(sizeForVisibleContent(scrollbarInclusion), obscuredContentInsets());
+#endif
 }
 
 IntRect ScrollView::visibleContentRectInternal(VisibleContentRectIncludesScrollbars scrollbarInclusion, VisibleContentRectBehavior visibleContentRectBehavior) const
@@ -464,8 +513,12 @@ void ScrollView::cacheCurrentScrollState()
 
 ScrollPosition ScrollView::documentScrollPositionRelativeToViewOrigin() const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     auto obscuredContentInsets = this->obscuredContentInsets(InsetType::WebCoreOrPlatformInset);
     return scrollPosition() - IntSize(insetForLeftScrollbarSpace() + obscuredContentInsets.left(), headerHeight() + obscuredContentInsets.top());
+#else
+    return scrollViewDocumentScrollPositionRelativeToViewOrigin(scrollPosition(), viewToContentsInsetOffset());
+#endif
 }
 
 ScrollPosition ScrollView::documentScrollPositionRelativeToScrollableAreaOrigin() const
@@ -475,6 +528,7 @@ ScrollPosition ScrollView::documentScrollPositionRelativeToScrollableAreaOrigin(
 
 void ScrollView::setScrollOffset(const ScrollOffset& offset)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     LOG_WITH_STREAM(Scrolling, stream << "\nScrollView::setScrollOffset " << offset << " clamping " << scrollClamping());
 
     auto constrainedOffset = offset;
@@ -482,10 +536,17 @@ void ScrollView::setScrollOffset(const ScrollOffset& offset)
         constrainedOffset = constrainedOffset.constrainedBetween(minimumScrollOffset(), maximumScrollOffset());
 
     scrollTo(scrollPositionFromOffset(constrainedOffset));
+#else
+    bool clamped = scrollClamping() == ScrollClamping::Clamped;
+    auto totalContentsSize = clamped ? this->totalContentsSize() : IntSize { };
+    auto visibleSize = clamped ? this->visibleSize() : IntSize { };
+    scrollTo(scrollViewScrollOffsetTarget(offset, clamped, totalContentsSize, visibleSize, scrollOrigin()));
+#endif
 }
 
 void ScrollView::scrollOffsetChangedViaPlatformWidget(const ScrollOffset& oldOffset, const ScrollOffset& newOffset)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     // We should not attempt to actually modify (paint) platform widgets if the layout phase
     // is not complete. Instead, defer the scroll event until the layout finishes.
     if (shouldDeferScrollUpdateAfterContentSizeChange()) {
@@ -496,10 +557,14 @@ void ScrollView::scrollOffsetChangedViaPlatformWidget(const ScrollOffset& oldOff
 
     scrollOffsetChangedViaPlatformWidgetImpl(oldOffset, newOffset);
     scrollAnimator().setCurrentPosition(scrollPosition());
+#else
+    scrollViewScrollOffsetChangedViaPlatformWidget(ScrollAnimatorScrollPhysicsClientState(*this).facade(), oldOffset, newOffset);
+#endif
 }
 
 void ScrollView::handleDeferredScrollUpdateAfterContentSizeChange()
 {
+#if !USE_SWIFT_SCROLL_VIEW
     ASSERT(!shouldDeferScrollUpdateAfterContentSizeChange());
 
     if (!m_deferredScrollDelta && !m_deferredScrollOffsets)
@@ -514,10 +579,14 @@ void ScrollView::handleDeferredScrollUpdateAfterContentSizeChange()
     
     m_deferredScrollDelta = std::nullopt;
     m_deferredScrollOffsets = std::nullopt;
+#else
+    scrollViewHandleDeferredScrollUpdate(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#endif
 }
 
 void ScrollView::scrollTo(const ScrollPosition& newPosition)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     LOG_WITH_STREAM(Scrolling, stream << "ScrollView::scrollTo " << newPosition << " min: " << minimumScrollPosition() << " max: " << maximumScrollPosition());
 
     IntSize scrollDelta = newPosition - m_scrollPosition;
@@ -542,17 +611,25 @@ void ScrollView::scrollTo(const ScrollPosition& newPosition)
     }
 
     completeUpdatesAfterScrollTo(scrollDelta);
+#else
+    if (!scrollViewScrollToMoves(m_scrollPosition, newPosition))
+        return;
+    scrollViewScrollTo(ScrollAnimatorScrollPhysicsClientState(*this).facade(), newPosition);
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_VIEW
 void ScrollView::completeUpdatesAfterScrollTo(const IntSize& scrollDelta)
 {
     updateLayerPositionsAfterScrolling();
     scrollContents(scrollDelta);
     updateCompositingLayersAfterScrolling();
 }
+#endif
 
 void ScrollView::setScrollPosition(const ScrollPosition& scrollPosition, const ScrollPositionChangeOptions& options)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     LOG_WITH_STREAM(Scrolling, stream << "ScrollView::setScrollPosition " << scrollPosition);
 
     if (prohibitsScrolling())
@@ -578,6 +655,11 @@ void ScrollView::setScrollPosition(const ScrollPosition& scrollPosition, const S
 
     if (!requestScrollToPosition(newScrollPosition, options))
         updateScrollbars(newScrollPosition);
+#else
+    if (!scrollViewSetScrollPositionProceeds(prohibitsScrolling()))
+        return;
+    scrollViewSetScrollPosition(ScrollAnimatorScrollPhysicsClientState(*this).facade(), scrollPosition, options.type, options.clamping, options.animated, options.snapPointSelectionMethod, options.originalScrollDelta.has_value(), options.originalScrollDelta.value_or(FloatSize { }), options.interruptsAnimation, options.animationCurve);
+#endif
 }
 
 bool ScrollView::scroll(ScrollDirection direction, ScrollGranularity granularity)
@@ -595,6 +677,7 @@ bool ScrollView::logicalScroll(ScrollLogicalDirection direction, ScrollGranulari
 
 IntSize ScrollView::overhangAmount() const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     IntSize stretch;
 
     // FIXME: use maximumScrollOffset()
@@ -610,6 +693,9 @@ IntSize ScrollView::overhangAmount() const
         stretch.setWidth(scrollOffset.x() - (contentsWidth() - visibleWidth()));
 
     return stretch;
+#else
+    return scrollViewOverhangAmount(scrollOffset(), totalContentsSize(), visibleSize(), contentsWidth());
+#endif
 }
 
 bool ScrollView::managesScrollbars() const
@@ -618,6 +704,7 @@ bool ScrollView::managesScrollbars() const
     // FIXME: We should be able to remove this. iOS should always hit the DelegatedToNativeScrollView condition below.
     return false;
 #else
+#if !USE_SWIFT_SCROLL_VIEW
     if (platformWidget())
         return false;
 
@@ -625,11 +712,15 @@ bool ScrollView::managesScrollbars() const
         return false;
 
     return true;
+#else
+    return scrollViewManagesScrollbars(!!platformWidget(), delegatedScrollingMode());
+#endif
 #endif
 }
 
 void ScrollView::updateScrollbars(const ScrollPosition& desiredPosition)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     LOG_WITH_STREAM(Layout, stream << "ScrollView " << this << " updateScrollbars " << desiredPosition << " horizontalScrollbarMode " << m_horizontalScrollbarMode << " verticalScrollbarMode " << m_verticalScrollbarMode);
 
     if (m_inUpdateScrollbars || prohibitsScrolling() || platformWidget())
@@ -887,18 +978,30 @@ void ScrollView::updateScrollbars(const ScrollPosition& desiredPosition)
         protect(m_horizontalScrollbar)->offsetDidChange();
     if (m_verticalScrollbar)
         protect(m_verticalScrollbar)->offsetDidChange();
+#else
+    scrollViewUpdateScrollbars(ScrollAnimatorScrollPhysicsClientState(*this).facade(), desiredPosition);
+#endif
 }
 
 void ScrollView::updateScrollbarSteps()
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (m_horizontalScrollbar)
         m_horizontalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visibleWidth()), Scrollbar::pageStep(visibleWidth()));
     if (m_verticalScrollbar)
         m_verticalScrollbar->setSteps(Scrollbar::pixelsPerLineStep(visibleHeight()), Scrollbar::pageStep(visibleHeight()));
+#else
+    scrollViewUpdateScrollbarSteps(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#endif
 }
 
 const int panIconSizeLength = 16;
+#if USE_SWIFT_SCROLL_VIEW
+// ScrollView.swift uses the same size.
+static_assert(panIconSizeLength == 16);
+#endif
 
+#if !USE_SWIFT_SCROLL_VIEW
 IntRect ScrollView::rectToCopyOnScroll() const
 {
     IntRect scrollViewRect = convertToRootView(IntRect(0, 0, visibleWidth(), visibleHeight()));
@@ -914,9 +1017,11 @@ IntRect ScrollView::rectToCopyOnScroll() const
     }
     return scrollViewRect;
 }
+#endif
 
 void ScrollView::scrollContents(const IntSize& scrollDelta)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     HostWindow* window = hostWindow();
     if (!window)
         return;
@@ -958,6 +1063,9 @@ void ScrollView::scrollContents(const IntSize& scrollDelta)
 
     // Now blit the backingstore into the window which should be very fast.
     window->invalidateRootView(IntRect());
+#else
+    scrollViewScrollContents(ScrollAnimatorScrollPhysicsClientState(*this).facade(), scrollDelta);
+#endif
 }
 
 void ScrollView::scrollContentsSlowPath(const IntRect& updateRect)
@@ -978,6 +1086,7 @@ IntSize ScrollView::viewToContentsInsetOffset() const
 
 IntPoint ScrollView::viewToContents(const IntPoint& point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return point;
 
@@ -985,10 +1094,14 @@ IntPoint ScrollView::viewToContents(const IntPoint& point) const
         return point + toIntSize(documentScrollPositionRelativeToViewOrigin());
 
     return roundedIntPoint(viewToContents(FloatPoint { point }));
+#else
+    return scrollViewViewToContentsIntPoint(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), point);
+#endif
 }
 
 IntPoint ScrollView::contentsToView(const IntPoint& point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return point;
 
@@ -996,10 +1109,14 @@ IntPoint ScrollView::contentsToView(const IntPoint& point) const
         return point - toIntSize(documentScrollPositionRelativeToViewOrigin());
 
     return roundedIntPoint(contentsToView(FloatPoint { point }));
+#else
+    return scrollViewContentsToViewIntPoint(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), point);
+#endif
 }
 
 FloatPoint ScrollView::viewToContents(const FloatPoint& point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return point;
 
@@ -1009,10 +1126,14 @@ FloatPoint ScrollView::viewToContents(const FloatPoint& point) const
 
     auto contentsPoint = (point - FloatSize { viewToContentsInsetOffset() }).scaled(1 / scale);
     return contentsPoint + toFloatSize(scrollPosition());
+#else
+    return scrollViewViewToContentsFloatPoint(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), point);
+#endif
 }
 
 DoublePoint ScrollView::viewToContents(const DoublePoint& point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return point;
 
@@ -1023,10 +1144,14 @@ DoublePoint ScrollView::viewToContents(const DoublePoint& point) const
     auto insetOffset = viewToContentsInsetOffset();
     auto contentsPoint = DoublePoint { point.x() - insetOffset.width(), point.y() - insetOffset.height() }.scaled(1 / scale);
     return contentsPoint + toDoubleSize(scrollPosition());
+#else
+    return scrollViewViewToContentsDoublePoint(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), point);
+#endif
 }
 
 FloatPoint ScrollView::contentsToView(const FloatPoint& point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return point;
 
@@ -1036,10 +1161,14 @@ FloatPoint ScrollView::contentsToView(const FloatPoint& point) const
 
     auto viewPoint = (point - toFloatSize(scrollPosition())).scaled(scale);
     return viewPoint + FloatSize { viewToContentsInsetOffset() };
+#else
+    return scrollViewContentsToViewFloatPoint(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), point);
+#endif
 }
 
 DoublePoint ScrollView::contentsToView(const DoublePoint& point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return point;
 
@@ -1050,10 +1179,14 @@ DoublePoint ScrollView::contentsToView(const DoublePoint& point) const
     auto insetOffset = viewToContentsInsetOffset();
     auto viewPoint = (point - toDoubleSize(scrollPosition())).scaled(scale);
     return viewPoint + DoubleSize { static_cast<double>(insetOffset.width()), static_cast<double>(insetOffset.height()) };
+#else
+    return scrollViewContentsToViewDoublePoint(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), point);
+#endif
 }
 
 IntRect ScrollView::viewToContents(IntRect rect) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return rect;
 
@@ -1063,10 +1196,14 @@ IntRect ScrollView::viewToContents(IntRect rect) const
     }
 
     return enclosingIntRect(viewToContents(FloatRect { rect }));
+#else
+    return scrollViewViewToContentsIntRect(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), rect);
+#endif
 }
 
 FloatRect ScrollView::viewToContents(FloatRect rect) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return rect;
 
@@ -1080,10 +1217,14 @@ FloatRect ScrollView::viewToContents(FloatRect rect) const
     rect.setLocation(viewToContents(rect.location()));
     rect.setSize(rect.size().scaled(1 / scale));
     return rect;
+#else
+    return scrollViewViewToContentsFloatRect(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), rect);
+#endif
 }
 
 IntRect ScrollView::contentsToView(IntRect rect) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return rect;
 
@@ -1093,10 +1234,14 @@ IntRect ScrollView::contentsToView(IntRect rect) const
     }
 
     return enclosingIntRect(contentsToView(FloatRect { rect }));
+#else
+    return scrollViewContentsToViewIntRect(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), rect);
+#endif
 }
 
 FloatRect ScrollView::contentsToView(FloatRect rect) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return rect;
 
@@ -1109,6 +1254,9 @@ FloatRect ScrollView::contentsToView(FloatRect rect) const
     rect.setLocation(contentsToView(rect.location()));
     rect.setSize(rect.size().scaled(scale));
     return rect;
+#else
+    return scrollViewContentsToViewFloatRect(delegatesScrollingToNativeView(), visibleContentScaleFactor(), scrollPosition(), viewToContentsInsetOffset(), rect);
+#endif
 }
 
 IntPoint ScrollView::contentsToContainingViewContents(const IntPoint& point) const
@@ -1202,6 +1350,7 @@ FloatQuad ScrollView::contentsToRootView(const FloatQuad& quad) const
 
 IntPoint ScrollView::rootViewToTotalContents(const IntPoint& rootViewPoint) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (delegatesScrollingToNativeView())
         return convertFromRootView(rootViewPoint);
 
@@ -1209,6 +1358,9 @@ IntPoint ScrollView::rootViewToTotalContents(const IntPoint& rootViewPoint) cons
     // Like rootViewToContents(), but ignores headerHeight.
     auto obscuredContentInsets = this->obscuredContentInsets(InsetType::WebCoreOrPlatformInset);
     return viewPoint + toIntSize(scrollPosition()) - IntSize(obscuredContentInsets.left(), obscuredContentInsets.top());
+#else
+    return scrollViewRootViewToTotalContents(delegatesScrollingToNativeView(), convertFromRootView(rootViewPoint), scrollPosition(), obscuredContentInsets(InsetType::WebCoreOrPlatformInset));
+#endif
 }
 
 IntRect ScrollView::contentsToRootView(const IntRect& contentsRect) const
@@ -1289,6 +1441,7 @@ IntPoint ScrollView::screenToContents(const IntPoint& point) const
 
 void ScrollView::setScrollbarsSuppressed(bool suppressed, bool repaintOnUnsuppress)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (suppressed == m_scrollbarsSuppressed)
         return;
 
@@ -1305,6 +1458,11 @@ void ScrollView::setScrollbarsSuppressed(bool suppressed, bool repaintOnUnsuppre
         // Invalidate the scroll corner too on unsuppress.
         invalidateRect(scrollCornerRect());
     }
+#else
+    if (!scrollViewSetScrollbarsSuppressedChanges(suppressed, m_scrollbarsSuppressed))
+        return;
+    scrollViewSetScrollbarsSuppressed(ScrollAnimatorScrollPhysicsClientState(*this).facade(), suppressed, repaintOnUnsuppress);
+#endif
 }
 
 Scrollbar* ScrollView::scrollbarAtPoint(const IntPoint& windowPoint, ScrollbarHitTestTolerance tolerance)
@@ -1312,6 +1470,7 @@ Scrollbar* ScrollView::scrollbarAtPoint(const IntPoint& windowPoint, ScrollbarHi
     if (platformWidget())
         return nullptr;
 
+#if !USE_SWIFT_SCROLL_VIEW
     // convertFromContainingWindow doesn't do what it sounds like it does. We need it here just to get this
     // point into the right coordinates if this is the ScrollView of a sub-frame.
     const auto convertedPoint = convertFromContainingWindow(windowPoint);
@@ -1337,56 +1496,90 @@ Scrollbar* ScrollView::scrollbarAtPoint(const IntPoint& windowPoint, ScrollbarHi
     }
 
     return nullptr;
+#else
+    auto horizontalParticipates = m_horizontalScrollbar && protect(m_horizontalScrollbar)->shouldParticipateInHitTesting();
+    auto verticalParticipates = m_verticalScrollbar && protect(m_verticalScrollbar)->shouldParticipateInHitTesting();
+    auto orientation = scrollViewScrollbarAtPoint(convertFromContainingWindow(windowPoint), tolerance,
+        horizontalParticipates, horizontalParticipates ? m_horizontalScrollbar->frameRect() : IntRect { }, horizontalParticipates ? m_horizontalScrollbar->expandedHitTestToleranceThreshold() : 0,
+        verticalParticipates, verticalParticipates ? m_verticalScrollbar->frameRect() : IntRect { }, verticalParticipates ? m_verticalScrollbar->expandedHitTestToleranceThreshold() : 0);
+    if (!orientation)
+        return nullptr;
+    return *orientation == ScrollbarOrientation::Horizontal ? m_horizontalScrollbar.get() : m_verticalScrollbar.get();
+#endif
 }
 
 IntPoint ScrollView::convertChildToSelf(const Widget* child, IntPoint point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!isScrollViewScrollbar(child))
         point -= toIntSize(documentScrollPositionRelativeToViewOrigin());
     point.moveBy(child->location());
     return point;
+#else
+    return scrollViewConvertChildToSelfIntPoint(isScrollViewScrollbar(child), child->location(), documentScrollPositionRelativeToViewOrigin(), point);
+#endif
 }
 
 FloatPoint ScrollView::convertChildToSelf(const Widget* child, FloatPoint point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!isScrollViewScrollbar(child))
         point -= toFloatSize(documentScrollPositionRelativeToViewOrigin());
     point.moveBy(child->location());
     return point;
+#else
+    return scrollViewConvertChildToSelfFloatPoint(isScrollViewScrollbar(child), child->location(), documentScrollPositionRelativeToViewOrigin(), point);
+#endif
 }
 
 DoublePoint ScrollView::convertChildToSelf(const Widget* child, DoublePoint point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!isScrollViewScrollbar(child)) {
         FloatSize scrollPosition = toFloatSize(documentScrollPositionRelativeToViewOrigin());
         point.move(-scrollPosition.width(), -scrollPosition.height());
     }
     point.moveBy(child->location());
     return point;
+#else
+    return scrollViewConvertChildToSelfDoublePoint(isScrollViewScrollbar(child), child->location(), documentScrollPositionRelativeToViewOrigin(), point);
+#endif
 }
 
 IntPoint ScrollView::convertSelfToChild(const Widget* child, IntPoint point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!isScrollViewScrollbar(child))
         point += toIntSize(documentScrollPositionRelativeToViewOrigin());
     point.moveBy(-child->location());
     return point;
+#else
+    return scrollViewConvertSelfToChildIntPoint(isScrollViewScrollbar(child), child->location(), documentScrollPositionRelativeToViewOrigin(), point);
+#endif
 }
 
 FloatPoint ScrollView::convertSelfToChild(const Widget* child, FloatPoint point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!isScrollViewScrollbar(child))
         point += toIntSize(documentScrollPositionRelativeToViewOrigin());
     point.moveBy(-child->location());
     return point;
+#else
+    return scrollViewConvertSelfToChildFloatPoint(isScrollViewScrollbar(child), child->location(), documentScrollPositionRelativeToViewOrigin(), point);
+#endif
 }
 
 DoublePoint ScrollView::convertSelfToChild(const Widget* child, DoublePoint point) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!isScrollViewScrollbar(child))
         point.move(toIntSize(documentScrollPositionRelativeToViewOrigin()));
     point.moveBy(-child->location());
     return point;
+#else
+    return scrollViewConvertSelfToChildDoublePoint(isScrollViewScrollbar(child), child->location(), documentScrollPositionRelativeToViewOrigin(), point);
+#endif
 }
 
 void ScrollView::setScrollbarOverlayStyle(ScrollbarOverlayStyle overlayStyle)
@@ -1488,6 +1681,7 @@ void ScrollView::repaintContentRectangle(const IntRect& rect)
 
 IntRect ScrollView::scrollCornerRect() const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     IntRect cornerRect;
 
     if (hasOverlayScrollbars())
@@ -1503,6 +1697,9 @@ IntRect ScrollView::scrollCornerRect() const
         protect(m_horizontalScrollbar)->height());
 
     return cornerRect;
+#else
+    return scrollViewScrollCornerRect(hasOverlayScrollbars(), m_horizontalScrollbar, m_horizontalScrollbar ? m_horizontalScrollbar->frameRect() : IntRect { }, m_verticalScrollbar, m_verticalScrollbar ? m_verticalScrollbar->frameRect() : IntRect { });
+#endif
 }
 
 bool ScrollView::isScrollCornerVisible() const
@@ -1625,6 +1822,7 @@ void ScrollView::paint(GraphicsContext& context, const IntRect& rect, SecurityOr
 
 void ScrollView::calculateOverhangAreasForPainting(IntRect& horizontalOverhangRect, IntRect& verticalOverhangRect)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     IntSize scrollbarSpace = scrollbarIntrusion();
 
     // FIXME: use maximumScrollOffset().
@@ -1659,10 +1857,14 @@ void ScrollView::calculateOverhangAreasForPainting(IntRect& horizontalOverhangRe
         else
             verticalOverhangRect.setY(frameRect().y());
     }
+#else
+    scrollViewCalculateOverhangAreas(scrollbarIntrusion(), scrollOffsetFromPosition(scrollPosition()), frameRect(), totalContentsSize(), visibleSize(), contentsWidth(), horizontalOverhangRect, verticalOverhangRect);
+#endif
 }
 
 void ScrollView::updateOverhangAreas()
 {
+#if !USE_SWIFT_SCROLL_VIEW
     HostWindow* window = hostWindow();
     if (!window)
         return;
@@ -1674,6 +1876,9 @@ void ScrollView::updateOverhangAreas()
         window->invalidateContentsAndRootView(horizontalOverhangRect);
     if (!verticalOverhangRect.isEmpty())
         window->invalidateContentsAndRootView(verticalOverhangRect);
+#else
+    scrollViewUpdateOverhangAreas(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#endif
 }
 
 void ScrollView::paintOverhangAreas(GraphicsContext& context, const IntRect& horizontalOverhangRect, const IntRect& verticalOverhangRect, const IntRect& dirtyRect)
@@ -1693,6 +1898,7 @@ void ScrollView::calculateAndPaintOverhangAreas(GraphicsContext& context, const 
 
 bool ScrollView::isPointInScrollbarCorner(const IntPoint& windowPoint)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (!scrollbarCornerPresent())
         return false;
 
@@ -1713,45 +1919,68 @@ bool ScrollView::isPointInScrollbarCorner(const IntPoint& windowPoint)
     int verticalScrollbarYMin = verticalScrollbar->frameRect().y() + verticalScrollbar->frameRect().height();
     
     return viewPoint.x() > verticalScrollbarXMin && viewPoint.x() < verticalScrollbarXMax && viewPoint.y() > verticalScrollbarYMin;
+#else
+    return scrollViewIsPointInScrollbarCorner(width(), height(), m_horizontalScrollbar, m_horizontalScrollbar ? m_horizontalScrollbar->frameRect() : IntRect { }, m_verticalScrollbar, m_verticalScrollbar ? m_verticalScrollbar->frameRect() : IntRect { }, convertFromContainingWindow(windowPoint));
+#endif
 }
 
 bool ScrollView::scrollbarCornerPresent() const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     return (m_horizontalScrollbar && width() - protect(m_horizontalScrollbar)->width() > 0)
         || (m_verticalScrollbar && height() - protect(m_verticalScrollbar)->height() > 0);
+#else
+    return scrollViewScrollbarCornerPresent(width(), height(), m_horizontalScrollbar, m_horizontalScrollbar ? m_horizontalScrollbar->frameRect() : IntRect { }, m_verticalScrollbar, m_verticalScrollbar ? m_verticalScrollbar->frameRect() : IntRect { });
+#endif
 }
 
 IntRect ScrollView::convertFromScrollbarToContainingView(const Scrollbar& scrollbar, const IntRect& localRect) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     // Scrollbars won't be transformed within us
     IntRect newRect = localRect;
     newRect.moveBy(scrollbar.location());
     return newRect;
+#else
+    return scrollViewConvertFromScrollbarToContainingViewIntRect(scrollbar.location(), localRect);
+#endif
 }
 
 IntRect ScrollView::convertFromContainingViewToScrollbar(const Scrollbar& scrollbar, const IntRect& parentRect) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     IntRect newRect = parentRect;
     // Scrollbars won't be transformed within us
     newRect.moveBy(-scrollbar.location());
     return newRect;
+#else
+    return scrollViewConvertFromContainingViewToScrollbarIntRect(scrollbar.location(), parentRect);
+#endif
 }
 
 // FIXME: test these on windows
 IntPoint ScrollView::convertFromScrollbarToContainingView(const Scrollbar& scrollbar, const IntPoint& localPoint) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     // Scrollbars won't be transformed within us
     IntPoint newPoint = localPoint;
     newPoint.moveBy(scrollbar.location());
     return newPoint;
+#else
+    return scrollViewConvertFromScrollbarToContainingViewIntPoint(scrollbar.location(), localPoint);
+#endif
 }
 
 IntPoint ScrollView::convertFromContainingViewToScrollbar(const Scrollbar& scrollbar, const IntPoint& parentPoint) const
 {
+#if !USE_SWIFT_SCROLL_VIEW
     IntPoint newPoint = parentPoint;
     // Scrollbars won't be transformed within us
     newPoint.moveBy(-scrollbar.location());
     return newPoint;
+#else
+    return scrollViewConvertFromContainingViewToScrollbarIntPoint(scrollbar.location(), parentPoint);
+#endif
 }
 
 void ScrollView::setParentVisible(bool visible)
@@ -1829,6 +2058,7 @@ void ScrollView::removePanScrollIcon()
 
 void ScrollView::setScrollOrigin(const IntPoint& origin, bool updatePositionAtAll, bool updatePositionSynchronously)
 {
+#if !USE_SWIFT_SCROLL_VIEW
     if (scrollOrigin() == origin)
         return;
 
@@ -1842,6 +2072,11 @@ void ScrollView::setScrollOrigin(const IntPoint& origin, bool updatePositionAtAl
     // Update if the scroll origin changes, since our position will be different if the content size did not change.
     if (updatePositionAtAll && updatePositionSynchronously)
         updateScrollbars(scrollPosition());
+#else
+    if (!scrollViewSetScrollOriginChanges(scrollOrigin(), origin))
+        return;
+    scrollViewSetScrollOrigin(ScrollAnimatorScrollPhysicsClientState(*this).facade(), origin, updatePositionAtAll, updatePositionSynchronously);
+#endif
 }
 
 void ScrollView::styleAndRenderTreeDidChange()
