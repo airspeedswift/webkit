@@ -57,6 +57,16 @@ struct CSSPropertyConsumerSwiftResult {
 // Consumes a value with the consumer of the CSSPropertyID `consumer`, or the generated one numbered `consumer` from
 // cssPropertyIDEnumValueCount, through cssConsumeProperty.
 RefPtr<CSSValue> consumePropertyWithSwift(CSSParserTokenRange&, CSS::PropertyParserState&, uint16_t consumer);
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
+// The same, through cssConsumeStatelessProperty, for a generated consumer that takes no state: one that consumes only
+// keywords and strings.
+RefPtr<CSSValue> consumePropertyWithSwift(CSSParserTokenRange&, uint16_t consumer);
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
+// Appends CSSKeywordValue::create(id) to `list` without another reference count change.
+inline void appendKeywordForSwift(CSSValueListBuilder& list, CSSValueID id) { list.append(CSSKeywordValue::create(id)); }
+#endif
 
 // A numeric token's value, and in packed its unit (the low byte) and whether it was accepted (bit 8).
 struct CSSNumericConsumerSwiftResult {
@@ -79,13 +89,26 @@ struct __attribute__((swift_attr("~Sendable"))) CSSPropertyConsumerSwiftValue : 
         return type == NumberToken || type == PercentageToken || type == DimensionToken ? token(index).numericValue() : 0;
     }
     // The CSSValueID of an ident token (id()) or a function token (functionId()), else CSSValueID::Invalid.
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
+    // Inlined into the generated Swift, whose keyword switches read it for every token.
+    ALWAYS_INLINE uint16_t identifier(size_t index) const
+#else
     uint16_t identifier(size_t index) const
+#endif
     {
         auto type = this->type(index);
         return std::to_underlying(type == IdentToken ? token(index).id() : type == FunctionToken ? token(index).functionId() : CSSValueID::Invalid);
     }
     // The character of a delimiter token, else 0.
     uint16_t delimiter(size_t index) const { return type(index) == DelimiterToken ? token(index).delimiter() : 0; }
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
+    // Whether a token is a number token with an integer value; whether it is an ident token that starts with two
+    // dashes.
+    bool isIntegerNumber(size_t index) const { return type(index) == NumberToken && token(index).numericValueType() == IntegerValueType; }
+    bool isDashedIdent(size_t index) const { return type(index) == IdentToken && token(index).value().startsWith("--"_s); }
+    // The CSSCustomIdentValue of an ident token, or the CSSStringValue of a string token.
+    Ref<CSSValue> tokenValue(size_t index) const;
+#endif
     void setResult(CSSValue&) const;
     // The calc() value of the math function `function` whose arguments are the tokens [argumentsStart, argumentsEnd),
     // which cssConsumePropertyCalc parses with calc() states of this call's own, or null if they do not parse.
