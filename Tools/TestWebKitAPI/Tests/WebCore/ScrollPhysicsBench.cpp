@@ -31,10 +31,10 @@
 #include "ScrollPhysicsInputs.h"
 #include <cstdlib>
 
-// Scroll sessions through a scrollable area's ScrollAnimator: one test per shape. Each test runs one pass and
-// checks its checksum, a hash of every scroll the animator makes and every member's return value. With
+// Scroll sessions through a scrollable area and its ScrollAnimator: one test per shape. Each test runs one pass and
+// checks its checksum, a hash of every scroll the area makes and every member's return value. With
 // WEBKIT_RUN_BENCHMARKS=1 it runs the pass about a second's worth of times and prints
-// `<Shape>: <ms> ms <rate> MB/s checksum=<hex>`, where the rate is millions of animator calls per second.
+// `<Shape>: <ms> ms <rate> MB/s checksum=<hex>`, where the rate is millions of member calls per second.
 
 namespace TestWebKitAPI {
 
@@ -109,6 +109,26 @@ TEST(ScrollPhysicsBench, ProgrammaticScroll)
 TEST(ScrollPhysicsBench, SteppedWheel)
 {
     runScrollPhysicsShape(steppedWheelShape, "SteppedWheel", 7000, 0xacdd0876573a25c5ull);
+}
+
+TEST(ScrollPhysicsBench, ScrollIntoView)
+{
+    runScrollPhysicsShape(scrollIntoViewShape, "ScrollIntoView", 1500, 0x9b6cde8cdeca8312ull);
+}
+
+TEST(ScrollPhysicsBench, ResnapAfterLayout)
+{
+    runScrollPhysicsShape(resnapAfterLayoutShape, "ResnapAfterLayout", 600, 0xd54e0a8d278bdebeull);
+}
+
+TEST(ScrollPhysicsBench, AreaScrollTo)
+{
+    runScrollPhysicsShape(areaScrollToShape, "AreaScrollTo", 1000, 0x855aa786d0831594ull);
+}
+
+TEST(ScrollPhysicsBench, EdgeQueries)
+{
+    runScrollPhysicsShape(edgeQueriesShape, "EdgeQueries", 2500, 0xc989c009c01dbf03ull);
 }
 
 } // namespace TestWebKitAPI
