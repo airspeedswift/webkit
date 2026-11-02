@@ -29,6 +29,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
 struct IntegerValidator {
     static constexpr std::optional<CSS::IntegerUnit> validate(CSSUnitType unitType, CSS::PropertyParserState&, CSSPropertyParserOptions)
     {
@@ -59,6 +60,22 @@ template<typename Primitive, typename Validator> struct NumberConsumerForInteger
         return rawValue;
     }
 };
+#else
+// cssConsumeNumericSwift validates <integer> tokens, so IntegerValidator is only declared. It checks the range as a
+// double, so the range must not clamp at parse time, which would convert the value to the integer type.
+struct IntegerValidator;
+
+template<typename Primitive, typename> struct NumberConsumerForIntegerValues {
+    static constexpr CSSParserTokenType tokenType = NumberToken;
+    static std::optional<typename Primitive::Raw> consume(CSSParserTokenRange& range, CSS::PropertyParserState& state, CSSCalcSymbolsAllowed symbolsAllowed, CSSPropertyParserOptions options)
+    {
+        static_assert(Primitive::Raw::range.minParseTimeBehavior != CSS::RangeParseTimeBehavior::Clamp && Primitive::Raw::range.maxParseTimeBehavior != CSS::RangeParseTimeBehavior::Clamp);
+        if (range.peek().numericValueType() != IntegerValueType)
+            return std::nullopt;
+        return SwiftNumericConsumer<Primitive, NumberToken>::consume(range, state, WTF::move(symbolsAllowed), options);
+    }
+};
+#endif
 
 template<auto R, typename V> struct ConsumerDefinition<CSS::Integer<R, V>> {
     using FunctionToken = FunctionConsumerForCalcValues<CSS::Integer<R, V>>;

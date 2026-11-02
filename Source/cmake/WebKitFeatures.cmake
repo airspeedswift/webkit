@@ -605,6 +605,13 @@ macro(WEBKIT_OPTION_END)
         message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS needs WK_USE_SWIFT_CSS_CALC: the consumers call calc()'s Swift parser")
     endif ()
     SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS})
+    # The counterpart of CommonBase.xcconfig's WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2: the <integer> and <time>
+    # validators and the consumers of process-css-properties.py's SWIFT_GENERATED_CONSUMERS_2 are Swift.
+    option(WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2 "Consume the CSS properties of SWIFT_GENERATED_CONSUMERS_2 with WebCore's generated Swift" OFF)
+    if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2 AND NOT WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS)
+        message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2 needs WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS: its consumers are PropertyParser methods")
+    endif ()
+    SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS_2 ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2})
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
