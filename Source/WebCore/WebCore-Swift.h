@@ -88,4 +88,8 @@
 #include "CSSPropertyConsumerSwiftTypes.h"
 #endif
 
+#if !defined(USE_SWIFT_CSS_PROPERTY_CONSUMERS_2)
+#define USE_SWIFT_CSS_PROPERTY_CONSUMERS_2 0
+#endif
+
 #include "WebCoreSwift-Generated.h"

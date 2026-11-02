@@ -394,4 +394,26 @@ private func isTimelineRangeName(_ id: WebCore.CSSValueID) -> Bool {
     }
 }
 
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
+// The hand-written consumers the generated ones (CSSPropertyParsingSwift.swift) call: consumeSingleBackgroundSize,
+// consumeSingleMaskSize, consumeSingleAnimationRangeStart and consumeSingleAnimationRangeEnd.
+extension PropertyParser {
+    mutating func singleBackgroundSize(_ calc: PropertyCalc) -> PropertyValue? {
+        backgroundSize(.backgroundSize, calc)
+    }
+
+    mutating func singleMaskSize(_ calc: PropertyCalc) -> PropertyValue? {
+        backgroundSize(.maskSize, calc)
+    }
+
+    mutating func singleAnimationRangeStart(_ calc: PropertyCalc) -> PropertyValue? {
+        animationRange(isStart: true, calc)
+    }
+
+    mutating func singleAnimationRangeEnd(_ calc: PropertyCalc) -> PropertyValue? {
+        animationRange(isStart: false, calc)
+    }
+}
+#endif
+
 #endif // USE_SWIFT_CSS_PROPERTY_CONSUMERS

@@ -1917,3 +1917,35 @@ auto WebCore::CSSPropertyConsumerSwiftValue::parseCalc(uint32_t argumentsStart, 
     return CSSPrimitiveValue::create(CSS::UnevaluatedCalcBase { CSSCalc::Value::create(static_cast<CSS::Category>(category), CSS::Range { rangeMin, rangeMax }, WTF::move(tree)) });
 }
 #endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
+#include <wtf/NeverDestroyed.h>
+
+// consumePropertyWithSwift for a generated consumer that takes no state, one that consumes only keywords and strings.
+// cssConsumeStatelessProperty reads none of the state, so every call shares one.
+RefPtr<WebCore::CSSValue> WebCore::consumePropertyWithSwift(CSSParserTokenRange& range, uint16_t consumer)
+{
+    static NeverDestroyed<CSS::PropertyParserState> state { CSS::PropertyParserState { .context = strictCSSParserContext() } };
+    RefPtr<CSSValue> result;
+    CSSPropertyConsumerSwiftValueState value { range.span(), state.get(), result };
+    auto consumed = cssConsumeStatelessProperty(value, consumer);
+    RELEASE_ASSERT(consumed.consumedTokens <= range.size());
+    if (consumed.consumedTokens)
+        range = range.span().subspan(consumed.consumedTokens);
+    return consumed.ok ? WTF::move(result) : nullptr;
+}
+
+#include "CSSCustomIdentValue.h"
+#include "CSSStringValue.h"
+
+// cssConsumeNumericSwift converts a time in milliseconds to seconds with this factor.
+static_assert(WebCore::CSS::secondsPerMillisecond == 1.0 / 1000.0);
+
+auto WebCore::CSSPropertyConsumerSwiftValue::tokenValue(size_t index) const -> Ref<CSSValue>
+{
+    if (type(index) == IdentToken)
+        return CSSCustomIdentValue::create(CSS::CustomIdent { token(index).value().toAtomString() });
+    RELEASE_ASSERT(type(index) == StringToken);
+    return CSSStringValue::create(CSS::String { token(index).value().toString() });
+}
+#endif
