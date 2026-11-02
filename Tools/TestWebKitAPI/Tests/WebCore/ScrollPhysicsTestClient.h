@@ -42,6 +42,7 @@
 #include <WebCore/LayoutRect.h>
 #include <WebCore/LayoutUnit.h>
 #include <WebCore/PlatformWheelEvent.h>
+#include <WebCore/ScrollAlignment.h>
 #include <WebCore/ScrollAnimator.h>
 #include <WebCore/ScrollSnapOffsetsInfo.h>
 #include <WebCore/ScrollTypes.h>
@@ -85,6 +86,9 @@ public:
     }
 
     TraceLevel level() const { return m_level; }
+    // With an All trace, also the layers, invalidations, stable state and request options the area is asked for.
+    void setTracesAreaQueries(bool traces) { m_tracesAreaQueries = traces; }
+    bool tracesAreaQueries() const { return m_level == TraceLevel::All && m_tracesAreaQueries; }
     uint64_t digest() const { return m_hash; }
     uint64_t events() const { return m_events; }
     uint64_t entries() const { return m_entries; }
@@ -125,6 +129,7 @@ public:
 private:
     static constexpr uint64_t initialHash = 14695981039346656037ull;
     TraceLevel m_level;
+    bool m_tracesAreaQueries { false };
     Observer m_observer { nullptr };
     void* m_observerContext { nullptr };
     uint64_t m_hash { initialHash };
@@ -215,6 +220,10 @@ public:
     {
         return u(key, (value.top() ? 1 : 0) | (value.right() ? 2 : 0) | (value.bottom() ? 4 : 0) | (value.left() ? 8 : 0));
     }
+
+    TraceLine& lu(const char* key, LayoutUnit value) { return u(key, static_cast<uint32_t>(value.rawValue())); }
+    TraceLine& lpt(const char* key, const LayoutPoint& value) { return lu(key, value.x()).lu("", value.y()); }
+    TraceLine& lrect(const char* key, const LayoutRect& value) { return lu(key, value.x()).lu("", value.y()).lu("", value.width()).lu("", value.height()); }
 
 private:
     Trace& m_trace;
@@ -323,6 +332,24 @@ enum class ReentryAction : uint8_t {
     KeyboardPageScroll,
     SetCurrentPosition,
     ScrollToPositionWithoutAnimation,
+    // ScrollableArea's own members, called on the area.
+    AreaScrollToPositionWithAnimation,
+    AreaScrollToOffsetWithoutAnimation,
+    AreaScroll,
+    AreaResnapAfterLayout,
+    NotifyScrollPositionChanged,
+    SetScrollOffsetFromInternals,
+    // Puts the horizontal scrollbar aside, as when layout removes it.
+    HideHorizontalScrollbar,
+    // Releases the area's reference to its vertical scrollbar.
+    DropVerticalScrollbar,
+};
+
+// Where the area calls reentryAction from.
+enum class ReentryPoint : uint8_t {
+    SetScrollOffset, // The reentryAtScroll'th setScrollOffset() that changes the position.
+    RequestScrollToPosition, // The reentryAtScroll'th requestScrollToPosition().
+    InvalidateScrollbar, // The reentryAtScroll'th scrollbar invalidation.
 };
 
 struct ScriptedConfig {
@@ -364,6 +391,14 @@ struct ScriptedConfig {
     // What requestStartKeyboardScrollAnimation() and requestStopKeyboardScrollAnimation() answer.
     bool startsKeyboardScrollAnimation { false };
     bool stopsKeyboardScrollAnimation { false };
+    // Without it the area makes no ScrollAnimator until something asks for one.
+    bool createsScrollAnimator { true };
+    ReentryPoint reentryPoint { ReentryPoint::SetScrollOffset };
+    // What requestScrollToPosition() answers.
+    bool requestsScrollToPosition { false };
+    bool inStableState { true };
+    // Makes isScrollSnapInProgress() answer true whatever the animator says.
+    bool scrollSnapInProgress { false };
 };
 
 inline IntSize clampedIntSize(FloatSize size)
@@ -522,7 +557,10 @@ public:
         m_horizontalScrollbar = Scrollbar::createNativeScrollbar(*this, ScrollbarOrientation::Horizontal, ScrollbarWidth::Auto);
         m_verticalScrollbar = Scrollbar::createNativeScrollbar(*this, ScrollbarOrientation::Vertical, ScrollbarWidth::Auto);
         applyConfig();
-        setPosition(position);
+        if (!m_config.createsScrollAnimator)
+            m_position = roundedIntPoint(position);
+        else
+            setPosition(position);
         m_ready = true;
     }
 
@@ -545,6 +583,7 @@ public:
     ScriptedConfig& config() { return m_config; }
     IntPoint position() const { return m_position; }
     uint64_t scrollCount() const { return m_scrollCount; }
+    unsigned maximumReentryDepth() const { return m_maximumReentryDepth; }
     bool animationRequested() const { return m_animationRequested; }
     void animationEnded() { m_animationRequested = false; }
 
@@ -556,6 +595,22 @@ public:
         scrollAnimator().setCurrentPosition(position);
     }
 
+    // The area's integral position only, as a subclass scrolls its own contents, leaving the animator as it is.
+    void setAreaPosition(FloatPoint position)
+    {
+        m_position = roundedIntPoint(position);
+    }
+
+    void setAreaPosition(IntPoint position)
+    {
+        m_position = position;
+    }
+
+    LayoutRect rectToExposeForScrollIntoView(const LayoutRect& visibleBounds, const LayoutRect& exposeRect, const ScrollAlignment& alignX, const ScrollAlignment& alignY, const std::optional<LayoutRect>& visibilityCheckRect) const
+    {
+        return getRectToExposeForScrollIntoView(visibleBounds, exposeRect, alignX, alignY, visibilityCheckRect);
+    }
+
     // Applies the scripted extents and policies to the scrollbars, as layout does for a frame.
     void applyConfig()
     {
@@ -563,6 +618,8 @@ public:
             m_horizontalScrollbar = std::exchange(m_hiddenHorizontalScrollbar, nullptr);
         if (m_hiddenVerticalScrollbar)
             m_verticalScrollbar = std::exchange(m_hiddenVerticalScrollbar, nullptr);
+        if (!m_verticalScrollbar)
+            m_verticalScrollbar = Scrollbar::createNativeScrollbar(*this, ScrollbarOrientation::Vertical, ScrollbarWidth::Auto);
         // As layout sets the origin, but leaving scrollOriginChanged() false: ScrollableArea::setScrollOrigin() is
         // not exported.
         const_cast<IntPoint&>(scrollOrigin()) = m_config.scrollOrigin;
@@ -599,6 +656,20 @@ public:
     bool shouldPlaceVerticalScrollbarOnLeft() const final { return false; }
     String debugDescription() const final { return "RecordingScrollableArea"_s; }
     void invalidateScrollbarRect(Scrollbar&, const IntRect&) final { }
+
+    void invalidateScrollbar(Scrollbar& scrollbar, const IntRect& rect) final
+    {
+        if (m_trace.tracesAreaQueries()) {
+            TraceLine(m_trace, 'C', "invalidateScrollbar").u("orientation", static_cast<uint8_t>(scrollbar.orientation()))
+                .u("x", static_cast<uint32_t>(rect.x())).u("y", static_cast<uint32_t>(rect.y())).u("w", static_cast<uint32_t>(rect.width())).u("h", static_cast<uint32_t>(rect.height()));
+        }
+        ScrollableArea::invalidateScrollbar(scrollbar, rect);
+        if (!m_ready)
+            return;
+        ++m_invalidations;
+        if (m_config.reentryPoint == ReentryPoint::InvalidateScrollbar && m_invalidations == m_config.reentryAtScroll)
+            performReentry();
+    }
     void invalidateScrollCornerRect(const IntRect&) final { }
 
     void createScrollbarsController() final
@@ -610,6 +681,33 @@ public:
     // follows the system's scroller style.
     Scrollbar* horizontalScrollbar() const final { return m_horizontalScrollbar.get(); }
     Scrollbar* verticalScrollbar() const final { return m_verticalScrollbar.get(); }
+
+    GraphicsLayer* layerForHorizontalScrollbar() const final
+    {
+        if (m_trace.tracesAreaQueries())
+            TraceLine(m_trace, 'C', "layerForHorizontalScrollbar");
+        return nullptr;
+    }
+
+    GraphicsLayer* layerForVerticalScrollbar() const final
+    {
+        if (m_trace.tracesAreaQueries())
+            TraceLine(m_trace, 'C', "layerForVerticalScrollbar");
+        return nullptr;
+    }
+
+    bool isInStableState() const final
+    {
+        if (m_trace.tracesAreaQueries())
+            TraceLine(m_trace, 'C', "isInStableState").b("r", m_config.inStableState);
+        return m_config.inStableState;
+    }
+
+    void updateAnchorPositionedAfterScroll() final
+    {
+        if (m_trace.tracesAreaQueries())
+            TraceLine(m_trace, 'C', "updateAnchorPositionedAfterScroll");
+    }
 
     // Traced only in an All trace, so that Full digests do not depend on them.
     bool hasSteppedScrolling() const final
@@ -752,6 +850,10 @@ public:
 
     bool isScrollSnapInProgress() const final
     {
+        if (m_config.scrollSnapInProgress) {
+            TraceLine(m_trace, 'C', "isScrollSnapInProgress").b("r", true);
+            return true;
+        }
         bool result = existingScrollAnimator() && existingScrollAnimator()->isScrollSnapInProgress();
         TraceLine(m_trace, 'C', "isScrollSnapInProgress").b("r", result);
         return result;
@@ -760,6 +862,17 @@ public:
     bool requestScrollToPosition(const ScrollPosition& position, const ScrollPositionChangeOptions& options) final
     {
         TraceLine(m_trace, 'C', "requestScrollToPosition").ipt("position", position).u("type", static_cast<uint8_t>(options.type)).u("clamping", static_cast<uint8_t>(options.clamping)).u("animated", static_cast<uint8_t>(options.animated));
+        if (m_trace.tracesAreaQueries()) {
+            TraceLine(m_trace, 'C', "requestScrollToPositionOptions").u("method", static_cast<uint8_t>(options.snapPointSelectionMethod))
+                .b("delta", !!options.originalScrollDelta).sz("", options.originalScrollDelta.value_or(FloatSize { }))
+                .u("interrupts", static_cast<uint8_t>(options.interruptsAnimation)).u("curve", static_cast<uint8_t>(options.animationCurve)).b("r", m_config.requestsScrollToPosition);
+        }
+        if (m_ready)
+            ++m_requests;
+        if (m_ready && m_config.reentryPoint == ReentryPoint::RequestScrollToPosition && m_requests == m_config.reentryAtScroll)
+            const_cast<RecordingScrollableArea&>(*this).performReentry();
+        if (m_config.requestsScrollToPosition)
+            return true;
         return false;
     }
 
@@ -805,7 +918,18 @@ private:
     {
         if (m_config.reentryAction == ReentryAction::None || m_scrollCount != m_config.reentryAtScroll)
             return;
+        if (m_config.reentryPoint == ReentryPoint::SetScrollOffset)
+            performReentry();
+    }
+
+    void performReentry()
+    {
+        if (m_config.reentryAction == ReentryAction::None)
+            return;
+        ++m_reentryDepth;
+        m_maximumReentryDepth = std::max(m_maximumReentryDepth, m_reentryDepth);
         auto& animator = scrollAnimator();
+        auto destination = m_config.reentryDestination;
         switch (m_config.reentryAction) {
         case ReentryAction::None:
             break;
@@ -840,7 +964,49 @@ private:
             TraceLine(m_trace, 'R', "reentry.scrollToPositionWithoutAnimation", true).b("r", result);
             break;
         }
+        case ReentryAction::AreaScrollToPositionWithAnimation:
+            TraceLine(m_trace, 'E', "reentry.areaScrollToPositionWithAnimation").pt("to", destination);
+            m_trace.countEntry();
+            scrollToPositionWithAnimation(destination);
+            break;
+        case ReentryAction::AreaScrollToOffsetWithoutAnimation:
+            TraceLine(m_trace, 'E', "reentry.areaScrollToOffsetWithoutAnimation").pt("to", destination);
+            m_trace.countEntry();
+            scrollToOffsetWithoutAnimation(destination);
+            break;
+        case ReentryAction::AreaScroll: {
+            TraceLine(m_trace, 'E', "reentry.areaScroll");
+            m_trace.countEntry();
+            bool result = scroll(ScrollDirection::ScrollDown, ScrollGranularity::Line);
+            TraceLine(m_trace, 'R', "reentry.areaScroll", true).b("r", result);
+            break;
         }
+        case ReentryAction::AreaResnapAfterLayout:
+            TraceLine(m_trace, 'E', "reentry.areaResnapAfterLayout");
+            m_trace.countEntry();
+            resnapAfterLayout();
+            break;
+        case ReentryAction::NotifyScrollPositionChanged:
+            TraceLine(m_trace, 'E', "reentry.notifyScrollPositionChanged").pt("to", destination);
+            m_trace.countEntry();
+            notifyScrollPositionChanged(roundedIntPoint(destination));
+            break;
+        case ReentryAction::SetScrollOffsetFromInternals:
+            TraceLine(m_trace, 'E', "reentry.setScrollOffsetFromInternals").pt("to", destination);
+            m_trace.countEntry();
+            setScrollOffsetFromInternals(roundedIntPoint(destination));
+            break;
+        case ReentryAction::HideHorizontalScrollbar:
+            TraceLine(m_trace, 'E', "reentry.hideHorizontalScrollbar");
+            if (m_horizontalScrollbar)
+                m_hiddenHorizontalScrollbar = std::exchange(m_horizontalScrollbar, nullptr);
+            break;
+        case ReentryAction::DropVerticalScrollbar:
+            TraceLine(m_trace, 'E', "reentry.dropVerticalScrollbar");
+            m_verticalScrollbar = nullptr;
+            break;
+        }
+        --m_reentryDepth;
     }
 
     Trace& m_trace;
@@ -853,6 +1019,10 @@ private:
     bool m_ready { false };
     bool m_animationRequested { false };
     uint64_t m_scrollCount { 0 };
+    mutable uint64_t m_requests { 0 };
+    uint64_t m_invalidations { 0 };
+    unsigned m_reentryDepth { 0 };
+    unsigned m_maximumReentryDepth { 0 };
 };
 
 // MARK: - Steps
@@ -884,6 +1054,26 @@ enum class Op : uint8_t {
     SetPrediction,
     WheelEventPhase, // handleWheelEventPhase() with the wheel's phase.
     Snapshot,
+    // ScrollableArea's own members. None of them makes the area's ScrollAnimator.
+    AreaScroll, // ScrollableArea::scroll() in direction by granularity, count steps.
+    AreaScrollToPositionWithAnimation, // To a with scrollType and curve, unclamped with flag; size is the original delta when hasDelta.
+    AreaScrollToOffsetWithoutAnimation, // To offset a, unclamped with flag.
+    AreaScrollToOffsetOnAxis, // To offset value on axis.
+    NotifyScrollPositionChanged, // To a.
+    SetScrollOffsetFromInternals, // To offset a.
+    BeginKeyboardScroll, // Points per step size, direction and granularity.
+    EndKeyboardScroll, // Immediately with flag.
+    AreaResnapAfterLayout,
+    DoPostThumbMoveSnapping, // On axis.
+    EdgeQueries, // isPinnedOnSide() on each side and edgePinnedState().
+    PropagationQueries, // deltaForPropagation() and shouldBlockScrollPropagation() for size.
+    ScrollbarValueAndOverhang, // Position value, total size width and visible size height.
+    TargetSideForScrollDelta, // size on axis.
+    ConstrainScrollPositionForOverhang, // Visible rect, total size otherRect's size, position point, origin otherRect's location, header and footer.
+    ScrollIntoView, // Visible bounds rect, expose otherRect, checkRect, alignX and alignY.
+    SetPressedPart, // count on axis's scrollbar.
+    SetScrollAnimationStatus, // Animating with flag.
+    SetAreaPosition, // To a, without the animator.
 };
 
 struct Step {
@@ -902,6 +1092,17 @@ struct Step {
     unsigned snapInfo { 0 };
     double seconds { 0 };
     ScriptedConfig config { };
+    LayoutRect rect { };
+    LayoutRect otherRect { };
+    std::optional<LayoutRect> checkRect { };
+    LayoutPoint point { };
+    ScrollAlignment alignX { ScrollAlignment::Behavior::NoScroll, ScrollAlignment::Behavior::NoScroll, ScrollAlignment::Behavior::NoScroll };
+    ScrollAlignment alignY { ScrollAlignment::Behavior::NoScroll, ScrollAlignment::Behavior::NoScroll, ScrollAlignment::Behavior::NoScroll };
+    int header { 0 };
+    int footer { 0 };
+    ScrollType scrollType { ScrollType::Programmatic };
+    ScrollAnimationCurve curve { ScrollAnimationCurve::Default };
+    bool hasDelta { false };
 };
 
 struct Case {
@@ -948,6 +1149,7 @@ public:
             if (m_trace.level() == TraceLevel::Full)
                 snapshot();
             scrolls = area.scrollCount();
+            m_maximumReentryDepth = area.maximumReentryDepth();
             m_area = nullptr;
         }
         ScrollingMomentumCalculator::setPlatformMomentumScrollingPredictionEnabled(true);
@@ -956,9 +1158,13 @@ public:
 
     RecordingScrollableArea& area() { return *m_area; }
     ScrollAnimator& animator() { return m_area->scrollAnimator(); }
+    // How deeply the area's scripted reentry nested in the last run.
+    unsigned maximumReentryDepth() const { return m_maximumReentryDepth; }
 
     void perform(const Step& step)
     {
+        if (performAreaStep(step))
+            return;
         auto& animator = this->animator();
         switch (step.op) {
         case Op::Wheel:
@@ -1142,12 +1348,198 @@ public:
         case Op::Snapshot:
             snapshot();
             break;
+        case Op::AreaScroll:
+        case Op::AreaScrollToPositionWithAnimation:
+        case Op::AreaScrollToOffsetWithoutAnimation:
+        case Op::AreaScrollToOffsetOnAxis:
+        case Op::NotifyScrollPositionChanged:
+        case Op::SetScrollOffsetFromInternals:
+        case Op::BeginKeyboardScroll:
+        case Op::EndKeyboardScroll:
+        case Op::AreaResnapAfterLayout:
+        case Op::DoPostThumbMoveSnapping:
+        case Op::EdgeQueries:
+        case Op::PropagationQueries:
+        case Op::ScrollbarValueAndOverhang:
+        case Op::TargetSideForScrollDelta:
+        case Op::ConstrainScrollPositionForOverhang:
+        case Op::ScrollIntoView:
+        case Op::SetPressedPart:
+        case Op::SetScrollAnimationStatus:
+        case Op::SetAreaPosition:
+            // performAreaStep() handles these.
+            break;
+        }
+    }
+
+    // ScrollableArea's own members, on the area, without making its animator.
+    bool performAreaStep(const Step& step)
+    {
+        auto& area = *m_area;
+        auto orientation = [](ScrollEventAxis axis) {
+            return axis == ScrollEventAxis::Horizontal ? ScrollbarOrientation::Horizontal : ScrollbarOrientation::Vertical;
+        };
+        auto traceAlignment = [](TraceLine& line, const ScrollAlignment& alignment) {
+            line.u("visible", static_cast<uint8_t>(alignment.m_rectVisible)).u("hidden", static_cast<uint8_t>(alignment.m_rectHidden))
+                .u("partial", static_cast<uint8_t>(alignment.m_rectPartial)).b("threshold", alignment.m_enableLegacyHorizontalVisibilityThreshold);
+        };
+        switch (step.op) {
+        case Op::AreaScroll: {
+            TraceLine(m_trace, 'E', "areaScroll").u("direction", static_cast<uint8_t>(step.direction)).u("granularity", static_cast<uint8_t>(step.granularity)).u("steps", step.count);
+            m_trace.countEntry();
+            bool result = area.scroll(step.direction, step.granularity, step.count);
+            TraceLine(m_trace, 'R', "areaScroll", true).b("r", result);
+            return true;
+        }
+        case Op::AreaScrollToPositionWithAnimation: {
+            ScrollPositionChangeOptions options { step.scrollType };
+            options.clamping = step.flag ? ScrollClamping::Unclamped : ScrollClamping::Clamped;
+            options.snapPointSelectionMethod = step.method;
+            if (step.hasDelta)
+                options.originalScrollDelta = step.size;
+            options.animationCurve = step.curve;
+            TraceLine(m_trace, 'E', "areaScrollToPositionWithAnimation").pt("to", step.a).u("type", static_cast<uint8_t>(step.scrollType)).b("unclamped", step.flag)
+                .u("method", static_cast<uint8_t>(step.method)).b("delta", step.hasDelta).sz("", step.size).u("curve", static_cast<uint8_t>(step.curve));
+            m_trace.countEntry();
+            area.scrollToPositionWithAnimation(step.a, options);
+            TraceLine(m_trace, 'R', "areaScrollToPositionWithAnimation", true).ipt("position", area.position()).u("status", static_cast<uint8_t>(area.scrollAnimationStatus()));
+            return true;
+        }
+        case Op::AreaScrollToOffsetWithoutAnimation:
+            TraceLine(m_trace, 'E', "areaScrollToOffsetWithoutAnimation").pt("to", step.a).b("unclamped", step.flag);
+            m_trace.countEntry();
+            area.scrollToOffsetWithoutAnimation(step.a, step.flag ? ScrollClamping::Unclamped : ScrollClamping::Clamped);
+            TraceLine(m_trace, 'R', "areaScrollToOffsetWithoutAnimation", true).ipt("position", area.position());
+            return true;
+        case Op::AreaScrollToOffsetOnAxis:
+            TraceLine(m_trace, 'E', "areaScrollToOffsetOnAxis").u("axis", static_cast<uint8_t>(step.axis)).f("offset", step.value);
+            m_trace.countEntry();
+            area.scrollToOffsetWithoutAnimation(orientation(step.axis), step.value);
+            TraceLine(m_trace, 'R', "areaScrollToOffsetOnAxis", true).ipt("position", area.position());
+            return true;
+        case Op::NotifyScrollPositionChanged:
+            TraceLine(m_trace, 'E', "notifyScrollPositionChanged").ipt("to", roundedIntPoint(step.a));
+            m_trace.countEntry();
+            area.notifyScrollPositionChanged(roundedIntPoint(step.a));
+            TraceLine(m_trace, 'R', "notifyScrollPositionChanged", true).ipt("position", area.position());
+            return true;
+        case Op::SetScrollOffsetFromInternals:
+            TraceLine(m_trace, 'E', "setScrollOffsetFromInternals").ipt("to", roundedIntPoint(step.a));
+            m_trace.countEntry();
+            area.setScrollOffsetFromInternals(roundedIntPoint(step.a));
+            TraceLine(m_trace, 'R', "setScrollOffsetFromInternals", true).ipt("position", area.position());
+            return true;
+        case Op::BeginKeyboardScroll: {
+            KeyboardScroll scroll;
+            scroll.offset = step.size;
+            scroll.maximumVelocity = step.size;
+            scroll.force = step.size;
+            scroll.granularity = step.granularity;
+            scroll.direction = step.direction;
+            TraceLine(m_trace, 'E', "beginKeyboardScroll").sz("offset", step.size).u("granularity", static_cast<uint8_t>(step.granularity)).u("direction", static_cast<uint8_t>(step.direction));
+            m_trace.countEntry();
+            area.beginKeyboardScroll(scroll);
+            TraceLine(m_trace, 'R', "beginKeyboardScroll", true).u("status", static_cast<uint8_t>(area.scrollAnimationStatus()));
+            return true;
+        }
+        case Op::EndKeyboardScroll:
+            TraceLine(m_trace, 'E', "endKeyboardScroll").b("immediate", step.flag);
+            m_trace.countEntry();
+            area.endKeyboardScroll(step.flag);
+            TraceLine(m_trace, 'R', "endKeyboardScroll", true).u("status", static_cast<uint8_t>(area.scrollAnimationStatus()));
+            return true;
+        case Op::AreaResnapAfterLayout:
+            TraceLine(m_trace, 'E', "areaResnapAfterLayout");
+            m_trace.countEntry();
+            area.resnapAfterLayout();
+            TraceLine(m_trace, 'R', "areaResnapAfterLayout", true).ipt("position", area.position()).b("animator", !!area.existingScrollAnimator());
+            return true;
+        case Op::DoPostThumbMoveSnapping:
+            TraceLine(m_trace, 'E', "doPostThumbMoveSnapping").u("axis", static_cast<uint8_t>(step.axis));
+            m_trace.countEntry();
+            area.doPostThumbMoveSnapping(orientation(step.axis));
+            TraceLine(m_trace, 'R', "doPostThumbMoveSnapping", true).ipt("position", area.position()).b("animator", !!area.existingScrollAnimator());
+            return true;
+        case Op::EdgeQueries: {
+            TraceLine(m_trace, 'E', "edgeQueries");
+            unsigned pinned = 0;
+            for (auto side : { BoxSide::Top, BoxSide::Right, BoxSide::Bottom, BoxSide::Left }) {
+                m_trace.countEntry();
+                pinned = (pinned << 1) | (area.isPinnedOnSide(side) ? 1 : 0);
+            }
+            m_trace.countEntry();
+            auto edges = area.edgePinnedState();
+            TraceLine(m_trace, 'R', "edgeQueries", true).u("pinned", pinned).edges("edges", edges);
+            return true;
+        }
+        case Op::PropagationQueries: {
+            TraceLine(m_trace, 'E', "propagationQueries").sz("delta", step.size);
+            m_trace.countEntry();
+            auto delta = area.deltaForPropagation(step.size);
+            m_trace.countEntry();
+            bool blocks = area.shouldBlockScrollPropagation(step.size);
+            TraceLine(m_trace, 'R', "propagationQueries", true).sz("delta", delta).b("blocks", blocks);
+            return true;
+        }
+        case Op::ScrollbarValueAndOverhang: {
+            float value = -1;
+            float overhang = -1;
+            m_trace.countEntry();
+            ScrollableArea::computeScrollbarValueAndOverhang(step.value, step.size.width(), step.size.height(), value, overhang);
+            TraceLine(m_trace, 'R', "computeScrollbarValueAndOverhang", true).f("position", step.value).sz("sizes", step.size).f("value", value).f("overhang", overhang);
+            return true;
+        }
+        case Op::TargetSideForScrollDelta: {
+            m_trace.countEntry();
+            auto side = ScrollableArea::targetSideForScrollDelta(step.size, step.axis);
+            TraceLine(m_trace, 'R', "targetSideForScrollDelta", true).sz("delta", step.size).u("axis", static_cast<uint8_t>(step.axis)).b("side", !!side).u("", side ? static_cast<uint8_t>(*side) : 0);
+            return true;
+        }
+        case Op::ConstrainScrollPositionForOverhang: {
+            m_trace.countEntry();
+            auto result = ScrollableArea::constrainScrollPositionForOverhang(step.rect, step.otherRect.size(), step.point, step.otherRect.location(), step.header, step.footer);
+            TraceLine(m_trace, 'R', "constrainScrollPositionForOverhang", true).lrect("visible", step.rect).lrect("contents", step.otherRect).lpt("position", step.point)
+                .u("header", static_cast<uint32_t>(step.header)).u("footer", static_cast<uint32_t>(step.footer)).lpt("r", result);
+            return true;
+        }
+        case Op::ScrollIntoView: {
+            m_trace.countEntry();
+            auto result = area.rectToExposeForScrollIntoView(step.rect, step.otherRect, step.alignX, step.alignY, step.checkRect);
+            TraceLine line(m_trace, 'R', "rectToExposeForScrollIntoView", true);
+            line.lrect("visible", step.rect).lrect("expose", step.otherRect).b("check", !!step.checkRect).lrect("", step.checkRect.value_or(LayoutRect { }));
+            traceAlignment(line, step.alignX);
+            traceAlignment(line, step.alignY);
+            line.lrect("r", result);
+            return true;
+        }
+        case Op::SetPressedPart: {
+            auto* scrollbar = step.axis == ScrollEventAxis::Horizontal ? area.horizontalScrollbar() : area.verticalScrollbar();
+            TraceLine(m_trace, 'T', "setPressedPart").u("axis", static_cast<uint8_t>(step.axis)).u("part", step.count).b("scrollbar", !!scrollbar);
+            if (scrollbar)
+                scrollbar->setPressedPart(static_cast<ScrollbarPart>(step.count));
+            return true;
+        }
+        case Op::SetScrollAnimationStatus:
+            TraceLine(m_trace, 'T', "setScrollAnimationStatus").b("animating", step.flag);
+            area.setScrollAnimationStatus(step.flag ? ScrollAnimationStatus::Animating : ScrollAnimationStatus::NotAnimating);
+            return true;
+        case Op::SetAreaPosition:
+            TraceLine(m_trace, 'T', "setAreaPosition").pt("to", step.a);
+            area.setAreaPosition(step.a);
+            return true;
+        default:
+            return false;
         }
     }
 
     // State read through the animator's out-of-line members, and the area's own state.
     void snapshot()
     {
+        if (!m_area->existingScrollAnimator()) {
+            TraceLine(m_trace, 'S', "areaState").ipt("position", m_area->position()).u("status", static_cast<uint8_t>(m_area->scrollAnimationStatus()))
+                .u("type", static_cast<uint8_t>(m_area->currentScrollType())).u("clamping", static_cast<uint8_t>(m_area->scrollClamping()));
+            return;
+        }
         auto& animator = this->animator();
         m_trace.countEntry();
         bool userScroll = animator.isUserScrollInProgress();
@@ -1184,6 +1576,8 @@ public:
             auto& scrollbars = m_area->scrollbarsController();
             line.pt("currentPosition", animator.currentPosition()).b("unsuspended", scrollbars.scrollbarAnimationsUnsuspendedByUserInteraction())
                 .b("originChanged", m_area->scrollOriginChanged()).u("clamping", static_cast<uint8_t>(m_area->scrollClamping()));
+            if (m_trace.tracesAreaQueries())
+                line.u("type", static_cast<uint8_t>(m_area->currentScrollType()));
             scrollbars.setScrollbarAnimationsUnsuspendedByUserInteraction(false);
         }
     }
@@ -1230,6 +1624,7 @@ private:
     RecordingScrollableArea* m_area { nullptr };
     const LayoutScrollSnapOffsetsInfo* m_lastSnapInfo { nullptr };
     double m_lastEventTime { caseStartTime };
+    unsigned m_maximumReentryDepth { 0 };
 };
 
 // Runs a list of cases with the scripted clock in place, and returns the trace's digest.

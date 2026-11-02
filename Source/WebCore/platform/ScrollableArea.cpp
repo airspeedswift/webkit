@@ -48,9 +48,29 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
+#if !defined(USE_SWIFT_SCROLLABLE_AREA)
+#define USE_SWIFT_SCROLLABLE_AREA 0
+#endif
+
+#if USE_SWIFT_SCROLLABLE_AREA
+#if !USE_SWIFT_SCROLL_ANIMATOR
+#error "USE_SWIFT_SCROLLABLE_AREA requires USE_SWIFT_SCROLL_ANIMATOR"
+#endif
+#include "ScrollAnimatorScrollPhysicsClient.h"
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollableArea);
+
+#if USE_SWIFT_SCROLLABLE_AREA
+void ScrollAnimatorScrollPhysicsClient::createAnimator(ScrollableArea& area)
+{
+    auto& state = static_cast<ScrollAnimatorScrollPhysicsClientState&>(*this);
+    state.m_constAnimator = state.m_animator = &area.scrollAnimator();
+}
+#endif
 
 struct SameSizeAsScrollableArea : public CanMakeWeakPtr<SameSizeAsScrollableArea>, public AbstractCanMakeCheckedPtr {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(SameSizeAsScrollableArea);
@@ -132,6 +152,7 @@ float ScrollableArea::adjustVerticalPageScrollStepForFixedContent(float step)
 
 bool ScrollableArea::scroll(ScrollDirection direction, ScrollGranularity granularity, unsigned stepCount)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     RefPtr scrollbar = scrollbarForDirection(direction);
     if (!scrollbar)
         return false;
@@ -169,22 +190,33 @@ bool ScrollableArea::scroll(ScrollDirection direction, ScrollGranularity granula
         behavior.add(ScrollAnimator::ScrollBehavior::DocumentEdge);
 
     return scrollAnimator().singleAxisScroll(axis, scrollDelta, behavior);
+#else
+    return scrollableAreaScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), direction, granularity, stepCount);
+#endif
 }
 
 void ScrollableArea::beginKeyboardScroll(const KeyboardScroll& scrollData)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     bool startedAnimation = requestStartKeyboardScrollAnimation(scrollData);
 
     if (startedAnimation)
         setScrollAnimationStatus(ScrollAnimationStatus::Animating);
+#else
+    scrollableAreaBeginKeyboardScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), scrollData);
+#endif
 }
 
 void ScrollableArea::endKeyboardScroll(bool immediate)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     bool finishedAnimation = requestStopKeyboardScrollAnimation(immediate);
 
     if (finishedAnimation)
         setScrollAnimationStatus(ScrollAnimationStatus::NotAnimating);
+#else
+    scrollableAreaEndKeyboardScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), immediate);
+#endif
 }
 
 bool ScrollableArea::scrollToPositionWithoutAnimation(const FloatPoint& position, ScrollClamping clamping)
@@ -195,6 +227,7 @@ bool ScrollableArea::scrollToPositionWithoutAnimation(const FloatPoint& position
 
 void ScrollableArea::scrollToPositionWithAnimation(const FloatPoint& position, const ScrollPositionChangeOptions& options)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     LOG_WITH_STREAM(Scrolling, stream << "ScrollableArea " << this << " scrollToPositionWithAnimation " << position);
 
     if (scrollAnimationStatus() == ScrollAnimationStatus::Animating) {
@@ -226,31 +259,47 @@ void ScrollableArea::scrollToPositionWithAnimation(const FloatPoint& position, c
 
     if (startedAnimation)
         setScrollAnimationStatus(ScrollAnimationStatus::Animating);
+#else
+    scrollableAreaScrollToPositionWithAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position, options.type, options.clamping, options.snapPointSelectionMethod, options.originalScrollDelta.has_value(), options.originalScrollDelta.value_or(FloatSize { }), options.animationCurve);
+#endif
 }
 
 void ScrollableArea::scrollToOffsetWithoutAnimation(const FloatPoint& offset, ScrollClamping clamping)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     LOG_WITH_STREAM(Scrolling, stream << "ScrollableArea " << this << " scrollToOffsetWithoutAnimation " << offset);
 
     auto position = scrollPositionFromOffset(offset, toFloatSize(scrollOrigin()));
     scrollAnimator().scrollToPositionWithoutAnimation(position, clamping);
+#else
+    scrollableAreaScrollToOffsetWithoutAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), offset, clamping);
+#endif
 }
 
 void ScrollableArea::scrollToOffsetWithoutAnimation(ScrollbarOrientation orientation, float offset)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     auto currentOffset = scrollOffsetFromPosition(scrollAnimator().currentPosition(), toFloatSize(scrollOrigin()));
     if (orientation == ScrollbarOrientation::Horizontal)
         scrollToOffsetWithoutAnimation(FloatPoint(offset, currentOffset.y()));
     else
         scrollToOffsetWithoutAnimation(FloatPoint(currentOffset.x(), offset));
+#else
+    scrollableAreaScrollToOffsetWithoutAnimationOnAxis(ScrollAnimatorScrollPhysicsClientState(*this).facade(), orientation, offset);
+#endif
 }
 
 void ScrollableArea::notifyScrollPositionChanged(const ScrollPosition& position)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     scrollPositionChanged(position);
     scrollAnimator().setCurrentPosition(position);
+#else
+    scrollableAreaNotifyScrollPositionChanged(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position);
+#endif
 }
 
+#if !USE_SWIFT_SCROLLABLE_AREA
 void ScrollableArea::scrollPositionChanged(const ScrollPosition& position)
 {
     IntPoint oldPosition = scrollPosition();
@@ -289,6 +338,15 @@ void ScrollableArea::scrollPositionChanged(const ScrollPosition& position)
         updateAnchorPositionedAfterScroll();
     }
 }
+#endif
+
+#if USE_SWIFT_SCROLLABLE_AREA
+void ScrollAnimatorScrollPhysicsClient::scrollAnchoringScrollPositionDidChange()
+{
+    if (CheckedPtr controller = mutableArea().scrollAnchoringController())
+        controller->scrollPositionDidChange();
+}
+#endif
 
 void ScrollableArea::willDispatchScrollEvent()
 {
@@ -356,6 +414,7 @@ void ScrollableArea::setScrollOffsetFromInternals(const ScrollOffset& offset)
 
 void ScrollableArea::setScrollPositionFromAnimation(const ScrollPosition& position)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     // An early return here if the position hasn't changed breaks an iOS RTL scrolling test: webkit.org/b/230450.
     auto scrollType = currentScrollType();
     auto clamping = scrollType == ScrollType::User ? ScrollClamping::Unclamped : ScrollClamping::Clamped;
@@ -363,6 +422,9 @@ void ScrollableArea::setScrollPositionFromAnimation(const ScrollPosition& positi
         return;
 
     scrollPositionChanged(position);
+#else
+    scrollableAreaSetScrollPositionFromAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position);
+#endif
 }
 
 void ScrollableArea::willStartLiveResize()
@@ -660,6 +722,7 @@ void ScrollableArea::setCurrentVerticalSnapPointIndex(std::optional<unsigned> in
 
 void ScrollableArea::resnapAfterLayout()
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     LOG_WITH_STREAM(ScrollSnap, stream << *this << " resnapAfterLayout: isScrollSnapInProgress " << isScrollSnapInProgress() << " isUserScrollInProgress " << isUserScrollInProgress());
 
     auto* scrollAnimator = existingScrollAnimator();
@@ -700,10 +763,14 @@ void ScrollableArea::resnapAfterLayout()
             scrollAnimator->retargetRunningAnimation(position, ScrollAnimationCurve::Default);
         }
     }
+#else
+    scrollableAreaResnapAfterLayout(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#endif
 }
 
 void ScrollableArea::doPostThumbMoveSnapping(ScrollbarOrientation orientation)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     auto* scrollAnimator = existingScrollAnimator();
     if (!scrollAnimator)
         return;
@@ -722,6 +789,9 @@ void ScrollableArea::doPostThumbMoveSnapping(ScrollbarOrientation orientation)
 
     auto position = scrollPositionFromOffset(newOffset);
     scrollAnimator->scrollToPositionWithAnimation(position);
+#else
+    scrollableAreaDoPostThumbMoveSnapping(ScrollAnimatorScrollPhysicsClientState(*this).facade(), orientation);
+#endif
 }
 
 bool ScrollableArea::isPinnedOnSide(BoxSide side) const
@@ -877,6 +947,7 @@ IntRect ScrollableArea::visibleContentRectInternal(VisibleContentRectIncludesScr
 
 LayoutPoint ScrollableArea::constrainScrollPositionForOverhang(const LayoutRect& visibleContentRect, const LayoutSize& totalContentsSize, const LayoutPoint& scrollPosition, const LayoutPoint& scrollOrigin, int headerHeight, int footerHeight)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     // The viewport rect that we're scrolling shouldn't be larger than our document.
     LayoutSize idealScrollRectSize(std::min(visibleContentRect.width(), totalContentsSize.width()), std::min(visibleContentRect.height(), totalContentsSize.height()));
     
@@ -899,6 +970,9 @@ LayoutPoint ScrollableArea::constrainScrollPositionForOverhang(const LayoutRect&
     }
 
     return scrollRect.location() - toLayoutSize(scrollOrigin);
+#else
+    return scrollableAreaConstrainScrollPositionForOverhang(visibleContentRect, totalContentsSize, scrollPosition, scrollOrigin, headerHeight, footerHeight);
+#endif
 }
 
 LayoutPoint ScrollableArea::constrainScrollPositionForOverhang(const LayoutPoint& scrollPosition)
@@ -908,6 +982,7 @@ LayoutPoint ScrollableArea::constrainScrollPositionForOverhang(const LayoutPoint
 
 void ScrollableArea::computeScrollbarValueAndOverhang(float currentPosition, float totalSize, float visibleSize, float& scrollbarValue, float& overhangAmount)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     scrollbarValue = 0;
     overhangAmount = 0;
     float maximum = totalSize - visibleSize;
@@ -927,10 +1002,14 @@ void ScrollableArea::computeScrollbarValueAndOverhang(float currentPosition, flo
         else
             scrollbarValue = 0;
     }
+#else
+    scrollableAreaComputeScrollbarValueAndOverhang(currentPosition, totalSize, visibleSize, scrollbarValue, overhangAmount);
+#endif
 }
 
 std::optional<BoxSide> ScrollableArea::targetSideForScrollDelta(FloatSize delta, ScrollEventAxis axis)
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     switch (axis) {
     case ScrollEventAxis::Horizontal:
         if (delta.width() < 0)
@@ -950,10 +1029,14 @@ std::optional<BoxSide> ScrollableArea::targetSideForScrollDelta(FloatSize delta,
     }
 
     return { };
+#else
+    return scrollableAreaTargetSideForScrollDelta(delta, axis);
+#endif
 }
 
 LayoutRect ScrollableArea::getRectToExposeForScrollIntoView(const LayoutRect& visibleBounds, const LayoutRect& exposeRect, const ScrollAlignment& alignX, const ScrollAlignment& alignY, const std::optional<LayoutRect> visibilityCheckRect) const
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     static const int minIntersectForReveal = 32;
 
     ScrollAlignment::Behavior scrollX = alignX.getHiddenBehavior();
@@ -1049,6 +1132,9 @@ LayoutRect ScrollableArea::getRectToExposeForScrollIntoView(const LayoutRect& vi
         y = exposeRect.y();
 
     return LayoutRect(LayoutPoint(x, y), visibleBounds.size());
+#else
+    return scrollableAreaRectToExposeForScrollIntoView(visibleBounds, exposeRect, alignX, alignY, visibilityCheckRect.has_value(), visibilityCheckRect.value_or(LayoutRect { }));
+#endif
 }
 
 TextStream& operator<<(TextStream& ts, const ScrollableArea& scrollableArea)
@@ -1059,16 +1145,21 @@ TextStream& operator<<(TextStream& ts, const ScrollableArea& scrollableArea)
 
 FloatSize ScrollableArea::deltaForPropagation(const FloatSize& biasedDelta) const
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     auto filteredDelta = biasedDelta;
     if (horizontalOverscrollBehaviorPreventsPropagation())
         filteredDelta.setWidth(0);
     if (verticalOverscrollBehaviorPreventsPropagation())
         filteredDelta.setHeight(0);
     return filteredDelta;
+#else
+    return scrollableAreaDeltaForPropagation(horizontalOverscrollBehavior(), verticalOverscrollBehavior(), biasedDelta);
+#endif
 }
 
 bool ScrollableArea::shouldBlockScrollPropagation(const FloatSize& biasedDelta) const
 {
+#if !USE_SWIFT_SCROLLABLE_AREA
     bool preventsHorizontalPropagation = horizontalOverscrollBehaviorPreventsPropagation();
     bool preventsVerticalPropagation = verticalOverscrollBehaviorPreventsPropagation();
     if (preventsHorizontalPropagation && preventsVerticalPropagation)
@@ -1081,6 +1172,9 @@ bool ScrollableArea::shouldBlockScrollPropagation(const FloatSize& biasedDelta) 
         return !biasedDelta.width();
 
     return false;
+#else
+    return scrollableAreaShouldBlockScrollPropagation(horizontalOverscrollBehavior(), verticalOverscrollBehavior(), biasedDelta);
+#endif
 }
 
 ScrollingNodeID ScrollableArea::scrollingNodeIDForTesting()

@@ -43,6 +43,12 @@ using RubberBandingEdges = RectEdges<bool>;
 using OptionalScrollDirection = std::optional<ScrollDirection>;
 using OptionalScrollGranularity = std::optional<ScrollGranularity>;
 #endif
+#if USE_SWIFT_SCROLLABLE_AREA
+// For Swift, which cannot name the std::optional that ScrollableArea::targetSideForScrollDelta() returns.
+using OptionalBoxSide = std::optional<BoxSide>;
+// For Swift, which cannot name the std::optional that ScrollableArea's snap point index getters return.
+using OptionalSnapPointIndex = std::optional<unsigned>;
+#endif
 #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 // For Swift, which cannot name std::pair<LayoutUnit, std::optional<unsigned>>.
 using ClosestSnapOffset = std::pair<LayoutUnit, std::optional<unsigned>>;
