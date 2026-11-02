@@ -220,44 +220,6 @@ inline float valueForAxis(FloatSize size, ScrollEventAxis axis)
     return 0;
 }
 
-inline FloatSize setValueForAxis(FloatSize size, ScrollEventAxis axis, float value)
-{
-    switch (axis) {
-    case ScrollEventAxis::Horizontal:
-        size.setWidth(value);
-        return size;
-    case ScrollEventAxis::Vertical:
-        size.setHeight(value);
-        return size;
-    }
-    ASSERT_NOT_REACHED();
-    return size;
-}
-
-inline float valueForAxis(FloatPoint point, ScrollEventAxis axis)
-{
-    switch (axis) {
-    case ScrollEventAxis::Horizontal: return point.x();
-    case ScrollEventAxis::Vertical: return point.y();
-    }
-    ASSERT_NOT_REACHED();
-    return 0;
-}
-
-inline FloatPoint setValueForAxis(FloatPoint point, ScrollEventAxis axis, float value)
-{
-    switch (axis) {
-    case ScrollEventAxis::Horizontal:
-        point.setX(value);
-        return point;
-    case ScrollEventAxis::Vertical:
-        point.setY(value);
-        return point;
-    }
-    ASSERT_NOT_REACHED();
-    return point;
-}
-
 inline BoxSide boxSideForDirection(ScrollDirection direction)
 {
     switch (direction) {

@@ -72,100 +72,13 @@ NODELETE static FloatSize deltaAlignedToDominantAxis(FloatSize delta)
 }
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
-static FloatSize hyperbolicReboundDeltaForElasticDelta(IntSize stretchAmount, float rubberbandHyperbolicCoefficient, FloatSize viewportSize)
-{
-    const auto width = _NSHyperbolicReboundDeltaForElasticDelta(stretchAmount.width(), rubberbandHyperbolicCoefficient, viewportSize.width());
-    const auto height = _NSHyperbolicReboundDeltaForElasticDelta(stretchAmount.height(), rubberbandHyperbolicCoefficient, viewportSize.height());
-    return { static_cast<float>(width), static_cast<float>(height) };
-}
 #endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
-float ScrollingEffectsController::deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch)
-{
-    // This logic mirrors AppKit. We layer the refresh-control reveal on top of the general vertical curve.
-    if (!m_client.hasRefreshController() || verticalDeltaOpposesStretch || !verticalDelta)
-        return generalDampedHeight;
-
-    if (!m_gestureBeganAtTop || m_momentumScrollInProgress)
-        return generalDampedHeight;
-
-    if (verticalStretch > 0 || verticalDelta >= 0)
-        return generalDampedHeight;
-
-    // Vertical stretch at the top is negative. Take the absolute value and work in positive magnitudes.
-    const auto currentStretchMagnitude = std::abs(verticalStretch);
-    verticalDelta = std::abs(verticalDelta);
-
-    const auto activationHeight = m_client.refreshControllerSnappingThreshold();
-    const auto viewportHeight = m_client.scrollExtents().viewportSize.height();
-
-    // Split delta between the linear zone (below the control's activation height) and the hyperbolic zone (above).
-    auto newStretchMagnitude = 0.f;
-    if (currentStretchMagnitude + verticalDelta > activationHeight) {
-        const auto stretchAlreadyInHyperbolic = std::max(0.0f, currentStretchMagnitude - activationHeight);
-        const auto deltaConsumedInLinear = std::max(0.0f, activationHeight - currentStretchMagnitude);
-        const auto deltaForHyperbolic = verticalDelta - deltaConsumedInLinear;
-        const auto currentHyperbolicReboundDelta = _NSHyperbolicReboundDeltaForElasticDelta(stretchAlreadyInHyperbolic, m_rubberbandHyperbolicCoefficient, viewportHeight);
-        const auto combinedHyperbolicReboundDelta = currentHyperbolicReboundDelta + deltaForHyperbolic;
-
-        // The new magnitude will be layered on top of the general scroll curve. Floor it like the non-refresh-control
-        // path so that the positions remain pixel-aligned.
-        newStretchMagnitude = activationHeight + std::ceilf(_NSHyperbolicElasticDeltaForReboundDelta(combinedHyperbolicReboundDelta, m_rubberbandHyperbolicCoefficient, viewportHeight));
-    } else
-        newStretchMagnitude = currentStretchMagnitude + verticalDelta;
-
-    const auto signedNewStretch = -newStretchMagnitude;
-    // Keep the force as if this stretch had come from the general hyperbolic curve so that any
-    // later general-path event that takes place is handled correctly.
-    m_stretchScrollForce.setHeight(_NSHyperbolicReboundDeltaForElasticDelta(signedNewStretch, m_rubberbandHyperbolicCoefficient, viewportHeight));
-    return signedNewStretch - verticalStretch;
-}
 #else
 #endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
-
-FloatSize ScrollingEffectsController::computeDampedStretchDelta(FloatSize delta, bool horizontalDeltaOpposesStretch, bool verticalDeltaOpposesStretch)
-{
-    // This logic mirrors AppKit.
-    const auto stretchAmount = m_client.stretchAmount();
-    auto hyperbolicDampedDeltaForAxis = [&](ScrollEventAxis axis) -> std::pair<float, float> {
-        // Returns (dampedDelta, newForce). When the axis opposes the current stretch we don't
-        // accumulate into force (the caller already zeroed it), and the delta passes straight through.
-
-        auto lengthForAxis = [](FloatSize size, ScrollEventAxis axis) {
-            return (axis == ScrollEventAxis::Horizontal) ? size.width() : size.height();
-        };
-        const auto viewportSize = m_client.scrollExtents().viewportSize;
-        const auto viewportLength = lengthForAxis(viewportSize, axis);
-        const auto deltaForAxis = lengthForAxis(delta, axis);
-        const auto currentForce = lengthForAxis(m_stretchScrollForce, axis);
-        const auto currentStretch = lengthForAxis(stretchAmount, axis);
-        const auto opposesStretch = axis == ScrollEventAxis::Horizontal ? horizontalDeltaOpposesStretch : verticalDeltaOpposesStretch;
-
-        if (opposesStretch) {
-            const auto remainingStretch = currentStretch + deltaForAxis;
-            const auto forceForRemainingStretch = _NSHyperbolicReboundDeltaForElasticDelta(remainingStretch, m_rubberbandHyperbolicCoefficient, viewportLength);
-            return { deltaForAxis, static_cast<float>(forceForRemainingStretch) };
-        }
-
-        if (!deltaForAxis)
-            return { 0, currentForce };
-
-        const auto newForce = currentForce + deltaForAxis;
-        const auto newStretch = ceilf(_NSHyperbolicElasticDeltaForReboundDelta(newForce, m_rubberbandHyperbolicCoefficient, viewportLength));
-        return { newStretch - currentStretch, newForce };
-    };
-
-    const auto [dampedWidth, newForceWidth] = hyperbolicDampedDeltaForAxis(ScrollEventAxis::Horizontal);
-    auto [dampedHeight, newForceHeight] = hyperbolicDampedDeltaForAxis(ScrollEventAxis::Vertical);
-    m_stretchScrollForce = { newForceWidth, newForceHeight };
-
-    dampedHeight = deltaAdjustedForRefreshController(dampedHeight, delta.height(), stretchAmount.height(), verticalDeltaOpposesStretch);
-
-    return { dampedWidth, dampedHeight };
-}
 
 #endif
 

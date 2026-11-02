@@ -97,7 +97,6 @@ public:
 
     void setForceNullCharacterReplacement(bool);
 
-    bool shouldAllowCDATA() const;
     void setShouldAllowCDATA(bool);
 
     bool isInDataState() const;
@@ -346,11 +345,6 @@ inline size_t HTMLTokenizer::numberOfBufferedCharacters() const
 inline void HTMLTokenizer::setForceNullCharacterReplacement(bool value)
 {
     m_forceNullCharacterReplacement = value;
-}
-
-inline bool HTMLTokenizer::shouldAllowCDATA() const
-{
-    return m_shouldAllowCDATA;
 }
 
 inline void HTMLTokenizer::setShouldAllowCDATA(bool value)
