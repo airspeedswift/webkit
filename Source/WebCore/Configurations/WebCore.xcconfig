@@ -35,9 +35,106 @@ WK_CLANG_PGO_GEN_FLAGS_YES = -fprofile-generate;
 WK_SWIFT_PGO_GEN_FLAGS = $(WK_SWIFT_PGO_GEN_FLAGS_$(ENABLE_LLVM_PROFILE_GENERATION));
 WK_SWIFT_PGO_GEN_FLAGS_YES = -Xfrontend -ir-profile-generate;
 
-GCC_PREPROCESSOR_DEFINITIONS = $(DEBUG_DEFINES) BUILDING_WEBKIT GL_SILENCE_DEPRECATION=1 GLES_SILENCE_DEPRECATION=1 $(ENABLE_PDFJS) $(ENABLE_LLVM_PROFILE_GENERATION_DEFINES) $(inherited) $(GCC_PREPROCESSOR_DEFINITIONS_$(ENABLE_WEBGPU_SWIFT));
+GCC_PREPROCESSOR_DEFINITIONS = $(DEBUG_DEFINES) BUILDING_WEBKIT GL_SILENCE_DEPRECATION=1 GLES_SILENCE_DEPRECATION=1 $(ENABLE_PDFJS) $(ENABLE_LLVM_PROFILE_GENERATION_DEFINES) $(inherited) $(GCC_PREPROCESSOR_DEFINITIONS_$(ENABLE_WEBGPU_SWIFT)) $(WK_SWIFT_SCROLL_PHYSICS_DEFINES_$(WK_USE_SWIFT_SCROLL_PHYSICS)) $(WK_SWIFT_SCROLLING_TREE_DELEGATE_DEFINES_$(WK_USE_SWIFT_SCROLLING_TREE_DELEGATE)) $(WK_SWIFT_MAC_SCROLLERS_DEFINES_$(WK_USE_SWIFT_MAC_SCROLLERS)) $(WK_SWIFT_SCROLLERS_IN_DELEGATE_DEFINES_$(WK_USE_SWIFT_SCROLLERS_IN_DELEGATE)) $(WK_SWIFT_SCROLL_ANIMATOR_PHYSICS_DEFINES_$(WK_USE_SWIFT_SCROLL_ANIMATOR_PHYSICS)) $(WK_SWIFT_SCROLL_ANIMATOR_DEFINES_$(WK_USE_SWIFT_SCROLL_ANIMATOR)) $(WK_SWIFT_SCROLL_SNAP_DEFINES_$(WK_USE_SWIFT_SCROLL_SNAP)) $(WK_SWIFT_HTML_FAST_PATH_DEFINES_$(WK_USE_SWIFT_HTML_FAST_PATH)) $(WK_SWIFT_HTML_TOKENIZER_DEFINES_$(WK_USE_SWIFT_HTML_TOKENIZER)) $(WK_SWIFT_HTML_PER_TOKEN_DEFINES_$(WK_USE_SWIFT_HTML_PER_TOKEN)) $(WK_SWIFT_CSS_TOKENIZER_DEFINES_$(WK_USE_SWIFT_CSS_TOKENIZER)) $(WK_SWIFT_CSS_FAST_PATHS_DEFINES_$(WK_USE_SWIFT_CSS_FAST_PATHS)) $(WK_SWIFT_HTML_PRELOAD_SCANNER_DEFINES_$(WK_USE_SWIFT_HTML_PRELOAD_SCANNER)) $(WK_SWIFT_HTML_TREE_BUILDER_DEFINES_$(WK_USE_SWIFT_HTML_TREE_BUILDER)) $(WK_SWIFT_IMAGE_DECODER_CG_DEFINES_$(WK_USE_SWIFT_IMAGE_DECODER_CG)) $(WK_SWIFT_TRANSFORMATION_MATRIX_DEFINES_$(WK_USE_SWIFT_TRANSFORMATION_MATRIX)) $(WK_SWIFT_TEXT_CODEC_UTF8_DEFINES_$(WK_USE_SWIFT_TEXT_CODEC_UTF8));
+// WebCore includes <pal/text/TextCodecUTF8.h>, so it sees the same USE_SWIFT_TEXT_CODEC_UTF8 as PAL. PAL.xcconfig and
+// this file must set WK_USE_SWIFT_TEXT_CODEC_UTF8 together.
+WK_USE_SWIFT_TEXT_CODEC_UTF8 = NO;
+WK_SWIFT_TEXT_CODEC_UTF8_DEFINES_NO = USE_SWIFT_TEXT_CODEC_UTF8=0;
+WK_SWIFT_TEXT_CODEC_UTF8_DEFINES_YES = USE_SWIFT_TEXT_CODEC_UTF8=1;
+
 GCC_PREPROCESSOR_DEFINITIONS_ENABLE_WEBGPU_SWIFT = ENABLE_WEBGPU_SWIFT;
 
+// Implements ScrollingEffectsController and its animations in Swift. The define changes ScrollingEffectsController's
+// layout, so WebKit's BaseTarget.xcconfig and TestWebKitAPI's Base.xcconfig declare the same setting.
+WK_USE_SWIFT_SCROLL_PHYSICS = YES;
+WK_SWIFT_SCROLL_PHYSICS_DEFINES_YES = USE_SWIFT_SCROLL_PHYSICS=1;
+WK_SWIFT_SCROLL_PHYSICS_DEFINES_NO = USE_SWIFT_SCROLL_PHYSICS=0;
+WK_SWIFT_SCROLL_PHYSICS_CONDITIONS_YES = USE_SWIFT_SCROLL_PHYSICS;
+
+// Implements the scrolling tree's scroll delegate on macOS (ThreadedScrollingTreeScrollingNodeDelegate and
+// ScrollingTreeScrollingNodeDelegateMac) in Swift. It needs WK_USE_SWIFT_SCROLL_PHYSICS. The define changes the
+// delegates' layout, so WebKit's BaseTarget.xcconfig and TestWebKitAPI's Base.xcconfig declare the same setting.
+WK_USE_SWIFT_SCROLLING_TREE_DELEGATE = YES;
+WK_SWIFT_SCROLLING_TREE_DELEGATE_DEFINES_YES = USE_SWIFT_SCROLLING_TREE_DELEGATE=1;
+WK_SWIFT_SCROLLING_TREE_DELEGATE_DEFINES_NO = USE_SWIFT_SCROLLING_TREE_DELEGATE=0;
+WK_SWIFT_SCROLLING_TREE_DELEGATE_CONDITIONS_YES = USE_SWIFT_SCROLLING_TREE_DELEGATE;
+
+// Implements the scrolling tree's Mac scrollbars (ScrollerPairMac's state, ScrollerMac and their AppKit delegates) in
+// Swift. The define changes ScrollerPairMac's layout, so WebKit's BaseTarget.xcconfig and TestWebKitAPI's Base.xcconfig
+// declare the same setting.
+WK_USE_SWIFT_MAC_SCROLLERS = YES;
+WK_SWIFT_MAC_SCROLLERS_DEFINES_YES = USE_SWIFT_MAC_SCROLLERS=1;
+WK_SWIFT_MAC_SCROLLERS_DEFINES_NO = USE_SWIFT_MAC_SCROLLERS=0;
+WK_SWIFT_MAC_SCROLLERS_CONDITIONS_YES = USE_SWIFT_MAC_SCROLLERS;
+
+// Has the scrolling tree's Swift scroll delegate call the Swift Mac scrollbars directly, and the scrollbars make their
+// own main-thread hops, instead of going through ScrollerPairMac's members. It needs WK_USE_SWIFT_SCROLLING_TREE_DELEGATE
+// and WK_USE_SWIFT_MAC_SCROLLERS. The define changes ScrollerPairMac's layout, so WebKit's BaseTarget.xcconfig and
+// TestWebKitAPI's Base.xcconfig declare the same setting.
+WK_USE_SWIFT_SCROLLERS_IN_DELEGATE = YES;
+WK_SWIFT_SCROLLERS_IN_DELEGATE_DEFINES_YES = USE_SWIFT_SCROLLERS_IN_DELEGATE=1;
+WK_SWIFT_SCROLLERS_IN_DELEGATE_DEFINES_NO = USE_SWIFT_SCROLLERS_IN_DELEGATE=0;
+WK_SWIFT_SCROLLERS_IN_DELEGATE_CONDITIONS_YES = USE_SWIFT_SCROLLERS_IN_DELEGATE;
+
+// Has ScrollAnimator call the Swift scroll physics directly on macOS, instead of through ScrollingEffectsController.
+// It needs WK_USE_SWIFT_SCROLL_PHYSICS and WK_USE_SWIFT_SCROLLING_TREE_DELEGATE. The define changes ScrollAnimator's
+// layout, so WebKit's BaseTarget.xcconfig and TestWebKitAPI's Base.xcconfig declare the same setting.
+WK_USE_SWIFT_SCROLL_ANIMATOR_PHYSICS = YES;
+WK_SWIFT_SCROLL_ANIMATOR_PHYSICS_DEFINES_YES = USE_SWIFT_SCROLL_ANIMATOR_PHYSICS=0;
+WK_SWIFT_SCROLL_ANIMATOR_PHYSICS_DEFINES_YES[sdk=macosx*] = USE_SWIFT_SCROLL_ANIMATOR_PHYSICS=1;
+WK_SWIFT_SCROLL_ANIMATOR_PHYSICS_DEFINES_NO = USE_SWIFT_SCROLL_ANIMATOR_PHYSICS=0;
+WK_SWIFT_SCROLL_ANIMATOR_PHYSICS_CONDITIONS_YES[sdk=macosx*] = USE_SWIFT_SCROLL_ANIMATOR_PHYSICS;
+
+// Implements ScrollAnimator, ScrollAnimatorMac and KeyboardScrollingAnimator in Swift on macOS. It needs
+// WK_USE_SWIFT_SCROLL_ANIMATOR_PHYSICS. The define changes ScrollAnimator's layout, so WebKit's BaseTarget.xcconfig
+// and TestWebKitAPI's Base.xcconfig declare the same setting; WebKitLegacy.xcconfig declares it for ScrollableArea.h.
+WK_USE_SWIFT_SCROLL_ANIMATOR = YES;
+WK_SWIFT_SCROLL_ANIMATOR_DEFINES_YES = USE_SWIFT_SCROLL_ANIMATOR=0;
+WK_SWIFT_SCROLL_ANIMATOR_DEFINES_YES[sdk=macosx*] = USE_SWIFT_SCROLL_ANIMATOR=1;
+WK_SWIFT_SCROLL_ANIMATOR_DEFINES_NO = USE_SWIFT_SCROLL_ANIMATOR=0;
+WK_SWIFT_SCROLL_ANIMATOR_CONDITIONS_YES[sdk=macosx*] = USE_SWIFT_SCROLL_ANIMATOR;
+
+// Does not compile the C++ snap point selection on macOS, where the Swift scroll physics chooses snap points for
+// ScrollAnimator and for the scrolling tree. It needs WK_USE_SWIFT_SCROLL_ANIMATOR_PHYSICS. No header uses the
+// define, so only WebCore declares the setting.
+WK_USE_SWIFT_SCROLL_SNAP = NO;
+WK_SWIFT_SCROLL_SNAP_DEFINES_YES = USE_SWIFT_SCROLL_SNAP=0;
+WK_SWIFT_SCROLL_SNAP_DEFINES_YES[sdk=macosx*] = USE_SWIFT_SCROLL_SNAP=1;
+WK_SWIFT_SCROLL_SNAP_DEFINES_NO = USE_SWIFT_SCROLL_SNAP=0;
+
+// The HTML fragment fast path (HTMLDocumentParserFastPath.cpp) parses in Swift (HTMLFastPathParser.swift) when YES.
+WK_USE_SWIFT_HTML_FAST_PATH = YES;
+WK_SWIFT_HTML_FAST_PATH_DEFINES_YES = USE_SWIFT_HTML_FAST_PATH=1;
+WK_SWIFT_HTML_FAST_PATH_CONDITIONS_YES = USE_SWIFT_HTML_FAST_PATH;
+
+// The HTML tokenizer (HTMLTokenizer.cpp) and the HTML entity decoder (HTMLEntityParser.cpp) run in Swift when YES.
+WK_USE_SWIFT_HTML_TOKENIZER = YES;
+WK_SWIFT_HTML_TOKENIZER_DEFINES_YES = USE_SWIFT_HTML_TOKENIZER=1;
+WK_SWIFT_HTML_TOKENIZER_CONDITIONS_YES = USE_SWIFT_HTML_TOKENIZER;
+
+// The HTML tokenizer makes the tree builder's attributes (AtomHTMLToken.h) in Swift as it scans when YES.
+WK_USE_SWIFT_HTML_PER_TOKEN = YES;
+WK_SWIFT_HTML_PER_TOKEN_DEFINES_YES = USE_SWIFT_HTML_PER_TOKEN=1;
+WK_SWIFT_HTML_PER_TOKEN_CONDITIONS_YES = USE_SWIFT_HTML_PER_TOKEN;
+
+// The HTML preload scanner (HTMLPreloadScanner.cpp, CSSPreloadScanner.cpp) runs in Swift (HTMLPreloadScanner.swift) when YES.
+WK_USE_SWIFT_HTML_PRELOAD_SCANNER = YES;
+WK_SWIFT_HTML_PRELOAD_SCANNER_DEFINES_YES = USE_SWIFT_HTML_PRELOAD_SCANNER=1;
+WK_SWIFT_HTML_PRELOAD_SCANNER_CONDITIONS_YES = USE_SWIFT_HTML_PRELOAD_SCANNER;
+
+// The HTML tree builder (HTMLTreeBuilder.cpp, HTMLConstructionSite.cpp and the stacks they use) and the document
+// parser's token loop run in Swift (HTMLTreeBuilder.swift) when YES. It needs the two settings above.
+WK_USE_SWIFT_HTML_TREE_BUILDER = NO;
+WK_SWIFT_HTML_TREE_BUILDER_DEFINES_YES = USE_SWIFT_HTML_TREE_BUILDER=1;
+WK_SWIFT_HTML_TREE_BUILDER_CONDITIONS_YES = USE_SWIFT_HTML_TREE_BUILDER;
+// Measurement only: selects the Swift ImageDecoderCG (ENABLE(IMAGE_DECODER_CG_SWIFT)).
+WK_USE_SWIFT_IMAGE_DECODER_CG = NO;
+WK_SWIFT_IMAGE_DECODER_CG_DEFINES_YES = ENABLE_IMAGE_DECODER_CG_SWIFT=1;
+WK_SWIFT_IMAGE_DECODER_CG_CONDITIONS_YES = ENABLE_IMAGE_DECODER_CG_SWIFT;
+// YES compiles TransformationMatrix's multiply, inverse and decompose4 from TransformationMatrix.swift.
+WK_USE_SWIFT_TRANSFORMATION_MATRIX = NO;
+WK_SWIFT_TRANSFORMATION_MATRIX_DEFINES_YES = USE_SWIFT_TRANSFORMATION_MATRIX=1;
+WK_SWIFT_TRANSFORMATION_MATRIX_CONDITIONS_YES = USE_SWIFT_TRANSFORMATION_MATRIX;
 WK_OPTIMIZATION_PROFILE_FILE = $(BUILT_PRODUCTS_DIR)/DerivedSources/WebCore/Profiling/$(arch).profdata;
 WK_COMPRESSED_OPTIMIZATION_PROFILE_FOLDER = $(WK_COMPRESSED_OPTIMIZATION_PROFILE_FOLDER_$(USE_INTERNAL_SDK));
 WK_COMPRESSED_OPTIMIZATION_PROFILE_FOLDER_YES = $(WK_WEBKITADDITIONS_HEADERS_FOLDER_PATH)/Profiling;
@@ -283,7 +380,7 @@ MODULE_VERIFIER_KIND = builtin;
 // BuiltinModule is for the vendored SIMD operations in SIMD*.swift, until the standard library has them.
 // Swift zero-initializes a C++ type with no default constructor and only warns that this is deprecated; such a
 // value can hold a null pointer the type never allows, so WebCore's Swift treats that warning as an error.
-OTHER_SWIFT_FLAGS = $(inherited) -Werror DeprecatedDeclaration -Xcc -std=c++2b -Xcc -fno-exceptions -Xcc -fignore-exceptions -Xcc -O2 -Xllvm -enable-dfa-jump-thread -Xfrontend -clang-header-expose-decls=has-expose-attr-or-stdlib -Xfrontend -emit-clang-header-min-access -Xfrontend internal -enable-experimental-feature BuiltinModule -Werror SendableClosureCaptures $(WK_SWIFT_PGO_USE_FLAGS) $(WK_SWIFT_PGO_GEN_FLAGS);
+OTHER_SWIFT_FLAGS = $(inherited) -Werror DeprecatedDeclaration -Xcc -std=c++2b -Xcc -fno-exceptions -Xcc -fignore-exceptions -Xcc -O2 -Xllvm -enable-dfa-jump-thread -Xfrontend -clang-header-expose-decls=has-expose-attr-or-stdlib -Xfrontend -emit-clang-header-min-access -Xfrontend internal -enable-experimental-feature BuiltinModule -enable-experimental-feature AddressableParameters -Werror SendableClosureCaptures $(WK_SWIFT_PGO_USE_FLAGS) $(WK_SWIFT_PGO_GEN_FLAGS);
 // Swift that holds C++ state must not let it reach another thread. Several of the diagnostics that catch that
 // are warnings in Swift 6 mode outside any diagnostic group, so warnings are errors too.
 SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
@@ -300,7 +397,25 @@ OTHER_MODULE_VERIFIER_FLAGS_ = -iframework "$(WK_PRIVATE_SDK_DIR)$(WK_OVERRIDE_F
 HEADERMAP_INCLUDES_FRAMEWORK_ENTRIES_FOR_TARGETS_NOT_BEING_BUILT = NO;
 HEADERMAP_USES_VFS = YES;
 
+// Selects the Swift CSS tokenizer (CSSTokenizerSwift.swift) in place of the C++ scanner in CSSTokenizer.cpp.
+WK_USE_SWIFT_CSS_TOKENIZER = YES;
+WK_SWIFT_CSS_TOKENIZER_DEFINES_YES = USE_SWIFT_CSS_TOKENIZER=1;
+WK_SWIFT_CSS_TOKENIZER_DEFINES_NO = USE_SWIFT_CSS_TOKENIZER=0;
+WK_SWIFT_CSS_TOKENIZER_CONDITIONS_YES = USE_SWIFT_CSS_TOKENIZER;
+
+// Selects the Swift CSS property fast paths (CSSParserFastPathsSwift.swift) in place of the C++ color, length, opacity
+// and transform scans in CSSParserFastPaths.cpp.
+WK_USE_SWIFT_CSS_FAST_PATHS = YES;
+WK_SWIFT_CSS_FAST_PATHS_DEFINES_YES = USE_SWIFT_CSS_FAST_PATHS=1;
+WK_SWIFT_CSS_FAST_PATHS_DEFINES_NO = USE_SWIFT_CSS_FAST_PATHS=0;
+WK_SWIFT_CSS_FAST_PATHS_CONDITIONS_YES = USE_SWIFT_CSS_FAST_PATHS;
+
+// Selects the calc() Swift in css/calc in place of the C++ parser, simplifier, evaluators and serializer of
+// CSSCalc::Tree and the C++ operations on Style::Calculation::Tree. The setting and its C++ define are in
+// CommonBase.xcconfig, because the define changes the layout of headers other projects include.
+WK_SWIFT_CSS_CALC_CONDITIONS_YES = USE_SWIFT_CSS_CALC;
+
 // PSHUFB in SIMDTableLookup.swift needs SSSE3, which every x86_64 Mac target has. Other
 // conditions are added to this line; assigning the setting again would replace it.
 WK_SWIFT_SIMD_CONDITIONS[arch=x86_64] = HAVE_SSSE3;
-SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(WK_SWIFT_SIMD_CONDITIONS);
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(WK_SWIFT_SIMD_CONDITIONS) $(WK_SWIFT_SCROLL_PHYSICS_CONDITIONS_$(WK_USE_SWIFT_SCROLL_PHYSICS)) $(WK_SWIFT_SCROLLING_TREE_DELEGATE_CONDITIONS_$(WK_USE_SWIFT_SCROLLING_TREE_DELEGATE)) $(WK_SWIFT_MAC_SCROLLERS_CONDITIONS_$(WK_USE_SWIFT_MAC_SCROLLERS)) $(WK_SWIFT_SCROLLERS_IN_DELEGATE_CONDITIONS_$(WK_USE_SWIFT_SCROLLERS_IN_DELEGATE)) $(WK_SWIFT_SCROLL_ANIMATOR_PHYSICS_CONDITIONS_$(WK_USE_SWIFT_SCROLL_ANIMATOR_PHYSICS)) $(WK_SWIFT_SCROLL_ANIMATOR_CONDITIONS_$(WK_USE_SWIFT_SCROLL_ANIMATOR)) $(WK_SWIFT_HTML_FAST_PATH_CONDITIONS_$(WK_USE_SWIFT_HTML_FAST_PATH)) $(WK_SWIFT_HTML_TOKENIZER_CONDITIONS_$(WK_USE_SWIFT_HTML_TOKENIZER)) $(WK_SWIFT_HTML_PER_TOKEN_CONDITIONS_$(WK_USE_SWIFT_HTML_PER_TOKEN)) $(WK_SWIFT_CSS_TOKENIZER_CONDITIONS_$(WK_USE_SWIFT_CSS_TOKENIZER)) $(WK_SWIFT_CSS_FAST_PATHS_CONDITIONS_$(WK_USE_SWIFT_CSS_FAST_PATHS)) $(WK_SWIFT_CSS_CALC_CONDITIONS_$(WK_USE_SWIFT_CSS_CALC)) $(WK_SWIFT_HTML_PRELOAD_SCANNER_CONDITIONS_$(WK_USE_SWIFT_HTML_PRELOAD_SCANNER)) $(WK_SWIFT_HTML_TREE_BUILDER_CONDITIONS_$(WK_USE_SWIFT_HTML_TREE_BUILDER)) $(WK_SWIFT_IMAGE_DECODER_CG_CONDITIONS_$(WK_USE_SWIFT_IMAGE_DECODER_CG)) $(WK_SWIFT_TRANSFORMATION_MATRIX_CONDITIONS_$(WK_USE_SWIFT_TRANSFORMATION_MATRIX));

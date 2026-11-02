@@ -44,8 +44,23 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
+#if !USE_SWIFT_TRANSFORMATION_MATRIX
 #if CPU(X86_64)
 #include <emmintrin.h>
+#endif
+#endif
+
+#if USE_SWIFT_TRANSFORMATION_MATRIX
+#include "WebCore-Swift.h"
+#endif
+
+// The C++ multiply() was inlined into the functions below that multiply by a matrix with constant entries, and the
+// constants folded. The Swift multiply is out of line, so on Windows x64, where those calls are costliest, they use
+// Swift entry points for each shape, which fold the same way and give the same results.
+#if USE_SWIFT_TRANSFORMATION_MATRIX && OS(WINDOWS) && CPU(X86_64)
+#define USE_SWIFT_TRANSFORMATION_MATRIX_SHAPES 1
+#else
+#define USE_SWIFT_TRANSFORMATION_MATRIX_SHAPES 0
 #endif
 
 namespace WebCore {
@@ -75,7 +90,9 @@ namespace WebCore {
 WTF_MAKE_TZONE_ALLOCATED_IMPL(TransformationMatrix);
 
 using Vector4 = std::array<double, 4>;
+#if !USE_SWIFT_TRANSFORMATION_MATRIX
 using Vector3 = std::array<double, 3>;
+#endif
 
 const TransformationMatrix TransformationMatrix::identity { };
 
@@ -147,6 +164,7 @@ static double LEGACY_NODELETE determinant4x4(const TransformationMatrix::Matrix4
          - d1 * determinant3x3(a2, a3, a4, b2, b3, b4, c2, c3, c4);
 }
 
+#if !USE_SWIFT_TRANSFORMATION_MATRIX
 #if !CPU(ARM64) || !CPU(ADDRESS64)
 // adjoint( original_matrix, inverse_matrix )
 //
@@ -210,10 +228,17 @@ static double LEGACY_NODELETE determinant4x4(const TransformationMatrix::Matrix4
     result[3][3]  =   determinant3x3(a1, a2, a3, b1, b2, b3, c1, c2, c3);
 }
 #endif
+#endif
 
 // Returns false if the matrix is not invertible
 static bool inverse(const TransformationMatrix::Matrix4& matrix, TransformationMatrix::Matrix4& result)
 {
+#if USE_SWIFT_TRANSFORMATION_MATRIX && OS(WINDOWS) && CPU(X86_64)
+    // One call, with the determinant in Swift too. Computed here, determinant4x4() makes TransformationMatrix::inverse()
+    // save and restore all ten of the Windows x64 callee-saved xmm6-xmm15 on every call, including the identity,
+    // translation and affine ones, which use two; and kept out of line, it puts a second frame before the Swift.
+    return transformationMatrixInverse(matrix, result);
+#else
     // Calculate the 4x4 determinant
     // If the determinant is zero,
     // then the inverse matrix is not unique.
@@ -224,6 +249,12 @@ static bool inverse(const TransformationMatrix::Matrix4& matrix, TransformationM
     // Scale the adjoint matrix to get the inverse
     double inverseDeterminant = 1 / determinant;
 
+#if USE_SWIFT_TRANSFORMATION_MATRIX
+    // Out of line and cold, so that TransformationMatrix::inverse() sets up a stack frame only on the path that calls it.
+    [](const TransformationMatrix::Matrix4& matrix, double inverseDeterminant, TransformationMatrix::Matrix4& result) NEVER_INLINE COLD {
+        transformationMatrixScaledAdjoint(matrix, inverseDeterminant, result);
+    }(matrix, inverseDeterminant, result);
+#else
 #if CPU(ARM64) && CPU(ADDRESS64)
     const double* mat = &(matrix[0][0]);
     double* pr = &(result[0][0]);
@@ -346,7 +377,9 @@ static bool inverse(const TransformationMatrix::Matrix4& matrix, TransformationM
             result[i][j] = result[i][j] * inverseDeterminant;
 
 #endif
+#endif
     return true;
+#endif
 }
 
 // End of code adapted from Matrix Inversion by Richard Carling
@@ -375,6 +408,11 @@ static void LEGACY_NODELETE v4MulPointByMatrix(const Vector4& p, const Transform
                 (p[2] * m[2][3]) + (p[3] * m[3][3]);
 }
 
+#if USE_SWIFT_TRANSFORMATION_MATRIX
+double transformationMatrixDeterminant4x4(const TransformationMatrix::Matrix4& m) { return determinant4x4(m); }
+#endif
+
+#if !USE_SWIFT_TRANSFORMATION_MATRIX
 static double LEGACY_NODELETE v3Length(const Vector3& a)
 {
     return std::hypot(a[0], a[1], a[2]);
@@ -412,6 +450,7 @@ static void LEGACY_NODELETE v3Cross(const Vector3& a, const Vector3& b, Vector3&
     result[1] = (a[2] * b[0]) - (a[0] * b[2]);
     result[2] = (a[0] * b[1]) - (a[1] * b[0]);
 }
+#endif
 
 static bool decompose2(const TransformationMatrix::Matrix4& matrix, TransformationMatrix::Decomposed2Type& result)
 {
@@ -475,6 +514,7 @@ static bool decompose2(const TransformationMatrix::Matrix4& matrix, Transformati
     return true;
 }
 
+#if !USE_SWIFT_TRANSFORMATION_MATRIX
 static bool decompose4(const TransformationMatrix::Matrix4& mat, TransformationMatrix::Decomposed4Type& result)
 {
     TransformationMatrix::Matrix4 localMatrix;
@@ -677,6 +717,7 @@ static bool decompose4(const TransformationMatrix::Matrix4& mat, TransformationM
 
     return true;
 }
+#endif
 
 // End of Supporting Math Functions
 
@@ -1075,6 +1116,22 @@ TransformationMatrix& TransformationMatrix::rotate3d(double x, double y, double 
     double sinTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(angle)) : sin(angle);
     double cosTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(angle)) : cos(angle);
 
+#if USE_SWIFT_TRANSFORMATION_MATRIX_SHAPES
+    if (x == 1.0)
+        transformationMatrixRotateX(*this, sinTheta, cosTheta);
+    else if (y == 1.0)
+        transformationMatrixRotateY(*this, sinTheta, cosTheta);
+    else if (z == 1.0)
+        transformationMatrixRotateZ(*this, sinTheta, cosTheta);
+    else {
+        double oneMinusCosTheta = 1 - cosTheta;
+        transformationMatrixMultiplyLinear(*this,
+            cosTheta + x * x * oneMinusCosTheta, y * x * oneMinusCosTheta + z * sinTheta, z * x * oneMinusCosTheta - y * sinTheta,
+            x * y * oneMinusCosTheta - z * sinTheta, cosTheta + y * y * oneMinusCosTheta, z * y * oneMinusCosTheta + x * sinTheta,
+            x * z * oneMinusCosTheta + y * sinTheta, y * z * oneMinusCosTheta - x * sinTheta, cosTheta + z * z * oneMinusCosTheta);
+    }
+    return *this;
+#else
     TransformationMatrix mat;
 
     // Optimize cases where the axis is along a major axis
@@ -1143,6 +1200,7 @@ TransformationMatrix& TransformationMatrix::rotate3d(double x, double y, double 
     }
     multiply(mat);
     return *this;
+#endif
 }
 
 TransformationMatrix& TransformationMatrix::rotate(double angle, RotationSnapping snapping)
@@ -1157,7 +1215,11 @@ TransformationMatrix& TransformationMatrix::rotateRadians(double angle, Rotation
 {
     double sinZ = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(angle)) : sin(angle);
     double cosZ = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(angle)) : cos(angle);
+#if USE_SWIFT_TRANSFORMATION_MATRIX_SHAPES
+    transformationMatrixRotateZ(*this, sinZ, cosZ);
+#else
     multiply({ cosZ, sinZ, -sinZ, cosZ, 0, 0 });
+#endif
     return *this;
 }
 
@@ -1191,6 +1253,14 @@ TransformationMatrix& TransformationMatrix::rotate3d(double rx, double ry, doubl
     sinTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(ry)) : sin(ry);
     cosTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(ry)) : cos(ry);
 
+#if USE_SWIFT_TRANSFORMATION_MATRIX_SHAPES
+    transformationMatrixRotateY(rmat, sinTheta, cosTheta);
+
+    sinTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(rx)) : sin(rx);
+    cosTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(rx)) : cos(rx);
+
+    transformationMatrixRotateX(rmat, sinTheta, cosTheta);
+#else
     mat.m_matrix[0][0] = cosTheta;
     mat.m_matrix[0][1] = 0.0;
     mat.m_matrix[0][2] = -sinTheta;
@@ -1223,6 +1293,7 @@ TransformationMatrix& TransformationMatrix::rotate3d(double rx, double ry, doubl
     mat.m_matrix[3][3] = 1.0;
 
     rmat.multiply(mat);
+#endif
 
     multiply(rmat);
     return *this;
@@ -1284,21 +1355,31 @@ TransformationMatrix& TransformationMatrix::skew(double sx, double sy)
     sx = deg2rad(sx);
     sy = deg2rad(sy);
 
+#if USE_SWIFT_TRANSFORMATION_MATRIX_SHAPES
+    double tanY = tan(sy);
+    double tanX = tan(sx);
+    transformationMatrixSkew(*this, tanY, tanX);
+#else
     TransformationMatrix mat;
     mat.m_matrix[0][1] = tan(sy); // note that the y shear goes in the first row
     mat.m_matrix[1][0] = tan(sx); // and the x shear in the second row
 
     multiply(mat);
+#endif
     return *this;
 }
 
 TransformationMatrix& TransformationMatrix::applyPerspective(double p)
 {
+#if USE_SWIFT_TRANSFORMATION_MATRIX_SHAPES
+    transformationMatrixApplyPerspective(*this, p != 0 ? -1 / p : 0.0);
+#else
     TransformationMatrix mat;
     if (p != 0)
         mat.m_matrix[2][3] = -1/p;
 
     multiply(mat);
+#endif
     return *this;
 }
 
@@ -1337,6 +1418,9 @@ TransformationMatrix& TransformationMatrix::unzoom(double zoomFactor)
 // this = mat * this.
 TransformationMatrix& TransformationMatrix::multiply(const TransformationMatrix& mat)
 {
+#if USE_SWIFT_TRANSFORMATION_MATRIX
+    transformationMatrixMultiply(*this, mat);
+#else
 #if CPU(ARM64) && CPU(ADDRESS64)
     double* leftMatrix = &(m_matrix[0][0]);
     const double* rightMatrix = &(mat.m_matrix[0][0]);
@@ -1707,6 +1791,7 @@ TransformationMatrix& TransformationMatrix::multiply(const TransformationMatrix&
 
     memcpySpan(std::span { m_matrix }, std::span { tmp });
 #endif
+#endif
     return *this;
 }
 
@@ -2018,6 +2103,9 @@ bool TransformationMatrix::decompose2(Decomposed2Type& decomp) const
 
 bool TransformationMatrix::decompose4(Decomposed4Type& decomp) const
 {
+#if USE_SWIFT_TRANSFORMATION_MATRIX
+    return transformationMatrixDecompose4(*this, decomp);
+#else
     if (isIdentity()) {
         zeroBytes(decomp);
         decomp.perspectiveW = 1;
@@ -2029,6 +2117,7 @@ bool TransformationMatrix::decompose4(Decomposed4Type& decomp) const
     }
 
     return WebCore::decompose4(m_matrix, decomp);
+#endif
 }
 
 void TransformationMatrix::recompose2(const Decomposed2Type& decomp)

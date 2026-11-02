@@ -1031,6 +1031,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/calc/CSSCalcOperator.h
     css/calc/CSSCalcRandomCachingKey.h
     css/calc/CSSCalcRandomSharing.h
+    css/calc/CSSCalcSwiftTypes.h
     css/calc/CSSCalcSymbolTable.h
     css/calc/CSSCalcTree.h
     css/calc/CSSCalcType.h
@@ -1048,12 +1049,14 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/parser/CSSParserContext.h
     css/parser/CSSParserEnum.h
     css/parser/CSSParserFastPaths.h
+    css/parser/CSSParserFastPathsSwiftTypes.h
     css/parser/CSSParserIdioms.h
     css/parser/CSSParserMode.h
     css/parser/CSSParserToken.h
     css/parser/CSSParserTokenRange.h
     css/parser/CSSPropertyParser.h
     css/parser/CSSPropertyParserConsumer+Color.h
+    css/parser/CSSPropertyParserState.h
     css/parser/CSSSelectorParserContext.h
     css/parser/CSSTokenizer.h
     css/parser/CSSTokenizerInputStream.h
@@ -1612,9 +1615,16 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
 
     html/forms/FileIconLoader.h
 
+    html/parser/CSSPreloadScanner.h
     html/parser/HTMLDocumentParserFastPath.h
     html/parser/HTMLParserIdioms.h
+    html/parser/HTMLParserOptions.h
     html/parser/HTMLParserScriptingFlagPolicy.h
+    html/parser/HTMLPreloadScanner.h
+    html/parser/HTMLResourcePreloader.h
+    html/parser/HTMLToken.h
+    html/parser/HTMLTokenizer.h
+    html/parser/InputStreamPreprocessor.h
 
     html/shadow/TextControlInnerElements.h
     html/shadow/TextPlaceholderElement.h
@@ -2111,6 +2121,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     page/scrolling/ScrollingTreePluginHostingNode.h
     page/scrolling/ScrollingTreePluginScrollingNode.h
     page/scrolling/ScrollingTreePositionedNode.h
+    page/scrolling/ScrollingTreeScrollPhysicsClient.h
     page/scrolling/ScrollingTreeScrollingNode.h
     page/scrolling/ScrollingTreeScrollingNodeDelegate.h
     page/scrolling/ScrollingTreeStickyNode.h
@@ -2253,6 +2264,8 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/ScrollAnimationMomentum.h
     platform/ScrollAnimationSmooth.h
     platform/ScrollAnimator.h
+    platform/ScrollAnimatorScrollPhysicsClient.h
+    platform/ScrollPhysicsTypes.h
     platform/ScrollSnapAnimatorState.h
     platform/ScrollTypes.h
     platform/ScrollView.h
@@ -2263,6 +2276,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/ScrollbarThemeComposite.h
     platform/ScrollbarsController.h
     platform/ScrollbarsControllerInlines.h
+    platform/ScrollingEffectsClock.h
     platform/ScrollingEffectsController.h
     platform/SearchPopupMenu.h
     platform/SelectionGeometry.h

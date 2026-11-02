@@ -73,6 +73,12 @@ mailing address.
 */
 
 #include "config.h"
+
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "GIFImageReader.h"
 
 #include <string.h>
@@ -838,3 +844,4 @@ bool GIFLZWContext::prepareToDecode()
     stackp = 0;
     return true;
 }
+#endif // !USE_SWIFT_IMAGE_DECODERS

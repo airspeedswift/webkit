@@ -31,7 +31,9 @@
 #import "RubberbandingState.h"
 #import "ScrollAnimationRubberBand.h"
 #import "ScrollExtents.h"
+#import "ScrollPhysicsControllerHolder.h"
 #import "ScrollableArea.h"
+#import "ScrollingEffectsClock.h"
 #import <pal/spi/mac/NSScrollViewSPI.h>
 #import <sys/sysctl.h>
 #import <sys/time.h>
@@ -46,6 +48,7 @@
 
 namespace WebCore {
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 static const Seconds scrollVelocityZeroingTimeout = 100_ms;
 static const float rubberbandDirectionLockStretchRatio = 1;
 static const float rubberbandMinimumRequiredDeltaBeforeStretch = 10;
@@ -72,7 +75,9 @@ static float scrollWheelMultiplier()
     }
     return multiplier;
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 ScrollingEffectsController::~ScrollingEffectsController()
 {
     ASSERT(m_timersWereStopped);
@@ -95,6 +100,7 @@ void ScrollingEffectsController::stopAllTimers()
     m_timersWereStopped = true;
 #endif
 }
+#endif
 
 static ScrollEventAxis LEGACY_NODELETE dominantAxisFavoringVertical(FloatSize delta)
 {
@@ -120,6 +126,7 @@ static FloatSize LEGACY_NODELETE deltaAlignedToDominantAxis(FloatSize delta)
     return deltaAlignedToAxis(delta, dominantAxis);
 }
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 FloatSize ScrollingEffectsController::deltaAlignedToPredominantGestureAxis(MonotonicTime eventTime, FloatSize delta)
 {
     if (delta.isZero())
@@ -146,6 +153,7 @@ static std::optional<BoxSide> LEGACY_NODELETE affectedSideOnDominantAxis(FloatSi
     auto dominantAxis = dominantAxisFavoringVertical(delta);
     return ScrollableArea::targetSideForScrollDelta(delta, dominantAxis);
 }
+#endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
 static FloatSize hyperbolicReboundDeltaForElasticDelta(IntSize stretchAmount, float rubberbandHyperbolicCoefficient, FloatSize viewportSize)
@@ -156,8 +164,12 @@ static FloatSize hyperbolicReboundDeltaForElasticDelta(IntSize stretchAmount, fl
 }
 #endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 void ScrollingEffectsController::handleWheelEventDuringSpringAnimation(const PlatformWheelEvent& wheelEvent)
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    m_physics->controller.handleWheelEventDuringSpringAnimation(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent);
+#else
     if (!isSpringAnimationRunning())
         return;
 
@@ -172,10 +184,16 @@ void ScrollingEffectsController::handleWheelEventDuringSpringAnimation(const Pla
     // the trackpad (as with momentum scrolling) or by scrolling.
     if (wheelEvent.isGestureStart() || wheelEvent.isNonGestureEvent())
         stopSpringAnimation();
+#endif
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 bool ScrollingEffectsController::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    return m_physics->controller.handleWheelEvent(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#else
     if (processWheelEventForScrollSnap(wheelEvent))
         return true;
 
@@ -330,8 +348,11 @@ WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     updateRubberBandingState();
 
     return handled;
+#endif
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 void ScrollingEffectsController::clampDeltaForAllowedAxes(const PlatformWheelEvent& wheelEvent, FloatSize& delta)
 {
     if (!m_client.allowsHorizontalStretching(wheelEvent))
@@ -402,6 +423,7 @@ bool ScrollingEffectsController::modifyScrollDeltaForStretching(const PlatformWh
     
     return false;
 }
+#endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
 float ScrollingEffectsController::deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch)
@@ -445,6 +467,7 @@ float ScrollingEffectsController::deltaAdjustedForRefreshController(float genera
     return signedNewStretch - verticalStretch;
 }
 #else
+#if !USE_SWIFT_SCROLL_PHYSICS
 FloatSize ScrollingEffectsController::deltaAdjustedForRefreshController(const FloatSize& delta, bool verticalDeltaOpposesStretch)
 {
 #if HAVE(NSREFRESHCONTROLLER)
@@ -489,6 +512,7 @@ FloatSize ScrollingEffectsController::deltaAdjustedForRefreshController(const Fl
     return delta;
 #endif
 }
+#endif
 #endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
@@ -536,6 +560,7 @@ FloatSize ScrollingEffectsController::computeDampedStretchDelta(FloatSize delta,
 
 #endif
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 bool ScrollingEffectsController::shouldAttemptRubberbandingRestoration(const RubberbandingState& state)
 {
 #if HAVE(NSREFRESHCONTROLLER)
@@ -638,6 +663,7 @@ bool ScrollingEffectsController::applyScrollDeltaWithStretching(const PlatformWh
 
     return canStartAnimation;
 }
+#endif
 
 FloatSize ScrollingEffectsController::wheelDeltaBiasingTowardsVertical(const FloatSize& wheelDelta)
 {
@@ -653,6 +679,7 @@ bool ScrollingEffectsController::isScrollDeltaOpposingStretch(IntSize stretch, S
     return (stretchOnAxis > 0 && delta < 0) || (stretchOnAxis < 0 && delta > 0);
 }
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 void ScrollingEffectsController::updateRubberBandAnimatingState()
 {
     if (!m_isAnimatingRubberBand)
@@ -669,24 +696,48 @@ void ScrollingEffectsController::updateRubberBandAnimatingState()
 
     updateRubberBandingState();
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 void ScrollingEffectsController::scrollPositionChanged()
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    m_physics->controller.scrollPositionChanged(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
+#else
     updateRubberBandingState();
+#endif
 }
 
 bool ScrollingEffectsController::isUserScrollInProgress() const
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    return m_physics->controller.isUserScrollInProgress();
+#else
     return m_inScrollGesture;
+#endif
 }
 
 bool ScrollingEffectsController::isRubberBandInProgress() const
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    return m_physics->controller.isRubberBandInProgress();
+#else
     return m_isRubberBanding;
+#endif
 }
+
+#if USE_SWIFT_SCROLL_PHYSICS
+RectEdges<bool> ScrollingEffectsController::rubberBandingEdges() const
+{
+    return m_physics->controller.rubberBandingEdges();
+}
+#endif
 
 bool ScrollingEffectsController::isScrollSnapInProgress() const
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    return m_physics->controller.isScrollSnapInProgress(m_discreteSnapTransitionTimer && m_discreteSnapTransitionTimer->isActive());
+#else
     if (!usesScrollSnap())
         return false;
 
@@ -697,14 +748,21 @@ bool ScrollingEffectsController::isScrollSnapInProgress() const
         return true;
 
     return false;
+#endif
 }
 
 void ScrollingEffectsController::stopRubberBanding()
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    m_physics->controller.stopRubberBanding(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
+#else
     stopRubberBandAnimation();
     updateRubberBandingState();
+#endif
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 bool ScrollingEffectsController::startRubberBandAnimation(const FloatSize& initialVelocity, const FloatSize& initialOverscroll)
 {
     if (CheckedPtr currentAnimation = m_currentAnimation.get())
@@ -754,9 +812,14 @@ void ScrollingEffectsController::didStopRubberBandAnimation()
     m_client.didStopRubberBandAnimation();
     m_client.removeWheelEventTestCompletionDeferralForReason(m_client.scrollingNodeIDForTesting(), WheelEventTestMonitor::DeferReason::RubberbandInProgress);
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 void ScrollingEffectsController::startRubberBandSnapBack()
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    m_physics->controller.startRubberBandSnapBack(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
+#else
     auto stretchAmount = m_client.stretchAmount();
     if (stretchAmount.isZero())
         return;
@@ -766,10 +829,14 @@ void ScrollingEffectsController::startRubberBandSnapBack()
 
     LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::startRubberBandSnapBack() - stretchAmount " << stretchAmount);
     startRubberBandAnimation({ }, stretchAmount);
+#endif
 }
 
 void ScrollingEffectsController::rubberBandTargetOffsetDidChange()
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    m_physics->controller.rubberBandTargetOffsetDidChange(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
+#else
     if (!m_isAnimatingRubberBand)
         return;
 
@@ -779,11 +846,14 @@ void ScrollingEffectsController::rubberBandTargetOffsetDidChange()
 
     LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::rubberBandTargetOffsetDidChange() - restarting animation from stretchAmount " << stretchAmount << " with new target " << m_client.rubberBandTargetOffset());
     startRubberBandAnimation({ }, stretchAmount);
+#endif
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 void ScrollingEffectsController::startRubberBandAnimationIfNecessary(const PlatformWheelEvent& wheelEvent)
 {
-    auto timeDelta = MonotonicTime::now() - m_lastMomentumScrollTimestamp;
+    auto timeDelta = scrollingEffectsClockNow() - m_lastMomentumScrollTimestamp;
     if (m_lastMomentumScrollTimestamp && timeDelta >= scrollVelocityZeroingTimeout)
         m_momentumVelocity = { };
 
@@ -972,7 +1042,9 @@ void ScrollingEffectsController::scheduleDiscreteScrollSnap(const FloatSize& del
     m_discreteSnapTransitionTimer->startOneShot(discreteScrollSnapDelay);
     startDeferringWheelEventTestCompletion(WheelEventTestMonitor::DeferReason::ScrollSnapInProgress);
 }
+#endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
 void ScrollingEffectsController::scheduleScrollendTimer()
 {
     static const Seconds discreteScrollDelay = 100_ms;
@@ -987,6 +1059,10 @@ void ScrollingEffectsController::scheduleScrollendTimer()
 
 void ScrollingEffectsController::discreteSnapTransitionTimerFired()
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    m_discreteSnapTransitionTimer = nullptr;
+    m_physics->controller.discreteSnapTransitionTimerFired(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade());
+#else
     auto recentDiscreteWheelDeltas = std::exchange(m_recentDiscreteWheelDeltas, { });
     m_discreteSnapTransitionTimer = nullptr;
 
@@ -1016,6 +1092,7 @@ void ScrollingEffectsController::discreteSnapTransitionTimerFired()
         stopDeferringWheelEventTestCompletion(WheelEventTestMonitor::DeferReason::ScrollSnapInProgress);
         m_client.didStopScrollSnapAnimation();
     }
+#endif
 }
 
 void ScrollingEffectsController::scrollendTimerFired()
@@ -1025,6 +1102,9 @@ void ScrollingEffectsController::scrollendTimerFired()
 
 bool ScrollingEffectsController::processWheelEventForScrollSnap(const PlatformWheelEvent& wheelEvent)
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    return m_physics->controller.processWheelEventForScrollSnap(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent);
+#else
     if (!usesScrollSnap())
         return false;
 
@@ -1070,20 +1150,31 @@ bool ScrollingEffectsController::processWheelEventForScrollSnap(const PlatformWh
     }
 
     return isMomentumScrolling && shouldOverrideMomentumScrolling();
+#endif
 }
 
 void ScrollingEffectsController::updateGestureInProgressState(const PlatformWheelEvent& wheelEvent)
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    m_physics->controller.updateGestureInProgressState(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), wheelEvent);
+#else
     if (wheelEvent.isGestureStart() || wheelEvent.isTransitioningToMomentumScroll())
         m_inScrollGesture = true;
     else if (wheelEvent.isEndOfNonMomentumScroll() || wheelEvent.isGestureCancel() || wheelEvent.isEndOfMomentumScroll())
         m_inScrollGesture = false;
 
     updateRubberBandingState();
+#endif
 }
 
 std::optional<RubberbandingState> ScrollingEffectsController::captureRubberbandingState() const
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    RubberbandingState state;
+    if (!m_physics->controller.captureRubberbandingState(ScrollPhysicsClientState(m_client, nullptr, m_snapOffsetsInfo).facade(), state))
+        return std::nullopt;
+    return state;
+#else
     auto stretchAmount = m_client.stretchAmount();
     LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::captureRubberbandingState: m_isRubberBanding=" << m_isRubberBanding << " m_isAnimatingRubberBand=" << m_isAnimatingRubberBand << " stretchAmount=" << stretchAmount);
 
@@ -1091,7 +1182,7 @@ std::optional<RubberbandingState> ScrollingEffectsController::captureRubberbandi
         return std::nullopt;
 
     RubberbandingState state;
-    state.captureTime = MonotonicTime::now();
+    state.captureTime = scrollingEffectsClockNow();
     state.rubberbandingEdges = m_rubberBandingEdges;
 
     if (CheckedPtr rubberBandAnimation = dynamicDowncast<ScrollAnimationRubberBand>(m_currentAnimation.get())) {
@@ -1108,18 +1199,22 @@ std::optional<RubberbandingState> ScrollingEffectsController::captureRubberbandi
     state.initialVelocity = { };
     state.initialOverscroll = stretchAmount;
     state.targetOverscroll = m_client.rubberBandTargetOffset();
-    state.animationStartTime = MonotonicTime::now();
+    state.animationStartTime = scrollingEffectsClockNow();
 
     LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingEffectsController::captureRubberbandingState - captured outside of animation: initialOverscroll=" << state.initialOverscroll << " targetOverscroll=" << state.targetOverscroll << " initialVelocity=" << state.initialVelocity);
     return state;
+#endif
 }
 
 bool ScrollingEffectsController::restoreRubberbandingState(const RubberbandingState& state)
 {
+#if USE_SWIFT_SCROLL_PHYSICS
+    return m_physics->controller.restoreRubberbandingState(ScrollPhysicsClientState(m_client, this, m_snapOffsetsInfo).facade(), state);
+#else
     if (!shouldAttemptRubberbandingRestoration(state))
         return false;
 
-    const auto now = MonotonicTime::now();
+    const auto now = scrollingEffectsClockNow();
     const auto timeSinceCapture = now - state.captureTime;
     const auto totalElapsed = (state.captureTime - state.animationStartTime) + timeSinceCapture;
 
@@ -1135,7 +1230,27 @@ bool ScrollingEffectsController::restoreRubberbandingState(const RubberbandingSt
         currentAnimation->serviceAnimation(now);
 
     return started;
+#endif
 }
+#endif
+
+#if USE_SWIFT_SCROLL_PHYSICS
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+void ScrollPhysicsClient::momentumScrollBegan()
+{
+#if HAVE(OS_SIGNPOST)
+    SUPPRESS_UNRETAINED_ARG os_signpost_interval_begin(WTFSignpostLogHandle(), OS_SIGNPOST_ID_EXCLUSIVE, "Momentum scroll", "isAnimation=YES");
+#endif
+}
+
+void ScrollPhysicsClient::momentumScrollEnded()
+{
+#if HAVE(OS_SIGNPOST)
+    SUPPRESS_UNRETAINED_ARG os_signpost_interval_end(WTFSignpostLogHandle(), OS_SIGNPOST_ID_EXCLUSIVE, "Momentum scroll");
+#endif
+}
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+#endif
 
 } // namespace WebCore
 

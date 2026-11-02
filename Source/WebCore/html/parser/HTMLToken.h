@@ -30,6 +30,18 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/unicode/CharacterNames.h>
 
+#if !defined(USE_SWIFT_HTML_TOKENIZER)
+#define USE_SWIFT_HTML_TOKENIZER 0
+#endif
+
+#if !defined(USE_SWIFT_HTML_PER_TOKEN)
+#define USE_SWIFT_HTML_PER_TOKEN 0
+#endif
+
+#if !defined(USE_SWIFT_HTML_TREE_BUILDER)
+#define USE_SWIFT_HTML_TREE_BUILDER 0
+#endif
+
 namespace WebCore {
 
 struct DoctypeData {
@@ -100,6 +112,16 @@ public:
 
     bool selfClosing() const;
     const AttributeList& attributes() const LIFETIME_BOUND;
+#if USE_SWIFT_HTML_PER_TOKEN
+    size_t attributeCount() const { return m_attributes.size(); }
+    std::span<const char16_t> attributeName(size_t i) const LIFETIME_BOUND { return m_attributes[i].name.span(); }
+    std::span<const char16_t> attributeValue(size_t i) const LIFETIME_BOUND { return m_attributes[i].value.span(); }
+#endif
+#if USE_SWIFT_HTML_TREE_BUILDER
+    // The characters, the comment, a processing instruction's data, or a DOCTYPE's name.
+    std::span<const char16_t> data() const LIFETIME_BOUND { return m_data.span(); }
+    String dataString() const { return m_data8BitCheck <= 0xFF ? String::make8Bit(m_data.span()) : String(m_data.span()); }
+#endif
 
     void beginStartTag(Latin1Character);
 
@@ -143,7 +165,9 @@ public:
 
     void beginComment();
     void appendToComment(char);
+#if !USE_SWIFT_HTML_TOKENIZER
     void appendToComment(ASCIILiteral);
+#endif
     void appendToComment(std::span<const Latin1Character>);
     void appendToComment(char16_t);
 
@@ -154,6 +178,9 @@ public:
     using TargetVector = Vector<Latin1Character, 16>;
 
     const TargetVector& processingInstructionTarget() const LIFETIME_BOUND;
+#if USE_SWIFT_HTML_TOKENIZER
+    std::span<const Latin1Character> processingInstructionTargetCharacters() const LIFETIME_BOUND { return m_processingInstructionTarget ? m_processingInstructionTarget->span() : std::span<const Latin1Character> { }; }
+#endif
     const DataVector& processingInstructionData() const LIFETIME_BOUND;
 
     void beginProcessingInstruction();
@@ -186,6 +213,24 @@ private:
 };
 
 const HTMLToken::Attribute* findAttribute(const Vector<HTMLToken::Attribute>&, StringView name);
+
+#if USE_SWIFT_HTML_TOKENIZER
+#if OS(WINDOWS)
+// FIXME: With the MSVC standard library, Swift does not import a member function of this class that returns a
+// std::span, LIFETIME_BOUND or not ("may return an interior pointer"). It does import these, which take the token
+// LIFETIME_BOUND, with a Span overload whose lifetime depends on the token; HTMLTokenizer.swift calls them through
+// the members' names.
+inline std::span<const Latin1Character> htmlTokenProcessingInstructionTargetCharacters(const HTMLToken& token LIFETIME_BOUND) { return token.processingInstructionTargetCharacters(); }
+#endif
+#endif
+
+#if USE_SWIFT_HTML_PER_TOKEN
+#if OS(WINDOWS)
+// FIXME: As htmlTokenProcessingInstructionTargetCharacters.
+inline std::span<const char16_t> htmlTokenAttributeName(const HTMLToken& token LIFETIME_BOUND, size_t i) { return token.attributeName(i); }
+inline std::span<const char16_t> htmlTokenAttributeValue(const HTMLToken& token LIFETIME_BOUND, size_t i) { return token.attributeValue(i); }
+#endif
+#endif
 
 inline void HTMLToken::clear()
 {
@@ -480,11 +525,13 @@ inline void HTMLToken::appendToComment(char character)
     m_data.append(character);
 }
 
+#if !USE_SWIFT_HTML_TOKENIZER
 inline void HTMLToken::appendToComment(ASCIILiteral literal)
 {
     ASSERT(m_type == Type::Comment);
     m_data.append(literal.span8());
 }
+#endif
 
 inline void HTMLToken::appendToComment(std::span<const Latin1Character> characters)
 {

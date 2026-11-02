@@ -33,12 +33,36 @@
 #include "KeyboardScroll.h"
 #include "ScrollExtents.h"
 #include "ScrollableArea.h"
+#include "ScrollingEffectsClock.h"
 #include "SpringSolver.h"
 #include "TimingFunction.h"
 #include "UnitBezier.h"
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
+#if USE_SWIFT_SCROLL_PHYSICS
+#include "WebCore-Swift.h"
+
+namespace WebCore {
+
+// ScrollPhysicsAnimations.swift uses these values of UnitBezier.h, which it cannot import.
+static_assert(UnitBezier::kBezierEpsilon == 1e-7);
+static_assert(UnitBezier::kBisectionEpsilon == 1e-10);
+static_assert(UnitBezier::kMaxNewtonIterations == 4);
+static_assert(CUBIC_BEZIER_SPLINE_SAMPLES == 11);
+
+// ScrollPhysicsAnimations.swift copies this std::array, which it cannot index.
+static_assert(DocumentEdgeScrollSpring::timingFunctionControlPoints == std::array<double, 4> { 0, 0.2, 1, 1 });
+
+double ScrollAnimationSmooth::springProgress(Seconds elapsedTime)
+{
+    return documentEdgeScrollSpringProgress(elapsedTime.value());
+}
+
+} // namespace WebCore
+#endif
+
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollAnimationSmooth);
@@ -75,7 +99,7 @@ bool ScrollAnimationSmooth::startAnimatedScrollToDestination(const FloatPoint& f
     downcast<CubicBezierTimingFunction>(*m_timingFunction).setTimingFunctionPreset(CubicBezierTimingFunction::TimingFunctionPreset::EaseInOut);
 
     if (!isActive())
-        didStart(MonotonicTime::now());
+        didStart(scrollingEffectsClockNow());
 
     return true;
 }
@@ -93,7 +117,7 @@ bool ScrollAnimationSmooth::retargetActiveAnimation(const FloatPoint& newOffset,
     auto extents = m_client.scrollExtentsForAnimation(*this);
 
     m_curve = curve;
-    m_startTime = MonotonicTime::now();
+    m_startTime = scrollingEffectsClockNow();
     m_startOffset = m_currentOffset;
     m_destinationOffset = newOffset.constrainedBetween(extents.minimumScrollOffset(), extents.maximumScrollOffset());
     m_duration = durationFromDistance(m_destinationOffset - m_startOffset);
@@ -177,3 +201,4 @@ String ScrollAnimationSmooth::debugDescription() const
 }
 
 } // namespace WebCore
+#endif // !USE_SWIFT_SCROLL_PHYSICS

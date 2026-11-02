@@ -42,10 +42,19 @@
 #include <wtf/MathExtras.h>
 #include <wtf/StdLibExtras.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 namespace Style {
 namespace Calculation {
 
+#if !USE_SWIFT_CSS_CALC
 struct ToCSSConversionOptions {
     CSSCalc::CanonicalDimension::Dimension canonicalDimension;
     CSSCalc::SimplificationOptions simplification;
@@ -392,6 +401,34 @@ Tree toStyle(const CSSCalc::Tree& tree, const ToStyleOptions& toStyleOptions)
     };
     return Tree { toStyle(simplifiedTree.root, conversionOptions) };
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+// StyleCalculationSwift.swift clamps a calc-mix() weight to this range.
+static_assert(!CSS::ClosedPercentageRange.min && CSS::ClosedPercentageRange.max == 100);
+
+CSSCalc::Tree toCSS(const Tree& tree, const ToCSSOptions& toCSSOptions)
+{
+    CSSCalc::Tree result { .storage = { }, .type = { }, .stage = CSSCalc::Stage::Computed };
+    // Each operation is simplified as it is made, with no conversion data and no symbols.
+    std::optional<CSSToLengthConversionData> conversionData;
+    CSSCalcSymbolTable symbolTable;
+    CSSCalc::SwiftResolverState resolver { conversionData, symbolTable, result.storage };
+    CSSCalc::SwiftOutputState output { result.storage };
+    result.type = std::bit_cast<CSSCalc::Type>(styleCalcToCSS(tree.root.nodes.span(), resolver, output, static_cast<uint8_t>(toCSSOptions.category)));
+    return result;
+}
+
+Tree toStyle(const CSSCalc::Tree& tree, const ToStyleOptions& toStyleOptions)
+{
+    ASSERT(toStyleOptions.category == CSS::Category::LengthPercentage || toStyleOptions.category == CSS::Category::AnglePercentage);
+
+    CSSCalc::SwiftResolverState resolver { toStyleOptions.conversionData, toStyleOptions.symbolTable, tree.storage };
+    SwiftOutput output;
+    styleCalcToStyle(tree.storage.nodes.span(), resolver, output, { static_cast<uint8_t>(toStyleOptions.category), toStyleOptions.conversionData.has_value(), true });
+    return Tree { output.take() };
+}
+#endif
 
 } // namespace Calculation
 } // namespace Style

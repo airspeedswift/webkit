@@ -44,9 +44,46 @@
 #include <algorithm>
 #include <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+#include "ScrollAnimatorScrollPhysicsClient.h"
+#include "ScrollPhysicsControllerHolder.h"
+
+#if !USE_SWIFT_SCROLL_PHYSICS
+#error "USE_SWIFT_SCROLL_ANIMATOR_PHYSICS requires USE_SWIFT_SCROLL_PHYSICS"
+#endif
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
+#error "USE_SWIFT_SCROLL_ANIMATOR_PHYSICS requires USE_SWIFT_SCROLLING_TREE_DELEGATE"
+#endif
+#endif
+
+#if USE_SWIFT_SCROLL_ANIMATOR
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+#error "USE_SWIFT_SCROLL_ANIMATOR requires USE_SWIFT_SCROLL_ANIMATOR_PHYSICS"
+#endif
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollAnimator);
+
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+// Swift may use ScrollAnimatorScrollPhysicsClient only in place (ScrollAnimatorScrollPhysicsClient.h).
+static_assert(std::is_empty_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_polymorphic_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_default_constructible_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_copy_constructible_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_copy_assignable_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_move_assignable_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(std::is_move_constructible_v<ScrollAnimatorScrollPhysicsClient>);
+static_assert(!std::is_trivially_destructible_v<ScrollAnimatorScrollPhysicsClient>);
+
+ScrollAnimatorScrollPhysicsClient::ScrollAnimatorScrollPhysicsClient(ScrollAnimatorScrollPhysicsClient&&)
+{
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
+ScrollAnimatorScrollPhysicsClient::~ScrollAnimatorScrollPhysicsClient() = default;
+#endif
 
 #if !PLATFORM(IOS_FAMILY) && !PLATFORM(MAC)
 std::unique_ptr<ScrollAnimator> ScrollAnimator::create(ScrollableArea& scrollableArea)
@@ -57,29 +94,49 @@ std::unique_ptr<ScrollAnimator> ScrollAnimator::create(ScrollableArea& scrollabl
 
 ScrollAnimator::ScrollAnimator(ScrollableArea& scrollableArea)
     : m_scrollableArea(scrollableArea)
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    , m_physics(makeUnique<ScrollPhysicsControllerHolder>())
+#else
     , m_scrollController(*this)
+#endif
     , m_keyboardScrollingAnimator(makeUniqueRef<KeyboardScrollingAnimator>(scrollableArea))
 {
 }
 
 ScrollAnimator::~ScrollAnimator()
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
     m_scrollController.stopAllTimers();
+#endif
+}
+
+KeyboardScrollingAnimator* ScrollAnimator::keyboardScrollingAnimator() const
+{
+    return m_keyboardScrollingAnimator.ptr();
 }
 
 bool ScrollAnimator::singleAxisScroll(ScrollEventAxis axis, float scrollDelta, EnumSet<ScrollBehavior> behavior)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     CheckedRef scrollableArea = m_scrollableArea;
     scrollableArea->scrollbarsController().setScrollbarAnimationsUnsuspendedByUserInteraction(true);
 
     auto delta = setValueForAxis(FloatSize { }, axis, scrollDelta);
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    if (behavior.contains(ScrollBehavior::RespectScrollSnap) && usesScrollSnap()) {
+#else
     if (behavior.contains(ScrollBehavior::RespectScrollSnap) && m_scrollController.usesScrollSnap()) {
+#endif
         auto currentOffset = offsetFromPosition(currentPosition());
         auto newOffset = currentOffset + delta;
         auto velocity = copysignf(1.0f, scrollDelta);
         auto selectionMethod = behavior.contains(ScrollBehavior::Paged) ? ScrollSnapPointSelectionMethod::Paging : ScrollSnapPointSelectionMethod::Directional;
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+        auto newOffsetOnAxis = m_physics->controller.adjustedScrollDestination(ScrollAnimatorScrollPhysicsClientState(*this).facade(), axis, newOffset, velocity, true, valueForAxis(currentOffset, axis), selectionMethod);
+#else
         auto newOffsetOnAxis = m_scrollController.adjustedScrollDestination(axis, newOffset, velocity, valueForAxis(currentOffset, axis), selectionMethod);
+#endif
         newOffset = setValueForAxis(newOffset, axis, newOffsetOnAxis);
         delta = newOffset - currentOffset;
     } else {
@@ -98,10 +155,19 @@ bool ScrollAnimator::singleAxisScroll(ScrollEventAxis axis, float scrollDelta, E
             // Request the edge itself, rather than a delta that is relative to a position that may be out of date while an animation runs.
             options.animationCurve = documentEdgeScrollAnimationCurve();
             // On the other axis, keep the destination of an animation running on the main thread, such as the inline edge that Home and End scroll to first.
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+            if (FloatPoint destinationOffset; m_physics->controller.animatedScrollDestinationOffset(destinationOffset))
+                newPosition = setValueForAxis(positionFromOffset(destinationOffset), axis, valueForAxis(newPosition, axis));
+#else
             if (auto destinationOffset = m_scrollController.animatedScrollDestinationOffset())
                 newPosition = setValueForAxis(positionFromOffset(*destinationOffset), axis, valueForAxis(newPosition, axis));
+#endif
         } else {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+            if (m_physics->controller.retargetAnimatedScrollBy(ScrollAnimatorScrollPhysicsClientState(*this).facade(), delta))
+#else
             if (m_scrollController.retargetAnimatedScrollBy(delta))
+#endif
                 return true;
             options.originalScrollDelta = delta;
         }
@@ -110,10 +176,14 @@ bool ScrollAnimator::singleAxisScroll(ScrollEventAxis axis, float scrollDelta, E
     }
 
     return scrollToPositionWithoutAnimation(currentPosition() + delta);
+#else
+    return m_physics->controller.scrollAnimatorSingleAxisScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), axis, scrollDelta, behavior.contains(ScrollBehavior::RespectScrollSnap), behavior.contains(ScrollBehavior::Paged), behavior.contains(ScrollBehavior::NeverAnimate), behavior.contains(ScrollBehavior::DocumentEdge));
+#endif
 }
 
 bool ScrollAnimator::scrollToPositionWithoutAnimation(const FloatPoint& position, ScrollClamping clamping)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     CheckedRef scrollableArea = m_scrollableArea;
     FloatPoint currentPosition = this->currentPosition();
     auto adjustedPosition = clamping == ScrollClamping::Clamped ? position.constrainedBetween(scrollableArea->minimumScrollPosition(), scrollableArea->maximumScrollPosition()) : position;
@@ -123,30 +193,54 @@ bool ScrollAnimator::scrollToPositionWithoutAnimation(const FloatPoint& position
     if (adjustedPosition == currentPosition && adjustedPosition == scrollableArea->scrollPosition() && !scrollableArea->scrollOriginChanged())
         return false;
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.stopAnimatedScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.stopAnimatedScroll();
+#endif
 
     setCurrentPosition(adjustedPosition, NotifyScrollableArea::Yes);
     scrollableArea->scrollDidEnd();
     return true;
+#else
+    return m_physics->controller.scrollAnimatorScrollToPositionWithoutAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position, clamping);
+#endif
 }
 
 bool ScrollAnimator::scrollToPositionWithAnimation(const FloatPoint& position, ScrollClamping clamping, ScrollAnimationCurve curve)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     CheckedRef scrollableArea = m_scrollableArea;
     auto adjustedPosition = clamping == ScrollClamping::Clamped ? position.constrainedBetween(scrollableArea->minimumScrollPosition(), scrollableArea->maximumScrollPosition()) : position;
     bool positionChanged = adjustedPosition != currentPosition();
     if (!positionChanged && !scrollableArea->scrollOriginChanged())
         return false;
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.startAnimatedScrollToDestination(ScrollAnimatorScrollPhysicsClientState(*this).facade(), offsetFromPosition(m_currentPosition), offsetFromPosition(adjustedPosition), curve);
+#else
     return m_scrollController.startAnimatedScrollToDestination(offsetFromPosition(m_currentPosition), offsetFromPosition(adjustedPosition), curve);
+#endif
+#else
+    return m_physics->controller.scrollAnimatorScrollToPositionWithAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position, clamping, curve);
+#endif
 }
 
 bool ScrollAnimator::retargetRunningAnimation(const FloatPoint& newPosition, ScrollAnimationCurve curve)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     ASSERT(scrollableArea().scrollAnimationStatus() == ScrollAnimationStatus::Animating);
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.retargetAnimatedScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), offsetFromPosition(newPosition), curve);
+#else
     return m_scrollController.retargetAnimatedScroll(offsetFromPosition(newPosition), curve);
+#endif
+#else
+    return m_physics->controller.scrollAnimatorRetargetRunningAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), newPosition, curve);
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 FloatPoint ScrollAnimator::offsetFromPosition(const FloatPoint& position) const
 {
     return ScrollableArea::scrollOffsetFromPosition(position, toFloatSize(m_scrollableArea->scrollOrigin()));
@@ -156,29 +250,49 @@ FloatPoint ScrollAnimator::positionFromOffset(const FloatPoint& offset) const
 {
     return ScrollableArea::scrollPositionFromOffset(offset, toFloatSize(m_scrollableArea->scrollOrigin()));
 }
+#endif
 
 bool ScrollAnimator::activeScrollSnapIndexDidChange() const
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.activeScrollSnapIndexDidChange();
+#else
     return m_scrollController.activeScrollSnapIndexDidChange();
+#endif
 }
 
 std::optional<unsigned> ScrollAnimator::activeScrollSnapIndexForAxis(ScrollEventAxis axis) const
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    // Swift returns -1 for no index.
+    auto index = m_physics->controller.activeScrollSnapIndexForAxis(axis);
+    return index < 0 ? std::nullopt : std::optional<unsigned> { static_cast<unsigned>(index) };
+#else
     return m_scrollController.activeScrollSnapIndexForAxis(axis);
+#endif
 }
 
 void ScrollAnimator::setActiveScrollSnapIndexForAxis(ScrollEventAxis axis, std::optional<unsigned> index)
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.setActiveScrollSnapIndexForAxis(axis, index ? int64_t { *index } : -1);
+#else
     return m_scrollController.setActiveScrollSnapIndexForAxis(axis, index);
+#endif
 }
 
 void ScrollAnimator::resnapAfterLayout()
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.resnapAfterLayout(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.resnapAfterLayout();
+#endif
 }
 
 bool ScrollAnimator::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
 #if !PLATFORM(MAC)
     m_scrollController.updateGestureInProgressState(wheelEvent);
 #endif
@@ -189,9 +303,17 @@ bool ScrollAnimator::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
     if (protect(scrollableArea())->hasSteppedScrolling())
         return handleSteppedScrolling(wheelEvent);
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.handleWheelEvent(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#else
     return m_scrollController.handleWheelEvent(wheelEvent);
+#endif
+#else
+    return m_physics->controller.scrollAnimatorBaseHandleWheelEvent(ScrollAnimatorScrollPhysicsClientState(*this).facade(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 // "Stepped scrolling" is only used by RenderListBox. It's special in that it has no rubberbanding, and scroll deltas respect Scrollbar::pixelStep().
 bool ScrollAnimator::handleSteppedScrolling(const PlatformWheelEvent& wheelEvent)
 {
@@ -243,10 +365,15 @@ bool ScrollAnimator::handleSteppedScrolling(const PlatformWheelEvent& wheelEvent
     }
     return handled;
 }
+#endif
 
 void ScrollAnimator::stopKeyboardScrollAnimation()
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    protect(keyboardScrollingAnimator())->handleKeyUpEvent();
+#else
     m_scrollController.stopKeyboardScrolling();
+#endif
 }
 
 #if ENABLE(TOUCH_EVENTS)
@@ -256,13 +383,16 @@ bool ScrollAnimator::handleTouchEvent(const PlatformTouchEvent&)
 }
 #endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 static void notifyScrollAnchoringControllerOfScroll(ScrollableArea& scrollableArea)
 {
     scrollableArea.clearScrollAnchor();
 }
+#endif
 
 void ScrollAnimator::setCurrentPosition(const FloatPoint& position, NotifyScrollableArea notify)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     // FIXME: An early return here if the position is not changing triggers test failures because of adjustForIOSCaretWhenScrolling()
     // code in RenderLayerScrollableArea. We can early return when webkit.org/b/230454 is fixed.
     auto delta = position - m_currentPosition;
@@ -274,11 +404,19 @@ void ScrollAnimator::setCurrentPosition(const FloatPoint& position, NotifyScroll
         notifyScrollAnchoringControllerOfScroll(protect(scrollableArea()));
 
     updateActiveScrollSnapIndexForOffset();
+#else
+    m_physics->controller.scrollAnimatorSetCurrentPosition(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position, notify == NotifyScrollableArea::Yes);
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 void ScrollAnimator::updateActiveScrollSnapIndexForOffset()
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.updateActiveScrollSnapIndexForClientOffset(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.updateActiveScrollSnapIndexForClientOffset();
+#endif
 }
 
 void ScrollAnimator::notifyPositionChanged(const FloatSize& delta)
@@ -286,19 +424,34 @@ void ScrollAnimator::notifyPositionChanged(const FloatSize& delta)
     CheckedRef scrollableArea = m_scrollableArea;
     scrollableArea->scrollbarsController().notifyContentAreaScrolled(delta);
     scrollableArea->setScrollPositionFromAnimation(roundedIntPoint(m_currentPosition));
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.scrollPositionChanged(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.scrollPositionChanged();
+#endif
 }
+#endif
 
 void ScrollAnimator::setSnapOffsetsInfo(const LayoutScrollSnapOffsetsInfo& info)
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_snapOffsetsInfo = info.isEmpty() ? std::nullopt : std::make_optional(info);
+    m_physics->controller.setSnapOffsetsInfo(ScrollAnimatorScrollPhysicsClientState(*this).facade(), !!m_snapOffsetsInfo);
+#else
     m_scrollController.setSnapOffsetsInfo(info);
+#endif
 }
 
 const LayoutScrollSnapOffsetsInfo* ScrollAnimator::snapOffsetsInfo() const
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_snapOffsetsInfo ? &m_snapOffsetsInfo.value() : nullptr;
+#else
     return m_scrollController.snapOffsetsInfo();
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 FloatPoint ScrollAnimator::scrollOffset() const
 {
     return scrollableArea().scrollOffsetFromPosition(roundedIntPoint(currentPosition()));
@@ -326,12 +479,14 @@ void ScrollAnimator::didStopAnimatedScroll()
     scrollableArea->animatedScrollDidEnd();
     scrollableArea->scrollDidEnd();
 }
+#endif
 
 void ScrollAnimator::didStopWheelEventScroll()
 {
     protect(m_scrollableArea)->scrollDidEnd();
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 #if HAVE(RUBBER_BANDING)
 IntSize ScrollAnimator::stretchAmount() const
 {
@@ -349,7 +504,9 @@ bool ScrollAnimator::isPinnedOnSide(BoxSide side) const
 }
 
 #endif
+#endif
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 void ScrollAnimator::adjustScrollPositionToBoundsIfNecessary()
 {
     CheckedRef scrollableArea = m_scrollableArea;
@@ -399,17 +556,76 @@ float ScrollAnimator::pageScaleFactor() const
 {
     return protect(scrollableArea())->pageScaleFactor();
 }
+#endif
+
+static ScrollAnimator::TimerFactory timerFactoryForTesting;
+
+void ScrollAnimator::setTimerFactoryForTesting(TimerFactory factory)
+{
+    timerFactoryForTesting = factory;
+}
+
+bool ScrollAnimator::handleWheelEventForTesting(const PlatformWheelEvent& wheelEvent)
+{
+    return handleWheelEvent(wheelEvent);
+}
+
+bool ScrollAnimator::processWheelEventForScrollSnapForTesting(const PlatformWheelEvent& wheelEvent)
+{
+    return processWheelEventForScrollSnap(wheelEvent);
+}
+
+#if PLATFORM(COCOA)
+void ScrollAnimator::handleWheelEventPhaseForTesting(PlatformWheelEventPhase phase)
+{
+    handleWheelEventPhase(phase);
+}
+#endif
+
+bool ScrollAnimator::isRubberBandInProgressForTesting() const
+{
+    return isRubberBandInProgress();
+}
 
 std::unique_ptr<ScrollingEffectsControllerTimer> ScrollAnimator::createTimer(Function<void()>&& function)
 {
-    return makeUnique<ScrollingEffectsControllerTimer>(RunLoop::currentSingleton(), [function = WTF::move(function), weakScrollableArea = WeakPtr { m_scrollableArea.get() }] {
+    auto callback = [function = WTF::move(function), weakScrollableArea = WeakPtr { m_scrollableArea.get() }] {
         if (!weakScrollableArea)
             return;
         function();
-    });
+    };
+    if (timerFactoryForTesting)
+        return timerFactoryForTesting(WTF::move(callback));
+    return makeUnique<ScrollingEffectsControllerTimer>(RunLoop::currentSingleton(), WTF::move(callback));
 }
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+void ScrollAnimator::discreteSnapTransitionTimerFired()
+{
+    m_discreteSnapTransitionTimer = nullptr;
+    m_physics->controller.discreteSnapTransitionTimerFired(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+}
+
+void ScrollAnimator::scheduleScrollendTimer()
+{
+    static const Seconds discreteScrollDelay = 100_ms;
+
+    if (!m_discreteScrollendTimer) {
+        m_discreteScrollendTimer = createTimer([this] {
+            didStopWheelEventScroll();
+        });
+    }
+    m_discreteScrollendTimer->startOneShot(discreteScrollDelay);
+}
+#endif
+
+#if !USE_SWIFT_SCROLL_ANIMATOR
 void ScrollAnimator::startAnimationCallback(ScrollingEffectsController&)
+{
+    startAnimationCallback();
+}
+
+void ScrollAnimator::startAnimationCallback()
 {
     if (!m_scrollAnimationScheduled) {
         m_scrollAnimationScheduled = true;
@@ -418,6 +634,11 @@ void ScrollAnimator::startAnimationCallback(ScrollingEffectsController&)
 }
 
 void ScrollAnimator::stopAnimationCallback(ScrollingEffectsController&)
+{
+    stopAnimationCallback();
+}
+
+void ScrollAnimator::stopAnimationCallback()
 {
     m_scrollAnimationScheduled = false;
 }
@@ -440,21 +661,66 @@ bool ScrollAnimator::scrollAnimationEnabled() const
     return protect(scrollableArea())->scrollAnimatorEnabled();
 }
 #endif
+#endif
 
 void ScrollAnimator::cancelAnimations()
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.stopAnimatedScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.stopAnimatedScroll();
+#endif
     protect(scrollableArea())->scrollbarsController().cancelAnimations();
+#else
+    m_physics->controller.scrollAnimatorCancelAnimations(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#endif
+}
+
+bool ScrollAnimator::isUserScrollInProgress() const
+{
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.isUserScrollInProgress();
+#else
+    return m_scrollController.isUserScrollInProgress();
+#endif
+}
+
+bool ScrollAnimator::isScrollSnapInProgress() const
+{
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.isScrollSnapInProgress(m_discreteSnapTransitionTimer && m_discreteSnapTransitionTimer->isActive());
+#else
+    return m_scrollController.isScrollSnapInProgress();
+#endif
+}
+
+bool ScrollAnimator::usesScrollSnap() const
+{
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return !!m_snapOffsetsInfo;
+#else
+    return m_scrollController.usesScrollSnap();
+#endif
 }
 
 void ScrollAnimator::contentsSizeChanged()
 {
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    m_physics->controller.contentsSizeChanged(ScrollAnimatorScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.contentsSizeChanged();
+#endif
 }
 
 FloatPoint ScrollAnimator::scrollOffsetAdjustedForSnapping(const FloatPoint& offset, ScrollSnapPointSelectionMethod method) const
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    if (!usesScrollSnap())
+#else
     if (!m_scrollController.usesScrollSnap())
+#endif
         return offset;
 
     auto result = FloatPoint {
@@ -464,11 +730,19 @@ FloatPoint ScrollAnimator::scrollOffsetAdjustedForSnapping(const FloatPoint& off
 
     LOG_WITH_STREAM(ScrollSnap, stream << "ScrollAnimator::scrollOffsetAdjustedForSnapping() - offset " << offset << " adjusted to  " << result);
     return result;
+#else
+    return m_physics->controller.scrollAnimatorScrollOffsetAdjustedForSnapping(ScrollAnimatorScrollPhysicsClientState(*this).facade(), offset, method);
+#endif
 }
 
 float ScrollAnimator::scrollOffsetAdjustedForSnapping(ScrollEventAxis axis, const FloatPoint& newOffset, ScrollSnapPointSelectionMethod method) const
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    if (!usesScrollSnap())
+#else
     if (!m_scrollController.usesScrollSnap())
+#endif
         return axis == ScrollEventAxis::Horizontal ? newOffset.x() : newOffset.y();
 
     std::optional<float> originalOffset;
@@ -481,20 +755,37 @@ float ScrollAnimator::scrollOffsetAdjustedForSnapping(ScrollEventAxis axis, cons
         velocityInScrollAxis = axis == ScrollEventAxis::Horizontal ? velocity.width() : velocity.height();
     }
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    return m_physics->controller.adjustedScrollDestination(ScrollAnimatorScrollPhysicsClientState(*this).facade(), axis, newOffset, velocityInScrollAxis, originalOffset.has_value(), originalOffset.value_or(0), ScrollSnapPointSelectionMethod::Closest);
+#else
     return m_scrollController.adjustedScrollDestination(axis, newOffset, velocityInScrollAxis, originalOffset);
+#endif
+#else
+    return m_physics->controller.scrollAnimatorScrollOffsetAdjustedForSnappingOnAxis(ScrollAnimatorScrollPhysicsClientState(*this).facade(), axis, newOffset, method);
+#endif
 }
 
 ScrollAnimationStatus ScrollAnimator::serviceScrollAnimation(MonotonicTime time)
 {
+#if !USE_SWIFT_SCROLL_ANIMATOR
     if (m_scrollAnimationScheduled)
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+        m_physics->controller.animationCallback(ScrollAnimatorScrollPhysicsClientState(*this).facade(), time.secondsSinceEpoch().value());
+#else
         m_scrollController.animationCallback(time);
+#endif
     return m_scrollAnimationScheduled ? ScrollAnimationStatus::Animating : ScrollAnimationStatus::NotAnimating;
+#else
+    return m_physics->controller.scrollAnimatorServiceScrollAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), time.secondsSinceEpoch().value());
+#endif
 }
 
+#if !USE_SWIFT_SCROLL_ANIMATOR
 ScrollingNodeID ScrollAnimator::scrollingNodeIDForTesting() const
 {
     return protect(scrollableArea())->scrollingNodeIDForTesting();
 }
+#endif
 
 
 } // namespace WebCore

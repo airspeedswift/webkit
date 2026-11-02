@@ -37,6 +37,11 @@
 
 #pragma once
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 // Define ourselves as the clientPtr.  Mozilla just hacked their C++ callback class into this old C decoder,
 // so we will too.
 #include "GIFImageDecoder.h"
@@ -312,3 +317,4 @@ private:
     RefPtr<const WebCore::SharedBuffer> m_data;
     bool m_parseCompleted;
 };
+#endif // !USE_SWIFT_IMAGE_DECODERS

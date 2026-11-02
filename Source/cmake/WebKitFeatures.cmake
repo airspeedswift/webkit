@@ -557,10 +557,62 @@ macro(WEBKIT_OPTION_END)
         endif ()
     endif ()
 
+    option(WK_BUILD_WEBCORE_SWIFT "Build WebCore's Swift sources, as the Xcode project does" OFF)
+    # The counterpart of the WebCore.xcconfig setting of the same name: the HTML fragment fast path
+    # parses and builds its DOM in HTMLFastPathParser.swift.
+    option(WK_USE_SWIFT_HTML_FAST_PATH "Parse HTML fragments on the fast path with WebCore's HTMLFastPathParser.swift" OFF)
+    if (WK_USE_SWIFT_HTML_FAST_PATH)
+        set(WK_BUILD_WEBCORE_SWIFT ON)
+    endif ()
+    # The counterpart of the WebCore.xcconfig setting of the same name: HTMLTokenizer::processToken and the
+    # HTML entity decoder are HTMLTokenizer.swift and HTMLEntityParser.swift.
+    option(WK_USE_SWIFT_HTML_TOKENIZER "Tokenize HTML and decode character references with WebCore's HTMLTokenizer.swift and HTMLEntityParser.swift" OFF)
+    if (WK_USE_SWIFT_HTML_TOKENIZER AND NOT WK_USE_SWIFT_HTML_FAST_PATH)
+        message(FATAL_ERROR "WK_USE_SWIFT_HTML_TOKENIZER needs WK_USE_SWIFT_HTML_FAST_PATH: the C++ fast path calls the C++ entity decoder")
+    endif ()
+    # The counterpart of the WebCore.xcconfig setting of the same name: HTMLTokenizer.swift makes the tree
+    # builder's tag names and attributes as it scans.
+    option(WK_USE_SWIFT_HTML_PER_TOKEN "Make the HTML tree builder's tag names and attributes in WebCore's HTMLTokenizer.swift" OFF)
+    if (WK_USE_SWIFT_HTML_PER_TOKEN AND NOT WK_USE_SWIFT_HTML_TOKENIZER)
+        message(FATAL_ERROR "WK_USE_SWIFT_HTML_PER_TOKEN needs WK_USE_SWIFT_HTML_TOKENIZER, whose HTMLTokenizer.swift makes them")
+    endif ()
+    # The counterpart of the WebCore.xcconfig setting of the same name: CSSTokenizer's scanner is
+    # CSSTokenizerSwift.swift.
+    option(WK_USE_SWIFT_CSS_TOKENIZER "Tokenize CSS with WebCore's CSSTokenizerSwift.swift" OFF)
+    if (WK_USE_SWIFT_CSS_TOKENIZER)
+        set(WK_BUILD_WEBCORE_SWIFT ON)
+    endif ()
+    # The counterpart of the WebCore.xcconfig setting of the same name: CSSParserFastPaths' color, length, opacity
+    # and transform scans are CSSParserFastPathsSwift.swift.
+    option(WK_USE_SWIFT_CSS_FAST_PATHS "Parse simple CSS property values with WebCore's CSSParserFastPathsSwift.swift" OFF)
+    if (WK_USE_SWIFT_CSS_FAST_PATHS)
+        set(WK_BUILD_WEBCORE_SWIFT ON)
+    endif ()
+    # The counterpart of CommonBase.xcconfig's WK_USE_SWIFT_CSS_CALC: calc()'s parser, simplifier, evaluators and
+    # serializer, and the operations on Style::Calculation trees, are the calc() Swift in css/calc.
+    option(WK_USE_SWIFT_CSS_CALC "Parse, simplify, evaluate and serialize CSS calc() with the calc() Swift in WebCore's css/calc" OFF)
+    if (WK_USE_SWIFT_CSS_CALC)
+        set(WK_BUILD_WEBCORE_SWIFT ON)
+    endif ()
+    # USE_SWIFT_CSS_CALC changes the layout of CSSCalc::Tree and Style::Calculation::Child, whose headers are included
+    # outside WebCore, so every target sees it, through cmakeconfig.h.
+    SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_CALC ${WK_USE_SWIFT_CSS_CALC})
+    # GIFImageDecoder, BMPImageDecoder and ICOImageDecoder decode in Swift (platform/image-decoders/*.swift). The
+    # Cocoa ports decode with ImageIO and build none of these decoders.
+    option(WK_USE_SWIFT_IMAGE_DECODERS "Decode GIF, BMP and ICO images with WebCore's Swift decoders" OFF)
+    if (WK_USE_SWIFT_IMAGE_DECODERS)
+    # The counterpart of the WebCore.xcconfig setting of the same name: the HTML preload scanner is
+    # HTMLPreloadScanner.swift.
+    option(WK_USE_SWIFT_HTML_PRELOAD_SCANNER "Scan HTML for resources to preload with WebCore's HTMLPreloadScanner.swift" OFF)
+    if (WK_USE_SWIFT_HTML_PRELOAD_SCANNER AND NOT WK_USE_SWIFT_HTML_PER_TOKEN)
+        message(FATAL_ERROR "WK_USE_SWIFT_HTML_PRELOAD_SCANNER needs WK_USE_SWIFT_HTML_PER_TOKEN, whose HTMLToken accessors it reads attributes with")
+
+    option(WK_USE_SWIFT_TEXT_CODEC_UTF8 "Replace the C++ UTF-8 decoder with PAL's TextCodecUTF8.swift" OFF)
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
     # silently. Apple is gated elsewhere; non-Clang is already rejected above.
-    if (NOT APPLE AND COMPILER_IS_CLANG AND (ENABLE_BACK_FORWARD_LIST_SWIFT OR ENABLE_IPC_TESTING_SWIFT))
+    if (NOT APPLE AND COMPILER_IS_CLANG AND (ENABLE_BACK_FORWARD_LIST_SWIFT OR ENABLE_IPC_TESTING_SWIFT OR WK_BUILD_WEBCORE_SWIFT))
+    if (NOT APPLE AND COMPILER_IS_CLANG AND (ENABLE_BACK_FORWARD_LIST_SWIFT OR ENABLE_IPC_TESTING_SWIFT OR WK_USE_SWIFT_TEXT_CODEC_UTF8))
         _WEBKIT_DETECT_SWIFT_CXX_INTEROP_SUPPORT(_swift_interop_ok)
         if (NOT _swift_interop_ok)
             message(FATAL_ERROR
@@ -574,7 +626,10 @@ macro(WEBKIT_OPTION_END)
         endif ()
     endif ()
 
-    if (ENABLE_BACK_FORWARD_LIST_SWIFT OR ENABLE_IPC_TESTING_SWIFT)
+    if (ENABLE_BACK_FORWARD_LIST_SWIFT OR ENABLE_IPC_TESTING_SWIFT OR WK_BUILD_WEBCORE_SWIFT)
+    # WK_USE_SWIFT_TEXT_CODEC_UTF8 is the CMake counterpart of the PAL.xcconfig setting of the same
+    # name: it replaces the C++ UTF-8 decoder with PAL's TextCodecUTF8.swift.
+    if (ENABLE_BACK_FORWARD_LIST_SWIFT OR ENABLE_IPC_TESTING_SWIFT OR WK_USE_SWIFT_TEXT_CODEC_UTF8)
         set(SWIFT_REQUIRED ON)
     else ()
         set(SWIFT_REQUIRED OFF)

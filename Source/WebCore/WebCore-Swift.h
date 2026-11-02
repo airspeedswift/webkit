@@ -41,4 +41,83 @@
 // If Swift function parameters or return types depend on C++ types, the
 // relevant headers must be included here.
 
+#include "ScrollAnimatorScrollPhysicsClient.h"
+#include "ScrollPhysicsTypes.h"
+#include "ScrollerPairMacTypes.h"
+#include "ScrollingTreeScrollPhysicsClient.h"
+
+#if !defined(USE_SWIFT_HTML_FAST_PATH)
+#define USE_SWIFT_HTML_FAST_PATH 0
+#endif
+#if USE_SWIFT_HTML_FAST_PATH
+#include "ContainerNode.h"
+#include "Document.h"
+#include "Element.h"
+#include "HTMLFastPathParserTypes.h"
+#endif
+
+#if !defined(USE_SWIFT_HTML_TOKENIZER)
+#define USE_SWIFT_HTML_TOKENIZER 0
+#endif
+#if USE_SWIFT_HTML_TOKENIZER
+#include "HTMLEntityParser.h"
+#include "HTMLTokenizer.h"
+#include "SegmentedString.h"
+#endif
+
+#if !defined(USE_SWIFT_CSS_TOKENIZER)
+#define USE_SWIFT_CSS_TOKENIZER 0
+#endif
+#if USE_SWIFT_CSS_TOKENIZER
+#include "CSSTokenizerSwiftTypes.h"
+#endif
+
+#if !defined(USE_SWIFT_CSS_FAST_PATHS)
+#define USE_SWIFT_CSS_FAST_PATHS 0
+#endif
+#if USE_SWIFT_CSS_FAST_PATHS
+#include "CSSParserFastPathsSwiftTypes.h"
+#endif
+
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+#if USE_SWIFT_CSS_CALC
+#include "CSSCalcSwiftTypes.h"
+#endif
+
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+#if USE_SWIFT_IMAGE_DECODERS
+#include "ImageDecoderSwiftTypes.h"
+#endif
+
+#if !defined(USE_SWIFT_HTML_PRELOAD_SCANNER)
+#define USE_SWIFT_HTML_PRELOAD_SCANNER 0
+#endif
+#if USE_SWIFT_HTML_PRELOAD_SCANNER
+#include "Document.h"
+#include "HTMLPreloadScanner.h"
+#endif
+
+#if !defined(USE_SWIFT_HTML_TREE_BUILDER)
+#define USE_SWIFT_HTML_TREE_BUILDER 0
+#endif
+#if USE_SWIFT_HTML_TREE_BUILDER
+#include "CustomElementRegistry.h"
+#include "DocumentFragment.h"
+#include "HTMLDocument.h"
+#include "HTMLDocumentParser.h"
+#include "HTMLParserOptions.h"
+#include "HTMLTreeBuilderSwiftSupport.h"
+#endif
+
+#if !defined(USE_SWIFT_TRANSFORMATION_MATRIX)
+#define USE_SWIFT_TRANSFORMATION_MATRIX 0
+#endif
+#if USE_SWIFT_TRANSFORMATION_MATRIX
+#include "TransformationMatrix.h"
+#endif
+
 #include "WebCoreSwift-Generated.h"

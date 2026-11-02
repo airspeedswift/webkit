@@ -548,7 +548,7 @@ public:
     bool shouldNotFireMutationEvents() const { return m_shouldNotFireMutationEvents; }
     void setShouldNotFireMutationEvents(bool fire) { m_shouldNotFireMutationEvents = fire; }
 
-    void setMarkupUnsafe(const String&, OptionSet<ParserContentPolicy>);
+    SWIFT_UNSAFE void setMarkupUnsafe(const String&, OptionSet<ParserContentPolicy>);
     static ExceptionOr<Ref<Document>> parseHTMLUnsafe(Document&, Variant<Ref<TrustedHTML>, String>&&);
 
     Element* elementForAccessKey(const String& key);
@@ -906,11 +906,11 @@ public:
     WEBCORE_EXPORT ExceptionOr<void> closeForBindings();
 
     // FIXME: We should rename this at some point and give back the name 'close' to the HTML specified one.
-    WEBCORE_EXPORT void close();
+    SWIFT_UNSAFE WEBCORE_EXPORT void close();
     // In some situations (see the code), we ignore document.close().
     // explicitClose() bypass these checks and actually tries to close the
     // input stream.
-    void explicitClose();
+    SWIFT_UNSAFE void explicitClose();
     // implicitClose() actually does the work of closing the input stream.
     void implicitClose();
 
@@ -982,7 +982,7 @@ public:
     bool usesStyleBasedEditability() const;
     void LEGACY_NODELETE setHasElementUsingStyleBasedEditability();
     
-    virtual Ref<DocumentParser> createParser();
+    SWIFT_UNSAFE virtual Ref<DocumentParser> createParser();
     DocumentParser* parser() const { return m_parser.get(); }
     ScriptableDocumentParser* scriptableDocumentParser() const;
     HTMLDocumentParser* htmlDocumentParser() const;

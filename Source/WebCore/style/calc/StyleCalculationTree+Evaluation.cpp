@@ -30,10 +30,19 @@
 #include "StyleZoomPrimitives.h"
 #include <wtf/StdLibExtras.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 namespace Style {
 namespace Calculation {
 
+#if !USE_SWIFT_CSS_CALC
 static CSS::Keyword::None LEGACY_NODELETE evaluate(const CSS::Keyword::None&, const EvaluationOptions&);
 static auto evaluate(const ChildOrNone&, const EvaluationOptions&) -> Variant<double, CSS::Keyword::None>;
 static auto evaluate(const std::optional<Child>&, const EvaluationOptions&) -> std::optional<double>;
@@ -171,6 +180,14 @@ double evaluate(const Tree& tree, const EvaluationOptions& options)
 {
     return evaluate(tree.root, options);
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+double evaluate(const Tree& tree, const EvaluationOptions& options)
+{
+    return styleCalcEvaluate(tree.root.nodes.span(), options.percentResolutionLength, options.usedZoom.value, options.sizeResolutionLength.value_or(0));
+}
+#endif
 
 
 } // namespace Calculation

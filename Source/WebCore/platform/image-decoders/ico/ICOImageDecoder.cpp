@@ -31,23 +31,38 @@
 #include "config.h"
 #include "ICOImageDecoder.h"
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
 #include <algorithm>
 
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "BMPImageReader.h"
+#else
+#include "ImageDecoderSwiftFrames.h"
+#include "WebCore-Swift.h"
+#endif
 #include "PNGImageDecoder.h"
 #include <wtf/StdLibExtras.h>
 
 namespace WebCore {
 
+#if !USE_SWIFT_IMAGE_DECODERS
 // Number of bits in .ICO/.CUR used to store the directory and its entries,
 // respectively (doesn't match sizeof values for member structs since we omit
 // some fields).
 static const size_t sizeOfDirectory = 6;
 static const size_t sizeOfDirEntry = 16;
+#endif
 
 ICOImageDecoder::ICOImageDecoder(AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
     : ScalableImageDecoder(alphaOption, gammaAndColorProfileOption)
+#if !USE_SWIFT_IMAGE_DECODERS
     , m_decodedOffset(0)
+#else
+    , m_swift(makeUniqueWithoutFastMallocCheck<ICOImageDecoderState>(ICOImageDecoderState::init(m_premultiplyAlpha)))
+#endif
 {
 }
 
@@ -60,31 +75,43 @@ void ICOImageDecoder::setData(const FragmentedSharedBuffer& data, bool allDataRe
 
     ScalableImageDecoder::setData(data, allDataReceived);
 
+#if !USE_SWIFT_IMAGE_DECODERS
     for (auto& reader : m_bmpReaders) {
         if (reader)
             reader->setData(*m_data);
     }
+#endif
 
     for (size_t i = 0; i < m_pngDecoders.size(); ++i)
         setDataForPNGDecoderAtIndex(i);
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 IntSize ICOImageDecoder::size() const
 {
     return m_frameSize.isEmpty() ? ScalableImageDecoder::size() : m_frameSize;
 }
+#endif
 
 IntSize ICOImageDecoder::frameSizeAtIndex(size_t index, SubsamplingLevel) const
 {
+#if !USE_SWIFT_IMAGE_DECODERS
     return (index && (index < m_dirEntries.size())) ? m_dirEntries[index].m_size : size();
+#else
+    Locker locker { m_lock };
+    auto size = icoImageDecoderFrameSizeAtIndex(*m_swift, index, { this->size().width(), this->size().height() });
+    return { size.width, size.height };
+#endif
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 bool ICOImageDecoder::setSize(const IntSize& size)
 {
     // The size calculated inside the BMPImageReader had better match the one in
     // the icon directory.
     return m_frameSize.isEmpty() ? ScalableImageDecoder::setSize(size) : ((size == m_frameSize) || setFailed());
 }
+#endif
 
 size_t ICOImageDecoder::decodeIfNeededAndGetFrameCount() const
 {
@@ -103,12 +130,18 @@ ScalableImageDecoderFrame* ICOImageDecoder::frameBufferAtIndex(size_t index)
     auto* buffer = &m_frameBufferCache[index];
     if (!buffer->isComplete())
         decode(index, false, isAllDataReceived());
+#if USE_SWIFT_IMAGE_DECODERS
+    // The decode can resize m_frameBufferCache.
+    buffer = &m_frameBufferCache[index];
+#endif
     return buffer;
 }
 
 bool ICOImageDecoder::setFailed()
 {
+#if !USE_SWIFT_IMAGE_DECODERS
     m_bmpReaders.clear();
+#endif
     m_pngDecoders.clear();
     return ScalableImageDecoder::setFailed();
 }
@@ -118,9 +151,18 @@ std::optional<IntPoint> ICOImageDecoder::hotSpot() const
     // When unspecified, the default frame is always frame 0. This is consistent with
     // BitmapImage where currentFrame() starts at 0 and only increases when animation is
     // requested.
+#if !USE_SWIFT_IMAGE_DECODERS
     return hotSpotAtIndex(0);
+#else
+    Locker locker { m_lock };
+    auto hotSpot = icoImageDecoderHotSpot(*m_swift);
+    if (!hotSpot.hasValue)
+        return std::nullopt;
+    return IntPoint { hotSpot.x, hotSpot.y };
+#endif
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 std::optional<IntPoint> ICOImageDecoder::hotSpotAtIndex(size_t index) const
 {
     if (index >= m_dirEntries.size() || m_fileType != CURSOR)
@@ -128,6 +170,7 @@ std::optional<IntPoint> ICOImageDecoder::hotSpotAtIndex(size_t index) const
 
     return m_dirEntries[index].m_hotSpot;
 }
+#endif
 
 
 // static
@@ -144,17 +187,24 @@ void ICOImageDecoder::setDataForPNGDecoderAtIndex(size_t index)
     if (!m_pngDecoders[index])
         return;
 
+#if !USE_SWIFT_IMAGE_DECODERS
     const IconDirectoryEntry& dirEntry = m_dirEntries[index];
     // Copy out PNG data to a separate vector and send to the PNG decoder.
     // FIXME: Save this copy by making the PNG decoder able to take an
     // optional offset.
     auto pngData = SharedBuffer::create(m_data->span().subspan(dirEntry.m_imageOffset));
+#else
+    auto data = m_data ? m_data->span() : std::span<const uint8_t> { };
+    size_t imageOffset = m_pngImageOffsets[index];
+    auto pngData = SharedBuffer::create(imageOffset <= data.size() ? data.subspan(imageOffset) : std::span<const uint8_t> { });
+#endif
     m_pngDecoders[index]->setData(pngData.get(), isAllDataReceived());
 }
 
 void ICOImageDecoder::decode(size_t index, bool onlySize, bool allDataReceived)
 {
     assertIsHeld(m_lock);
+#if !USE_SWIFT_IMAGE_DECODERS
     if (failed())
         return;
 
@@ -175,8 +225,15 @@ void ICOImageDecoder::decode(size_t index, bool onlySize, bool allDataReceived)
     // CAUTION: We must not resize m_frameBufferCache again after this, as
     // decodeAtIndex() may give a BMPImageReader a pointer to one of the
     // entries.
+#else
+    ImageDecoderFramesState frames { *this, m_frameBufferCache };
+    frames.ico = this;
+    icoImageDecoderDecode(*m_swift, frames, m_data ? m_data->span() : std::span<const uint8_t> { }, index, onlySize, allDataReceived);
+    m_sortedDirEntries.clear();
+#endif
 }
 
+#if !USE_SWIFT_IMAGE_DECODERS
 bool ICOImageDecoder::decodeDirectory()
 {
     // Read and process directory.
@@ -331,5 +388,65 @@ ICOImageDecoder::ImageType ICOImageDecoder::imageTypeAtIndex(size_t index)
         return Unknown;
     return spanHasPrefix(m_data->span().subspan(imageOffset), unsafeMakeSpan("\x89PNG", 4)) ? PNG : BMP;
 }
+#else
+static ICOImageDecoder& icoImageDecoder(ScalableImageDecoderFrames& frames)
+{
+    auto* decoder = static_cast<ImageDecoderFramesState&>(frames).ico;
+    RELEASE_ASSERT(decoder);
+    return *decoder;
+}
+
+void ScalableImageDecoderFrames::setPNGDecoderCount(size_t count)
+{
+    auto& decoder = icoImageDecoder(*this);
+    decoder.m_pngDecoders.resize(count);
+    decoder.m_pngImageOffsets.resize(count);
+}
+
+void ScalableImageDecoderFrames::clearPNGDecoder(size_t index)
+{
+    icoImageDecoder(*this).m_pngDecoders[index] = nullptr;
+}
+
+bool ScalableImageDecoderFrames::decodePNGEntry(size_t index, uint32_t imageOffset, ImageDecoderSize entrySize)
+{
+    auto& decoder = icoImageDecoder(*this);
+    if (!decoder.m_pngDecoders[index]) {
+        decoder.m_pngDecoders[index] = PNGImageDecoder::create(decoder.m_premultiplyAlpha ? AlphaOption::Premultiplied : AlphaOption::NotPremultiplied, decoder.m_ignoreGammaAndColorProfile ? GammaAndColorProfileOption::Ignored : GammaAndColorProfileOption::Applied);
+        decoder.m_pngImageOffsets[index] = imageOffset;
+        decoder.setDataForPNGDecoderAtIndex(index);
+    }
+    Ref pngDecoder = *decoder.m_pngDecoders[index];
+    if (pngDecoder->encodedDataStatus() >= EncodedDataStatus::SizeAvailable && pngDecoder->size() != IntSize { entrySize.width, entrySize.height })
+        return setFailed();
+
+    auto* frameBuffer = static_cast<PNGImageDecoder&>(pngDecoder.get()).firstFrameBuffer();
+    if (!frameBuffer)
+        return false;
+
+    static_cast<ImageDecoderFramesState&>(*this).frames[index] = *frameBuffer;
+    return !pngDecoder->failed() || setFailed();
+}
+
+void ScalableImageDecoderFrames::appendDirectoryEntry(ImageDecoderSize size, uint16_t bitCount)
+{
+    RELEASE_ASSERT(size.width > 0 && size.width <= 256 && size.height > 0 && size.height <= 256);
+    auto& entries = icoImageDecoder(*this).m_sortedDirEntries;
+    entries.append({ ICOImageDecoder::IconDirectoryEntry { IntSize { size.width, size.height }, bitCount, IntPoint { }, 0 }, static_cast<uint32_t>(entries.size()) });
+}
+
+void ScalableImageDecoderFrames::sortDirectoryEntries()
+{
+    auto& entries = icoImageDecoder(*this).m_sortedDirEntries;
+    std::sort(entries.begin(), entries.end(), [](auto& a, auto& b) {
+        return ICOImageDecoder::compareEntries(a.first, b.first);
+    });
+}
+
+uint32_t ScalableImageDecoderFrames::sortedDirectoryEntryIndex(size_t index)
+{
+    return icoImageDecoder(*this).m_sortedDirEntries[index].second;
+}
+#endif
 
 }

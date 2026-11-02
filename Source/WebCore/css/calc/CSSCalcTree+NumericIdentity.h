@@ -30,6 +30,7 @@
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_CALC
 // `NumericIdentity` is used to assign a densely packed unique identifier for each possible numeric type allowed in a `calc()` expression. This allows the construction of fixed size (specifically sized to `numberOfNumericIdentityTypes`) lookup tables needed in expression simplification.
 
 enum class NumericIdentity : uint8_t {
@@ -286,6 +287,7 @@ constexpr bool isLength(NumericIdentity id)
 
     return false;
 }
+#endif
 
 } // namespace CSSCalc
 } // namespace WebCore

@@ -28,6 +28,15 @@
 #include "CSSPrimitiveNumericRange.h"
 #include "CSSToLengthConversionData.h"
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "CSSCalcSwiftTypes.h"
+#include <wtf/ForbidHeapAllocation.h>
+#endif
+
 namespace WebCore {
 
 namespace CSS {
@@ -39,6 +48,7 @@ namespace CSSCalc {
 struct Child;
 struct Tree;
 
+#if !USE_SWIFT_CSS_CALC
 struct Abs;
 struct Acos;
 struct Anchor;
@@ -80,6 +90,7 @@ struct Sqrt;
 struct Sum;
 struct Symbol;
 struct Tan;
+#endif
 
 // https://drafts.csswg.org/css-values-4/#calc-simplification
 
@@ -108,8 +119,11 @@ bool canSimplify(const Tree&, const SimplificationOptions&);
 // MARK: Copy & Simplify
 
 Tree copyAndSimplify(const Tree&, const SimplificationOptions&);
+#if !USE_SWIFT_CSS_CALC
 Child copyAndSimplify(const Child&, const SimplificationOptions&);
+#endif
 
+#if !USE_SWIFT_CSS_CALC
 // MARK: In-place Simplify
 
 std::optional<Child> LEGACY_NODELETE simplify(Number&, const SimplificationOptions&);
@@ -157,6 +171,42 @@ std::optional<Child> simplify(AnchorSize&, const SimplificationOptions&);
 // MARK: Unit Canonicalization
 
 std::optional<CanonicalDimension> canonicalize(NonCanonicalDimension, const std::optional<CSSToLengthConversionData>&);
+#endif
+
+#if USE_SWIFT_CSS_CALC
+struct TreeStorage;
+
+// The state behind CSSCalcSwiftResolver: what simplification and evaluation read besides the tree, whose payloads
+// are those of `storage`.
+class SwiftResolverState final : public CSSCalcSwiftResolver {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    SwiftResolverState(const std::optional<CSSToLengthConversionData>& conversionData, const CSSCalcSymbolTable& symbolTable, const TreeStorage& storage)
+        : conversionData(conversionData)
+        , symbolTable(symbolTable)
+        , storage(storage)
+    {
+    }
+
+    const std::optional<CSSToLengthConversionData>& conversionData;
+    const CSSCalcSymbolTable& symbolTable;
+    const TreeStorage& storage;
+};
+
+// The state behind CSSCalcSwiftOutput: the tree it writes.
+class SwiftOutputState final : public CSSCalcSwiftOutput {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    explicit SwiftOutputState(TreeStorage& storage)
+        : storage(storage)
+    {
+    }
+
+    TreeStorage& storage;
+};
+
+CSSCalcSwiftSimplificationOptions swiftSimplificationOptions(const SimplificationOptions&);
+#endif
 
 } // namespace CSSCalc
 } // namespace WebCore

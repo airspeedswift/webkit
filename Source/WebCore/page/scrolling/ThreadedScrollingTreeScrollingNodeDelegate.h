@@ -40,8 +40,16 @@ class IntPoint;
 class ScrollingStateScrollingNode;
 class ScrollingTreeScrollingNode;
 class ScrollingTree;
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+class ScrollingTreeScrollPhysicsClient;
+struct ScrollingTreeScrollPhysicsDelegateHolder;
+#endif
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+class ThreadedScrollingTreeScrollingNodeDelegate : public ScrollingTreeScrollingNodeDelegate {
+#else
 class ThreadedScrollingTreeScrollingNodeDelegate : public ScrollingTreeScrollingNodeDelegate, private ScrollingEffectsControllerClient {
+#endif
     WTF_MAKE_TZONE_ALLOCATED(ThreadedScrollingTreeScrollingNodeDelegate);
 public:
     void updateSnapScrollState();
@@ -54,7 +62,9 @@ protected:
     explicit ThreadedScrollingTreeScrollingNodeDelegate(ScrollingTreeScrollingNode&);
     virtual ~ThreadedScrollingTreeScrollingNodeDelegate();
 
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
     void updateUserScrollInProgressForEvent(const PlatformWheelEvent&);
+#endif
 
     void updateFromStateNode(const ScrollingStateScrollingNode&) override;
 
@@ -63,6 +73,10 @@ protected:
     void stopSpringAnimation() override;
     void serviceScrollAnimation(MonotonicTime) override;
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&);
+    void destroyTimer(std::unique_ptr<ScrollingEffectsControllerTimer>);
+#else
     // ScrollingEffectsControllerClient.
     std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&) override;
     void destroyTimer(std::unique_ptr<ScrollingEffectsControllerTimer>) override;
@@ -93,12 +107,24 @@ protected:
     void removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) const override;
 
     ScrollingNodeID scrollingNodeIDForTesting() const final;
+#endif
 
     FloatPoint adjustedScrollPosition(const FloatPoint&) const override;
 
     void handleKeyboardScrollRequest(const RequestedKeyboardScrollData&) override;
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    void discreteSnapTransitionTimerFired();
+
+    friend class ScrollingTreeScrollPhysicsClient;
+    template<typename> friend class ScrollSnapPhysicsClient;
+    std::unique_ptr<ScrollingTreeScrollPhysicsDelegateHolder> m_physics;
+    std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
+#else
     ScrollingEffectsController m_scrollController;
+#endif
 };
 
 } // namespace WebCore

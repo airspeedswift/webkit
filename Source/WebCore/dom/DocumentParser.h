@@ -49,16 +49,16 @@ public:
     virtual bool LEGACY_NODELETE hasInsertionPoint() { return true; }
 
     // insert is used by document.write.
-    virtual void insert(SegmentedString&&) = 0;
+    SWIFT_UNSAFE virtual void insert(SegmentedString&&) = 0;
 
     // appendBytes and flush are used by DocumentWriter (the loader).
     virtual void appendBytes(DocumentWriter&, std::span<const uint8_t>) = 0;
     virtual void flush(DocumentWriter&) = 0;
 
-    virtual void append(RefPtr<StringImpl>&&) = 0;
-    virtual void appendSynchronously(RefPtr<StringImpl>&& inputSource) { append(WTF::move(inputSource)); }
+    SWIFT_UNSAFE virtual void append(RefPtr<StringImpl>&&) = 0;
+    SWIFT_UNSAFE virtual void appendSynchronously(RefPtr<StringImpl>&& inputSource) { append(WTF::move(inputSource)); }
 
-    virtual void finish() = 0;
+    SWIFT_UNSAFE virtual void finish() = 0;
 
     // FIXME: processingData() is only used by DocumentLoader::isLoadingInAPISense
     // and is very unclear as to what it actually means.  The LegacyHTMLDocumentParser
@@ -74,7 +74,7 @@ public:
     bool isDetached() const { return m_state == ParserState::Detached; }
 
     // FIXME: Is this necessary? Does XMLDocumentParserLibxml2 really need to set this?
-    virtual void LEGACY_NODELETE startParsing();
+    SWIFT_UNSAFE virtual void LEGACY_NODELETE startParsing();
 
     // prepareToStop() is used when the EOF token is encountered and parsing is to be
     // stopped normally.
@@ -91,7 +91,7 @@ public:
     // callstacks, but not produce any more nodes.
     // It is impossible for the parser to touch the rest of WebCore after
     // detach is called.
-    virtual void detach();
+    SWIFT_UNSAFE virtual void detach();
 
     void setDocumentWasLoadedAsPartOfNavigation() { m_documentWasLoadedAsPartOfNavigation = true; }
     bool documentWasLoadedAsPartOfNavigation() const { return m_documentWasLoadedAsPartOfNavigation; }
