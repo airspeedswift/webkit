@@ -44,6 +44,12 @@
 #import <WebKitAdditions/ScrollingEffectsControllerAdditions.mm>
 #endif
 
+#if USE_SWIFT_DEAD_CODE_SWEEP
+#if !USE_SWIFT_SCROLL_PHYSICS
+#error "USE_SWIFT_DEAD_CODE_SWEEP requires USE_SWIFT_SCROLL_PHYSICS"
+#endif
+#endif
+
 #if PLATFORM(MAC)
 
 namespace WebCore {
@@ -156,12 +162,15 @@ static std::optional<BoxSide> LEGACY_NODELETE affectedSideOnDominantAxis(FloatSi
 #endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
+// Only code under !USE_SWIFT_SCROLL_PHYSICS calls this.
+#if !USE_SWIFT_DEAD_CODE_SWEEP
 static FloatSize hyperbolicReboundDeltaForElasticDelta(IntSize stretchAmount, float rubberbandHyperbolicCoefficient, FloatSize viewportSize)
 {
     const auto width = _NSHyperbolicReboundDeltaForElasticDelta(stretchAmount.width(), rubberbandHyperbolicCoefficient, viewportSize.width());
     const auto height = _NSHyperbolicReboundDeltaForElasticDelta(stretchAmount.height(), rubberbandHyperbolicCoefficient, viewportSize.height());
     return { static_cast<float>(width), static_cast<float>(height) };
 }
+#endif
 #endif
 
 #if !USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
@@ -426,6 +435,8 @@ bool ScrollingEffectsController::modifyScrollDeltaForStretching(const PlatformWh
 #endif
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
+// Only computeDampedStretchDelta() calls this.
+#if !USE_SWIFT_DEAD_CODE_SWEEP
 float ScrollingEffectsController::deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch)
 {
     // This logic mirrors AppKit. We layer the refresh-control reveal on top of the general vertical curve.
@@ -466,6 +477,7 @@ float ScrollingEffectsController::deltaAdjustedForRefreshController(float genera
     m_stretchScrollForce.setHeight(_NSHyperbolicReboundDeltaForElasticDelta(signedNewStretch, m_rubberbandHyperbolicCoefficient, viewportHeight));
     return signedNewStretch - verticalStretch;
 }
+#endif
 #else
 #if !USE_SWIFT_SCROLL_PHYSICS
 FloatSize ScrollingEffectsController::deltaAdjustedForRefreshController(const FloatSize& delta, bool verticalDeltaOpposesStretch)
@@ -517,6 +529,8 @@ FloatSize ScrollingEffectsController::deltaAdjustedForRefreshController(const Fl
 
 #if HAVE(APPKIT_GESTURES_SUPPORT)
 
+// Only code under !USE_SWIFT_SCROLL_PHYSICS calls this.
+#if !USE_SWIFT_DEAD_CODE_SWEEP
 FloatSize ScrollingEffectsController::computeDampedStretchDelta(FloatSize delta, bool horizontalDeltaOpposesStretch, bool verticalDeltaOpposesStretch)
 {
     // This logic mirrors AppKit.
@@ -557,6 +571,7 @@ FloatSize ScrollingEffectsController::computeDampedStretchDelta(FloatSize delta,
 
     return { dampedWidth, dampedHeight };
 }
+#endif
 
 #endif
 

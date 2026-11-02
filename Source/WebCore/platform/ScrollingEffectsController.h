@@ -42,6 +42,10 @@
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMalloc.h>
 
+#if !defined(USE_SWIFT_DEAD_CODE_SWEEP)
+#define USE_SWIFT_DEAD_CODE_SWEEP 0
+#endif
+
 namespace WebCore {
 
 class KeyboardScrollingAnimator;
@@ -252,8 +256,11 @@ public:
     bool LEGACY_NODELETE shouldAttemptRubberbandingRestoration(const RubberbandingState&);
 #endif
 #if HAVE(APPKIT_GESTURES_SUPPORT)
+    // Only code under !USE_SWIFT_SCROLL_PHYSICS calls these.
+#if !USE_SWIFT_DEAD_CODE_SWEEP
     FloatSize LEGACY_NODELETE computeDampedStretchDelta(FloatSize delta, bool horizontalDeltaOpposesStretch, bool verticalDeltaOpposesStretch);
     float LEGACY_NODELETE deltaAdjustedForRefreshController(float generalDampedHeight, float verticalDelta, float verticalStretch, bool verticalDeltaOpposesStretch);
+#endif
 
     float rubberbandHyperbolicCoefficientForTesting() const { return m_rubberbandHyperbolicCoefficient; }
 #else
