@@ -35,6 +35,12 @@
 #include <WebCore/Scrollbar.h>
 #include <WebCore/ScrollbarsController.h>
 #endif
+#if USE_SWIFT_SCROLL_VIEW
+#include <WebCore/BoxSides.h>
+#include <WebCore/CornerRadii.h>
+#include <WebCore/HostWindow.h>
+#include <WebCore/ScrollView.h>
+#endif
 #include <wtf/ForbidHeapAllocation.h>
 
 namespace WebCore {
@@ -278,6 +284,112 @@ public:
     void animatorSetCurrentPosition(FloatPoint position) { animator().setCurrentPosition(position); }
     void animatorResnapAfterLayout() { animator().resnapAfterLayout(); }
     float animatorScrollOffsetAdjustedForSnapping(ScrollEventAxis axis, FloatPoint offset, ScrollSnapPointSelectionMethod method) { return constAnimator().scrollOffsetAdjustedForSnapping(axis, offset, method); }
+
+#if USE_SWIFT_SCROLL_VIEW
+    // ScrollView's state, for its members in Swift. Each member reads the view again, and traps if it is gone or the
+    // State was not made from a ScrollView.
+    ScrollbarMode scrollbarModeValue(ScrollbarOrientation orientation) { auto& view = scrollView(); return orientation == ScrollbarOrientation::Horizontal ? view.m_horizontalScrollbarMode : view.m_verticalScrollbarMode; }
+    void setScrollbarModeValue(ScrollbarOrientation orientation, ScrollbarMode mode) { auto& view = scrollView(); (orientation == ScrollbarOrientation::Horizontal ? view.m_horizontalScrollbarMode : view.m_verticalScrollbarMode) = mode; }
+    void setScrollbarLock(ScrollbarOrientation orientation) { auto& view = scrollView(); orientation == ScrollbarOrientation::Horizontal ? view.setHorizontalScrollbarLock() : view.setVerticalScrollbarLock(); }
+    bool scrollbarsSuppressed() { return scrollView().m_scrollbarsSuppressed; }
+    void setScrollbarsSuppressedValue(bool suppressed) { scrollView().m_scrollbarsSuppressed = suppressed; }
+    ALWAYS_INLINE unsigned updateScrollbarsPass() { return scrollView().m_updateScrollbarsPass; }
+    ALWAYS_INLINE void setUpdateScrollbarsPass(unsigned pass) { scrollView().m_updateScrollbarsPass = pass; }
+    IntPoint scrollPositionValue() { return scrollView().m_scrollPosition; }
+    void setScrollPositionValue(IntPoint position) { scrollView().m_scrollPosition = position; }
+    bool hasDeferredScrollDelta() { return !!scrollView().m_deferredScrollDelta; }
+    IntSize deferredScrollDelta() { auto& delta = scrollView().m_deferredScrollDelta; RELEASE_ASSERT(delta); return *delta; }
+    void setDeferredScrollDelta(IntSize delta) { scrollView().m_deferredScrollDelta = delta; }
+    void clearDeferredScrollDelta() { scrollView().m_deferredScrollDelta = std::nullopt; }
+    bool hasDeferredScrollOffsets() { return !!scrollView().m_deferredScrollOffsets; }
+    IntPoint deferredScrollOldOffset() { auto& offsets = scrollView().m_deferredScrollOffsets; RELEASE_ASSERT(offsets); return offsets->first; }
+    IntPoint deferredScrollNewOffset() { auto& offsets = scrollView().m_deferredScrollOffsets; RELEASE_ASSERT(offsets); return offsets->second; }
+    void setDeferredScrollOffsets(IntPoint oldOffset, IntPoint newOffset) { scrollView().m_deferredScrollOffsets = std::make_pair(oldOffset, newOffset); }
+    void clearDeferredScrollOffsets() { scrollView().m_deferredScrollOffsets = std::nullopt; }
+    bool hasDelegatedScrollingGeometry() { return !!scrollView().m_delegatedScrollingGeometry; }
+    FloatRect delegatedExposedViewRect() { auto& geometry = scrollView().m_delegatedScrollingGeometry; RELEASE_ASSERT(geometry); return geometry->exposedViewRect.raw(); }
+    void setDelegatedExposedViewRect(FloatRect rect) { auto& geometry = scrollView().m_delegatedScrollingGeometry; RELEASE_ASSERT(geometry); geometry->exposedViewRect = inViewSpace(rect); }
+    bool drawPanScrollIcon() { return scrollView().m_drawPanScrollIcon; }
+    IntPoint panScrollIconPoint() { return scrollView().m_panScrollIconPoint; }
+
+    // updateScrollbars()'s re-entry guard.
+    bool inUpdateScrollbars() { return scrollView().m_inUpdateScrollbars; }
+    void setInUpdateScrollbars(bool value) { scrollView().m_inUpdateScrollbars = value; }
+
+    // The view's scrollbar members, read again on each call, as the C++ does. Swift is not handed a Scrollbar.
+    bool hasViewScrollbar(ScrollbarOrientation orientation) { return !!memberScrollbar(orientation); }
+    ALWAYS_INLINE bool protectViewScrollbar(ScrollbarOrientation orientation) { auto& bar = protectedScrollbar(orientation); bar = memberScrollbar(orientation); return !!bar; }
+    void createScrollbarInto(ScrollbarOrientation orientation) { Ref scrollbar = scrollView().createScrollbar(orientation); memberScrollbar(orientation) = WTF::move(scrollbar); }
+    void addScrollbarChild(ScrollbarOrientation orientation) { Ref scrollbar = existingMemberScrollbar(orientation); scrollView().addChild(scrollbar); }
+    void didAddScrollbar(ScrollbarOrientation orientation) { Ref scrollbar = existingMemberScrollbar(orientation); scrollView().didAddScrollbar(scrollbar.ptr(), orientation); }
+    void willRemoveScrollbar(ScrollbarOrientation orientation) { Ref scrollbar = existingMemberScrollbar(orientation); scrollView().willRemoveScrollbar(scrollbar, orientation); }
+    void removeScrollbarChild(ScrollbarOrientation orientation) { Ref scrollbar = existingMemberScrollbar(orientation); scrollView().removeChild(scrollbar); }
+    void clearScrollbar(ScrollbarOrientation orientation) { memberScrollbar(orientation) = nullptr; }
+    int protectedScrollbarOccupiedWidth(ScrollbarOrientation orientation) { return existingProtectedScrollbar(orientation).occupiedWidth(); }
+    int protectedScrollbarOccupiedHeight(ScrollbarOrientation orientation) { return existingProtectedScrollbar(orientation).occupiedHeight(); }
+    IntRect protectedScrollbarFrameRect(ScrollbarOrientation orientation) { return existingProtectedScrollbar(orientation).frameRect(); }
+    void protectedScrollbarSetFrameRect(ScrollbarOrientation orientation, IntRect rect) { existingProtectedScrollbar(orientation).setFrameRect(rect); }
+    int protectedScrollbarHeight(ScrollbarOrientation orientation) { return existingProtectedScrollbar(orientation).height(); }
+    bool protectedScrollbarIsCustom(ScrollbarOrientation orientation) { return existingProtectedScrollbar(orientation).isCustomScrollbar(); }
+    void protectedScrollbarSetSuppressInvalidation(ScrollbarOrientation orientation, bool suppress) { existingProtectedScrollbar(orientation).setSuppressInvalidation(suppress); }
+    void protectedScrollbarSetEnabled(ScrollbarOrientation orientation, bool enabled) { existingProtectedScrollbar(orientation).setEnabled(enabled); }
+    void protectedScrollbarSetProportion(ScrollbarOrientation orientation, int visibleSize, int totalSize) { existingProtectedScrollbar(orientation).setProportion(visibleSize, totalSize); }
+    void protectedScrollbarSetSteps(ScrollbarOrientation orientation, int lineStep, int pageStep) { existingProtectedScrollbar(orientation).setSteps(lineStep, pageStep); }
+    void protectedScrollbarStyleChanged(ScrollbarOrientation orientation) { existingProtectedScrollbar(orientation).styleChanged(); }
+    static int pixelsPerLineStep(int widthOrHeight) { return Scrollbar::pixelsPerLineStep(widthOrHeight); }
+    static int pageStep(int widthOrHeight) { return Scrollbar::pageStep(widthOrHeight); }
+    // CornerRadii's corners, which Swift reads only through a pointer.
+    static FloatSize cornerRadius(const CornerRadii& radii, BoxCorner corner) { return corner == BoxCorner::TopLeft ? radii.topLeft() : corner == BoxCorner::TopRight ? radii.topRight() : corner == BoxCorner::BottomLeft ? radii.bottomLeft() : radii.bottomRight(); }
+
+    // ScrollView's members, virtual ones included, so that LocalFrameView's overrides run.
+    bool prohibitsScrolling() { return scrollView().prohibitsScrolling(); }
+    // Out of line: platformWidget() returns an Objective-C object.
+    bool hasPlatformWidget();
+    void platformSetScrollbarModes() { scrollView().platformSetScrollbarModes(); }
+    void platformSetScrollbarsSuppressed(bool repaintOnUnsuppress) { scrollView().platformSetScrollbarsSuppressed(repaintOnUnsuppress); }
+    void platformSetScrollPosition(IntPoint position) { scrollView().platformSetScrollPosition(position); }
+    void platformSetScrollOrigin(IntPoint origin, bool updatePositionAtAll, bool updatePositionSynchronously) { scrollView().platformSetScrollOrigin(origin, updatePositionAtAll, updatePositionSynchronously); }
+    void scrollbarModesDidChange() { scrollView().scrollbarModesDidChange(); }
+    bool isRubberBandInProgress() { return scrollView().isRubberBandInProgress(); }
+    IntPoint adjustScrollPositionWithinRange(IntPoint position) { return scrollView().adjustScrollPositionWithinRange(position); }
+    void scrollToPositionWithoutAnimation(FloatPoint position) { scrollView().ScrollableArea::scrollToPositionWithoutAnimation(position); }
+    void resetScrollOriginChanged() { scrollView().resetScrollOriginChanged(); }
+    void setAreaScrollOrigin(IntPoint origin) { scrollView().ScrollableArea::setScrollOrigin(origin); }
+    bool canShowNonOverlayScrollbars() { return scrollView().canShowNonOverlayScrollbars(); }
+    void updateContentsSize() { scrollView().updateContentsSize(); }
+    void availableContentSizeChangedByScrollbars() { scrollView().availableContentSizeChanged(ScrollableArea::AvailableSizeChangeReason::ScrollbarsChanged); }
+    void addedOrRemovedScrollbar() { scrollView().addedOrRemovedScrollbar(); }
+    IntRect unobscuredContentRectIncludingScrollbars() { return scrollView().unobscuredContentRectIncludingScrollbars(); }
+    IntSize contentsSize() { return scrollView().contentsSize(); }
+    FloatBoxExtent obscuredContentInsets() { return scrollView().obscuredContentInsets(); }
+    CornerRadii scrollbarAvoidanceCornerRadii() { return scrollView().scrollbarAvoidanceCornerRadii(); }
+    bool shouldPlaceVerticalScrollbarOnLeft() { return scrollView().shouldPlaceVerticalScrollbarOnLeft(); }
+    IntRect frameRect() { return scrollView().frameRect(); }
+    bool hasOverlayScrollbars() { return scrollView().hasOverlayScrollbars(); }
+    void positionScrollbarLayers() { scrollView().positionScrollbarLayers(); }
+    void frameRectsChanged() { scrollView().frameRectsChanged(); }
+    void updateScrollCorner() { scrollView().updateScrollCorner(); }
+    void invalidateRect(IntRect rect) { scrollView().invalidateRect(rect); }
+    void updateLayerPositionsAfterScrolling() { scrollView().updateLayerPositionsAfterScrolling(); }
+    void updateCompositingLayersAfterScrolling() { scrollView().updateCompositingLayersAfterScrolling(); }
+    bool shouldDeferScrollUpdateAfterContentSizeChange() { return scrollView().shouldDeferScrollUpdateAfterContentSizeChange(); }
+    void scrollOffsetChangedViaPlatformWidgetImpl(IntPoint oldOffset, IntPoint newOffset) { scrollView().scrollOffsetChangedViaPlatformWidgetImpl(oldOffset, newOffset); }
+    void stopAsyncAnimatedScroll() { scrollView().stopAsyncAnimatedScroll(); }
+    bool delegatesScrollingToNativeView() { return scrollView().delegatesScrollingToNativeView(); }
+    ALWAYS_INLINE void updateScrollbarSteps() { scrollView().updateScrollbarSteps(); }
+    bool canBlitOnScroll() { return scrollView().canBlitOnScroll(); }
+    IntRect windowClipRect() { return scrollView().windowClipRect(); }
+    bool scrollContentsFastPath(IntSize scrollDelta, IntRect rectToScroll, IntRect clipRect) { return scrollView().scrollContentsFastPath(scrollDelta, rectToScroll, clipRect); }
+    void scrollContentsSlowPath(IntRect updateRect) { scrollView().scrollContentsSlowPath(updateRect); }
+    IntRect convertToRootView(IntRect rect) { return scrollView().convertToRootView(rect); }
+    bool requestScrollViewScrollToPosition(IntPoint position, ScrollType type, ScrollClamping clamping, ScrollIsAnimated animated, ScrollSnapPointSelectionMethod method, bool hasOriginalScrollDelta, FloatSize originalScrollDelta, ScrollInterruptsAnimation interruptsAnimation, ScrollAnimationCurve curve) { return scrollView().requestScrollToPosition(position, { type, clamping, animated, method, hasOriginalScrollDelta ? std::optional { originalScrollDelta } : std::nullopt, interruptsAnimation, curve }); }
+
+    // Whether the view has a host window. Each host window call reads it again, since code run in between can
+    // change it. Swift is not handed it.
+    bool hasHostWindow() { return !!scrollView().hostWindow(); }
+    void hostWindowInvalidateRootView(IntRect rect) { existingHostWindow().invalidateRootView(rect); }
+    void hostWindowInvalidateContentsAndRootView(IntRect rect) { existingHostWindow().invalidateContentsAndRootView(rect); }
+#endif
 #endif
 
 protected:
@@ -300,6 +412,12 @@ private:
     // Out of line, so that animator() and constAnimator() inline.
     NEVER_INLINE void createAnimator(ScrollableArea&);
     Scrollbar& existingProtectedScrollbar(ScrollbarOrientation orientation) { auto& bar = protectedScrollbar(orientation); RELEASE_ASSERT(bar); return *bar; }
+#if USE_SWIFT_SCROLL_VIEW
+    ScrollView& scrollView();
+    RefPtr<Scrollbar>& memberScrollbar(ScrollbarOrientation orientation) { auto& view = scrollView(); return orientation == ScrollbarOrientation::Horizontal ? view.m_horizontalScrollbar : view.m_verticalScrollbar; }
+    Scrollbar& existingMemberScrollbar(ScrollbarOrientation orientation) { auto& bar = memberScrollbar(orientation); RELEASE_ASSERT(bar); return *bar; }
+    HostWindow& existingHostWindow() { auto* hostWindow = scrollView().hostWindow(); RELEASE_ASSERT(hostWindow); return *hostWindow; }
+#endif
 #endif
     Scrollbar* scrollbar(ScrollbarOrientation orientation) { return orientation == ScrollbarOrientation::Horizontal ? area().horizontalScrollbar() : area().verticalScrollbar(); }
     Scrollbar& existingScrollbar(ScrollbarOrientation orientation) { auto* bar = scrollbar(orientation); RELEASE_ASSERT(bar); return *bar; }
@@ -358,6 +476,14 @@ public:
         , m_liveArea(area)
     {
     }
+
+#if USE_SWIFT_SCROLL_VIEW
+    // For ScrollView's members.
+    explicit ScrollAnimatorScrollPhysicsClientState(ScrollView& view) : ScrollAnimatorScrollPhysicsClientState(static_cast<ScrollableArea&>(view)) { m_isScrollView = true; }
+
+    // Traps if the view was destroyed during the call, before the CheckedRef is released.
+    ~ScrollAnimatorScrollPhysicsClientState() { RELEASE_ASSERT(m_liveArea.ptrAllowingHashTableEmptyValue()); }
+#endif
 #endif
 
     ScrollAnimatorScrollPhysicsClient& facade() LIFETIME_BOUND { return *this; }
@@ -387,6 +513,9 @@ private:
     RefPtr<Scrollbar> m_verticalScrollbar;
     // The address of the animator's snap offsets, fixed while the animator lives.
     const LayoutScrollSnapOffsetsInfo* m_snapOffsetsInfo { nullptr };
+#if USE_SWIFT_SCROLL_VIEW
+    bool m_isScrollView { false };
+#endif
 #endif
 };
 
@@ -444,6 +573,16 @@ inline RefPtr<Scrollbar>& ScrollAnimatorScrollPhysicsClient::protectedScrollbar(
     auto& state = static_cast<ScrollAnimatorScrollPhysicsClientState&>(*this);
     return orientation == ScrollbarOrientation::Horizontal ? state.m_horizontalScrollbar : state.m_verticalScrollbar;
 }
+
+#if USE_SWIFT_SCROLL_VIEW
+inline ScrollView& ScrollAnimatorScrollPhysicsClient::scrollView()
+{
+    auto& state = static_cast<ScrollAnimatorScrollPhysicsClientState&>(*this);
+    auto& area = state.m_liveArea.get();
+    RELEASE_ASSERT(state.m_isScrollView);
+    return uncheckedDowncast<ScrollView>(area);
+}
+#endif
 #endif
 
 } // namespace WebCore
