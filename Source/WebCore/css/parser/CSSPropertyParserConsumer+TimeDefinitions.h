@@ -30,6 +30,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_2
 struct TimeValidator {
     static constexpr std::optional<CSS::TimeUnit> validate(CSSUnitType unitType, CSS::PropertyParserState&, CSSPropertyParserOptions)
     {
@@ -44,6 +45,12 @@ struct TimeValidator {
         });
     }
 };
+#else
+// cssConsumeNumericSwift validates <time> tokens, so TimeValidator is only declared.
+struct TimeValidator;
+
+template<typename Primitive> struct DimensionConsumer<Primitive, TimeValidator> : SwiftNumericConsumer<Primitive, DimensionToken> { };
+#endif
 
 template<auto R, typename V> struct ConsumerDefinition<CSS::Time<R, V>> {
     using FunctionToken = FunctionConsumerForCalcValues<CSS::Time<R, V>>;
