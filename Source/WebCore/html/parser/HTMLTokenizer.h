@@ -42,6 +42,16 @@
 #define USE_SWIFT_HTML_TREE_BUILDER 0
 #endif
 
+#if !defined(USE_SWIFT_DEAD_CODE_SWEEP)
+#define USE_SWIFT_DEAD_CODE_SWEEP 0
+#endif
+
+#if USE_SWIFT_DEAD_CODE_SWEEP
+#if !USE_SWIFT_HTML_TOKENIZER
+#error "USE_SWIFT_DEAD_CODE_SWEEP requires USE_SWIFT_HTML_TOKENIZER"
+#endif
+#endif
+
 #if USE_SWIFT_HTML_TOKENIZER
 #include <wtf/SwiftBridging.h>
 #endif
@@ -121,7 +131,10 @@ public:
 
     void setForceNullCharacterReplacement(bool);
 
+    // Only code under !USE_SWIFT_HTML_TOKENIZER calls this.
+#if !USE_SWIFT_DEAD_CODE_SWEEP
     bool shouldAllowCDATA() const;
+#endif
     void setShouldAllowCDATA(bool);
 
     bool isInDataState() const;
@@ -414,10 +427,13 @@ inline void HTMLTokenizer::setForceNullCharacterReplacement(bool value)
     m_forceNullCharacterReplacement = value;
 }
 
+// Only code under !USE_SWIFT_HTML_TOKENIZER calls this.
+#if !USE_SWIFT_DEAD_CODE_SWEEP
 inline bool HTMLTokenizer::shouldAllowCDATA() const
 {
     return m_shouldAllowCDATA;
 }
+#endif
 
 inline void HTMLTokenizer::setShouldAllowCDATA(bool value)
 {

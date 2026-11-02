@@ -33,6 +33,19 @@
 #include <WebCore/ScrollbarMode.h>
 #include <WebCore/ScrollingNodeID.h>
 
+#if !defined(USE_SWIFT_DEAD_CODE_SWEEP)
+#define USE_SWIFT_DEAD_CODE_SWEEP 0
+#endif
+
+#if USE_SWIFT_DEAD_CODE_SWEEP
+#if !USE_SWIFT_SCROLL_ANIMATOR
+#error "USE_SWIFT_DEAD_CODE_SWEEP requires USE_SWIFT_SCROLL_ANIMATOR"
+#endif
+#if !USE_SWIFT_SCROLL_PHYSICS
+#error "USE_SWIFT_DEAD_CODE_SWEEP requires USE_SWIFT_SCROLL_PHYSICS"
+#endif
+#endif
+
 namespace WTF {
 class TextStream;
 }
@@ -220,6 +233,8 @@ inline float valueForAxis(FloatSize size, ScrollEventAxis axis)
     return 0;
 }
 
+// Only code under !USE_SWIFT_SCROLL_ANIMATOR or !USE_SWIFT_SCROLL_PHYSICS calls these.
+#if !USE_SWIFT_DEAD_CODE_SWEEP
 inline FloatSize setValueForAxis(FloatSize size, ScrollEventAxis axis, float value)
 {
     switch (axis) {
@@ -257,6 +272,7 @@ inline FloatPoint setValueForAxis(FloatPoint point, ScrollEventAxis axis, float 
     ASSERT_NOT_REACHED();
     return point;
 }
+#endif
 
 inline BoxSide boxSideForDirection(ScrollDirection direction)
 {
