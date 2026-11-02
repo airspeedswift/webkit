@@ -926,7 +926,7 @@ final class ScrollSnapAnimationState {
 
 // LayoutUnit's operator-: saturatingDifference<int32_t>().
 @inline(always)
-private func layoutUnitDifference(_ a: Int32, _ b: Int32) -> Int32 {
+func layoutUnitDifference(_ a: Int32, _ b: Int32) -> Int32 {
     let (difference, overflow) = a.subtractingReportingOverflow(b)
     if overflow {
         return a < 0 ? .min : .max
@@ -993,7 +993,7 @@ private func snapAreaForOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
 }
 
 // ScrollSnapOffsetsInfo::snapOffsetCoversSnapport().
-private func snapOffsetCoversSnapport<C: ScrollPhysicsClientProtocol & ~Copyable>(
+func snapOffsetCoversSnapport<C: ScrollPhysicsClientProtocol & ~Copyable>(
     _ c: inout C,
     _ axis: WebCore.ScrollEventAxis,
     _ index: UInt32,
