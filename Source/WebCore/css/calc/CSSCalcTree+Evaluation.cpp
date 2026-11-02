@@ -39,9 +39,18 @@
 #include "StyleCustomIdent.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_CALC
 static auto evaluate(const CSS::Keyword::None&, const EvaluationOptions&) -> std::optional<CSS::Keyword::None>;
 static auto evaluate(const ChildOrNone&, const EvaluationOptions&) -> std::optional<Variant<double, CSS::Keyword::None>>;
 static auto evaluate(const std::optional<Child>&, const EvaluationOptions&) -> std::optional<std::optional<double>>;
@@ -234,6 +243,7 @@ std::optional<double> evaluate(const IndirectNode<Tan>& root, const EvaluationOp
 {
     return evaluateTrig(root, options);
 }
+#endif
 
 std::optional<double> resolveRandomBaseValue(const Random::Sharing& sharing, Style::BuilderState& builderState)
 {
@@ -264,6 +274,7 @@ std::optional<double> resolveRandomBaseValue(const Random::Sharing& sharing, Sty
     );
 }
 
+#if !USE_SWIFT_CSS_CALC
 std::optional<double> evaluate(const IndirectNode<Random>& root, const EvaluationOptions& options)
 {
     if (!options.conversionData || !options.conversionData->styleBuilderState())
@@ -407,6 +418,18 @@ std::optional<double> evaluateWithoutFallback(const Anchor& anchor, const Evalua
 
     return Style::AnchorPositionEvaluator::evaluate(*builderState, anchorScopedName, side);
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+std::optional<double> evaluateDouble(const Tree& tree, const EvaluationOptions& options)
+{
+    SwiftResolverState resolver { options.conversionData, options.symbolTable, tree.storage };
+    auto result = cssCalcEvaluate(tree.storage.nodes.span(), resolver, options.conversionData.has_value());
+    if (!result.ok)
+        return std::nullopt;
+    return result.value;
+}
+#endif
 
 } // namespace CSSCalc
 } // namespace WebCore

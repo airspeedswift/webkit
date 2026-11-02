@@ -3301,6 +3301,52 @@ list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/NodeName.cpp)
 GENERATE_DOM_NAME_ENUM(Namespace)
 list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/Namespace.cpp)
 
+# Set by WK_USE_SWIFT_HTML_FAST_PATH. HTMLDocumentParserFastPath.cpp then includes WebCore-Swift.h, so it
+# compiles in WebCore_SwiftInterop, after WebCore's Swift module.
+if (WK_USE_SWIFT_HTML_FAST_PATH)
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)HTMLDocumentParserFastPath\\.cpp( |$)")
+endif ()
+# Set by WK_USE_SWIFT_HTML_TOKENIZER: these include WebCore-Swift.h too.
+if (WK_USE_SWIFT_HTML_TOKENIZER)
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES
+        "(^|/)HTMLTokenizer\\.cpp( |$)"
+        "(^|/)WebVTTTokenizer\\.cpp( |$)"
+        "(^|/)XMLDocumentParserLibxml2\\.cpp( |$)")
+endif ()
+# Set by WK_USE_SWIFT_CSS_TOKENIZER. CSSTokenizer.cpp then includes WebCore-Swift.h, so it compiles in
+# WebCore_SwiftInterop, after WebCore's Swift module.
+if (WK_USE_SWIFT_CSS_TOKENIZER)
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSTokenizer\\.cpp( |$)")
+endif ()
+# Set by WK_USE_SWIFT_CSS_FAST_PATHS. CSSParserFastPaths.cpp then includes WebCore-Swift.h, so it compiles in
+# WebCore_SwiftInterop, after WebCore's Swift module.
+if (WK_USE_SWIFT_CSS_FAST_PATHS)
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSParserFastPaths\\.cpp( |$)")
+endif ()
+# Set by WK_USE_SWIFT_CSS_CALC. The calc sources that call CSSCalcSwift.swift include WebCore-Swift.h, so they compile
+# in WebCore_SwiftInterop, after WebCore's Swift module.
+set(_webcore_css_calc_swift_interop_sources
+    css/calc/CSSCalcTree+Evaluation.cpp
+    css/calc/CSSCalcTree+Parser.cpp
+    css/calc/CSSCalcTree+Serialization.cpp
+    css/calc/CSSCalcTree+Simplification.cpp
+    css/typedom/CSSNumericValue.cpp
+    style/calc/StyleCalculationTree+Conversion.cpp
+    style/calc/StyleCalculationTree+Evaluation.cpp
+    style/calc/StyleCalculationTree+Substitution.cpp
+    style/calc/StyleCalculationTree.cpp)
+if (WK_USE_SWIFT_CSS_CALC)
+    foreach (_source IN LISTS _webcore_css_calc_swift_interop_sources)
+        get_filename_component(_name "${_source}" NAME)
+        string(REPLACE "+" "\\+" _name "${_name}")
+        string(REPLACE "." "\\." _name "${_name}")
+        list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)${_name}( |$)")
+    endforeach ()
+endif ()
+# Set by WK_USE_SWIFT_HTML_PRELOAD_SCANNER: HTMLPreloadScanner.cpp includes WebCore-Swift.h too.
+if (WK_USE_SWIFT_HTML_PRELOAD_SCANNER)
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)HTMLPreloadScanner\\.cpp( |$)")
+
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreJSBindings
@@ -3376,6 +3422,15 @@ if (SWIFT_REQUIRED AND APPLE)
     # FIXME: Remove SwiftStub.swift once WebCore has real Swift sources.
     target_sources(WebCore PRIVATE ${WEBCORE_DIR}/SwiftStub.swift)
 
+    # The Swift port of ImageDecoderCG, as in WebCore.xcodeproj. Each file is empty unless
+    # ENABLE(IMAGE_DECODER_CG_SWIFT) (wtf/PlatformEnableCocoa.h, off by default).
+    target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/platform/cf/SafeCFNumber.swift
+        ${WEBCORE_DIR}/platform/graphics/ImageDecoding.swift
+        ${WEBCORE_DIR}/platform/graphics/cg/ImageDecoderCG.swift
+        ${WEBCORE_DIR}/platform/graphics/cg/ImageDecodingCG.swift
+    )
+
     webkit_target_add_swift_options(WebCore
         "-library-level spi"
     )
@@ -3386,9 +3441,278 @@ if (SWIFT_REQUIRED AND APPLE)
     WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(WebCore WebCore
         "${WebCore_PRIVATE_HEADERS_DIR}"
         "WebCoreSwift-Generated.h")
+elseif (WK_BUILD_WEBCORE_SWIFT)
+    # The Swift sources the WebCore Xcode project compiles, with WebCore.xcconfig's Swift settings.
+    # SwiftStub.swift is left out: it imports Foundation, and these Swift sources already emit symbols.
+    target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/SIMDHelpers.swift
+        ${WEBCORE_DIR}/SIMDHighBitMask.swift
+        ${WEBCORE_DIR}/SIMDSaturatingSubtract.swift
+        ${WEBCORE_DIR}/SIMDTableLookup.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcEvaluation.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcNode.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcParser.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSerialization.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSimplification.swift
+        ${WEBCORE_DIR}/css/calc/CSSCalcSwift.swift
+        ${WEBCORE_DIR}/css/calc/StyleCalculationSwift.swift
+        ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
+        ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
+        ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
+        ${WEBCORE_DIR}/html/parser/HTMLFastPathParser.swift
+        ${WEBCORE_DIR}/html/parser/HTMLPreloadScanner.swift
+        ${WEBCORE_DIR}/html/parser/HTMLTokenizer.swift
+    )
+
+    # C++ sources that include WebCoreSwift-Generated.h.
+    set(WebCore_SWIFT_INTEROP_SOURCES SwiftStubInterop.cpp)
+    # The WebCore_Private submodules (below) WebCore's Swift imports besides PlatformExportMacros, and the
+    # headers it imports one by one from Core (a relative path is under Source/WebCore).
+    set(_webcore_swift_modules "")
+    set(_webcore_swift_core_submodules)
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_HTML_FAST_PATH: the C++ and Swift conditions, and the C++ condition for the
+    # headers the Swift imports, which Xcode gives WebCore's Swift from the target's preprocessor definitions.
+    if (WK_USE_SWIFT_HTML_FAST_PATH)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES html/parser/HTMLDocumentParserFastPath.cpp)
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_HTML_FAST_PATH=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_HTML_FAST_PATH" "-Xcc -DUSE_SWIFT_HTML_FAST_PATH=1")
+        string(APPEND _webcore_swift_modules
+            "    explicit module HTMLFastPathParserTypes {\n"
+            "        header \"${WEBCORE_DIR}/html/parser/HTMLFastPathParserTypes.h\"\n"
+            "        requires cplusplus\n"
+            "        export *\n"
+            "    }\n")
+        list(APPEND _webcore_swift_core_submodules
+            dom/Attribute.h dom/ContainerNode.h dom/Document.h dom/Element.h html/HTMLElement.h
+            ${WebCore_DERIVED_SOURCES_DIR}/HTMLElementFactory.h html/parser/HTMLNameCache.h dom/Node.h
+            ${WebCore_DERIVED_SOURCES_DIR}/NodeName.h dom/QualifiedName.h dom/Text.h)
+        if (WIN32)
+            # Document's map of std::unique_ptr<Locale>: with the MSVC standard library the importer instantiates
+            # its destructor, which needs Locale's definition, so the Document submodule has PlatformLocale.h too.
+            set(_webcore_swift_core_submodule_headers_Document platform/text/PlatformLocale.h)
+        endif ()
+    endif ()
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_HTML_TOKENIZER.
+    if (WK_USE_SWIFT_HTML_TOKENIZER)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES
+            html/parser/HTMLTokenizer.cpp
+            html/track/WebVTTTokenizer.cpp
+            xml/parser/XMLDocumentParserLibxml2.cpp)
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_HTML_TOKENIZER=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_HTML_TOKENIZER" "-Xcc -DUSE_SWIFT_HTML_TOKENIZER=1")
+        list(APPEND _webcore_swift_core_submodules
+            platform/text/SegmentedString.h html/parser/HTMLToken.h html/parser/HTMLTokenizer.h
+            html/parser/HTMLEntityParser.h html/parser/HTMLEntityTable.h css/parser/CSSTokenizerInputStream.h)
+    endif ()
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_HTML_PER_TOKEN. The headers HTMLTokenizer.swift then imports are the
+    # fast path's.
+    if (WK_USE_SWIFT_HTML_PER_TOKEN)
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_HTML_PER_TOKEN=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_HTML_PER_TOKEN" "-Xcc -DUSE_SWIFT_HTML_PER_TOKEN=1")
+    endif ()
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_CSS_TOKENIZER: the C++ and Swift conditions.
+    if (WK_USE_SWIFT_CSS_TOKENIZER)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSTokenizer.cpp)
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_CSS_TOKENIZER=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_TOKENIZER" "-Xcc -DUSE_SWIFT_CSS_TOKENIZER=1")
+        list(APPEND _webcore_swift_core_submodules css/parser/CSSParserToken.h css/parser/CSSTokenizerSwiftTypes.h)
+    endif ()
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_CSS_FAST_PATHS: the C++ and Swift conditions.
+    if (WK_USE_SWIFT_CSS_FAST_PATHS)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSParserFastPaths.cpp)
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_CSS_FAST_PATHS=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_FAST_PATHS" "-Xcc -DUSE_SWIFT_CSS_FAST_PATHS=1")
+        list(APPEND _webcore_swift_core_submodules css/parser/CSSParserFastPathsSwiftTypes.h)
+    endif ()
+
+    # As WebCore.xcconfig's WK_USE_SWIFT_CSS_CALC: the Swift conditions. C++ sees USE_SWIFT_CSS_CALC in cmakeconfig.h
+    # (WebKitFeatures.cmake), in every target.
+    if (WK_USE_SWIFT_CSS_CALC)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_css_calc_swift_interop_sources})
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_CALC" "-Xcc -DUSE_SWIFT_CSS_CALC=1")
+        list(APPEND _webcore_swift_core_submodules css/calc/CSSCalcSwiftTypes.h css/parser/CSSParserToken.h
+            style/AnchorPositionEvaluator.h)
+    endif ()
+    list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
+
+    # WK_USE_SWIFT_IMAGE_DECODERS has no WebCore.xcconfig counterpart: these decoders build only in the CMake ports
+    # (ImageDecoders.cmake), which list them in WebCore_SOURCES rather than the unified sources. The decoders'
+    # .cpp files then include WebCore-Swift.h.
+    if (WK_USE_SWIFT_IMAGE_DECODERS)
+        target_sources(WebCore PRIVATE
+            ${WEBCORE_DIR}/platform/image-decoders/ImageFrameBuffer.swift
+            ${WEBCORE_DIR}/platform/image-decoders/bmp/BMPImageDecoder.swift
+            ${WEBCORE_DIR}/platform/image-decoders/bmp/BMPImageReader.swift
+            ${WEBCORE_DIR}/platform/image-decoders/gif/GIFImageDecoder.swift
+            ${WEBCORE_DIR}/platform/image-decoders/gif/GIFImageReader.swift
+            ${WEBCORE_DIR}/platform/image-decoders/ico/ICODirectory.swift
+            ${WEBCORE_DIR}/platform/image-decoders/ico/ICOImageDecoder.swift
+        )
+        set(_webcore_swift_image_decoder_sources
+            platform/image-decoders/bmp/BMPImageDecoder.cpp
+            platform/image-decoders/gif/GIFImageDecoder.cpp
+            platform/image-decoders/ico/ICOImageDecoder.cpp)
+        list(REMOVE_ITEM WebCore_SOURCES ${_webcore_swift_image_decoder_sources})
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_swift_image_decoder_sources})
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_IMAGE_DECODERS=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_IMAGE_DECODERS" "-Xcc -DUSE_SWIFT_IMAGE_DECODERS=1")
+        string(APPEND _webcore_swift_modules
+            "    explicit module ImageDecoderSwiftTypes {\n"
+            "        header \"${WEBCORE_DIR}/platform/image-decoders/ImageDecoderSwiftTypes.h\"\n"
+            "        requires cplusplus\n"
+            "        export *\n"
+            "    }\n")
+    # As WebCore.xcconfig's WK_USE_SWIFT_HTML_PRELOAD_SCANNER.
+    if (WK_USE_SWIFT_HTML_PRELOAD_SCANNER)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES html/parser/HTMLPreloadScanner.cpp)
+        target_compile_definitions(WebCore PRIVATE "$<$<NOT:$<COMPILE_LANGUAGE:Swift>>:USE_SWIFT_HTML_PRELOAD_SCANNER=1>")
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_HTML_PRELOAD_SCANNER" "-Xcc -DUSE_SWIFT_HTML_PRELOAD_SCANNER=1")
+        list(APPEND _webcore_swift_core_submodules
+            html/parser/HTMLResourcePreloader.h html/parser/CSSPreloadScanner.h html/parser/HTMLPreloadScanner.h
+            html/HTMLImageElement.h loader/LinkLoader.h)
+    webkit_target_add_swift_options(WebCore
+        "-library-level spi"
+        # For the vendored SIMD operations in SIMD*.swift, until the standard library has them.
+        "-enable-experimental-feature BuiltinModule"
+        # Apple applies these to every Swift target; WebCore's Swift is written against them.
+        ${WEBKIT_SWIFT_EXPERIMENTAL_FEATURE_FLAGS}
+        ${WEBKIT_SWIFT_MEMORY_SAFETY_FLAGS}
+        "-Xcc -fmodule-map-file=${WTF_HEADERS_DIR}/module.modulemap"
+        # As WebCore.xcconfig: the C++ is built without exceptions, and without -fno-exceptions and
+        # -fignore-exceptions the C++ inline functions the Swift calls carry an exception personality and
+        # cleanups, and LLVM does not inline them into it. -O2 rather than the importer's -Os for that C++,
+        # and jump threading for state machines written as a switch in a loop.
+        "-Xcc -fno-exceptions"
+        "-Xcc -fignore-exceptions"
+        "-Xcc -O2"
+        "-Xllvm -enable-dfa-jump-thread"
+        # SwiftArrayPropertyOpt keeps one basic-block bit per level of a loop nest, and a recursive tree's
+        # destruction inlined level by level nests deeper than it has bits: with assertions on, the frontend
+        # aborts with "too many/large bit fields allocated in function" (SILBitfield.h).
+        "-Xllvm -sil-disable-pass=array-property-opt"
+        # As WebCore.xcconfig: Swift zero-initializes a C++ type with no default constructor and only warns
+        # that this is deprecated; such a value can hold a null pointer the type never allows.
+        "-Werror DeprecatedDeclaration"
+        # As WebCore.xcconfig: Swift that holds C++ state must not let it reach another thread. Several of the
+        # diagnostics that catch that are warnings in Swift 6 mode outside any diagnostic group, so warnings are
+        # errors too (SWIFT_TREAT_WARNINGS_AS_ERRORS).
+        "-Werror SendableClosureCaptures"
+        -warnings-as-errors
+        ${WebCore_PLATFORM_SWIFT_CLANG_FLAG_PAIRS}
+    )
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
+        # HAVE_SSSE3 chooses PSHUFB in SIMDTableLookup.swift, as WebCore.xcconfig sets it for x86_64. The code
+        # generator must be allowed SSSE3 too, or the (LTO) backend cannot select it. nehalem is x86-64-v2
+        # (SSSE3, SSE4.2).
+        webkit_target_add_swift_options(WebCore "-D HAVE_SSSE3" "-target-cpu nehalem")
+    endif ()
+    # No -Xcc -I for WebCore's include directories: swiftc gives its -I paths, which CMake sets from
+    # them, to the clang importer too, and repeating them overflows Windows' 32K command line.
+    if (LTO_MODE AND WEBKIT_SWIFT_WHOLE_MODULE)
+        # Bitcode with the ThinLTO summary, so the LTO link optimizes the Swift with its C++ callers.
+        # Not the driver's -lto=llvm-thin, which writes <name>.bc to the working directory because
+        # CMake's output file map has only an "object" entry.
+        webkit_target_add_swift_options(WebCore
+            "$<$<AND:$<COMPILE_LANGUAGE:Swift>,$<NOT:$<CONFIG:Debug>>>:SHELL:-Xfrontend -lto=llvm-${LTO_MODE}>"
+            "$<$<AND:$<COMPILE_LANGUAGE:Swift>,$<NOT:$<CONFIG:Debug>>>:SHELL:-Xfrontend -emit-bc>")
+    elseif (LTO_MODE)
+        message(WARNING "LTO_MODE is set but Swift is not whole-module (DEVELOPER_MODE), so WebCore's Swift is not LTO'd")
+    endif ()
+
+    # The WebCore_Private submodules WebCore's Swift imports. Apple platforms get them from
+    # WebCore_Private.modulemap, a framework module over PrivateHeaders, which the other ports do not
+    # build; here each names its header in the source tree. The headers imported one by one
+    # (`WebCore_Private.Core.Element` and so on) are each a submodule of Core, as in the framework's
+    # umbrella map.
+    if (_webcore_swift_core_submodules)
+        string(APPEND _webcore_swift_modules "    module Core {\n")
+        foreach (_h IN LISTS _webcore_swift_core_submodules)
+            if (NOT IS_ABSOLUTE "${_h}")
+                set(_h "${WEBCORE_DIR}/${_h}")
+            endif ()
+            get_filename_component(_name "${_h}" NAME_WE)
+            string(APPEND _webcore_swift_modules
+                "        explicit module ${_name} {\n"
+                "            header \"${_h}\"\n")
+            # Headers a submodule needs besides its own, set as _webcore_swift_core_submodule_headers_<name>.
+            foreach (_extra IN LISTS _webcore_swift_core_submodule_headers_${_name})
+                string(APPEND _webcore_swift_modules "            header \"${WEBCORE_DIR}/${_extra}\"\n")
+            endforeach ()
+            string(APPEND _webcore_swift_modules
+                "            export *\n"
+                "        }\n")
+        endforeach ()
+        string(APPEND _webcore_swift_modules
+            "        requires cplusplus\n"
+            "        export *\n"
+            "    }\n")
+    endif ()
+    set(_webcore_swift_module_dir "${CMAKE_CURRENT_BINARY_DIR}/SwiftModuleMap")
+    file(WRITE "${_webcore_swift_module_dir}/module.modulemap.in"
+        "module WebCore_Private [system] {\n"
+        "    module PlatformExportMacros {\n"
+        "        header \"${WEBCORE_DIR}/platform/PlatformExportMacros.h\"\n"
+        "        export *\n"
+        "    }\n"
+        "${_webcore_swift_modules}"
+        "}\n")
+    configure_file("${_webcore_swift_module_dir}/module.modulemap.in" "${_webcore_swift_module_dir}/module.modulemap" COPYONLY)
+
+    WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(WebCore WebCore
+        "${_webcore_swift_module_dir}"
+        "WebCoreSwift-Generated.h")
+
+    if (WIN32)
+        # The shared importer flags declare WebCore's and PAL's exports __declspec(dllimport), as every
+        # other Swift target sees them. WebCore's own Swift is in WebCore.dll, with PAL, so it references
+        # them directly: through dllimport it would ask for __imp_ symbols the DLL does not import, and
+        # leave the inline functions and templates of an exported class to a DLL that is itself. Undefined
+        # and defined again after the shared flags, so these definitions win without a redefinition
+        # warning.
+        webkit_target_add_swift_options(WebCore
+            "-Xcc -UWEBCORE_EXPORT" "-Xcc -DWEBCORE_EXPORT="
+            "-Xcc -UPAL_EXPORT" "-Xcc -DPAL_EXPORT=")
+
+        # WebCore links its Swift objects with the C++ linker, which needs the import libraries of the
+        # Swift runtime those objects auto-link. They are in the SDK, not the toolchain that
+        # -print-target-info describes.
+        cmake_path(CONVERT "$ENV{SDKROOT}" TO_CMAKE_PATH_LIST _swift_sdkroot)
+        if (CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+            set(_swift_sdk_arch aarch64)
+        else ()
+            set(_swift_sdk_arch x86_64)
+        endif ()
+        set(_swift_sdk_lib_dir "${_swift_sdkroot}/usr/lib/swift/windows/${_swift_sdk_arch}")
+        if (NOT EXISTS "${_swift_sdk_lib_dir}/swiftCore.lib")
+            message(FATAL_ERROR "No swiftCore.lib in ${_swift_sdk_lib_dir}; is SDKROOT set?")
+        endif ()
+        target_link_directories(WebCore PRIVATE "${_swift_sdk_lib_dir}")
+    endif ()
 endif ()
 
 WEBKIT_FRAMEWORK(WebCore)
+
+if (WK_USE_SWIFT_TEXT_CODEC_UTF8 AND WIN32)
+    # WebCore links PAL's Swift objects with the C++ linker, which needs the import libraries of
+    # the Swift runtime those objects auto-link. They are in the SDK, not the toolchain that
+    # -print-target-info describes.
+    cmake_path(CONVERT "$ENV{SDKROOT}" TO_CMAKE_PATH_LIST _swift_sdkroot)
+    if (CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64|aarch64")
+        set(_swift_sdk_arch aarch64)
+    else ()
+        set(_swift_sdk_arch x86_64)
+    endif ()
+    set(_swift_sdk_lib_dir "${_swift_sdkroot}/usr/lib/swift/windows/${_swift_sdk_arch}")
+    if (NOT EXISTS "${_swift_sdk_lib_dir}/swiftCore.lib")
+        message(FATAL_ERROR "No swiftCore.lib in ${_swift_sdk_lib_dir}; is SDKROOT set?")
+    endif ()
+    target_link_directories(WebCore PRIVATE "${_swift_sdk_lib_dir}")
+endif ()
 
 if (DEFINED WebCore_SWIFT_INTEROP_SOURCES)
     WEBKIT_DEFINE_SUBTARGET(WebCore_SwiftInterop WebCore ${WebCore_SWIFT_INTEROP_SOURCES})

@@ -30,6 +30,7 @@
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_CALC
 template<typename> struct ToCalculationMapping;
 template<> struct ToCalculationMapping<Sum> { using type = Style::Calculation::Sum; };
 template<> struct ToCalculationMapping<Product> { using type = Style::Calculation::Product; };
@@ -98,6 +99,7 @@ template<> struct ToCalcMapping<Style::Calculation::CalcMix> { using type = Calc
 
 template<typename T> using ToCalculationTreeOp = typename ToCalculationMapping<T>::type;
 template<typename T> using ToCalcTreeOp = typename ToCalcMapping<T>::type;
+#endif
 
 } // namespace CSSCalc
 } // namespace WebCore

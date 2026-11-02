@@ -51,12 +51,19 @@
 #include <wtf/SortedArrayMap.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/WeakRef.h>
+#include <wtf/text/StringBuilder.h>
+
+#if USE_SWIFT_HTML_PRELOAD_SCANNER
+#include "WebCore-Swift.h"
+#include <wtf/SetForScope.h>
+#endif
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(TokenPreloadScanner);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(HTMLPreloadScanner);
 
+#if !USE_SWIFT_HTML_PRELOAD_SCANNER
 using namespace HTMLNames;
 
 TokenPreloadScanner::TagId TokenPreloadScanner::tagIdFor(const HTMLToken::DataVector& data)
@@ -78,6 +85,7 @@ TokenPreloadScanner::TagId TokenPreloadScanner::tagIdFor(const HTMLToken::DataVe
     }) };
     return map.get(data.span(), TagId::Unknown);
 }
+#endif
 
 ASCIILiteral TokenPreloadScanner::initiatorFor(TagId tagId)
 {
@@ -107,6 +115,7 @@ ASCIILiteral TokenPreloadScanner::initiatorFor(TagId tagId)
     return "unknown"_s;
 }
 
+#if !USE_SWIFT_HTML_PRELOAD_SCANNER
 class TokenPreloadScanner::StartTagScanner {
 public:
     explicit StartTagScanner(Document& document, TagId tagId, float deviceScaleFactor = 1.0)
@@ -481,6 +490,7 @@ private:
     ReferrerPolicy m_referrerPolicy { ReferrerPolicy::EmptyString };
     RequestPriority m_fetchPriority { RequestPriority::Auto };
 };
+#endif
 
 TokenPreloadScanner::TokenPreloadScanner(const URL& documentURL, float deviceScaleFactor)
     : m_documentURL(documentURL)
@@ -488,6 +498,44 @@ TokenPreloadScanner::TokenPreloadScanner(const URL& documentURL, float deviceSca
 {
 }
 
+#if USE_SWIFT_HTML_PRELOAD_SCANNER
+// The requests of the scan in progress on this thread (HTMLPreloadScanner::scanRequests).
+static constinit thread_local PreloadRequestStream* requestsOfScanInProgress { nullptr };
+
+void TokenPreloadScanner::appendRequest(uint8_t tagId, const String& url, const URL& baseURL, CachedResource::Type type, const String& media, ScriptType scriptType, ReferrerPolicy referrerPolicy, RequestPriority fetchPriority, const String& crossOriginMode, const String& nonce, const String& integrity, bool scriptIsAsync, const String& charset)
+{
+    // HTMLPreloadScanner.swift's PreloadScannerTagId lists the tags in TagId's order.
+    static_assert(static_cast<uint8_t>(TagId::Svg) == 12);
+    RELEASE_ASSERT(requestsOfScanInProgress && tagId <= static_cast<uint8_t>(TagId::Svg));
+    auto request = makeUnique<PreloadRequest>(static_cast<TagId>(tagId) == TagId::Style ? "css"_s : initiatorFor(static_cast<TagId>(tagId)), url, baseURL, type, media, scriptType, referrerPolicy, fetchPriority);
+    // An @import's request keeps these fields' defaults.
+    if (static_cast<TagId>(tagId) != TagId::Style) {
+        request->setCrossOriginMode(crossOriginMode);
+        request->setNonce(nonce);
+        request->setIntegrity(integrity);
+        request->setScriptIsAsync(scriptIsAsync);
+        request->setCharset(charset);
+    }
+    requestsOfScanInProgress->append(WTF::move(request));
+}
+
+bool TokenPreloadScanner::mediaMatches(Document& document, const String& media)
+{
+    auto mediaQueries = MQ::MediaQueryParser::parse(media, document.cssParserContext());
+    return MQ::MediaQueryEvaluator { document.printing() ? printAtom() : screenAtom(), document }.evaluate(mediaQueries);
+}
+
+String TokenPreloadScanner::bestFitImageURL(Document& document, float deviceScaleFactor, const String& url, const String& srcset, const String& sizes, bool& hasCandidate)
+{
+    auto sourceSize = SizesAttributeParser(sizes, document).effectiveSize();
+    ImageCandidate imageCandidate = bestFitSourceForImageAttributes(deviceScaleFactor, url, srcset, sourceSize);
+    hasCandidate = !imageCandidate.isEmpty();
+    auto trimmedURL = imageCandidate.string.view.trim(isASCIIWhitespace<char16_t>);
+    return trimmedURL.isEmpty() ? String() : trimmedURL.toString();
+}
+#endif
+
+#if !USE_SWIFT_HTML_PRELOAD_SCANNER
 void TokenPreloadScanner::scan(const HTMLToken& token, Vector<std::unique_ptr<PreloadRequest>>& requests, Document& document)
 {
     switch (token.type()) {
@@ -606,6 +654,7 @@ void TokenPreloadScanner::scan(const HTMLToken& token, Vector<std::unique_ptr<Pr
         return;
     }
 }
+#endif
 
 void TokenPreloadScanner::updatePredictedBaseURL(const HTMLToken& token, bool shouldRestrictBaseURLSchemes)
 {
@@ -625,12 +674,19 @@ HTMLPreloadScanner::HTMLPreloadScanner(const HTMLParserOptions& options, const U
 {
 }
 
+HTMLPreloadScanner::~HTMLPreloadScanner() = default;
+
 void HTMLPreloadScanner::appendToEnd(const SegmentedString& source)
 {
     m_source.append(source);
 }
 
 void HTMLPreloadScanner::scan(HTMLResourcePreloader& preloader, Document& document)
+{
+    preloader.preload(scanRequests(document));
+}
+
+PreloadRequestStream HTMLPreloadScanner::scanRequests(Document& document)
 {
     ASSERT(isMainThread()); // HTMLTokenizer::updateStateFor only works on the main thread.
 
@@ -642,13 +698,20 @@ void HTMLPreloadScanner::scan(HTMLResourcePreloader& preloader, Document& docume
 
     PreloadRequestStream requests;
 
+#if !USE_SWIFT_HTML_PRELOAD_SCANNER
     while (auto token = m_tokenizer.nextToken(m_source)) {
         if (token->type() == HTMLToken::Type::StartTag)
             m_tokenizer.updateStateFor(AtomString::lookUp(token->name().span()));
         m_scanner.scan(*token, requests, document);
     }
+#endif
+#if USE_SWIFT_HTML_PRELOAD_SCANNER
+    SetForScope scope { requestsOfScanInProgress, &requests };
+    auto& settings = document.settings();
+    scanHTMLPreloadScannerTokens(*this, &document, settings.lazyImageLoadingEnabled(), settings.disabledAdaptationsMetaTagEnabled(), settings.shouldRestrictBaseURLSchemes());
+#endif
 
-    preloader.preload(WTF::move(requests));
+    return requests;
 }
 
 bool testPreloadScannerViewportSupport(Document* document)
@@ -660,6 +723,28 @@ bool testPreloadScannerViewportSupport(Document* document)
     scanner.appendToEnd(String("<meta name=viewport content='width=400'>"_s));
     scanner.scan(preloader, *document);
     return document->viewportArguments().width == 400;
+}
+
+String testPreloadScannerRequests(Document& document, std::span<const String> sources)
+{
+    HTMLParserOptions options(document);
+    HTMLPreloadScanner scanner(options, document.url(), document.deviceScaleFactor());
+    StringBuilder result;
+    for (auto& source : sources) {
+        scanner.appendToEnd(source);
+        result.append("scan\n"_s);
+        for (auto& request : scanner.scanRequests(document))
+            result.append(request->descriptionForTesting(), '\n');
+    }
+    auto viewport = document.viewportArguments();
+    result.append("viewport width="_s, viewport.width, " height="_s, viewport.height, " zoom="_s, viewport.zoom,
+        " minZoom="_s, viewport.minZoom, " maxZoom="_s, viewport.maxZoom, " userZoom="_s, viewport.userZoom,
+        " orientation="_s, viewport.orientation, " shrinkToFit="_s, viewport.shrinkToFit,
+        " type="_s, static_cast<unsigned>(viewport.type), " viewportFit="_s, static_cast<unsigned>(viewport.viewportFit),
+        " widthWasExplicit="_s, viewport.widthWasExplicit ? "1"_s : "0"_s,
+        " interactiveWidget="_s, static_cast<unsigned>(viewport.interactiveWidgetValue),
+        " disabledAdaptations="_s, static_cast<unsigned>(document.disabledAdaptations().toRaw()), '\n');
+    return result.toString();
 }
 
 }

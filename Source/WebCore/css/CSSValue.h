@@ -25,6 +25,7 @@
 #include <wtf/NoVirtualDestructorBase.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TypeCasts.h>
 #include <wtf/Vector.h>
 #include <wtf/text/ASCIILiteral.h>
@@ -54,14 +55,15 @@ DECLARE_COMPACT_ALLOCATOR_WITH_HEAP_IDENTIFIER(CSSValue);
 
 // NOTE: This class is non-virtual for memory and performance reasons.
 // Don't go making it virtual again unless you know exactly what you're doing!
-class CSSValue : public NoVirtualDestructorBase {
+class SWIFT_SHARED_REFERENCE(.ref, .deref) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT CSSValue : public NoVirtualDestructorBase {
     WTF_MAKE_NONCOPYABLE(CSSValue);
     WTF_DEPRECATED_MAKE_FAST_COMPACT_ALLOCATED_WITH_HEAP_IDENTIFIER(CSSValue, CSSValue);
 public:
     static constexpr unsigned refCountFlagIsStatic = 0x1;
     static constexpr unsigned refCountIncrement = 0x2; // This allows us to ref / deref without disturbing the static CSSValue flag.
-    void ref() const { m_refCount += refCountIncrement; }
-    void deref() const;
+    // Swift retains and releases a CSSValue itself, so ref() and deref() are unsafe there.
+    SWIFT_UNSAFE void ref() const { m_refCount += refCountIncrement; }
+    SWIFT_UNSAFE void deref() const;
     bool hasOneRef() const { return m_refCount == refCountIncrement; }
     unsigned refCount() const { return m_refCount / refCountIncrement; }
     bool hasAtLeastOneRef() const { return m_refCount; }

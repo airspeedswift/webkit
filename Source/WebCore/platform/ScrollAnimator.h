@@ -55,7 +55,16 @@ struct ScrollExtents;
 
 class ScrollingEffectsControllerTimer;
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+class ScrollAnimatorScrollPhysicsClient;
+struct ScrollPhysicsControllerHolder;
+#endif
+
+#if !USE_SWIFT_SCROLL_ANIMATOR
 class ScrollAnimator : private ScrollingEffectsControllerClient {
+#else
+class ScrollAnimator {
+#endif
     WTF_MAKE_TZONE_ALLOCATED(ScrollAnimator);
 public:
     static std::unique_ptr<ScrollAnimator> create(ScrollableArea&);
@@ -65,7 +74,11 @@ public:
 
     ScrollableArea& scrollableArea() const { return m_scrollableArea; }
 
-    KeyboardScrollingAnimator *keyboardScrollingAnimator() const final { return m_keyboardScrollingAnimator.ptr(); }
+#if !USE_SWIFT_SCROLL_ANIMATOR
+    WEBCORE_EXPORT KeyboardScrollingAnimator *keyboardScrollingAnimator() const final;
+#else
+    WEBCORE_EXPORT KeyboardScrollingAnimator* keyboardScrollingAnimator() const;
+#endif
 
     enum class ScrollBehavior : uint8_t {
         RespectScrollSnap,
@@ -78,17 +91,17 @@ public:
     // already at the destination. Otherwise, starts scrolling towards the
     // destination and returns true. Scrolling may be immediate or animated.
     // The base class implementation always scrolls immediately, never animates.
-    bool singleAxisScroll(ScrollEventAxis, float delta, EnumSet<ScrollBehavior>);
+    WEBCORE_EXPORT bool singleAxisScroll(ScrollEventAxis, float delta, EnumSet<ScrollBehavior>);
 
     WEBCORE_EXPORT bool scrollToPositionWithoutAnimation(const FloatPoint&, ScrollClamping = ScrollClamping::Clamped);
     WEBCORE_EXPORT bool scrollToPositionWithAnimation(const FloatPoint&, ScrollClamping = ScrollClamping::Clamped, ScrollAnimationCurve = ScrollAnimationCurve::Default);
 
-    bool retargetRunningAnimation(const FloatPoint& newPosition, ScrollAnimationCurve);
+    WEBCORE_EXPORT bool retargetRunningAnimation(const FloatPoint& newPosition, ScrollAnimationCurve);
 
     virtual bool handleWheelEvent(const PlatformWheelEvent&);
     virtual bool processWheelEventForScrollSnap(const PlatformWheelEvent&) { return false; }
 
-    void stopKeyboardScrollAnimation();
+    WEBCORE_EXPORT void stopKeyboardScrollAnimation();
     
 #if PLATFORM(COCOA)
     virtual void handleWheelEventPhase(PlatformWheelEventPhase) { }
@@ -98,42 +111,55 @@ public:
     virtual bool handleTouchEvent(const PlatformTouchEvent&);
 #endif
 
-    void cancelAnimations();
+    WEBCORE_EXPORT void cancelAnimations();
 
     virtual bool isRubberBandInProgress() const { return false; }
 
-    bool isUserScrollInProgress() const { return m_scrollController.isUserScrollInProgress(); }
-    bool isScrollSnapInProgress() const { return m_scrollController.isScrollSnapInProgress(); }
-    bool usesScrollSnap() const { return m_scrollController.usesScrollSnap(); }
+    // For TestWebKitAPI: these call the virtual members above from inside WebCore, so that a test does not depend on
+    // this class's virtual function table.
+    WEBCORE_EXPORT bool handleWheelEventForTesting(const PlatformWheelEvent&);
+    WEBCORE_EXPORT bool processWheelEventForScrollSnapForTesting(const PlatformWheelEvent&);
+#if PLATFORM(COCOA)
+    WEBCORE_EXPORT void handleWheelEventPhaseForTesting(PlatformWheelEventPhase);
+#endif
+    WEBCORE_EXPORT bool isRubberBandInProgressForTesting() const;
 
-    void contentsSizeChanged();
+    WEBCORE_EXPORT bool isUserScrollInProgress() const;
+    WEBCORE_EXPORT bool isScrollSnapInProgress() const;
+    WEBCORE_EXPORT bool usesScrollSnap() const;
+
+    WEBCORE_EXPORT void contentsSizeChanged();
 
     enum NotifyScrollableArea : bool { No, Yes };
-    void setCurrentPosition(const FloatPoint&, NotifyScrollableArea = NotifyScrollableArea::No);
+    WEBCORE_EXPORT void setCurrentPosition(const FloatPoint&, NotifyScrollableArea = NotifyScrollableArea::No);
     const FloatPoint& currentPosition() const LIFETIME_BOUND { return m_currentPosition; }
 
     void setWheelEventTestMonitor(RefPtr<WheelEventTestMonitor>&& testMonitor) { m_wheelEventTestMonitor = testMonitor; }
     WheelEventTestMonitor* wheelEventTestMonitor() const { return m_wheelEventTestMonitor.get(); }
 
-    FloatPoint scrollOffsetAdjustedForSnapping(const FloatPoint& offset, ScrollSnapPointSelectionMethod) const;
-    float scrollOffsetAdjustedForSnapping(ScrollEventAxis, const FloatPoint& newOffset, ScrollSnapPointSelectionMethod) const;
+    WEBCORE_EXPORT FloatPoint scrollOffsetAdjustedForSnapping(const FloatPoint& offset, ScrollSnapPointSelectionMethod) const;
+    WEBCORE_EXPORT float scrollOffsetAdjustedForSnapping(ScrollEventAxis, const FloatPoint& newOffset, ScrollSnapPointSelectionMethod) const;
 
-    bool LEGACY_NODELETE activeScrollSnapIndexDidChange() const;
-    std::optional<unsigned> LEGACY_NODELETE activeScrollSnapIndexForAxis(ScrollEventAxis) const;
-    void setActiveScrollSnapIndexForAxis(ScrollEventAxis, std::optional<unsigned> index);
-    void setSnapOffsetsInfo(const LayoutScrollSnapOffsetsInfo&);
-    const LayoutScrollSnapOffsetsInfo* LEGACY_NODELETE snapOffsetsInfo() const;
-    void resnapAfterLayout();
+    WEBCORE_EXPORT bool LEGACY_NODELETE activeScrollSnapIndexDidChange() const;
+    WEBCORE_EXPORT std::optional<unsigned> LEGACY_NODELETE activeScrollSnapIndexForAxis(ScrollEventAxis) const;
+    WEBCORE_EXPORT void setActiveScrollSnapIndexForAxis(ScrollEventAxis, std::optional<unsigned> index);
+    WEBCORE_EXPORT void setSnapOffsetsInfo(const LayoutScrollSnapOffsetsInfo&);
+    WEBCORE_EXPORT const LayoutScrollSnapOffsetsInfo* LEGACY_NODELETE snapOffsetsInfo() const;
+    WEBCORE_EXPORT void resnapAfterLayout();
 
-    ScrollAnimationStatus serviceScrollAnimation(MonotonicTime);
+    WEBCORE_EXPORT ScrollAnimationStatus serviceScrollAnimation(MonotonicTime);
+
+    // Replaces the run loop timers createTimer() makes. Pass nullptr to go back to them.
+    using TimerFactory = std::unique_ptr<ScrollingEffectsControllerTimer> (*)(Function<void()>&&);
+    WEBCORE_EXPORT static void setTimerFactoryForTesting(TimerFactory);
 
 protected:
+#if !USE_SWIFT_SCROLL_ANIMATOR
     bool handleSteppedScrolling(const PlatformWheelEvent&);
-#if HAVE(RUBBER_BANDING)
-    IntSize stretchAmount() const final;
 #endif
 
 private:
+#if !USE_SWIFT_SCROLL_ANIMATOR
     void notifyPositionChanged(const FloatSize& delta);
 
     void updateActiveScrollSnapIndexForOffset();
@@ -142,11 +168,27 @@ private:
     FloatPoint positionFromOffset(const FloatPoint& offset) const;
 
     FloatPoint adjustScrollPositionIfNecessary(const FloatPoint&) const;
+#endif
 
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    void discreteSnapTransitionTimerFired();
+    void scheduleScrollendTimer();
+
+    friend class ScrollAnimatorScrollPhysicsClient;
+    template<typename> friend class ScrollSnapPhysicsClient;
+#endif
+#if USE_SWIFT_SCROLL_ANIMATOR
+    friend class KeyboardScrollingAnimator;
+#endif
+
+#if !USE_SWIFT_SCROLL_ANIMATOR
+public:
     // ScrollingEffectsControllerClient.
     std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&) final;
     void startAnimationCallback(ScrollingEffectsController&) final;
     void stopAnimationCallback(ScrollingEffectsController&) final;
+    void startAnimationCallback();
+    void stopAnimationCallback();
 
     FloatPoint scrollOffset() const final;
     float pageScaleFactor() const final;
@@ -176,10 +218,28 @@ private:
     bool scrollAnimationEnabled() const final;
 #endif
 
+#if HAVE(RUBBER_BANDING)
+    IntSize stretchAmount() const final;
+    using ScrollingEffectsControllerClient::allowsHorizontalStretching;
+    using ScrollingEffectsControllerClient::allowsVerticalStretching;
+#endif
+#else
+    std::unique_ptr<ScrollingEffectsControllerTimer> createTimer(Function<void()>&&);
+    void didStopWheelEventScroll();
+#endif
+
 protected:
     WeakRef<ScrollableArea> m_scrollableArea;
     RefPtr<WheelEventTestMonitor> m_wheelEventTestMonitor;
+#if USE_SWIFT_SCROLL_ANIMATOR_PHYSICS
+    std::unique_ptr<ScrollPhysicsControllerHolder> m_physics;
+    std::optional<LayoutScrollSnapOffsetsInfo> m_snapOffsetsInfo;
+    // Declared so that member destruction stops the snap timer, then the scrollend timer, before m_physics.
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteScrollendTimer;
+    std::unique_ptr<ScrollingEffectsControllerTimer> m_discreteSnapTransitionTimer;
+#else
     ScrollingEffectsController m_scrollController;
+#endif
     FloatPoint m_currentPosition;
 
     const UniqueRef<KeyboardScrollingAnimator> m_keyboardScrollingAnimator;

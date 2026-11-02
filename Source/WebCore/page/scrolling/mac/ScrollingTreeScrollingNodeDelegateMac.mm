@@ -41,6 +41,19 @@
 #import <wtf/SystemTracing.h>
 #import <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+#import "ScrollingTreeScrollPhysicsClient.h"
+#import "ScrollingTreeScrollPhysicsDelegateHolder.h"
+#endif
+
+#if USE_SWIFT_MAC_SCROLLERS
+#import "WebCore-Swift.h"
+#endif
+
+#if USE_SWIFT_SCROLLERS_IN_DELEGATE
+#import "ScrollerPairMacTypes.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollingTreeScrollingNodeDelegateMac);
@@ -57,23 +70,56 @@ ScrollingTreeScrollingNodeDelegateMac::ScrollingTreeScrollingNodeDelegateMac(Scr
 
 ScrollingTreeScrollingNodeDelegateMac::~ScrollingTreeScrollingNodeDelegateMac() = default;
 
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+void ScrollingTreeScrollPhysicsClient::emitRubberBandSignpost(bool isRubberBanding, IntSize stretch, bool isMainFrame)
+{
+    WTFEmitSignpostAlways(&delegate(), ScrollingPerformanceTestRubberBand, "%{public}s; top=%d right=%d bottom=%d left=%d; stretch=%d,%d; isMainFrame=%d",
+        isRubberBanding ? "started" : "ended",
+        stretch.height() < 0, stretch.width() > 0, stretch.height() > 0, stretch.width() < 0,
+        stretch.width(), stretch.height(),
+        isMainFrame);
+}
+#endif
+
 void ScrollingTreeScrollingNodeDelegateMac::nodeWillBeDestroyed()
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    // Hand the timers to destroyTimer() rather than stopping them here: they run on the scrolling thread, and the
+    // node may be torn down on another.
+    Ref scrollingNode = this->scrollingNode();
+    if (m_discreteSnapTransitionTimer) {
+        destroyTimer(WTF::move(m_discreteSnapTransitionTimer));
+        scrollingNode->setScrollSnapInProgress(false);
+        scrollingNode->didStopAnimatedScroll();
+    }
+
+    if (m_discreteScrollendTimer)
+        destroyTimer(WTF::move(m_discreteScrollendTimer));
+#else
     m_scrollController.stopAllTimers();
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingStateScrollingNode& scrollingStateNode)
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
+#if !USE_SWIFT_MAC_SCROLLERS
     Ref horizontalScroller = m_scrollerPair->horizontalScroller();
     Ref verticalScroller = m_scrollerPair->verticalScroller();
+#endif
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::PainterForScrollbar)) {
         RetainPtr horizontalScrollbar = scrollingStateNode.horizontalScrollerImp();
         RetainPtr verticalScrollbar = scrollingStateNode.verticalScrollerImp();
         if (horizontalScrollbar || verticalScrollbar) {
             m_scrollerPair->releaseReferencesToScrollerImpsOnTheMainThread();
+#if !USE_SWIFT_MAC_SCROLLERS
             horizontalScroller->setScrollerImp(horizontalScrollbar);
             verticalScroller->setScrollerImp(verticalScrollbar);
+#else
+            m_scrollerPair->scrollers().setScrollerImp(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, horizontalScrollbar.get());
+            m_scrollerPair->scrollers().setScrollerImp(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, verticalScrollbar.get());
+#endif
         }
     }
 
@@ -81,26 +127,49 @@ void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingS
         m_scrollerPair->mouseIsInScrollbar(scrollingStateNode.scrollbarHoverState());
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::HorizontalScrollbarLayer))
+#if !USE_SWIFT_MAC_SCROLLERS
         horizontalScroller->setHostLayer(protect(static_cast<CALayer*>(scrollingStateNode.horizontalScrollbarLayer())));
+#else
+        m_scrollerPair->scrollers().setHostLayer(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, protect(static_cast<CALayer*>(scrollingStateNode.horizontalScrollbarLayer())).get());
+#endif
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::VerticalScrollbarLayer))
+#if !USE_SWIFT_MAC_SCROLLERS
         verticalScroller->setHostLayer(protect(static_cast<CALayer*>(scrollingStateNode.verticalScrollbarLayer())));
+#else
+        m_scrollerPair->scrollers().setHostLayer(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, protect(static_cast<CALayer*>(scrollingStateNode.verticalScrollbarLayer())).get());
+#endif
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollableAreaParams)) {
+#if !USE_SWIFT_MAC_SCROLLERS
         horizontalScroller->setHiddenByStyle(scrollingStateNode.scrollableAreaParameters().horizontalNativeScrollbarVisibility);
         verticalScroller->setHiddenByStyle(scrollingStateNode.scrollableAreaParameters().verticalNativeScrollbarVisibility);
+#else
+        m_scrollerPair->scrollers().setHiddenByStyle(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, scrollingStateNode.scrollableAreaParameters().horizontalNativeScrollbarVisibility);
+        m_scrollerPair->scrollers().setHiddenByStyle(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, scrollingStateNode.scrollableAreaParameters().verticalNativeScrollbarVisibility);
+#endif
     }
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarEnabledState)) {
         auto scrollbarEnabledState = scrollingStateNode.scrollbarEnabledState();
+#if !USE_SWIFT_MAC_SCROLLERS
         m_scrollerPair->horizontalScroller().setEnabled(scrollbarEnabledState.horizontalScrollbarIsEnabled);
         m_scrollerPair->verticalScroller().setEnabled(scrollbarEnabledState.verticalScrollbarIsEnabled);
+#else
+        m_scrollerPair->scrollers().setEnabled(ScrollbarOrientation::Horizontal, scrollbarEnabledState.horizontalScrollbarIsEnabled);
+        m_scrollerPair->scrollers().setEnabled(ScrollbarOrientation::Vertical, scrollbarEnabledState.verticalScrollbarIsEnabled);
+#endif
     }
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarLayoutDirection)) {
         auto scrollbarLayoutDirection = scrollingStateNode.scrollbarLayoutDirection();
+#if !USE_SWIFT_MAC_SCROLLERS
         horizontalScroller->setScrollbarLayoutDirection(scrollbarLayoutDirection);
         verticalScroller->setScrollbarLayoutDirection(scrollbarLayoutDirection);
+#else
+        m_scrollerPair->scrollers().setScrollbarLayoutDirection(m_scrollerPair.ptr(), ScrollbarOrientation::Horizontal, scrollbarLayoutDirection);
+        m_scrollerPair->scrollers().setScrollbarLayoutDirection(m_scrollerPair.ptr(), ScrollbarOrientation::Vertical, scrollbarLayoutDirection);
+#endif
     }
 
     if (scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::ScrollbarWidth)) {
@@ -125,10 +194,24 @@ void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingS
         m_scrollerPair->scrollbarColorChanged(scrollingStateNode.scrollbarColor());
 
     m_scrollerPair->updateValues();
+#else
+    m_physics->delegate.updateScrollbars(m_scrollerPair.ptr(), m_scrollerPair->scrollers(), scrollingStateNode.changedProperties().toRaw(),
+        scrollingStateNode.horizontalScrollerImp(), scrollingStateNode.verticalScrollerImp(), scrollingStateNode.scrollbarHoverState(),
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::HorizontalScrollbarLayer) ? static_cast<CALayer*>(scrollingStateNode.horizontalScrollbarLayer()) : nil,
+        scrollingStateNode.hasChangedProperty(ScrollingStateNode::Property::VerticalScrollbarLayer) ? static_cast<CALayer*>(scrollingStateNode.verticalScrollbarLayer()) : nil, scrollingStateNode.scrollableAreaParameters(),
+        scrollingStateNode.scrollbarEnabledState(), scrollingStateNode.scrollbarLayoutDirection(), scrollingStateNode.scrollbarWidth(), scrollingStateNode.useDarkAppearanceForScrollbars(),
+        scrollingStateNode.mouseIsOverContentArea(), scrollingStateNode.mouseLocationState(), scrollingStateNode.scrollbarColor());
+#endif
 
     ThreadedScrollingTreeScrollingNodeDelegate::updateFromStateNode(scrollingStateNode);
 
 #if HAVE(RUBBER_BANDING)
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    if (m_pendingRubberbandingState) {
+        m_physics->delegate.restoreRubberbandingState(ScrollingTreeScrollPhysicsClientState(*this).facade(), *m_pendingRubberbandingState);
+        m_pendingRubberbandingState = std::nullopt;
+    }
+#else
     if (m_pendingRubberbandingState) {
         LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode - restoring rubberbanding state: initialOverscroll=" << m_pendingRubberbandingState->initialOverscroll);
         bool restored = m_scrollController.restoreRubberbandingState(WTF::move(*m_pendingRubberbandingState));
@@ -138,10 +221,18 @@ void ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode(const ScrollingS
         LOG_WITH_STREAM(ScrollAnimations, stream << "ScrollingTreeScrollingNodeDelegateMac::updateFromStateNode - restoreRubberbandingState returned " << restored);
     }
 #endif
+#endif
 }
 
 bool ScrollingTreeScrollingNodeDelegateMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
+    return m_physics->delegate.handleWheelEvent(ScrollingTreeScrollPhysicsClientState(*this).facade(), m_scrollerPair.ptr(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#else
+    return m_physics->delegate.handleWheelEvent(ScrollingTreeScrollPhysicsClientState(*this).facade(), m_scrollerPair->scrollers(), wheelEvent, wheelEvent.timestamp().secondsSinceEpoch().value());
+#endif
+#else
     bool wasInMomentumPhase = m_inMomentumPhase;
 
     if (wheelEvent.momentumPhase() == PlatformWheelEventPhase::Began)
@@ -163,16 +254,22 @@ bool ScrollingTreeScrollingNodeDelegateMac::handleWheelEvent(const PlatformWheel
         return true;
 
     return m_scrollController.handleWheelEvent(wheelEvent);
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::willDoProgrammaticScroll(const FloatPoint& targetPosition)
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.willDoProgrammaticScroll(ScrollingTreeScrollPhysicsClientState(*this).facade(), targetPosition);
+#else
     if (scrollPositionIsNotRubberbandingEdge(targetPosition)) {
         LOG(Scrolling, "ScrollingTreeScrollingNodeDelegateMac::willDoProgrammaticScroll() - scrolling away from rubberbanding edge so stopping rubberbanding");
         m_scrollController.stopRubberBanding();
     }
+#endif
 }
 
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
 bool ScrollingTreeScrollingNodeDelegateMac::scrollPositionIsNotRubberbandingEdge(const FloatPoint& targetPosition) const
 {
     if (!m_scrollController.isRubberBandInProgress())
@@ -208,34 +305,62 @@ bool ScrollingTreeScrollingNodeDelegateMac::scrollPositionIsNotRubberbandingEdge
     }
     return false;
 }
+#endif
 
 void ScrollingTreeScrollingNodeDelegateMac::currentScrollPositionChanged()
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.currentScrollPositionChanged(ScrollingTreeScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.scrollPositionChanged();
+#endif
 }
 
 bool ScrollingTreeScrollingNodeDelegateMac::isRubberBandInProgress() const
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    return m_physics->delegate.isRubberBandInProgress();
+#else
     return m_scrollController.isRubberBandInProgress();
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::startRubberBandSnapBack()
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.startRubberBandSnapBack(ScrollingTreeScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.startRubberBandSnapBack();
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::rubberBandTargetOffsetDidChange()
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    m_physics->delegate.rubberBandTargetOffsetDidChange(ScrollingTreeScrollPhysicsClientState(*this).facade());
+#else
     m_scrollController.rubberBandTargetOffsetDidChange();
+#endif
 }
 
 #if HAVE(RUBBER_BANDING)
 std::optional<RubberbandingState> ScrollingTreeScrollingNodeDelegateMac::captureRubberbandingState() const
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+    // scrollingNode() is const here; the scroller pair holds the same node.
+    RefPtr node = m_scrollerPair->node();
+    RELEASE_ASSERT(node);
+    RubberbandingState state;
+    if (!m_physics->delegate.captureRubberbandingState(ScrollingTreeScrollPhysicsClientState(node.releaseNonNull()).facade(), state))
+        return std::nullopt;
+    return state;
+#else
     return m_scrollController.captureRubberbandingState();
+#endif
 }
 #endif
 
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
 bool ScrollingTreeScrollingNodeDelegateMac::allowsHorizontalStretching(const PlatformWheelEvent& wheelEvent) const
 {
     switch (horizontalScrollElasticity()) {
@@ -396,11 +521,20 @@ bool ScrollingTreeScrollingNodeDelegateMac::hasRefreshController() const
 }
 
 #endif
+#endif
 
 void ScrollingTreeScrollingNodeDelegateMac::updateScrollbarPainters()
 {
+#if USE_SWIFT_SCROLLING_TREE_DELEGATE
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
+    m_physics->delegate.updateScrollbarPainters(m_scrollerPair.ptr());
+#else
+    m_physics->delegate.updateScrollbarPainters(m_scrollerPair.ptr(), m_scrollerPair->scrollers());
+#endif
+#else
     if (m_inMomentumPhase && m_scrollerPair->hasScrollerImp() && m_scrollerPair->isUsingPresentationValues())
         m_scrollerPair->updateScrollbarPainters();
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::initScrollbars()
@@ -410,42 +544,75 @@ void ScrollingTreeScrollingNodeDelegateMac::initScrollbars()
 
 void ScrollingTreeScrollingNodeDelegateMac::updateScrollbarLayers()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     m_scrollerPair->updateValues();
+#else
+    m_scrollerPair->scrollers().updateValues(m_scrollerPair.ptr());
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::handleWheelEventPhase(const PlatformWheelEventPhase wheelEventPhase)
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     m_scrollerPair->handleWheelEventPhase(wheelEventPhase);
+#else
+    m_scrollerPair->scrollers().handleWheelEventPhase(m_scrollerPair.ptr(), wheelEventPhase);
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::viewWillStartLiveResize()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->viewWillStartLiveResize();
+#else
+    m_scrollerPair->scrollers().viewWillStartLiveResize(m_scrollerPair.ptr());
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::viewWillEndLiveResize()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->viewWillEndLiveResize();
+#else
+    m_scrollerPair->scrollers().viewWillEndLiveResize(m_scrollerPair.ptr());
+#endif
 }
 
 void ScrollingTreeScrollingNodeDelegateMac::viewSizeDidChange()
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->contentsSizeChanged();
+#else
+    m_scrollerPair->scrollers().notifyScrollerImpPair(m_scrollerPair.ptr(), ScrollerImpPairNotification::ContentAreaDidResize);
+#endif
 }
 
 String ScrollingTreeScrollingNodeDelegateMac::scrollbarStateForOrientation(ScrollbarOrientation orientation) const
 {
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     return m_scrollerPair->scrollbarStateForOrientation(orientation);
+#else
+    return m_scrollerPair->scrollers().scrollbarStateForOrientation(orientation);
+#endif
 }
 
 Vector<RetainPtr<CALayer>, 2> ScrollingTreeScrollingNodeDelegateMac::hitTestableScrollbarLayers() const
 {
     Ref node = scrollingNode();
+#if !USE_SWIFT_SCROLLERS_IN_DELEGATE
     bool usesOverlayScrollbars = m_scrollerPair->scrollbarStyle() == ScrollbarStyle::Overlay;
+#else
+    bool usesOverlayScrollbars = m_scrollerPair->scrollers().scrollbarStyle() == ScrollbarStyle::Overlay;
+#endif
 
     Vector<RetainPtr<CALayer>, 2> layers;
+#if !USE_SWIFT_MAC_SCROLLERS
     auto appendIfHitTestable = [&](ScrollerMac& scroller, NativeScrollbarVisibility visibility) {
         RetainPtr hostLayer = scroller.hostLayer();
+#else
+    auto appendIfHitTestable = [&](ScrollbarOrientation orientation, NativeScrollbarVisibility visibility) {
+        RetainPtr hostLayer = m_scrollerPair->hostLayer(orientation);
+#endif
         if (!hostLayer)
             return;
 
@@ -458,7 +625,11 @@ Vector<RetainPtr<CALayer>, 2> ScrollingTreeScrollingNodeDelegateMac::hitTestable
         case NativeScrollbarVisibility::Visible:
             // The web process only hit-tests an overlay scrollbar while it is shown, which it learns about
             // through ScrollerMac::visibilityChanged(), so consult the same state here.
+#if !USE_SWIFT_MAC_SCROLLERS
             if (usesOverlayScrollbars && !scroller.isVisible())
+#else
+            if (usesOverlayScrollbars && !m_scrollerPair->scrollers().isVisible(orientation))
+#endif
                 return;
             break;
         }
@@ -466,8 +637,13 @@ Vector<RetainPtr<CALayer>, 2> ScrollingTreeScrollingNodeDelegateMac::hitTestable
         layers.append(WTF::move(hostLayer));
     };
 
+#if !USE_SWIFT_MAC_SCROLLERS
     appendIfHitTestable(m_scrollerPair->verticalScroller(), node->verticalNativeScrollbarVisibility());
     appendIfHitTestable(m_scrollerPair->horizontalScroller(), node->horizontalNativeScrollbarVisibility());
+#else
+    appendIfHitTestable(ScrollbarOrientation::Vertical, node->verticalNativeScrollbarVisibility());
+    appendIfHitTestable(ScrollbarOrientation::Horizontal, node->horizontalNativeScrollbarVisibility());
+#endif
     return layers;
 }
 

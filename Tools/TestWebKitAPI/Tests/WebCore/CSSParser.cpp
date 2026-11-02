@@ -26,20 +26,27 @@
 
 #include "config.h"
 
+#include "TestPageHarness.h"
+
 #include <WebCore/CSSColorValue.h>
 #include <WebCore/CSSCustomPropertyValue.h>
 #include <WebCore/CSSGridTemplateListValue.h>
 #include <WebCore/CSSKeywordValueInlines.h>
 #include <WebCore/CSSParser.h>
 #include <WebCore/CSSSerializationContext.h>
+#include <WebCore/CSSStyleDeclaration.h>
 #include <WebCore/CSSValueList.h>
 #include <WebCore/Color.h>
+#include <WebCore/Document.h>
+#include <WebCore/LocalDOMWindow.h>
 #include <WebCore/MutableStyleProperties.h>
 #include <WebCore/ProcessWarming.h>
 #include <WebCore/StyleRule.h>
 #include <WebCore/StyleSheetContents.h>
+#include <WebCore/StyledElement.h>
 #include <wtf/StackPointer.h>
 #include <wtf/Threading.h>
+#include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/WTFString.h>
 
@@ -319,6 +326,151 @@ TEST(CSSPropertyParser, GridTrackLimits)
 
         ASSERT_TRUE(is<CSSGridTemplateListValue>(value.get()));
         EXPECT_EQ(computeNumberOfTracks(downcast<CSSGridTemplateListValue>(*value)), testCase.output);
+    }
+}
+
+TEST(CSSPropertyParser, CalcTreeSizes)
+{
+    // calc() trees of 15 to 18 nodes and of 40 nodes: a sum of min() terms, each three nodes. Each is parsed as a
+    // width, and resolved as an element's text-indent, which keeps the percentages and resolves 1em to 16px.
+    struct {
+        ASCIILiteral input;
+        ASCIILiteral output;
+        ASCIILiteral computed;
+    }
+
+    testCases[] = {
+        { "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + 1% + 1em)"_s,
+            "calc(1% + 1em + min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px))"_s,
+            "calc(1% + 16px + min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px))"_s },
+        { "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px))"_s,
+            "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px))"_s,
+            "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px))"_s },
+        { "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px) + 1%)"_s,
+            "calc(1% + min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px))"_s,
+            "calc(1% + min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px))"_s },
+        { "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px) + 1% + 1em)"_s,
+            "calc(1% + 1em + min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px))"_s,
+            "calc(1% + 16px + min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px))"_s },
+        { "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px) + min(6%, 6px) + min(7%, 7px) + min(8%, 8px) + min(9%, 9px) + min(10%, 10px) + min(11%, 11px) + min(12%, 12px) + min(13%, 13px))"_s,
+            "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px) + min(6%, 6px) + min(7%, 7px) + min(8%, 8px) + min(9%, 9px) + min(10%, 10px) + min(11%, 11px) + min(12%, 12px) + min(13%, 13px))"_s,
+            "calc(min(1%, 1px) + min(2%, 2px) + min(3%, 3px) + min(4%, 4px) + min(5%, 5px) + min(6%, 6px) + min(7%, 7px) + min(8%, 8px) + min(9%, 9px) + min(10%, 10px) + min(11%, 11px) + min(12%, 12px) + min(13%, 13px))"_s },
+    };
+
+    auto page = TestPageHarness::create();
+    page.loadHTML("<!DOCTYPE html><html><body><div id='t' style='font-size: 16px'>x</div></body></html>"_s);
+    RefPtr element = dynamicDowncast<StyledElement>(page.getElementById("t"_s));
+    ASSERT_TRUE(element);
+    RefPtr window = page.document().window();
+    ASSERT_TRUE(window);
+
+    for (auto& testCase : testCases) {
+        auto properties = MutableStyleProperties::create();
+        ASSERT_TRUE(CSSParser::parseDeclarationList(properties, makeString("width: "_s, testCase.input, ';'), strictCSSParserContext()));
+        EXPECT_EQ(properties->getPropertyValue(CSSPropertyID::Width), String { testCase.output });
+
+        ASSERT_TRUE(element->setInlineStyleProperty(CSSPropertyID::TextIndent, String { testCase.input }));
+        EXPECT_EQ(window->getComputedStyle(*element, String { })->getPropertyValue("text-indent"_s), String { testCase.computed });
+    }
+}
+
+TEST(CSSPropertyParser, CalcArgumentsAroundSixtyFour)
+{
+    // Sums and min()/max() of 64 to 66 arguments, whose numeric arguments merge across the 64th.
+    auto terms = [](ASCIILiteral function, ASCIILiteral separator, unsigned count) {
+        StringBuilder builder;
+        for (unsigned i = 1; i <= count; ++i)
+            builder.append(i > 1 ? separator : ""_s, function, '(', i, "%, "_s, i, "px)"_s);
+        return builder.toString();
+    };
+    auto mins = [&](unsigned count) { return terms("min"_s, " + "_s, count); };
+    auto maxes = [&](unsigned count) { return terms("max"_s, ", "_s, count); };
+
+    std::pair<String, String> testCases[] = {
+        { makeString("calc("_s, mins(63), " + 1px)"_s), makeString("calc(1px + "_s, mins(63), ')') },
+        { makeString("calc("_s, mins(63), " + 1px + 2px)"_s), makeString("calc(3px + "_s, mins(63), ')') },
+        { makeString("calc("_s, mins(64), " + 1px + 2px)"_s), makeString("calc(3px + "_s, mins(64), ')') },
+        { makeString("calc(1px + "_s, mins(64), " + 2px)"_s), makeString("calc(3px + "_s, mins(64), ')') },
+        { makeString("min("_s, maxes(63), ", 1px, 2px)"_s), makeString("min("_s, maxes(63), ", 1px)"_s) },
+        { makeString("min("_s, maxes(64), ", 3px, 2px)"_s), makeString("min("_s, maxes(64), ", 2px)"_s) },
+        { makeString("max(1px, "_s, maxes(64), ", 2px)"_s), makeString("max(2px, "_s, maxes(64), ')') },
+    };
+
+    for (auto& [input, output] : testCases) {
+        auto properties = MutableStyleProperties::create();
+        ASSERT_TRUE(CSSParser::parseDeclarationList(properties, makeString("width: "_s, input, ';'), strictCSSParserContext()));
+        EXPECT_EQ(properties->getPropertyValue(CSSPropertyID::Width), output);
+    }
+}
+
+TEST(CSSPropertyParser, CalcLongArgumentLists)
+{
+    // Sizes either side of the Swift code's stack buffers: trees of 127 to 130 nodes, one that has more than 128
+    // nodes until its terms merge, and one nested in clamp(); argument lists of 29 to 37 and of 253 to 261 tokens;
+    // unbalanced blocks; sums, min() and max() of 8 and 9 kinds of unit; calc-mix() of 16 and 17 items, and of 15 to
+    // 17 items of more than 32 nodes in 31 to 33 tokens.
+    auto join = [](auto&& term, ASCIILiteral separator, unsigned count) {
+        StringBuilder builder;
+        for (unsigned i = 1; i <= count; ++i)
+            builder.append(i > 1 ? separator : ""_s, term(i));
+        return builder.toString();
+    };
+    auto mins = [&](unsigned count) { return join([](unsigned i) { return makeString("min("_s, i, "%, "_s, i, "px)"_s); }, " + "_s, count); };
+    auto pixels = [&](unsigned count, bool leading, bool trailing, bool parenthesized) {
+        auto terms = join([&](unsigned i) { return i == 2 && parenthesized ? makeString("(2px)"_s) : makeString((i - 1) % 7 + 1, "px"_s); }, " + "_s, count);
+        return makeString("calc("_s, leading ? " "_s : ""_s, terms, trailing ? " "_s : ""_s, ')');
+    };
+    auto mix = [&](unsigned count, auto&& weight) {
+        return makeString("calc-mix("_s, join([&](unsigned i) { return makeString(i, "px "_s, weight(i)); }, ", "_s, count), ')');
+    };
+
+    std::pair<String, String> testCases[] = {
+        { makeString("calc("_s, mins(42), ')'), makeString("calc("_s, mins(42), ')') },
+        { makeString("calc("_s, mins(42), " + 1%)"_s), makeString("calc(1% + "_s, mins(42), ')') },
+        { makeString("calc("_s, mins(42), " + 1% + 1em)"_s), makeString("calc(1% + 1em + "_s, mins(42), ')') },
+        { makeString("calc("_s, mins(43), ')'), makeString("calc("_s, mins(43), ')') },
+        { makeString("calc("_s, mins(40), " + "_s, join([](unsigned i) { return makeString((i - 1) % 7 + 1, "px"_s); }, " + "_s, 12), ')'), makeString("calc(43px + "_s, mins(40), ')') },
+        { makeString("clamp(1px, calc("_s, mins(42), " + 1% + 1em), 100%)"_s), makeString("clamp(1px, 1% + 1em + "_s, mins(42), ", 100%)"_s) },
+        { pixels(8, false, false, false), "calc(29px)"_s },
+        { pixels(8, true, true, false), "calc(29px)"_s },
+        { pixels(8, true, false, true), "calc(29px)"_s },
+        { pixels(8, true, true, true), "calc(29px)"_s },
+        { pixels(9, false, false, false), "calc(31px)"_s },
+        { pixels(64, false, false, false), "calc(253px)"_s },
+        { pixels(64, true, true, false), "calc(253px)"_s },
+        { pixels(64, true, false, true), "calc(253px)"_s },
+        { pixels(64, true, true, true), "calc(253px)"_s },
+        { pixels(65, false, false, false), "calc(255px)"_s },
+        { pixels(65, true, true, true), "calc(255px)"_s },
+        { "calc(1px + (2px)"_s, "calc(3px)"_s },
+        { "calc((1px + 2px)"_s, "calc(3px)"_s },
+        { "calc(1px + (2px])"_s, String { } },
+        { "calc(1em + 1ex + 1ch + 1rem + 1vw + 1vh + 1vmin + 1vmax + 2em + 2vmax + 3vmin)"_s, "calc(1ch + 3em + 1ex + 1rem + 1vh + 3vmax + 4vmin + 1vw)"_s },
+        { "calc(1em + 1ex + 1ch + 1rem + 1vw + 1vh + 1vmin + 1vmax + 1lh + 2em + 2lh + 3vmax)"_s, "calc(1ch + 3em + 1ex + 3lh + 1rem + 1vh + 4vmax + 1vmin + 1vw)"_s },
+        { "calc(1em + 1ex + 1ch + 1rem + 1vw + 1vh + 1vmin + 1vmax + 1lh + 0px + 2lh)"_s, "calc(1ch + 1em + 1ex + 3lh + 0px + 1rem + 1vh + 1vmax + 1vmin + 1vw)"_s },
+        { "min(1em, 1ex, 1ch, 1rem, 1vw, 1vh, 1vmin, 1vmax, 1lh, 2lh, 0.5em)"_s, "min(0.5em, 1ex, 1ch, 1rem, 1vw, 1vh, 1vmin, 1vmax, 1lh)"_s },
+        { "max(1em, 1ex, 1ch, 1rem, 1vw, 1vh, 1vmin, 1vmax, 2vmax, 1px, 2px)"_s, "max(1em, 1ex, 1ch, 1rem, 1vw, 1vh, 1vmin, 2vmax, 2px)"_s },
+        { mix(16, [](unsigned) { return "6.250%"_s; }), "calc(8.5px)"_s },
+        { mix(17, [](unsigned) { return "5.882%"_s; }), "calc(8.99946px)"_s },
+        { mix(16, [](unsigned i) { return (i - 1) % 3 ? "0%"_s : "10%"_s; }), "calc(5.1px)"_s },
+        { mix(17, [](unsigned i) { return (i - 1) % 3 ? "0%"_s : "10%"_s; }), "calc(5.1px)"_s },
+        { makeString("calc-mix("_s, join([](unsigned i) { return makeString(i, "px"_s); }, ","_s, 15), ')'), "calc(8px)"_s },
+        { makeString("calc-mix("_s, join([](unsigned i) { return makeString(i, "px"_s); }, ","_s, 16), ')'), "calc(8.5px)"_s },
+        { makeString("calc-mix("_s, join([](unsigned i) { return makeString(i, "px"_s); }, ","_s, 17), ')'), "calc(9px)"_s },
+        { makeString("calc-mix(1px 10%,"_s, join([](unsigned i) { return makeString(i + 1, "px"_s); }, ","_s, 15), ')'), "calc(8.2px)"_s },
+    };
+
+    auto context = strictCSSParserContext();
+    context.cssCalcMixEnabled = true;
+    for (auto& [input, output] : testCases) {
+        auto properties = MutableStyleProperties::create();
+        // No semicolon: an unclosed block would hold it.
+        CSSParser::parseDeclarationList(properties, makeString("width: "_s, input), context);
+        auto value = properties->getPropertyValue(CSSPropertyID::Width);
+        if (output.isNull())
+            EXPECT_TRUE(value.isEmpty());
+        else
+            EXPECT_EQ(value, output);
     }
 }
 

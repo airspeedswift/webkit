@@ -59,6 +59,15 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
+#if USE_SWIFT_CSS_CALC
+#include "WebCore-Swift.h"
+#include <wtf/ForbidHeapAllocation.h>
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSNumericValue);
@@ -81,6 +90,7 @@ template<typename T> static ExceptionOr<Ref<CSSNumericValue>> convertToException
     return upcast<CSSNumericValue>(WTF::move(input));
 }
 
+#if !USE_SWIFT_CSS_CALC
 static ExceptionOr<Vector<Ref<CSSNumericValue>>> reifyMathExpressions(const CSSCalc::Children& nodes)
 {
     Vector<Ref<CSSNumericValue>> values;
@@ -187,6 +197,89 @@ ExceptionOr<Ref<CSSNumericValue>> CSSNumericValue::reifyMathExpression(const CSS
         [](const CSS::Keyword::None&) -> ExceptionOr<Ref<CSSNumericValue>> { return Exception { ExceptionCode::UnknownError }; }
     );
 }
+#endif
+
+#if USE_SWIFT_CSS_CALC
+namespace {
+
+class SwiftNumericValueBuilder final : public CSSCalcSwiftNumericValueBuilder {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    Vector<Ref<CSSNumericValue>, 4> values;
+    std::optional<Exception> exception;
+};
+
+} // namespace (anonymous)
+
+static_assert(isCSSCalcSwiftFacade<CSSCalcSwiftNumericValueBuilder>);
+
+static bool push(SwiftNumericValueBuilder& builder, ExceptionOr<Ref<CSSNumericValue>>&& value)
+{
+    if (value.hasException()) {
+        builder.exception = value.releaseException();
+        return false;
+    }
+    builder.values.append(value.releaseReturnValue());
+    return true;
+}
+
+bool CSSCalcSwiftNumericValueBuilder::pushUnitValue(double value, uint16_t unit)
+{
+    return push(static_cast<SwiftNumericValueBuilder&>(*this), convertToExceptionOrNumericValue(CSSUnitValue::create(value, static_cast<CSSUnitType>(unit))));
+}
+
+// An unsupported node, or a `none` operand, with no operands, makes the exception the C++ makes at that node.
+bool CSSCalcSwiftNumericValueBuilder::pushOperation(uint8_t kind, uint32_t operandCount)
+{
+    auto& builder = static_cast<SwiftNumericValueBuilder&>(*this);
+    RELEASE_ASSERT(operandCount <= builder.values.size());
+    auto first = builder.values.size() - operandCount;
+    Vector<Ref<CSSNumericValue>> operands;
+    for (size_t i = first; i < builder.values.size(); ++i)
+        operands.append(WTF::move(builder.values[i]));
+    builder.values.shrink(first);
+    auto unary = [&](auto create) -> ExceptionOr<Ref<CSSNumericValue>> {
+        RELEASE_ASSERT(operandCount == 1);
+        return convertToExceptionOrNumericValue(create(WTF::move(operands[0])));
+    };
+    switch (operandCount ? static_cast<CSSCalcNodeKind>(kind) : CSSCalcNodeKind::Symbol) {
+    case CSSCalcNodeKind::Sum:
+        return push(builder, convertToExceptionOrNumericValue(CSSMathSum::create(WTF::move(operands))));
+    case CSSCalcNodeKind::Product:
+        return push(builder, convertToExceptionOrNumericValue(CSSMathProduct::create(WTF::move(operands))));
+    case CSSCalcNodeKind::Min:
+        return push(builder, convertToExceptionOrNumericValue(CSSMathMin::create(WTF::move(operands))));
+    case CSSCalcNodeKind::Max:
+        return push(builder, convertToExceptionOrNumericValue(CSSMathMax::create(WTF::move(operands))));
+    case CSSCalcNodeKind::Negate:
+        return push(builder, unary([](Ref<CSSNumericValue>&& value) { return CSSMathNegate::create(WTF::move(value)); }));
+    case CSSCalcNodeKind::Invert:
+        return push(builder, unary([](Ref<CSSNumericValue>&& value) { return CSSMathInvert::create(WTF::move(value)); }));
+    case CSSCalcNodeKind::Clamp:
+        RELEASE_ASSERT(operandCount == 3);
+        return push(builder, convertToExceptionOrNumericValue(CSSMathClamp::create(WTF::move(operands[0]), WTF::move(operands[1]), WTF::move(operands[2]))));
+    default:
+        return push(builder, Exception { ExceptionCode::UnknownError });
+    }
+}
+
+// https://drafts.css-houdini.org/css-typed-om/#reify-a-math-expression
+ExceptionOr<Ref<CSSNumericValue>> CSSNumericValue::reifyMathExpression(const CSS::UnevaluatedCalcBase& calc)
+{
+    return CSSNumericValue::reifyMathExpression(calc.calcValue().tree());
+}
+
+ExceptionOr<Ref<CSSNumericValue>> CSSNumericValue::reifyMathExpression(const CSSCalc::Tree& tree)
+{
+    SwiftNumericValueBuilder builder;
+    if (!cssCalcReify(tree.storage.nodes.span(), builder)) {
+        RELEASE_ASSERT(builder.exception);
+        return WTF::move(*builder.exception);
+    }
+    RELEASE_ASSERT(builder.values.size() == 1);
+    return WTF::move(builder.values[0]);
+}
+#endif
 
 static Ref<CSSNumericValue> negate(Ref<CSSNumericValue>&& value)
 {

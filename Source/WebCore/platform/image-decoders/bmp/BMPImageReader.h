@@ -30,6 +30,11 @@
 
 #pragma once
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "ScalableImageDecoder.h"
 #include <stdint.h>
 #include <wtf/StdLibExtras.h>
@@ -307,3 +312,4 @@ private:
 };
 
 } // namespace WebCore
+#endif // !USE_SWIFT_IMAGE_DECODERS

@@ -29,6 +29,12 @@
  */
 
 #include "config.h"
+
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "BMPImageReader.h"
 
 #include <wtf/StdLibExtras.h>
@@ -785,3 +791,4 @@ void BMPImageReader::moveBufferToNextRow()
 }
 
 } // namespace WebCore
+#endif // !USE_SWIFT_IMAGE_DECODERS

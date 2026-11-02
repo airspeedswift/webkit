@@ -82,6 +82,7 @@ public:
 private:
     void updateFromStateNode(const ScrollingStateScrollingNode&) final;
 
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
     // ScrollingEffectsControllerClient.
     bool allowsHorizontalStretching(const PlatformWheelEvent&) const final;
     bool allowsVerticalStretching(const PlatformWheelEvent&) const final;
@@ -99,10 +100,13 @@ private:
     float refreshControllerSnappingThreshold() const final;
 #endif
     bool scrollPositionIsNotRubberbandingEdge(const FloatPoint&) const;
+#endif
 
     const Ref<ScrollerPairMac> m_scrollerPair;
 
+#if !USE_SWIFT_SCROLLING_TREE_DELEGATE
     bool m_inMomentumPhase { false };
+#endif
 
 #if HAVE(RUBBER_BANDING)
     std::optional<RubberbandingState> m_pendingRubberbandingState;

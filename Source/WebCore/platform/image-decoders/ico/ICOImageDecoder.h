@@ -30,9 +30,22 @@
 
 #pragma once
 
+#if !defined(USE_SWIFT_IMAGE_DECODERS)
+#define USE_SWIFT_IMAGE_DECODERS 0
+#endif
+
+#if !USE_SWIFT_IMAGE_DECODERS
 #include "BMPImageReader.h"
+#else
+#include "ImageDecoderSwiftTypes.h"
+#include "ScalableImageDecoder.h"
+#endif
 
 namespace WebCore {
+
+#if USE_SWIFT_IMAGE_DECODERS
+class ICOImageDecoderState;
+#endif
 
 // This class decodes the ICO and CUR image formats.
 class ICOImageDecoder final : public ScalableImageDecoder {
@@ -47,9 +60,13 @@ public:
     // ScalableImageDecoder
     String filenameExtension() const final { return "ico"_s; }
     void setData(const FragmentedSharedBuffer&, bool allDataReceived) final;
+#if !USE_SWIFT_IMAGE_DECODERS
     IntSize size() const final;
+#endif
     IntSize frameSizeAtIndex(size_t, SubsamplingLevel) const final;
+#if !USE_SWIFT_IMAGE_DECODERS
     bool setSize(const IntSize&) final;
+#endif
     size_t decodeIfNeededAndGetFrameCount() const final;
     ScalableImageDecoderFrame* frameBufferAtIndex(size_t) final;
     // CAUTION: setFailed() deletes all readers and decoders. Be careful to
@@ -59,6 +76,7 @@ public:
     std::optional<IntPoint> hotSpot() const final;
 
 private:
+#if !USE_SWIFT_IMAGE_DECODERS
     enum ImageType {
         Unknown,
         BMP,
@@ -69,6 +87,7 @@ private:
         ICON = 1,
         CURSOR = 2,
     };
+#endif
 
     struct IconDirectoryEntry {
         IntSize m_size;
@@ -84,6 +103,7 @@ private:
     // Larger sizes, or greater bitdepths at the same size, are preferable.
     static bool compareEntries(const IconDirectoryEntry& a, const IconDirectoryEntry& b);
 
+#if !USE_SWIFT_IMAGE_DECODERS
     inline uint16_t readUint16(int offset) const
     {
         return BMPImageReader::readUint16(*m_data, m_decodedOffset + offset);
@@ -93,6 +113,7 @@ private:
     {
         return BMPImageReader::readUint32(*m_data, m_decodedOffset + offset);
     }
+#endif
 
     // If the desired PNGImageDecoder exists, gives it the appropriate data.
     void setDataForPNGDecoderAtIndex(size_t);
@@ -102,6 +123,7 @@ private:
     // more data coming, sets the "decode failure" flag.
     void decode(size_t index, bool onlySize, bool allDataReceived);
 
+#if !USE_SWIFT_IMAGE_DECODERS
     // Decodes the directory and directory entries at the beginning of the
     // data, and initializes members. Returns true if all decoding
     // succeeded. Once this returns true, all entries' sizes are known.
@@ -129,7 +151,9 @@ private:
     // Determines whether the desired entry is a BMP or PNG. Returns true
     // if the type could be determined.
     ImageType imageTypeAtIndex(size_t);
+#endif
 
+#if !USE_SWIFT_IMAGE_DECODERS
     // An index into |m_data| representing how much we've already decoded.
     // Note that this only tracks data _this_ class decodes; once the
     // BMPImageReader takes over this will not be updated further.
@@ -145,12 +169,21 @@ private:
     // The image decoders for the various frames.
     typedef Vector<std::unique_ptr<BMPImageReader>> BMPReaders;
     BMPReaders m_bmpReaders;
+#endif
     typedef Vector<RefPtr<ScalableImageDecoder>> PNGDecoders;
     PNGDecoders m_pngDecoders;
 
+#if !USE_SWIFT_IMAGE_DECODERS
     // Valid only while a BMPImageReader is decoding, this holds the size
     // for the particular entry being decoded.
     IntSize m_frameSize;
+#else
+    Vector<uint32_t> m_pngImageOffsets;
+    Vector<std::pair<IconDirectoryEntry, uint32_t>> m_sortedDirEntries;
+    std::unique_ptr<ICOImageDecoderState> m_swift;
+
+    friend class ScalableImageDecoderFrames;
+#endif
 };
 
 } // namespace WebCore

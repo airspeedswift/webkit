@@ -27,6 +27,10 @@
 #include "CSSPrimitiveNumericRange.h"
 #include <wtf/Forward.h>
 
+#if !defined(USE_SWIFT_CSS_CALC)
+#define USE_SWIFT_CSS_CALC 0
+#endif
+
 namespace WebCore {
 
 namespace CSS {
@@ -50,8 +54,10 @@ struct SerializationOptions {
 void serializationForCSS(StringBuilder&, const Tree&, const SerializationOptions&);
 String serializationForCSS(const Tree&, const SerializationOptions&);
 
+#if !USE_SWIFT_CSS_CALC
 void serializationForCSS(StringBuilder&, const Child&, const SerializationOptions&);
 String serializationForCSS(const Child&, const SerializationOptions&);
+#endif
 
 // Serializes a `<calc-sum>` as a math function argument, omitting the grouping parentheses.
 void serializationForCSSAsFunctionArgument(StringBuilder&, const Tree&, const SerializationOptions&);

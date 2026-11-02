@@ -29,6 +29,7 @@
 #include <WebCore/ScrollAnimation.h>
 #include <wtf/TZoneMalloc.h>
 
+#if !USE_SWIFT_SCROLL_PHYSICS
 namespace WebCore {
 
 class FloatPoint;
@@ -73,3 +74,17 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_SCROLL_ANIMATION(WebCore::ScrollAnimationSmooth, type() == WebCore::ScrollAnimation::Type::Smooth)
+#endif // !USE_SWIFT_SCROLL_PHYSICS
+
+#if USE_SWIFT_SCROLL_PHYSICS
+namespace WebCore {
+
+// Smooth scroll animations are in ScrollPhysicsAnimations.swift.
+class ScrollAnimationSmooth {
+public:
+    // Progress of the spring curve, from 0 to 1, at the given time since the start of the animation.
+    WEBCORE_EXPORT static double springProgress(Seconds elapsedTime);
+};
+
+} // namespace WebCore
+#endif // USE_SWIFT_SCROLL_PHYSICS

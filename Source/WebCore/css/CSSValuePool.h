@@ -72,7 +72,7 @@ class CSSValuePool {
     WTF_MAKE_NONCOPYABLE(CSSValuePool);
 public:
     CSSValuePool();
-    static CSSValuePool& LEGACY_NODELETE singleton();
+    WEBCORE_EXPORT static CSSValuePool& LEGACY_NODELETE singleton();
     void drain();
 
     Ref<CSSColorValue> createColorValue(const WebCore::Color&);

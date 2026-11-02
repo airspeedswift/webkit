@@ -224,8 +224,10 @@ if (ENABLE_JAVASCRIPTCORE)
     set(TestJavaScriptCore_SOURCES
         Runner/TestsController.cpp
 
+        Tests/JavaScriptCore/BigIntBench.cpp
         Tests/JavaScriptCore/DisallowVMEntry.cpp
         Tests/JavaScriptCore/InspectorConsoleMessage.cpp
+        Tests/JavaScriptCore/JSONParseBench.cpp
         Tests/JavaScriptCore/MarkedVector.cpp
         Tests/JavaScriptCore/PropertySlot.cpp
         Tests/JavaScriptCore/RegularExpression.cpp
@@ -271,8 +273,11 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/CBORReaderTest.cpp
         Tests/WebCore/CBORValueTest.cpp
         Tests/WebCore/CBORWriterTest.cpp
+        Tests/WebCore/CSSCalcBench.cpp
+        Tests/WebCore/CSSFastPathsBench.cpp
         Tests/WebCore/CSSParser.cpp
         Tests/WebCore/CSSParserFastPaths.cpp
+        Tests/WebCore/CSSTokenizerBench.cpp
         Tests/WebCore/CSSTokenizerTests.cpp
         Tests/WebCore/CSSValueAggregates.cpp
         Tests/WebCore/CachedMatchFinder.cpp
@@ -307,7 +312,11 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/GridPosition.cpp
         Tests/WebCore/H264UtilitiesTests.cpp
         Tests/WebCore/HEVCUtilitiesTests.cpp
+        Tests/WebCore/HTMLDocumentParserBench.cpp
+        Tests/WebCore/HTMLFastPathParserBench.cpp
         Tests/WebCore/HTMLParserIdioms.cpp
+        Tests/WebCore/HTMLPreloadScannerBench.cpp
+        Tests/WebCore/HTMLTokenizerBench.cpp
         Tests/WebCore/HTTPHeaderField.cpp
         Tests/WebCore/HTTPHeaderMap.cpp
         Tests/WebCore/HTTPParsers.cpp
@@ -317,6 +326,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/IPAddressTests.cpp
         Tests/WebCore/ImageBackingStoreTests.cpp
         Tests/WebCore/ImageBufferTests.cpp
+        Tests/WebCore/ImageDecoderBench.cpp
         Tests/WebCore/IntPointTests.cpp
         Tests/WebCore/IntRectTests.cpp
         Tests/WebCore/IntSizeTests.cpp
@@ -367,6 +377,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/StyleGradient.cpp
         Tests/WebCore/TestPlatformStrategies.cpp
         Tests/WebCore/TextCodec.cpp
+        Tests/WebCore/TextCodecUTF8Bench.cpp
         Tests/WebCore/TextIterator.cpp
         Tests/WebCore/TextMeasurementCache.cpp
         Tests/WebCore/TimeRanges.cpp
