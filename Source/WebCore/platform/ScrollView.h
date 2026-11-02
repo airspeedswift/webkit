@@ -501,8 +501,6 @@ private:
     WEBCORE_EXPORT IntRect visibleContentRectInternal(VisibleContentRectIncludesScrollbars, VisibleContentRectBehavior) const final;
     WEBCORE_EXPORT IntRect unobscuredContentRectInternal(VisibleContentRectIncludesScrollbars = VisibleContentRectIncludesScrollbars::No) const;
 
-    void completeUpdatesAfterScrollTo(const IntSize& scrollDelta);
-
     bool setHasScrollbarInternal(RefPtr<Scrollbar>&, ScrollbarOrientation, bool hasBar, bool* contentSizeAffected);
 
     bool isScrollView() const final { return true; }
@@ -510,7 +508,7 @@ private:
     void init();
     void destroy();
 
-    IntRect rectToCopyOnScroll() const;
+    friend class ScrollAnimatorScrollPhysicsClient;
 
     // Called when the scroll position within this view changes. FrameView overrides this to generate repaint invalidations.
     virtual void updateLayerPositionsAfterScrolling() = 0;

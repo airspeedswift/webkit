@@ -43,6 +43,8 @@ using OptionalScrollGranularity = std::optional<ScrollGranularity>;
 using OptionalBoxSide = std::optional<BoxSide>;
 // For Swift, which cannot name the std::optional that ScrollableArea's snap point index getters return.
 using OptionalSnapPointIndex = std::optional<unsigned>;
+// For Swift, which cannot name the std::optional that ScrollView's scrollbar hit test returns.
+using OptionalScrollbarOrientation = std::optional<ScrollbarOrientation>;
 
 // The snap offsets and the discrete scroll snap timer that a scroll physics client gives Swift. Derived provides
 // snapOffsetsInfo(), createSnapTimer(), and snapTimerOwner(), which holds m_discreteSnapTransitionTimer and whose
