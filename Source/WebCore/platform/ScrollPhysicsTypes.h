@@ -39,6 +39,10 @@ using RubberBandingEdges = RectEdges<bool>;
 // granularity functions return.
 using OptionalScrollDirection = std::optional<ScrollDirection>;
 using OptionalScrollGranularity = std::optional<ScrollGranularity>;
+// For Swift, which cannot name the std::optional that ScrollableArea::targetSideForScrollDelta() returns.
+using OptionalBoxSide = std::optional<BoxSide>;
+// For Swift, which cannot name the std::optional that ScrollableArea's snap point index getters return.
+using OptionalSnapPointIndex = std::optional<unsigned>;
 
 // The snap offsets and the discrete scroll snap timer that a scroll physics client gives Swift. Derived provides
 // snapOffsetsInfo(), createSnapTimer(), and snapTimerOwner(), which holds m_discreteSnapTransitionTimer and whose

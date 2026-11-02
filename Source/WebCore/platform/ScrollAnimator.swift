@@ -144,14 +144,12 @@ extension ScrollPhysicsController {
 
     // ScrollAnimator::offsetFromPosition(): ScrollableArea::scrollOffsetFromPosition() with the area's scroll origin.
     func scrollAnimatorOffsetFromPosition(_ c: inout MainThreadScrollPhysicsClient, _ position: ScrollPoint) -> ScrollPoint {
-        let scrollOrigin = c.scrollOrigin()
-        return position + ScrollSize(width: Float(scrollOrigin.x()), height: Float(scrollOrigin.y()))
+        scrollableAreaScrollOffsetFromPosition(&c, position)
     }
 
     // ScrollAnimator::positionFromOffset(): ScrollableArea::scrollPositionFromOffset() with the area's scroll origin.
     func scrollAnimatorPositionFromOffset(_ c: inout MainThreadScrollPhysicsClient, _ offset: ScrollPoint) -> ScrollPoint {
-        let scrollOrigin = c.scrollOrigin()
-        return ScrollPoint(x: offset.x - Float(scrollOrigin.x()), y: offset.y - Float(scrollOrigin.y()))
+        scrollableAreaScrollPositionFromOffset(&c, offset)
     }
 
     // Requests the edge itself, rather than a delta that is relative to a position that may be out of date while an
@@ -171,7 +169,9 @@ extension ScrollPhysicsController {
                 newPosition.x = destinationPosition.x
             }
         }
-        c.scrollToPositionWithAnimation(newPosition.floatPoint, WebCore.documentEdgeScrollAnimationCurve())
+        var options = WebCore.ScrollPositionChangeOptions.createProgrammatic()
+        options.animationCurve = WebCore.documentEdgeScrollAnimationCurve()
+        scrollableAreaScrollToPositionWithAnimation(&c, newPosition.floatPoint, options: options)
     }
 }
 

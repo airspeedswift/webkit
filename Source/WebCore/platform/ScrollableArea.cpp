@@ -48,9 +48,18 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
+#include "ScrollAnimatorScrollPhysicsClient.h"
+#include "WebCore-Swift.h"
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollableArea);
+
+void ScrollAnimatorScrollPhysicsClient::createAnimator(ScrollableArea& area)
+{
+    auto& state = static_cast<ScrollAnimatorScrollPhysicsClientState&>(*this);
+    state.m_constAnimator = state.m_animator = &area.scrollAnimator();
+}
 
 struct SameSizeAsScrollableArea : public CanMakeWeakPtr<SameSizeAsScrollableArea>, public AbstractCanMakeCheckedPtr {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(SameSizeAsScrollableArea);
@@ -132,59 +141,17 @@ float ScrollableArea::adjustVerticalPageScrollStepForFixedContent(float step)
 
 bool ScrollableArea::scroll(ScrollDirection direction, ScrollGranularity granularity, unsigned stepCount)
 {
-    RefPtr scrollbar = scrollbarForDirection(direction);
-    if (!scrollbar)
-        return false;
-
-    float step = 0;
-    switch (granularity) {
-    case ScrollGranularity::Line:
-        step = scrollbar->lineStep();
-        break;
-    case ScrollGranularity::Page:
-        step = scrollbar->pageStep();
-        break;
-    case ScrollGranularity::Document:
-        step = scrollbar->totalSize();
-        break;
-    case ScrollGranularity::Pixel:
-        step = scrollbar->pixelStep();
-        break;
-    }
-
-    auto axis = axisFromDirection(direction);
-
-    if (granularity == ScrollGranularity::Page && axis == ScrollEventAxis::Vertical)
-        step = adjustVerticalPageScrollStepForFixedContent(step);
-
-    auto scrollDelta = step * stepCount;
-
-    if (direction == ScrollDirection::ScrollUp || direction == ScrollDirection::ScrollLeft)
-        scrollDelta = -scrollDelta;
-
-    EnumSet<ScrollAnimator::ScrollBehavior> behavior = ScrollAnimator::ScrollBehavior::RespectScrollSnap;
-    if (granularity == ScrollGranularity::Page)
-        behavior.add(ScrollAnimator::ScrollBehavior::Paged);
-    if (granularity == ScrollGranularity::Document)
-        behavior.add(ScrollAnimator::ScrollBehavior::DocumentEdge);
-
-    return scrollAnimator().singleAxisScroll(axis, scrollDelta, behavior);
+    return scrollableAreaScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), direction, granularity, stepCount);
 }
 
 void ScrollableArea::beginKeyboardScroll(const KeyboardScroll& scrollData)
 {
-    bool startedAnimation = requestStartKeyboardScrollAnimation(scrollData);
-
-    if (startedAnimation)
-        setScrollAnimationStatus(ScrollAnimationStatus::Animating);
+    scrollableAreaBeginKeyboardScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), scrollData);
 }
 
 void ScrollableArea::endKeyboardScroll(bool immediate)
 {
-    bool finishedAnimation = requestStopKeyboardScrollAnimation(immediate);
-
-    if (finishedAnimation)
-        setScrollAnimationStatus(ScrollAnimationStatus::NotAnimating);
+    scrollableAreaEndKeyboardScroll(ScrollAnimatorScrollPhysicsClientState(*this).facade(), immediate);
 }
 
 bool ScrollableArea::scrollToPositionWithoutAnimation(const FloatPoint& position, ScrollClamping clamping)
@@ -195,99 +162,28 @@ bool ScrollableArea::scrollToPositionWithoutAnimation(const FloatPoint& position
 
 void ScrollableArea::scrollToPositionWithAnimation(const FloatPoint& position, const ScrollPositionChangeOptions& options)
 {
-    LOG_WITH_STREAM(Scrolling, stream << "ScrollableArea " << this << " scrollToPositionWithAnimation " << position);
-
-    if (scrollAnimationStatus() == ScrollAnimationStatus::Animating) {
-        // If a smooth scroll animation is already running, retarget it to the new
-        // destination instead of cancelling it. Cancelling tears the animation down,
-        // which prematurely fires a scrollend event at the current intermediate position
-        // rather than running to the new destination. Fall back to cancellation when
-        // there is no active main-thread animation to retarget.
-        if (scrollAnimator().retargetRunningAnimation(position, options.animationCurve))
-            return;
-        scrollAnimator().cancelAnimations();
-    }
-
-    if (position == scrollPosition())
-        return;
-
-    auto scrollTypeScope = ScrollTypeScope(*this, options.type);
-
-    bool startedAnimation = requestScrollToPosition(roundedIntPoint(position), {
-        .type = ScrollType::Programmatic,
-        .clamping = options.clamping,
-        .animated = ScrollIsAnimated::Yes,
-        .snapPointSelectionMethod = options.snapPointSelectionMethod,
-        .originalScrollDelta = options.originalScrollDelta,
-        .animationCurve = options.animationCurve,
-    });
-    if (!startedAnimation)
-        startedAnimation = scrollAnimator().scrollToPositionWithAnimation(position, options.clamping, options.animationCurve);
-
-    if (startedAnimation)
-        setScrollAnimationStatus(ScrollAnimationStatus::Animating);
+    scrollableAreaScrollToPositionWithAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position, options.type, options.clamping, options.snapPointSelectionMethod, options.originalScrollDelta.has_value(), options.originalScrollDelta.value_or(FloatSize { }), options.animationCurve);
 }
 
 void ScrollableArea::scrollToOffsetWithoutAnimation(const FloatPoint& offset, ScrollClamping clamping)
 {
-    LOG_WITH_STREAM(Scrolling, stream << "ScrollableArea " << this << " scrollToOffsetWithoutAnimation " << offset);
-
-    auto position = scrollPositionFromOffset(offset, toFloatSize(scrollOrigin()));
-    scrollAnimator().scrollToPositionWithoutAnimation(position, clamping);
+    scrollableAreaScrollToOffsetWithoutAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), offset, clamping);
 }
 
 void ScrollableArea::scrollToOffsetWithoutAnimation(ScrollbarOrientation orientation, float offset)
 {
-    auto currentOffset = scrollOffsetFromPosition(scrollAnimator().currentPosition(), toFloatSize(scrollOrigin()));
-    if (orientation == ScrollbarOrientation::Horizontal)
-        scrollToOffsetWithoutAnimation(FloatPoint(offset, currentOffset.y()));
-    else
-        scrollToOffsetWithoutAnimation(FloatPoint(currentOffset.x(), offset));
+    scrollableAreaScrollToOffsetWithoutAnimationOnAxis(ScrollAnimatorScrollPhysicsClientState(*this).facade(), orientation, offset);
 }
 
 void ScrollableArea::notifyScrollPositionChanged(const ScrollPosition& position)
 {
-    scrollPositionChanged(position);
-    scrollAnimator().setCurrentPosition(position);
+    scrollableAreaNotifyScrollPositionChanged(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position);
 }
 
-void ScrollableArea::scrollPositionChanged(const ScrollPosition& position)
+void ScrollAnimatorScrollPhysicsClient::scrollAnchoringScrollPositionDidChange()
 {
-    IntPoint oldPosition = scrollPosition();
-    // Tell the derived class to scroll its contents.
-    setScrollOffset(scrollOffsetFromPosition(position));
-
-    RefPtr verticalScrollbar = this->verticalScrollbar();
-
-    // Tell the scrollbars to update their thumb postions.
-    if (RefPtr horizontalScrollbar = this->horizontalScrollbar()) {
-        horizontalScrollbar->offsetDidChange();
-        if (horizontalScrollbar->isOverlayScrollbar() && !hasLayerForHorizontalScrollbar()) {
-            if (!verticalScrollbar)
-                horizontalScrollbar->invalidate();
-            else {
-                // If there is both a horizontalScrollbar and a verticalScrollbar,
-                // then we must also invalidate the corner between them.
-                IntRect boundsAndCorner = horizontalScrollbar->boundsRect();
-                boundsAndCorner.setWidth(boundsAndCorner.width() + verticalScrollbar->width());
-                horizontalScrollbar->invalidateRect(boundsAndCorner);
-            }
-        }
-    }
-    if (verticalScrollbar) {
-        verticalScrollbar->offsetDidChange();
-        if (verticalScrollbar->isOverlayScrollbar() && !hasLayerForVerticalScrollbar())
-            verticalScrollbar->invalidate();
-    }
-
-    if (scrollPosition() != oldPosition) {
-        scrollbarsController().notifyContentAreaScrolled(scrollPosition() - oldPosition);
-
-        if (CheckedPtr controller = scrollAnchoringController())
-            controller->scrollPositionDidChange();
-
-        updateAnchorPositionedAfterScroll();
-    }
+    if (CheckedPtr controller = mutableArea().scrollAnchoringController())
+        controller->scrollPositionDidChange();
 }
 
 void ScrollableArea::willDispatchScrollEvent()
@@ -356,13 +252,7 @@ void ScrollableArea::setScrollOffsetFromInternals(const ScrollOffset& offset)
 
 void ScrollableArea::setScrollPositionFromAnimation(const ScrollPosition& position)
 {
-    // An early return here if the position hasn't changed breaks an iOS RTL scrolling test: webkit.org/b/230450.
-    auto scrollType = currentScrollType();
-    auto clamping = scrollType == ScrollType::User ? ScrollClamping::Unclamped : ScrollClamping::Clamped;
-    if (requestScrollToPosition(position, { scrollType, clamping, ScrollIsAnimated::No }))
-        return;
-
-    scrollPositionChanged(position);
+    scrollableAreaSetScrollPositionFromAnimation(ScrollAnimatorScrollPhysicsClientState(*this).facade(), position);
 }
 
 void ScrollableArea::willStartLiveResize()
@@ -660,68 +550,12 @@ void ScrollableArea::setCurrentVerticalSnapPointIndex(std::optional<unsigned> in
 
 void ScrollableArea::resnapAfterLayout()
 {
-    LOG_WITH_STREAM(ScrollSnap, stream << *this << " resnapAfterLayout: isScrollSnapInProgress " << isScrollSnapInProgress() << " isUserScrollInProgress " << isUserScrollInProgress());
-
-    auto* scrollAnimator = existingScrollAnimator();
-    if (!scrollAnimator || isScrollSnapInProgress() || isUserScrollInProgress() || !isInStableState())
-        return;
-
-    scrollAnimator->resnapAfterLayout();
-
-    const auto* info = snapOffsetsInfo();
-    if (!info)
-        return;
-
-    auto currentOffset = scrollOffset();
-    auto correctedOffset = currentOffset;
-
-    if (!horizontalScrollbar() || horizontalScrollbar()->pressedPart() == ScrollbarPart::NoPart) {
-        const auto& horizontal = info->horizontalSnapOffsets;
-        auto activeHorizontalIndex = currentHorizontalSnapPointIndex();
-        if (activeHorizontalIndex && !info->snapOffsetCoversSnapport(horizontal[*activeHorizontalIndex], ScrollEventAxis::Horizontal, currentOffset.x(), visibleWidth()))
-            correctedOffset.setX(horizontal[*activeHorizontalIndex].offset.toInt());
-    }
-
-    if (!verticalScrollbar() || verticalScrollbar()->pressedPart() == ScrollbarPart::NoPart) {
-        const auto& vertical = info->verticalSnapOffsets;
-        auto activeVerticalIndex = currentVerticalSnapPointIndex();
-        if (activeVerticalIndex && !info->snapOffsetCoversSnapport(vertical[*activeVerticalIndex], ScrollEventAxis::Vertical, currentOffset.y(), visibleHeight()))
-            correctedOffset.setY(vertical[*activeVerticalIndex].offset.toInt());
-    }
-
-    if (correctedOffset != currentOffset) {
-        LOG_WITH_STREAM(ScrollSnap, stream << "ScrollableArea::resnapAfterLayout - adjusting scroll position from " << currentOffset << " to " << correctedOffset << " for snap point at index " << currentVerticalSnapPointIndex());
-        auto position = scrollPositionFromOffset(correctedOffset);
-        if (scrollAnimationStatus() == ScrollAnimationStatus::NotAnimating) {
-            auto scrollTypeScope = ScrollTypeScope(*this, ScrollType::Programmatic);
-            scrollToOffsetWithoutAnimation(correctedOffset);
-        } else {
-            // Resnapping corrects the position rather than scrolling to an edge of the document, so it uses the default curve.
-            scrollAnimator->retargetRunningAnimation(position, ScrollAnimationCurve::Default);
-        }
-    }
+    scrollableAreaResnapAfterLayout(ScrollAnimatorScrollPhysicsClientState(*this).facade());
 }
 
 void ScrollableArea::doPostThumbMoveSnapping(ScrollbarOrientation orientation)
 {
-    auto* scrollAnimator = existingScrollAnimator();
-    if (!scrollAnimator)
-        return;
-
-    auto currentOffset = scrollOffset();
-    auto newOffset = currentOffset;
-    if (orientation == ScrollbarOrientation::Horizontal)
-        newOffset.setX(scrollAnimator->scrollOffsetAdjustedForSnapping(ScrollEventAxis::Horizontal, currentOffset, ScrollSnapPointSelectionMethod::Closest));
-    else
-        newOffset.setY(scrollAnimator->scrollOffsetAdjustedForSnapping(ScrollEventAxis::Vertical, currentOffset, ScrollSnapPointSelectionMethod::Closest));
-
-    if (newOffset == currentOffset)
-        return;
-
-    LOG_WITH_STREAM(ScrollSnap, stream << "ScrollableArea::doPostThumbMoveSnapping - adjusting scroll position from " << currentOffset << " to " << newOffset);
-
-    auto position = scrollPositionFromOffset(newOffset);
-    scrollAnimator->scrollToPositionWithAnimation(position);
+    scrollableAreaDoPostThumbMoveSnapping(ScrollAnimatorScrollPhysicsClientState(*this).facade(), orientation);
 }
 
 bool ScrollableArea::isPinnedOnSide(BoxSide side) const
@@ -877,28 +711,7 @@ IntRect ScrollableArea::visibleContentRectInternal(VisibleContentRectIncludesScr
 
 LayoutPoint ScrollableArea::constrainScrollPositionForOverhang(const LayoutRect& visibleContentRect, const LayoutSize& totalContentsSize, const LayoutPoint& scrollPosition, const LayoutPoint& scrollOrigin, int headerHeight, int footerHeight)
 {
-    // The viewport rect that we're scrolling shouldn't be larger than our document.
-    LayoutSize idealScrollRectSize(std::min(visibleContentRect.width(), totalContentsSize.width()), std::min(visibleContentRect.height(), totalContentsSize.height()));
-    
-    LayoutRect scrollRect(scrollPosition + scrollOrigin - LayoutSize(0, headerHeight), idealScrollRectSize);
-    LayoutRect documentRect(LayoutPoint(), LayoutSize(totalContentsSize.width(), totalContentsSize.height() - headerHeight - footerHeight));
-
-    // Use intersection to constrain our ideal scroll rect by the document rect.
-    scrollRect.intersect(documentRect);
-
-    if (scrollRect.size() != idealScrollRectSize) {
-        // If the rect was clipped, restore its size, effectively pushing it "down" from the top left.
-        scrollRect.setSize(idealScrollRectSize);
-
-        // If we still clip, push our rect "up" from the bottom right.
-        scrollRect.intersect(documentRect);
-        if (scrollRect.width() < idealScrollRectSize.width())
-            scrollRect.move(-(idealScrollRectSize.width() - scrollRect.width()), 0_lu);
-        if (scrollRect.height() < idealScrollRectSize.height())
-            scrollRect.move(0_lu, -(idealScrollRectSize.height() - scrollRect.height()));
-    }
-
-    return scrollRect.location() - toLayoutSize(scrollOrigin);
+    return scrollableAreaConstrainScrollPositionForOverhang(visibleContentRect, totalContentsSize, scrollPosition, scrollOrigin, headerHeight, footerHeight);
 }
 
 LayoutPoint ScrollableArea::constrainScrollPositionForOverhang(const LayoutPoint& scrollPosition)
@@ -908,147 +721,17 @@ LayoutPoint ScrollableArea::constrainScrollPositionForOverhang(const LayoutPoint
 
 void ScrollableArea::computeScrollbarValueAndOverhang(float currentPosition, float totalSize, float visibleSize, float& scrollbarValue, float& overhangAmount)
 {
-    scrollbarValue = 0;
-    overhangAmount = 0;
-    float maximum = totalSize - visibleSize;
-
-    if (currentPosition < 0) {
-        // Scrolled past the top.
-        scrollbarValue = 0;
-        overhangAmount = -currentPosition;
-    } else if (visibleSize + currentPosition > totalSize) {
-        // Scrolled past the bottom.
-        scrollbarValue = 1;
-        overhangAmount = currentPosition + visibleSize - totalSize;
-    } else {
-        // Within the bounds of the scrollable area.
-        if (maximum > 0)
-            scrollbarValue = currentPosition / maximum;
-        else
-            scrollbarValue = 0;
-    }
+    scrollableAreaComputeScrollbarValueAndOverhang(currentPosition, totalSize, visibleSize, scrollbarValue, overhangAmount);
 }
 
 std::optional<BoxSide> ScrollableArea::targetSideForScrollDelta(FloatSize delta, ScrollEventAxis axis)
 {
-    switch (axis) {
-    case ScrollEventAxis::Horizontal:
-        if (delta.width() < 0)
-            return BoxSide::Left;
-
-        if (delta.width() > 0)
-            return BoxSide::Right;
-        break;
-
-    case ScrollEventAxis::Vertical:
-        if (delta.height() < 0)
-            return BoxSide::Top;
-
-        if (delta.height() > 0)
-            return BoxSide::Bottom;
-        break;
-    }
-
-    return { };
+    return scrollableAreaTargetSideForScrollDelta(delta, axis);
 }
 
 LayoutRect ScrollableArea::getRectToExposeForScrollIntoView(const LayoutRect& visibleBounds, const LayoutRect& exposeRect, const ScrollAlignment& alignX, const ScrollAlignment& alignY, const std::optional<LayoutRect> visibilityCheckRect) const
 {
-    static const int minIntersectForReveal = 32;
-
-    ScrollAlignment::Behavior scrollX = alignX.getHiddenBehavior();
-    
-    bool intersectsInX = false;
-    if (visibilityCheckRect)
-        intersectsInX = visibilityCheckRect->maxX() >= visibleBounds.x() && visibilityCheckRect->x() <= visibleBounds.maxX();
-    else
-        intersectsInX = exposeRect.maxX() >= visibleBounds.x() && exposeRect.x() <= visibleBounds.maxX();
-    
-    // Determine the appropriate X behavior.
-    if (intersectsInX) {
-        LayoutUnit intersectWidth = std::max(LayoutUnit(), std::min(visibleBounds.maxX(), exposeRect.maxX()) - std::max(visibleBounds.x(), exposeRect.x()));
-
-        if (intersectWidth == exposeRect.width() || (alignX.legacyHorizontalVisibilityThresholdEnabled() && intersectWidth >= minIntersectForReveal)) {
-            // If the rectangle is fully visible, use the specified visible behavior.
-            // If the rectangle is partially visible, but over a certain threshold,
-            // then treat it as fully visible to avoid unnecessary horizontal scrolling
-            scrollX = alignX.getVisibleBehavior();
-        } else if (intersectWidth == visibleBounds.width()) {
-            // The rect is bigger than the visible area.
-            scrollX = alignX.getVisibleBehavior();
-        } else if (intersectWidth > 0)
-            // If the rectangle is partially visible, but not above the minimum threshold, use the specified partial behavior
-            scrollX = alignX.getPartialBehavior();
-        else
-            scrollX = alignX.getHiddenBehavior();
-    }
-
-    if (scrollX == ScrollAlignment::Behavior::AlignToClosestEdge) {
-        // The closest edge is the right in two cases:
-        // (1) exposeRect is to the right of and smaller than visibleBounds.
-        // (2) exposeRect is to the left of and larger than visibleBounds.
-        if ((exposeRect.maxX() > visibleBounds.maxX() && exposeRect.width() < visibleBounds.width())
-            || (exposeRect.maxX() < visibleBounds.maxX() && exposeRect.width() > visibleBounds.width()))
-            scrollX = ScrollAlignment::Behavior::AlignRight;
-    }
-
-    // Given the X behavior, compute the X coordinate.
-    LayoutUnit x;
-    if (scrollX == ScrollAlignment::Behavior::NoScroll)
-        x = visibleBounds.x();
-    else if (scrollX == ScrollAlignment::Behavior::AlignRight)
-        x = exposeRect.maxX() - visibleBounds.width();
-    else if (scrollX == ScrollAlignment::Behavior::AlignCenter)
-        x = exposeRect.x() + (exposeRect.width() - visibleBounds.width()) / 2;
-    else
-        x = exposeRect.x();
-
-    ScrollAlignment::Behavior scrollY = alignY.getHiddenBehavior();
-    
-    bool intersectsInY = false;
-    if (visibilityCheckRect)
-        intersectsInY = visibilityCheckRect->maxY() >= visibleBounds.y() && visibilityCheckRect->y() <= visibleBounds.maxY();
-    else
-        intersectsInY = exposeRect.maxY() >= visibleBounds.y() && exposeRect.y() <= visibleBounds.maxY();
-
-    // Determine the appropriate Y behavior.
-    if (intersectsInY) {
-        LayoutUnit intersectHeight = std::max(LayoutUnit(), std::min(visibleBounds.maxY(), exposeRect.maxY()) - std::max(visibleBounds.y(), exposeRect.y()));
-        if (intersectHeight == exposeRect.height()) {
-            // If the rectangle is fully visible, use the specified visible behavior.
-            scrollY = alignY.getVisibleBehavior();
-        } else if (intersectHeight == visibleBounds.height()) {
-            // The rect is bigger than the visible area.
-            scrollY = alignY.getVisibleBehavior();
-        } else if (intersectHeight > 0)
-            // If the rectangle is partially visible, use the specified partial behavior
-            scrollY = alignY.getPartialBehavior();
-        else
-            scrollY = alignY.getHiddenBehavior();
-    }
-
-    if (scrollY == ScrollAlignment::Behavior::AlignToClosestEdge) {
-        // The closest edge is the bottom in two cases:
-        // (1) exposeRect is below and smaller than visibleBounds.
-        // (2) exposeRect is above and larger than visibleBounds.
-        if ((exposeRect.maxY() > visibleBounds.maxY() && exposeRect.height() < visibleBounds.height())
-            || (exposeRect.maxY() < visibleBounds.maxY() && exposeRect.height() > visibleBounds.height()))
-            scrollY = ScrollAlignment::Behavior::AlignBottom;
-    }
-
-    // Given the Y behavior, compute the Y coordinate.
-    LayoutUnit y;
-    if (scrollY == ScrollAlignment::Behavior::NoScroll)
-        y = visibleBounds.y();
-    else if (scrollY == ScrollAlignment::Behavior::AlignBottom)
-        y = exposeRect.maxY() - visibleBounds.height();
-    else if (scrollY == ScrollAlignment::Behavior::AlignCenter) {
-        auto halfHeight = (exposeRect.height() - visibleBounds.height()) / 2;
-        y = exposeRect.y() + halfHeight.ceil();
-    } else
-        y = exposeRect.y();
-
-    return LayoutRect(LayoutPoint(x, y), visibleBounds.size());
+    return scrollableAreaRectToExposeForScrollIntoView(visibleBounds, exposeRect, alignX, alignY, visibilityCheckRect.has_value(), visibilityCheckRect.value_or(LayoutRect { }));
 }
 
 TextStream& operator<<(TextStream& ts, const ScrollableArea& scrollableArea)
@@ -1059,28 +742,12 @@ TextStream& operator<<(TextStream& ts, const ScrollableArea& scrollableArea)
 
 FloatSize ScrollableArea::deltaForPropagation(const FloatSize& biasedDelta) const
 {
-    auto filteredDelta = biasedDelta;
-    if (horizontalOverscrollBehaviorPreventsPropagation())
-        filteredDelta.setWidth(0);
-    if (verticalOverscrollBehaviorPreventsPropagation())
-        filteredDelta.setHeight(0);
-    return filteredDelta;
+    return scrollableAreaDeltaForPropagation(horizontalOverscrollBehavior(), verticalOverscrollBehavior(), biasedDelta);
 }
 
 bool ScrollableArea::shouldBlockScrollPropagation(const FloatSize& biasedDelta) const
 {
-    bool preventsHorizontalPropagation = horizontalOverscrollBehaviorPreventsPropagation();
-    bool preventsVerticalPropagation = verticalOverscrollBehaviorPreventsPropagation();
-    if (preventsHorizontalPropagation && preventsVerticalPropagation)
-        return true;
-
-    if (preventsHorizontalPropagation)
-        return !biasedDelta.height();
-
-    if (preventsVerticalPropagation)
-        return !biasedDelta.width();
-
-    return false;
+    return scrollableAreaShouldBlockScrollPropagation(horizontalOverscrollBehavior(), verticalOverscrollBehavior(), biasedDelta);
 }
 
 ScrollingNodeID ScrollableArea::scrollingNodeIDForTesting()

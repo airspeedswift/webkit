@@ -62,20 +62,20 @@ extension ScrollPhysicsController {
 
     // Scrolls to the edge of the document the same way as the Home and End keys.
     func keyboardScrollingAnimatorScrollToDocumentEdge(_ c: inout MainThreadScrollPhysicsClient, _ direction: WebCore.ScrollDirection) {
-        c.endKeyboardScroll(false)
-        _ = c.scroll(direction, .Document)
+        scrollableAreaEndKeyboardScroll(&c, false)
+        _ = scrollableAreaScroll(&c, direction, .Document, 1)
     }
 
     // Requests a delta rather than a position, so that the scroll starts from the latest position rather than from this
     // one, which may be out of date while an animation runs, such as one that scrolls to the edge of the document.
     func keyboardScrollingAnimatorScrollByPage(_ c: inout MainThreadScrollPhysicsClient, _ offset: ScrollSize) {
-        c.endKeyboardScroll(false)
+        scrollableAreaEndKeyboardScroll(&c, false)
         let currentPosition = ScrollPoint(c.currentPosition())
         let minimum = ScrollPoint(c.minimumScrollPosition())
         let maximum = ScrollPoint(c.maximumScrollPosition())
         let newPosition = (currentPosition + offset).constrainedBetween(minimum, maximum)
         if newPosition != currentPosition {
-            c.scrollToPositionWithAnimation(newPosition.floatPoint, (newPosition - currentPosition).floatSize)
+            scrollableAreaScrollToPositionWithAnimation(&c, newPosition.floatPoint, options: .createProgrammaticWithOptions(.Clamped, .No, .Closest, .init((newPosition - currentPosition).floatSize)))
         }
     }
 

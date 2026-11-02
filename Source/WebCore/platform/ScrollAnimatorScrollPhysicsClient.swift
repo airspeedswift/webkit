@@ -171,7 +171,7 @@ extension WebCore.ScrollAnimatorScrollPhysicsClient: ScrollPhysicsClientProtocol
 
     mutating func scrollOffset() -> WebCore.FloatPoint {
         let position = roundedIntPoint(ScrollPoint(currentPosition()))
-        let offset = scrollOffsetFromPosition(WebCore.IntPoint(position.x, position.y))
+        let offset = scrollableAreaScrollOffsetFromPosition(&self, WebCore.IntPoint(position.x, position.y))
         return WebCore.FloatPoint(Float(offset.x()), Float(offset.y()))
     }
 
