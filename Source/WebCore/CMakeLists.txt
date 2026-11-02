@@ -3475,6 +3475,7 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         style/AnchorPositionEvaluator.h)
 
     list(APPEND _webcore_swift_core_submodules css/parser/CSSPropertyConsumerSwiftTypes.h)
+    list(APPEND _webcore_swift_core_submodules css/parser/CSSParserIdioms.h)
     list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 
     webkit_target_add_swift_options(WebCore

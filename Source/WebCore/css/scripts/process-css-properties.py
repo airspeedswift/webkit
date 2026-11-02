@@ -5570,21 +5570,32 @@ class GenerateCSSPropertyParsing:
         by_name = collections.defaultdict(list)
         for property, consumer in self.property_consumers.items():
             if isinstance(consumer, GeneratedPropertyConsumer):
-                by_name[property.name].append((consumer, f"consume{property.name_for_parsing_methods}", property.codegen_properties.parser_grammar.root_term, consumer.keyword_fast_path_generator))
+                name = f"{property.descriptor_set_name}/{property.name}" if isinstance(property, Descriptor) else property.name
+                by_name[name].append((consumer, f"consume{property.name_for_parsing_methods}", property.codegen_properties.parser_grammar.root_term, consumer.keyword_fast_path_generator))
         for shared_grammar_rule, consumer in self.shared_grammar_rule_consumers.items():
             if isinstance(consumer, GeneratedSharedGrammarRuleConsumer):
                 by_name[shared_grammar_rule.name].append((consumer, f"consume{shared_grammar_rule.name_for_methods.id_without_prefix}", shared_grammar_rule.grammar.root_term, None))
         result = []
-        for index, name in enumerate(SWIFT_GENERATED_CONSUMERS):
-            if len(by_name[name]) != 1:
-                raise Exception(f"SWIFT_GENERATED_CONSUMERS names '{name}', which is not exactly one generated property or exported shared grammar rule consumer")
-            consumer, method_name, root_term, keyword_fast_path_generator = by_name[name][0]
-            try:
-                swift = SwiftConsumerGenerator(method_name, root_term, keyword_fast_path_generator)
-            except SwiftGenerationUnsupported as error:
-                raise Exception(f"SWIFT_GENERATED_CONSUMERS names '{name}', whose grammar the Swift generator cannot express: {error}")
-            consumer.swift_consumer_id = index
-            result.append((consumer.swift_consumer_id, name, swift))
+        for consumer_list in SWIFT_CONSUMER_LISTS:
+            list_name = consumer_list.name
+            for name in consumer_list.consumers:
+                if len(by_name[name]) != 1:
+                    raise Exception(f"{list_name} names '{name}', which is not exactly one generated property, descriptor or exported shared grammar rule consumer")
+                consumer, method_name, root_term, keyword_fast_path_generator = by_name[name][0]
+                if consumer.swift_consumer_id is not None:
+                    raise Exception(f"{list_name} names '{name}', which another Swift consumer list names")
+                # consumePropertyWithSwift without a state parameter passes one shared default state, which keyword and
+                # string consumers do not read.
+                if not consumer.requires_state and not consumer_list.stateless_entry:
+                    raise Exception(f"{list_name} names '{name}', which has no state parameter to pass to Swift")
+                try:
+                    swift = SwiftConsumerGenerator(method_name, root_term, keyword_fast_path_generator, keyword_values_by_id=consumer_list.keyword_values_by_id, stateless=not consumer.requires_state)
+                except SwiftGenerationUnsupported as error:
+                    raise Exception(f"{list_name} names '{name}', whose grammar the Swift generator cannot express: {error}")
+                if swift.stateless and swift.reads_state:
+                    raise Exception(f"{list_name} names '{name}', which has no state parameter, but whose Swift consumer reads the state")
+                consumer.swift_consumer_id = len(result)
+                result.append((consumer.swift_consumer_id, name, swift))
         return result
 
     def generate_css_property_parsing_swift(self):
@@ -5613,7 +5624,19 @@ class GenerateCSSPropertyParsing:
                 with writer.indent():
                     writer.write(f"switch consumer {{")
                     for swift_consumer_id, name, swift in self.swift_consumers:
-                        writer.write(f"case WebCore.cssPropertyIDEnumValueCount + {swift_consumer_id}: return {swift.name}(calc) // {name}")
+                        if not swift.stateless:
+                            writer.write(f"case WebCore.cssPropertyIDEnumValueCount + {swift_consumer_id}: return {swift.name}(calc) // {name}")
+                    writer.write(f"default: return nil")
+                    writer.write(f"}}")
+                writer.write(f"}}")
+                writer.newline()
+                writer.write(f"/// The generated consumer numbered `consumer` from cssPropertyIDEnumValueCount that takes no state; nil if it fails or there is no such consumer.")
+                writer.write(f"mutating func consumeGeneratedStateless(_ consumer: UInt16) -> PropertyValue? {{")
+                with writer.indent():
+                    writer.write(f"switch consumer {{")
+                    for swift_consumer_id, name, swift in self.swift_consumers:
+                        if swift.stateless:
+                            writer.write(f"case WebCore.cssPropertyIDEnumValueCount + {swift_consumer_id}: return {swift.name}() // {name}")
                     writer.write(f"default: return nil")
                     writer.write(f"}}")
                 writer.write(f"}}")
@@ -10399,12 +10422,82 @@ class KeywordFastPathGenerator:
 # grammar of one of them leaves the terms `SwiftConsumerGenerator` expresses.
 SWIFT_GENERATED_CONSUMERS = ['transform', '<transform-list>', '<transform-function>']
 
+# More consumers forwarded to Swift, named as in SWIFT_GENERATED_CONSUMERS; a descriptor by its descriptor set and name
+# (`@font-face/font-weight`).
+SWIFT_GENERATED_CONSUMERS_2 = [
+    '-internal-hyphenate-limit-chars-word', '-webkit-background-clip', '-webkit-background-origin',
+    '-webkit-hyphenate-limit-after', '-webkit-hyphenate-limit-before', '-webkit-initial-letter',
+    '-webkit-line-box-contain', '-webkit-line-grid', '-webkit-locale', '-webkit-marquee-repetition',
+    '-webkit-mask-clip', '-webkit-mask-composite', '-webkit-mask-source-type', '-webkit-text-size-adjust',
+    '-webkit-text-stroke-width', 'anchor-name', 'anchor-scope', 'animation-composition', 'animation-delay',
+    'animation-direction', 'animation-duration', 'animation-fill-mode', 'animation-iteration-count',
+    'animation-play-state', 'animation-range-end', 'animation-range-start', 'background-attachment',
+    'background-blend-mode', 'background-clip', 'background-origin', 'background-size', 'baseline-shift',
+    'block-ellipsis', 'block-step-size', 'border-block-end-width', 'border-block-start-width',
+    'border-bottom-left-radius', 'border-bottom-right-radius', 'border-bottom-width', 'border-end-end-radius',
+    'border-end-start-radius', 'border-inline-end-width', 'border-inline-start-width', 'border-left-width',
+    'border-right-width', 'border-start-end-radius', 'border-start-start-radius', 'border-top-left-radius',
+    'border-top-right-radius', 'border-top-width', 'bottom', 'column-count', 'column-gap', 'column-rule-width',
+    'column-width', 'contain', 'container-name', 'corner-bottom-left-shape', 'corner-bottom-right-shape',
+    'corner-end-end-shape', 'corner-end-start-shape', 'corner-start-end-shape', 'corner-start-start-shape',
+    'corner-top-left-shape', 'corner-top-right-shape', 'fit-tolerance', 'font-variant-alternates',
+    'font-variant-east-asian', 'font-variant-ligatures', 'font-variant-numeric', 'font-weight', 'font-width',
+    'glyph-orientation-vertical', 'hanging-punctuation', 'hyphenate-character', 'hyphenate-limit-lines',
+    'inset-block-end', 'inset-block-start', 'inset-inline-end', 'inset-inline-start', 'left', 'letter-spacing',
+    'line-height', 'margin-block-end', 'margin-block-start', 'margin-bottom', 'margin-inline-end',
+    'margin-inline-start', 'margin-left', 'margin-right', 'margin-top', 'mask-clip', 'mask-composite', 'mask-mode',
+    'mask-origin', 'mask-size', 'math-depth', 'max-lines', 'outline-offset', 'outline-width', 'page', 'perspective',
+    'position-visibility', 'right', 'row-gap', 'rx', 'ry', 'scroll-padding-block-end', 'scroll-padding-block-start',
+    'scroll-padding-bottom', 'scroll-padding-inline-end', 'scroll-padding-inline-start', 'scroll-padding-left',
+    'scroll-padding-right', 'scroll-padding-top', 'scroll-snap-align', 'scroll-timeline-axis', 'scroll-timeline-name',
+    'speak-as', 'stroke-dashoffset', 'stroke-width', 'tab-size', 'text-autospace', 'text-decoration-inset',
+    'text-decoration-thickness', 'text-emphasis-style', 'text-overflow', 'text-underline-offset',
+    'text-underline-position', 'timeline-scope', 'timeline-trigger-activation-range-end',
+    'timeline-trigger-activation-range-start', 'timeline-trigger-active-range-end',
+    'timeline-trigger-active-range-start', 'timeline-trigger-name', 'top', 'touch-action', 'transition-behavior',
+    'transition-delay', 'transition-duration', 'transition-property', 'trigger-scope', 'vertical-align',
+    'view-timeline-axis', 'view-timeline-name', 'view-transition-class', 'view-transition-name', 'white-space-trim',
+    'will-change', 'word-spacing', 'z-index', 'zoom', '@font-face/ascent-override', '@font-face/descent-override',
+    '@font-face/font-weight', '@font-face/font-width', '@font-face/line-gap-override',
+    '@font-palette-values/base-palette', '@page/page-size', '<axis>', '<blend-mode>', '<font-width-absolute>',
+    '<geometry-box>', '<line-width>', '<scroller>', '<shape-box>', '<single-animation-composition>',
+    '<single-animation-direction>', '<single-animation-duration>', '<single-animation-fill-mode>',
+    '<single-animation-iteration-count>', '<single-animation-play-state>', '<single-background-attachment>',
+    '<single-background-blend-mode>', '<single-background-clip>', '<single-background-origin>',
+    '<single-container-name>', '<single-mask-clip>', '<single-mask-composite>', '<single-mask-mode>',
+    '<single-mask-origin>', '<single-scroll-timeline-name>', '<single-timeline-trigger-name>',
+    '<single-transition-property-or-none>', '<single-transition-property>', '<single-view-timeline-inset>',
+    '<single-webkit-background-clip>', '<single-webkit-background-origin>', '<single-webkit-mask-clip>',
+    '<single-webkit-mask-composite>', '<single-webkit-mask-source-type>', '<timeline-range-name>',
+    '<transition-behavior-value>', '<visual-box>',
+]
+
+# Each list of consumers forwarded to Swift. With `keyword_values_by_id`, its Swift reads keywords as
+# SwiftConsumerGenerator describes; with `stateless_entry`, its consumers that take no state are called through
+# `consumeGeneratedStateless`. Exactly one list has a stateless entry.
+SwiftConsumerList = collections.namedtuple('SwiftConsumerList', 'name consumers keyword_values_by_id stateless_entry')
+SWIFT_CONSUMER_LISTS = [
+    SwiftConsumerList('SWIFT_GENERATED_CONSUMERS', SWIFT_GENERATED_CONSUMERS, keyword_values_by_id=False,
+        stateless_entry=False),
+    SwiftConsumerList('SWIFT_GENERATED_CONSUMERS_2', SWIFT_GENERATED_CONSUMERS_2, keyword_values_by_id=True,
+        stateless_entry=True),
+]
+
 # Override functions (`grammar-function` in CSSProperties.json) that are `PropertyParser` methods, and the function
-# name each consumes.
+# name each consumes, if it consumes a function.
 SWIFT_OVERRIDE_FUNCTIONS = {
     'consumeRotate3dFunction': ('rotate3dFunction', 'Rotate3d'),
     'consumeTranslateFunction': ('translateFunction', 'Translate'),
     'consumeTranslate3dFunction': ('translate3dFunction', 'Translate3d'),
+    'consumeSingleAnimationRangeStart': ('singleAnimationRangeStart', None),
+    'consumeSingleAnimationRangeEnd': ('singleAnimationRangeEnd', None),
+}
+
+# References to hand-written consumers (`consume<Name>`, with no grammar of their own) that are `PropertyParser`
+# methods, by reference name.
+SWIFT_REFERENCE_FUNCTIONS = {
+    'single-background-size': 'singleBackgroundSize',
+    'single-mask-size': 'singleMaskSize',
 }
 
 # The most arguments `PropertyParser.makeFunction` takes as separate values.
@@ -10444,10 +10537,23 @@ def swift_range_arguments(value_range):
 class SwiftConsumerGenerator:
     """One generated consumer, as `PropertyParser` methods: `name` for the root term and `name_<n>` for the terms under it."""
 
-    def __init__(self, name, root_term, keyword_fast_path_generator):
+    # With `keyword_values_by_id`, a keyword is consumed with the CSSValueID already read (`consumeKeyword(peeked:)`),
+    # and a `||` group of keywords holds CSSValueIDs (`PropertyValueList.appendKeyword`).
+    # With `stateless`, the C++ consumer takes no state, and so its methods take no `calc` either: the keyword and
+    # string consumers that `consumeGeneratedStateless` calls.
+    def __init__(self, name, root_term, keyword_fast_path_generator, *, keyword_values_by_id, stateless):
         self.name = name
         self.counter = 0
         self.methods = []
+        self.keyword_values_by_id = keyword_values_by_id
+        self.stateless = stateless
+        # The parameter and argument lists that pass `calc` from each method to the methods under it; empty for a
+        # consumer that takes no state.
+        self.calc_parameters = '()' if stateless else '(_ calc: PropertyCalc)'
+        self.calc_arguments = '()' if stateless else '(calc)'
+        # Whether a method stands for C++ that takes the parser's state: a numeric primitive, an identifier or a
+        # hand-written consumer.
+        self.reads_state = False
         self._value_method(root_term, name=name, keyword_fast_path_generator=keyword_fast_path_generator)
 
     def generate(self, *, to):
@@ -10465,11 +10571,11 @@ class SwiftConsumerGenerator:
 
     def _add(self, name, comment, body):
         method = [f'// {comment}']
-        # Every method but the root has one caller, which inlines it, so the parser's state stays in registers across
-        # the grammar.
+        # Every method but the root is inlined into its callers, so the parser's state stays in registers across the
+        # grammar.
         if name != self.name:
             method.append('@inline(always)')
-        method.append(f'mutating func {name}(_ calc: PropertyCalc) -> PropertyValue? {{')
+        method.append(f'mutating func {name}{self.calc_parameters} -> PropertyValue? {{')
         method += ['    ' + line if line else '' for line in body]
         method.append('}')
         self.methods.append(method)
@@ -10486,16 +10592,20 @@ class SwiftConsumerGenerator:
             return self._reference(term, name)
         if isinstance(term, FunctionTerm):
             return self._function(term, name)
+        if isinstance(term, BoundedRepetitionTerm) and term.type == 'CSSValuePair':
+            return self._pair(term, name)
         if isinstance(term, (UnboundedRepetitionTerm, BoundedRepetitionTerm)):
             return self._repetition(term, name)
+        if isinstance(term, MatchOneOrMoreAnyOrderTerm):
+            return self._match_one_or_more_any_order(term, name)
         raise SwiftGenerationUnsupported(f"term '{term}' ({type(term).__name__})")
 
     def _match_one(self, term, name, keyword_fast_path_generator):
         if term.settings_flag:
             raise SwiftGenerationUnsupported(f"settings flag on '{term}'")
         # `TermGeneratorMatchOneTerm._build_term_generators`' order: fast path keywords, the other keywords, references,
-        # functions, unbounded then bounded repetitions.
-        fast_keywords, keywords, references, functions, unbounded, bounded = [], [], [], [], [], []
+        # functions, unbounded then bounded repetitions, then `||` groups.
+        fast_keywords, keywords, references, functions, unbounded, bounded, any_order = [], [], [], [], [], [], []
         for subterm in term.subterms:
             if isinstance(subterm, KeywordTerm):
                 (fast_keywords if keyword_fast_path_generator and subterm.is_eligible_for_fast_path else keywords).append(subterm)
@@ -10507,9 +10617,11 @@ class SwiftConsumerGenerator:
                 unbounded.append(subterm)
             elif isinstance(subterm, BoundedRepetitionTerm):
                 bounded.append(subterm)
+            elif isinstance(subterm, MatchOneOrMoreAnyOrderTerm):
+                any_order.append(subterm)
             else:
                 raise SwiftGenerationUnsupported(f"term '{subterm}' ({type(subterm).__name__}) in '{term}'")
-        if not (fast_keywords or keywords or unbounded or bounded):
+        if not (fast_keywords or keywords or unbounded or bounded or any_order):
             dispatch = self._function_name_dispatch(term, name, references, functions)
             if dispatch:
                 return dispatch
@@ -10518,10 +10630,10 @@ class SwiftConsumerGenerator:
             alternatives.append(self._keywords(fast_keywords, self._new_name(), ' | '.join(map(str, fast_keywords))))
         if keywords:
             alternatives.append(self._keywords(keywords, self._new_name(), ' | '.join(map(str, keywords))))
-        for subterm in references + functions + unbounded + bounded:
+        for subterm in references + functions + unbounded + bounded + any_order:
             alternatives.append(self._value_method(subterm))
-        body = [f'if let value = {alternative}(calc) {{ return value }}' for alternative in alternatives[:-1]]
-        body.append(f'return {alternatives[-1]}(calc)')
+        body = [f'if let value = {alternative}{self.calc_arguments} {{ return value }}' for alternative in alternatives[:-1]]
+        body.append(f'return {alternatives[-1]}{self.calc_arguments}')
         return self._add(name, str(term), body)
 
     # A `MatchOne` whose every alternative is a function reads the function token's name once and switches on it: a
@@ -10532,7 +10644,10 @@ class SwiftConsumerGenerator:
         for subterm in references:
             if subterm.settings_flag or subterm.override_function not in SWIFT_OVERRIDE_FUNCTIONS:
                 return None
-            cases.append((f'WebCore.CSSValueID.{SWIFT_OVERRIDE_FUNCTIONS[subterm.override_function][1]}', subterm))
+            function_name = SWIFT_OVERRIDE_FUNCTIONS[subterm.override_function][1]
+            if not function_name:
+                return None
+            cases.append((f'WebCore.CSSValueID.{function_name}', subterm))
         for subterm in functions:
             if subterm.settings_flag:
                 return None
@@ -10541,15 +10656,27 @@ class SwiftConsumerGenerator:
             return None
         body = ['switch peekFunction() {']
         for value_id, subterm in cases:
-            body.append(f'case {value_id}: return {self._value_method(subterm)}(calc)')
+            body.append(f'case {value_id}: return {self._value_method(subterm)}{self.calc_arguments}')
         body += ['default: return nil', '}']
         return self._add(name, str(term), body)
 
-    def _keywords(self, keyword_terms, name, comment):
+    @staticmethod
+    def _check_keywords(keyword_terms):
         for keyword_term in keyword_terms:
             if keyword_term.settings_flag or keyword_term.status == 'internal' or keyword_term.aliased_to:
                 raise SwiftGenerationUnsupported(f"keyword '{keyword_term}' with a settings flag, internal status or alias")
+
+    def _keywords(self, keyword_terms, name, comment):
+        self._check_keywords(keyword_terms)
         cases = ', '.join(swift_value_id(keyword_term.value) for keyword_term in keyword_terms)
+        if self.keyword_values_by_id:
+            return self._add(name, comment, [
+                'let id = peekIdent()',
+                'switch id {',
+                f'case {cases}: return consumeKeyword(peeked: id)',
+                'default: return nil',
+                '}',
+            ])
         body = [
             'switch peekIdent() {',
             f'case {cases}: return consumeKeyword()',
@@ -10564,11 +10691,37 @@ class SwiftConsumerGenerator:
         if term.override_function:
             if term.override_function not in SWIFT_OVERRIDE_FUNCTIONS:
                 raise SwiftGenerationUnsupported(f"override function '{term.override_function}'")
-            return self._add(name, str(term), [f'{SWIFT_OVERRIDE_FUNCTIONS[term.override_function][0]}(calc)'])
+            self.reads_state = True
+            return self._add(name, str(term), [f'{SWIFT_OVERRIDE_FUNCTIONS[term.override_function][0]}{self.calc_arguments}'])
         if not term.is_builtin:
-            raise SwiftGenerationUnsupported(f"reference '{term}'")
+            if term.name.name not in SWIFT_REFERENCE_FUNCTIONS:
+                raise SwiftGenerationUnsupported(f"reference '{term}'")
+            self.reads_state = True
+            return self._add(name, str(term), [f'{SWIFT_REFERENCE_FUNCTIONS[term.name.name]}{self.calc_arguments}'])
         builtin = term.builtin
-        if isinstance(builtin, BuiltinNumberOrPercentageResolvedToNumberConsumer):
+        if isinstance(builtin, BuiltinStringConsumer):
+            # `consumeString` reads no state.
+            return self._add(name, str(term), ['stringValue()'])
+        self.reads_state = True
+        if isinstance(builtin, BuiltinCustomIdentConsumer):
+            body = ['customIdent()']
+            if builtin.excluding:
+                # `consumeCustomIdentExcluding`: the excluded keywords are not custom identifiers.
+                cases = ', '.join(swift_value_id(ValueKeywordName(keyword)) for keyword in builtin.excluding)
+                body = ['switch peekIdent() {', f'case {cases}: return nil', 'default: return customIdent()', '}']
+            return self._add(name, str(term), body)
+        if isinstance(builtin, BuiltinDashedIdentConsumer):
+            return self._add(name, str(term), ['dashedIdent()'])
+        if isinstance(builtin, BuiltinIntegerConsumer):
+            arguments = ['.integer'] + swift_range_arguments(builtin.value_range)
+        elif isinstance(builtin, BuiltinPercentageConsumer):
+            arguments = ['.percentage'] + swift_range_arguments(builtin.value_range)
+        elif isinstance(builtin, BuiltinTimeConsumer):
+            # `TimeValidator` compares a range other than these in seconds, which `PropertyPrimitive.contains` does not.
+            if builtin.value_range not in ('', 'CSS::Range{0, CSS::Range::infinity}'):
+                raise SwiftGenerationUnsupported(f"time range '{builtin.value_range}'")
+            arguments = ['.time'] + swift_range_arguments(builtin.value_range)
+        elif isinstance(builtin, BuiltinNumberOrPercentageResolvedToNumberConsumer):
             # `<number-or-percentage-resolved-to-number>` takes no range, so the grammar's is unused, as in C++.
             arguments = ['.numberOrPercentageResolvedToNumber']
         elif isinstance(builtin, BuiltinNumberConsumer):
@@ -10603,11 +10756,16 @@ class SwiftConsumerGenerator:
         elif isinstance(parameters, (UnboundedRepetitionTerm, BoundedRepetitionTerm)):
             body = [f'// {parameters}'] + self._repetition_body(parameters, single_value=False) + [f'return makeFunction({function_name}, consume list)']
         else:
-            parameter = self._value_method(parameters.subterm if isinstance(parameters, OptionalTerm) else parameters)
+            parameter_term = parameters.subterm if isinstance(parameters, OptionalTerm) else parameters
+            if isinstance(parameter_term, MatchOneOrMoreAnyOrderTerm):
+                # The C++ passes the group's values as the function's arguments, which `makeFunction` cannot take from
+                # one value.
+                raise SwiftGenerationUnsupported(f"'||' arguments in '{term}'")
+            parameter = self._value_method(parameter_term)
             # An absent optional parameter is a function of no arguments, as the C++'s empty `CSSValueListBuilder`.
             on_failure = f'return makeFunction({function_name})' if isinstance(parameters, OptionalTerm) else 'return nil'
             body = [
-                f'guard let argument = {parameter}(calc) else {{ {on_failure} }}',
+                f'guard let argument = {parameter}{self.calc_arguments} else {{ {on_failure} }}',
                 f'return makeFunction({function_name}, argument)',
             ]
         arguments = self._add(f'{name}_arguments', f'the arguments of {term}', body)
@@ -10615,7 +10773,7 @@ class SwiftConsumerGenerator:
         # `arguments` returned a value and consumed all of them, and consumes nothing otherwise.
         return self._add(name, str(term), [
             f'guard let function = beginFunction({function_name}) else {{ return nil }}',
-            f'return endFunction(function, {arguments}(calc))',
+            f'return endFunction(function, {arguments}{self.calc_arguments})',
         ])
 
     @staticmethod
@@ -10630,12 +10788,12 @@ class SwiftConsumerGenerator:
         body = [f'// {term}']
         for i in range(term.min):
             separator = 'consumeComma(), ' if i else ''
-            body.append(f'guard {separator}let a{i} = {item}(calc) else {{ return nil }}')
+            body.append(f'guard {separator}let a{i} = {item}{self.calc_arguments} else {{ return nil }}')
         for i in range(term.min, term.max):
             body.append(f'var a{i}: PropertyValue? = nil')
         indent = ''
         for i in range(term.min, term.max):
-            body += [f'{indent}if consumeComma() {{', f'{indent}    guard let item = {item}(calc) else {{ return nil }}', f'{indent}    a{i} = item']
+            body += [f'{indent}if consumeComma() {{', f'{indent}    guard let item = {item}{self.calc_arguments} else {{ return nil }}', f'{indent}    a{i} = item']
             indent += '    '
         body.append(f'{indent}if consumeComma() {{ return nil }}')
         for i in reversed(range(term.min, term.max)):
@@ -10650,6 +10808,163 @@ class SwiftConsumerGenerator:
             body.append(f'if {bindings} {{ {make(count)} }}')
         body.append(make(term.min))
         return body
+
+    # `{1,2}@(type=CSSValuePair)`: the C++ reads both items from a copy of the range with no separator between them, and
+    # drops the copy only if the first item fails. With `default=previous` a missing second item repeats the first.
+    def _pair(self, term, name):
+        if term.settings_flag:
+            raise SwiftGenerationUnsupported(f"settings flag on '{term}'")
+        if (term.min, term.max) != (1, 2) or term.default not in (None, 'previous'):
+            raise SwiftGenerationUnsupported(f"pair repetition '{term}'")
+        if term.default == 'previous':
+            single = 'makePair(first, first, coalescing: true)'
+        elif term.single_value_optimization:
+            single = 'first'
+        else:
+            raise SwiftGenerationUnsupported(f"pair repetition '{term}' of one item without the single item optimization")
+        item = self._value_method(term.repeated_term)
+        return self._add(name, str(term), [
+            'let start = index',
+            f'guard let first = {item}{self.calc_arguments} else {{',
+            '    index = start',
+            '    return nil',
+            '}',
+            f'guard let second = {item}{self.calc_arguments} else {{ return {single} }}',
+            'return makePair(first, second, coalescing: true)',
+        ])
+
+    # `[ a || b || ... ]`: while tokens remain, each pass consumes the first subterm in grammar order that has no value
+    # yet, and a pass that consumes none ends the loop. A subterm that fails keeps what it consumed and is tried again
+    # in later passes. Bit i of `consumed` is set once subterm i has its value, so there are at most as many passes as
+    # subterms, as in the C++. The value lists the subterms' values in grammar order, or with `preserve-order` in the
+    # order they were consumed.
+    def _match_one_or_more_any_order(self, term, name):
+        if term.settings_flag:
+            raise SwiftGenerationUnsupported(f"settings flag on '{term}'")
+        count = len(term.subterms)
+        if count > 8:
+            raise SwiftGenerationUnsupported(f"more than 8 subterms in '{term}'")
+        if term.type == 'CSSValuePair':
+            if count != 2 or term.preserve_order or not term.single_value_optimization:
+                raise SwiftGenerationUnsupported(f"'||' of type CSSValuePair '{term}'")
+        elif term.type != 'CSSValueList' or (term.preserve_order and term.single_value_optimization):
+            raise SwiftGenerationUnsupported(f"'||' '{term}'")
+        keyword_sets = [self._keyword_set(subterm) for subterm in term.subterms]
+        if self.keyword_values_by_id and all(keyword_sets):
+            return self._keyword_group(term, name, keyword_sets)
+        subterms = [self._value_method(subterm) for subterm in term.subterms]
+        body = ['var list = PropertyValueList()'] if term.preserve_order else [f'var v{i}: PropertyValue? = nil' for i in range(count)]
+        body += [
+            'var consumed: UInt8 = 0',
+            'pass: while !atEnd {',
+            f'    var untried = ~consumed & 0b{"1" * count}',
+            '    while untried != 0 {',
+            '        let i = untried.trailingZeroBitCount',
+            '        untried &= ~(1 << i)',
+        ]
+        if term.preserve_order:
+            body += ['        let value: PropertyValue?', '        switch i {']
+            body += [f'        {"default" if i == count - 1 else f"case {i}"}: value = {subterm}{self.calc_arguments}' for i, subterm in enumerate(subterms)]
+            body += ['        }', '        guard let value else { continue }', '        list.append(value)']
+        else:
+            body.append('        switch i {')
+            for i, subterm in enumerate(subterms):
+                body += [
+                    f'        {"default" if i == count - 1 else f"case {i}"}:',
+                    f'            guard let value = {subterm}{self.calc_arguments} else {{ continue }}',
+                    f'            v{i} = value',
+                ]
+            body.append('        }')
+        body += ['        consumed |= 1 << i', '        continue pass', '    }', '    break', '}']
+        values = [f'v{i}' for i in range(count)]
+        if term.preserve_order:
+            body += ['guard consumed != 0 else { return nil }', 'return makeSpaceSeparatedList(consume list)']
+        elif term.type == 'CSSValuePair':
+            body += ['if let v0, let v1 { return makePair(v0, v1, coalescing: true) }', 'return v0 ?? v1']
+        else:
+            body.append('guard consumed != 0 else { return nil }')
+            if term.single_value_optimization:
+                body.append(f'if consumed.nonzeroBitCount == 1 {{ return {" ?? ".join(values)} }}')
+            body.append('var list = PropertyValueList()')
+            body += [f'if let {value} {{ list.append({value}) }}' for value in values]
+            body.append('return makeSpaceSeparatedList(consume list)')
+        return self._add(name, str(term), body)
+
+    # The keywords of a `||` subterm that is a keyword or a `|` of keywords, else None.
+    @staticmethod
+    def _keyword_set(term):
+        if isinstance(term, KeywordTerm):
+            return [term]
+        if isinstance(term, MatchOneTerm) and not term.settings_flag and all(isinstance(subterm, KeywordTerm) for subterm in term.subterms):
+            return term.subterms
+        return None
+
+    # A `||` group of keywords. Each pass reads the identifier once and looks up, as a bit mask, the subterms that
+    # accept it; the first of them in grammar order with no value yet takes it, as trying each in turn does. The group
+    # keeps the CSSValueIDs it consumed and makes their values at the end.
+    def _keyword_group(self, term, name, keyword_sets):
+        count = len(keyword_sets)
+        masks = {}
+        for i, keyword_terms in enumerate(keyword_sets):
+            self._check_keywords(keyword_terms)
+            for keyword_term in keyword_terms:
+                id = swift_value_id(keyword_term.value)
+                masks[id] = masks.get(id, 0) | (1 << i)
+        keywords_by_mask = {}
+        for id, mask in masks.items():
+            keywords_by_mask.setdefault(mask, []).append(id)
+        single = term.type == 'CSSValueList' and not term.preserve_order and term.single_value_optimization
+        body = []
+        if term.preserve_order:
+            body.append('var list = PropertyValueList()')
+        else:
+            body += [f'var k{i} = WebCore.CSSValueID.Invalid' for i in range(count)]
+        if single:
+            body.append('var last = WebCore.CSSValueID.Invalid')
+        body += [
+            'var consumed: UInt8 = 0',
+            'while !atEnd {',
+            '    let id = peekIdent()',
+            '    let taking: UInt8',
+            '    switch id {',
+        ]
+        body += [f'    case {", ".join(ids)}: taking = 0b{mask:0{count}b}' for mask, ids in keywords_by_mask.items()]
+        body += [
+            '    default: taking = 0',
+            '    }',
+            '    let untried = taking & ~consumed',
+            '    guard untried != 0 else { break }',
+            '    let i = untried.trailingZeroBitCount',
+            '    consumeIncludingWhitespace()',
+        ]
+        if term.preserve_order:
+            body.append('    list.appendKeyword(id)')
+        else:
+            body.append('    switch i {')
+            body += [f'    {"default" if i == count - 1 else f"case {i}"}: k{i} = id' for i in range(count)]
+            body.append('    }')
+            if single:
+                body.append('    last = id')
+        body += ['    consumed |= 1 << i', '}']
+        if term.preserve_order:
+            body += ['guard consumed != 0 else { return nil }', 'return makeSpaceSeparatedList(consume list)']
+        elif term.type == 'CSSValuePair':
+            body += [
+                'switch consumed {',
+                'case 0b11: return makePair(keywordValue(k0), keywordValue(k1), coalescing: true)',
+                'case 0b01: return keywordValue(k0)',
+                'case 0b10: return keywordValue(k1)',
+                'default: return nil',
+                '}',
+            ]
+        else:
+            body.append('guard consumed != 0 else { return nil }')
+            if single:
+                body.append('if consumed.nonzeroBitCount == 1 { return keywordValue(last) }')
+            body.append('var list = PropertyValueList()')
+            body += [f'if consumed & 0b{1 << i:0{count}b} != 0 {{ list.appendKeyword(k{i}) }}' for i in range(count)]
+            body.append('return makeSpaceSeparatedList(consume list)')
+        return self._add(name, str(term), body)
 
     def _repetition(self, term, name):
         if isinstance(term, BoundedRepetitionTerm) and term.type != 'CSSValueList':
@@ -10688,7 +11003,7 @@ class SwiftConsumerGenerator:
             body.append('var count: UInt32 = 0')
         if single_value:
             body.append('var first: PropertyValue? = nil')
-        body += ['repeat {', f'    guard let value = {item}(calc) else {{ {on_failure} }}']
+        body += ['repeat {', f'    guard let value = {item}{self.calc_arguments} else {{ {on_failure} }}']
         if single_value:
             body.append('    if count == 0 { first = value }')
         body.append('    list.append(value)')
@@ -10708,9 +11023,10 @@ def generate_body_forwarding_to_swift(consumer, *, to):
     if consumer.swift_consumer_id is None:
         consumer.term_generator.generate_unconditional(to=to, range_string='range', state_string='state')
         return
-    if not consumer.requires_state:
-        raise Exception(f"{consumer} has a Swift consumer but no state parameter to pass it")
-    to.write(f"return consumePropertyWithSwift(range, state, cssPropertyIDEnumValueCount + {consumer.swift_consumer_id});")
+    if consumer.requires_state:
+        to.write(f"return consumePropertyWithSwift(range, state, cssPropertyIDEnumValueCount + {consumer.swift_consumer_id});")
+    else:
+        to.write(f"return consumePropertyWithSwift(range, cssPropertyIDEnumValueCount + {consumer.swift_consumer_id});")
 
 
 class SharedGrammarRuleConsumer(object):

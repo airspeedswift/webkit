@@ -35,6 +35,7 @@ internal import wtf.Core.Stopwatch
 internal import WebCore_Private.Core.CSSCalcSwiftTypes
 internal import WebCore_Private.Core.CSSParserToken
 internal import WebCore_Private.Core.CSSPropertyConsumerSwiftTypes
+internal import WebCore_Private.Core.CSSParserIdioms
 
 // The property consumers (CSSPropertyParserConsumer+*.cpp and the generated CSSPropertyParsing.cpp): the value's
 // tokens, the numeric primitives, and calc() through calc()'s parser (CSSCalcParser.swift).
@@ -47,8 +48,9 @@ internal import WebCore_Private.Core.CSSPropertyConsumerSwiftTypes
 /// `parserMode` is the CSSParserMode and `numericFlags` the CSSNumericConsumerSwift bits.
 ///
 /// consumePropertyWithSwift makes the state of `value` on its stack for this call only. Swift calls its members,
-/// CSS::toAngleUnit, the CSSValue factories and CSSValueListBuilder, none of which reach it; only `identifier` writes a
-/// token, its CSSValueID cache, as CSSParserToken::id() does.
+/// CSS::toAngleUnit, CSS::toTimeUnit, CSS::toCSSUnitType, isValidCustomIdentifier, the CSSValue factories and
+/// CSSValueListBuilder, none of which reach it; only `identifier` writes a token, its CSSValueID cache, as
+/// CSSParserToken::id() does.
 @_expose(Cxx)
 func cssConsumeProperty(
     _ value: borrowing WebCore.CSSPropertyConsumerSwiftValue,
@@ -63,6 +65,29 @@ func cssConsumeProperty(
         let argumentsEnd = UInt32(truncatingIfNeeded: arguments.upperBound)
         return value.parseCalc(argumentsStart, argumentsEnd, function, calc.category.rawValue, calc.flags, calc.min, calc.max).get()
     }
+    // At most the token count, an Int from a UInt32.
+    let consumedTokens = UInt32(truncatingIfNeeded: propertyParser.index)
+    guard let parsed else {
+        return WebCore.CSSPropertyConsumerSwiftResult(consumedTokens: consumedTokens, ok: 0)
+    }
+    value.setResult(parsed)
+    return WebCore.CSSPropertyConsumerSwiftResult(consumedTokens: consumedTokens, ok: 1)
+}
+
+/// `cssConsumeProperty` for a generated consumer, numbered `consumer` from cssPropertyIDEnumValueCount, that takes no
+/// state: one that consumes only keywords and strings and so reads no parser mode, numeric flags or calc().
+///
+/// The stateless consumePropertyWithSwift makes `value` on its stack for this call only, over a default state that
+/// every call shares and that Swift has no member to reach. Swift calls the members of `value`, the CSSValue
+/// factories, appendKeywordForSwift and CSSValueListBuilder, none of which reach it; only `identifier` writes a
+/// token, its CSSValueID cache.
+@_expose(Cxx)
+func cssConsumeStatelessProperty(
+    _ value: borrowing WebCore.CSSPropertyConsumerSwiftValue,
+    _ consumer: UInt16
+) -> WebCore.CSSPropertyConsumerSwiftResult {
+    var propertyParser = PropertyParser(value, parserMode: WebCore.HTMLStandardMode.rawValue, numericFlags: 0)
+    let parsed = propertyParser.consumeGeneratedStateless(consumer)
     // At most the token count, an Int from a UInt32.
     let consumedTokens = UInt32(truncatingIfNeeded: propertyParser.index)
     guard let parsed else {
@@ -159,6 +184,20 @@ public func cssConsumeNumericSwift(
     case (NumericCategory.number, PropertyTokenType.number), (NumericCategory.percentage, PropertyTokenType.percentage):
         // NumberUnit and PercentageUnit have one case each, 0.
         unit = 0
+    case (NumericCategory.integer, PropertyTokenType.number):
+        // IntegerUnit has one case, 0. NumberConsumerForIntegerValues has checked that the token's value is an integer.
+        unit = 0
+    case (NumericCategory.time, PropertyTokenType.dimension):
+        // TimeValidator, whose range check compares the value in seconds.
+        guard let time = timeUnit(unitType) else {
+            return rejected
+        }
+        let range = NumericRange(min: rangeMin, max: rangeMax, minBehavior: minBehavior, maxBehavior: maxBehavior)
+        let clamped = range.clamp(value, resolvesToFloat: flags & UInt8(WebCore.CSSNumericConsumerSwiftResolvesToFloat) != 0)
+        guard range.containsTime(clamped, inMilliseconds: time == .Ms) else {
+            return rejected
+        }
+        return WebCore.CSSNumericConsumerSwiftResult(value: clamped, packed: UInt32(time.rawValue) | 0x100)
     default:
         // MetaConsumer never hands a primitive a token its ConsumerDefinition has no consumer for.
         return rejected
@@ -182,6 +221,7 @@ private enum PropertyTokenType {
     static var comma: UInt8 { UInt8(WebCore.CommaToken.rawValue) }
     static var delimiter: UInt8 { UInt8(WebCore.DelimiterToken.rawValue) }
     static var eof: UInt8 { UInt8(WebCore.EOFToken.rawValue) }
+    static var string: UInt8 { UInt8(WebCore.StringToken.rawValue) }
 
     /// `CSSTokenizer::isWhitespace`.
     static func isWhitespace(_ type: UInt8) -> Bool {
@@ -197,6 +237,8 @@ private enum NumericCategory {
     static var percentage: UInt8 { WebCore.CSS.Category.Percentage.rawValue }
     static var length: UInt8 { WebCore.CSS.Category.Length.rawValue }
     static var lengthPercentage: UInt8 { WebCore.CSS.Category.LengthPercentage.rawValue }
+    static var integer: UInt8 { WebCore.CSS.Category.Integer.rawValue }
+    static var time: UInt8 { WebCore.CSS.Category.Time.rawValue }
 }
 
 private func hasFlag(_ flags: UInt8, _ flag: UInt8) -> Bool {
@@ -327,6 +369,15 @@ private func angleUnit(
     return WebCore.CSS.toCSSUnitType(unit)
 }
 
+/// `TimeValidator::validate`: the TimeUnit of a dimension token's unit, s or ms.
+@inline(always)
+private func timeUnit(_ unitType: UInt8) -> WebCore.CSS.TimeUnit? {
+    guard let cssUnit = WebCore.CSSUnitType(rawValue: unitType) else {
+        return nil
+    }
+    return WebCore.CSS.toTimeUnit(cssUnit).value
+}
+
 /// A CSS::Range and its parse-time behaviors.
 private struct NumericRange {
     let min: Double
@@ -370,6 +421,31 @@ private struct NumericRange {
         let effectiveMin = minBehavior == Self.ignore ? -Double.infinity : min
         let effectiveMax = maxBehavior == Self.ignore ? Double.infinity : max
         return (effectiveMin == -.infinity || value >= effectiveMin) && (effectiveMax == .infinity || value <= effectiveMax)
+    }
+}
+
+extension NumericRange {
+    /// `TimeValidator::isValid`: `isValidDimensionValue`, which converts to seconds only for a range other than all
+    /// values, [0, inf] and [-inf, 0].
+    @inline(always)
+    func containsTime(_ value: Double, inMilliseconds: Bool) -> Bool {
+        if value.isInfinite {
+            return false
+        }
+        let effectiveMin = minBehavior == Self.ignore ? -Double.infinity : min
+        let effectiveMax = maxBehavior == Self.ignore ? Double.infinity : max
+        if effectiveMin == -.infinity && effectiveMax == .infinity {
+            return true
+        }
+        if effectiveMin == 0 && effectiveMax == .infinity {
+            return value >= 0
+        }
+        if effectiveMin == -.infinity && effectiveMax == 0 {
+            return value <= 0
+        }
+        // CSS::canonicalize's secondsPerMillisecond (CSSUnits.h), which a static_assert in CSSCalcTree+Parser.cpp pins.
+        let seconds = inMilliseconds ? value * (1.0 / 1000.0) : value
+        return seconds >= min && seconds <= max
     }
 }
 
@@ -457,6 +533,13 @@ struct PropertyParser: ~Copyable, ~Escapable {
     /// Consumes the next token, an identifier, and the whitespace after it, and returns its keyword value.
     mutating func consumeKeyword() -> PropertyValue? {
         let id = peekIdent()
+        consumeIncludingWhitespace()
+        return keywordValue(id)
+    }
+
+    /// `consumeKeyword()` where `id` is the `peekIdent()` already read.
+    @inline(always)
+    mutating func consumeKeyword(peeked id: WebCore.CSSValueID) -> PropertyValue? {
         consumeIncludingWhitespace()
         return keywordValue(id)
     }
@@ -595,6 +678,22 @@ struct PropertyParser: ~Copyable, ~Escapable {
                 }
                 unit = length
             }
+        case .integer:
+            // NumberConsumerForIntegerValues: a number token whose value is an integer.
+            guard type == PropertyTokenType.number, tokens.value.isIntegerNumber(index) else {
+                return nil
+            }
+            unit = .Integer
+        case .percentage:
+            guard type == PropertyTokenType.percentage else {
+                return nil
+            }
+            unit = .Percentage
+        case .time:
+            guard type == PropertyTokenType.dimension, let time = timeUnit(tokens.value.unitType(index)) else {
+                return nil
+            }
+            unit = WebCore.CSS.toCSSUnitType(time)
         case .angle:
             guard type != PropertyTokenType.percentage,
                 let angle = angleUnit(
@@ -769,6 +868,11 @@ struct PropertyValueList: ~Copyable {
         builder.append(consuming: PropertyValueRef(value))
     }
 
+    /// Appends the keyword value of `id`.
+    mutating func appendKeyword(_ id: WebCore.CSSValueID) {
+        WebCore.appendKeywordForSwift(&builder, id)
+    }
+
     consuming func take() -> WebCore.CSSValueListBuilder {
         builder
     }
@@ -795,6 +899,10 @@ struct PropertyPrimitive {
         case length
         case lengthPercentage
         case angle
+        case integer
+        case percentage
+        /// A range of all values or the non-negative ones, which `contains` checks as `TimeValidator` does.
+        case time
     }
 
     let kind: Kind
@@ -833,6 +941,9 @@ struct PropertyPrimitive {
         case .length: .Length
         case .lengthPercentage: .LengthPercentage
         case .angle: .Angle
+        case .integer: .Integer
+        case .percentage: .Percentage
+        case .time: .Time
         }
     }
 
@@ -840,5 +951,39 @@ struct PropertyPrimitive {
     func contains(_ value: Double) -> Bool {
         let behavior = UInt8(WebCore.CSS.RangeParseTimeBehavior.Default.rawValue)
         return NumericRange(min: min, max: max, minBehavior: behavior, maxBehavior: behavior).contains(value)
+    }
+}
+
+// MARK: - Strings and identifiers
+
+extension PropertyParser {
+    /// `consumeString`.
+    mutating func stringValue() -> PropertyValue? {
+        guard peekType() == PropertyTokenType.string else {
+            return nil
+        }
+        let value = tokens.value.tokenValue(index).get()
+        consumeIncludingWhitespace()
+        return value
+    }
+
+    /// `consumeCustomIdent`: an identifier other than the CSS-wide keywords and `default`.
+    mutating func customIdent() -> PropertyValue? {
+        guard peekType() == PropertyTokenType.ident, WebCore.isValidCustomIdentifier(peekIdent()) else {
+            return nil
+        }
+        let value = tokens.value.tokenValue(index).get()
+        consumeIncludingWhitespace()
+        return value
+    }
+
+    /// `consumeDashedIdent`: an identifier that starts with two dashes.
+    mutating func dashedIdent() -> PropertyValue? {
+        guard peekType() == PropertyTokenType.ident, tokens.value.isDashedIdent(index) else {
+            return nil
+        }
+        let value = tokens.value.tokenValue(index).get()
+        consumeIncludingWhitespace()
+        return value
     }
 }
