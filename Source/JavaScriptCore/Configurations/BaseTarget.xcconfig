@@ -37,7 +37,7 @@ GCC_PREPROCESSOR_DEFINITIONS = $(inherited) $(ENABLE_LLVM_PROFILE_GENERATION_DEF
 
 // LiteralParser parses in Swift (runtime/LiteralParserSwift.swift) when YES. Both targets need the define, since the
 // framework compiles the Swift and libJavaScriptCore compiles LiteralParser's callers.
-WK_USE_SWIFT_JSON_PARSER = NO;
+WK_USE_SWIFT_JSON_PARSER = YES;
 WK_SWIFT_JSON_PARSER_DEFINES_YES = USE_SWIFT_JSON_PARSER=1;
 GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 // JSC_SUPPORTS_SWIFT for the C++ compiles of every target that includes this file: the framework, which
@@ -64,7 +64,7 @@ OTHER_CFLAGS_JSC_SUPPORTS_SWIFT_YES = -DJSC_SUPPORTS_SWIFT=1;
 
 // JSBigInt's digit arithmetic in Swift, for 64-bit digits only. libJavaScriptCore.xcconfig sets the matching Swift
 // compilation condition.
-WK_USE_SWIFT_BIGINT_DIGITS = NO;
+WK_USE_SWIFT_BIGINT_DIGITS = YES;
 WK_SWIFT_BIGINT_DIGITS_CFLAGS_YES_YES = -DUSE_SWIFT_BIGINT_DIGITS=1;
 WK_SWIFT_BIGINT_DIGITS_CFLAGS_YES_YES[arch=armv7*] = ;
 WK_SWIFT_BIGINT_DIGITS_CFLAGS_YES_YES[arch=i386] = ;

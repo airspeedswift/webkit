@@ -27,7 +27,7 @@
 // Selects the Swift implementation of TextCodecUTF8::decode (pal/text/TextCodecUTF8.swift) in place of the C++ one.
 // WebCore.xcconfig and this file must set WK_USE_SWIFT_TEXT_CODEC_UTF8 together, because WebCore includes
 // <pal/text/TextCodecUTF8.h>.
-WK_USE_SWIFT_TEXT_CODEC_UTF8 = NO;
+WK_USE_SWIFT_TEXT_CODEC_UTF8 = YES;
 WK_SWIFT_TEXT_CODEC_UTF8_DEFINES_NO = USE_SWIFT_TEXT_CODEC_UTF8=0;
 WK_SWIFT_TEXT_CODEC_UTF8_DEFINES_YES = USE_SWIFT_TEXT_CODEC_UTF8=1;
 WK_SWIFT_TEXT_CODEC_UTF8_CONDITIONS_YES = USE_SWIFT_TEXT_CODEC_UTF8 $(WK_SWIFT_SIMD_CONDITIONS);
