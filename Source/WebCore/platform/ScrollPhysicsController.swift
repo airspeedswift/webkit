@@ -1927,7 +1927,11 @@ final class ScrollPhysicsController {
             if retargetAnimatedScrollBy(&c, delta.floatSize) {
                 return true
             }
+            #if USE_SWIFT_SCROLLABLE_AREA
+            scrollableAreaScrollToPositionWithAnimation(&c, newPosition.floatPoint, options: .createProgrammaticWithOptions(.Clamped, .No, .Closest, .init(delta.floatSize)))
+            #else
             c.scrollToPositionWithAnimation(newPosition.floatPoint, delta.floatSize)
+            #endif
             return true
         }
 
@@ -2013,7 +2017,11 @@ final class ScrollPhysicsController {
         if notify {
             c.notifyContentAreaScrolled(delta.floatSize)
             let roundedPosition = roundedIntPoint(ScrollPoint(c.currentPosition()))
+            #if USE_SWIFT_SCROLLABLE_AREA
+            scrollableAreaSetScrollPositionFromAnimation(&c, WebCore.IntPoint(roundedPosition.x, roundedPosition.y))
+            #else
             c.setScrollPositionFromAnimation(WebCore.IntPoint(roundedPosition.x, roundedPosition.y))
+            #endif
             scrollPositionChanged(&c)
         } else {
             c.clearScrollAnchor()
@@ -2141,7 +2149,11 @@ final class ScrollPhysicsController {
 
         if c.isUserScrollInProgress() {
             c.setKeyboardScrollTriggeringKeyIsPressed(false)
+            #if USE_SWIFT_SCROLLABLE_AREA
+            scrollableAreaEndKeyboardScroll(&c, true)
+            #else
             c.endKeyboardScroll(true)
+            #endif
             return true
         }
 
@@ -2177,7 +2189,11 @@ final class ScrollPhysicsController {
 
         c.setKeyboardScrollTriggeringKeyIsPressed(true)
 
+        #if USE_SWIFT_SCROLLABLE_AREA
+        scrollableAreaBeginKeyboardScroll(&c, scroll)
+        #else
         c.beginKeyboardScroll(scroll)
+        #endif
 
         return true
     }
@@ -2190,13 +2206,21 @@ final class ScrollPhysicsController {
 
         c.setKeyboardScrollTriggeringKeyIsPressed(false)
 
+        #if USE_SWIFT_SCROLLABLE_AREA
+        scrollableAreaEndKeyboardScroll(&c, false)
+        #else
         c.endKeyboardScroll(false)
+        #endif
     }
 
     @_expose(Cxx)
     func keyboardScrollingAnimatorStopScrollingImmediately(_ c: inout MainThreadScrollPhysicsClient) {
         c.setKeyboardScrollTriggeringKeyIsPressed(false)
+        #if USE_SWIFT_SCROLLABLE_AREA
+        scrollableAreaEndKeyboardScroll(&c, true)
+        #else
         c.endKeyboardScroll(true)
+        #endif
     }
     #endif
 }
