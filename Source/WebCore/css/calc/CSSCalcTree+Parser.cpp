@@ -355,3 +355,74 @@ auto WebCore::CSSPropertyConsumerSwiftValue::tokenValue(size_t index) const -> R
     RELEASE_ASSERT(type(index) == StringToken);
     return CSSStringValue::create(CSS::String { token(index).value().toString() });
 }
+
+#include "CSSPropertyConsumerSwiftBuilders.h"
+
+// The generated consumers are numbered from cssPropertyIDEnumValueCount, one for each of a few hundred in
+// process-css-properties.py's Swift lists: none reaches CSSPropertyConsumerSwiftConsumer's first number, 0x8000.
+static_assert(WebCore::cssPropertyIDEnumValueCount <= 0x4000);
+
+RefPtr<WebCore::CSSValue> WebCore::consumePropertyWithSwift(CSSParserTokenRange& range, CSS::PropertyParserState& state, CSSPropertyConsumerSwiftConsumer consumer, uint8_t options, CSSPropertyConsumerSwiftUnresolvedResult* unresolvedResult)
+{
+    RefPtr<CSSValue> result;
+    CSSGradientSwiftStops gradientStops;
+    CSSPropertyConsumerSwiftValueState value { range.span(), state, result, options, gradientStops, unresolvedResult };
+    auto mode = state.context.mode;
+    uint8_t numericFlags = (state.absoluteLengthUnitsOnly ? CSSNumericConsumerSwiftAbsoluteLengthUnitsOnly : 0)
+        | (mode == HTMLQuirksMode && CSSProperty::acceptsQuirkyLength(state.currentProperty) ? CSSNumericConsumerSwiftQuirkyLength : 0)
+        | (mode == HTMLQuirksMode && CSSProperty::acceptsQuirkyAngle(state.currentProperty) ? CSSNumericConsumerSwiftQuirkyAngle : 0);
+    auto consumed = cssConsumeProperty(value, std::to_underlying(consumer), static_cast<uint8_t>(mode), numericFlags);
+    RELEASE_ASSERT(consumed.consumedTokens <= range.size());
+    range = range.span().subspan(consumed.consumedTokens);
+    return consumed.ok ? WTF::move(result) : nullptr;
+}
+
+// Out of line, for Swift: set takes a forwarding reference, which Swift cannot call.
+void WebCore::setUnresolvedResult(const CSSPropertyConsumerSwiftValue& value, CSS::Color&& result) { CSSPropertyConsumerSwiftUnresolvedResult::set(value, WTF::move(result)); }
+void WebCore::setUnresolvedResult(const CSSPropertyConsumerSwiftValue& value, CSS::DynamicRangeLimit&& result) { CSSPropertyConsumerSwiftUnresolvedResult::set(value, WTF::move(result)); }
+#if ENABLE(DARK_MODE_CSS)
+void WebCore::setUnresolvedResult(const CSSPropertyConsumerSwiftValue& value, CSS::ColorScheme&& result) { CSSPropertyConsumerSwiftUnresolvedResult::set(value, WTF::move(result)); }
+#endif
+
+// UnevaluatedCalcBase::parseBase on the arguments as CSSPropertyConsumerSwiftValue::parseCalc parses them, with the
+// symbols of a relative color's channels.
+bool WebCore::CSSColorSwiftComponents::parseCalc(const CSSPropertyConsumerSwiftValue& tokens, uint8_t index, uint8_t type, double rangeMin, double rangeMax, uint32_t argumentsStart, uint32_t argumentsEnd, uint16_t function, uint8_t descriptor, bool relative)
+{
+    auto& value = static_cast<const CSSPropertyConsumerSwiftValueState&>(tokens);
+    RELEASE_ASSERT(argumentsStart <= argumentsEnd && argumentsEnd <= value.tokens.size());
+    // The CSSColorSwiftChannel types, one bit each, from bit 1.
+    static constexpr std::array categories { CSS::Category::Number, CSS::Category::Number, CSS::Category::Percentage, CSS::Category::Angle, CSS::Category::LengthPercentage, CSS::Category::Length, CSS::Category::AnglePercentage, CSS::Category::Resolution };
+    RELEASE_ASSERT(type > CSSColorSwiftChannelNone && std::has_single_bit(type));
+    auto category = categories[std::countr_zero(type)];
+    CSSCalcSymbolsAllowed symbols;
+    if (relative) {
+        auto symbol = [&](uint8_t channel) { return static_cast<CSSValueID>(colorSwiftChannel(descriptor, channel).symbol); };
+        if (static_cast<CSSColorSwiftDescriptor>(descriptor) == CSSColorSwiftDescriptor::Alpha)
+            symbols = { { symbol(0), CSSUnitType::Number } };
+        else
+            symbols = { { symbol(0), CSSUnitType::Number }, { symbol(1), CSSUnitType::Number }, { symbol(2), CSSUnitType::Number }, { symbol(3), CSSUnitType::Number } };
+    }
+    auto& state = value.propertyParserState;
+    CSSCalc::TreeStorage storage;
+    CSSCalc::ParserOptions options { .category = category, .range = CSS::All, .allowedSymbols = WTF::move(symbols), .propertyOptions = { } };
+    CSSCalc::SwiftParserState parser { CSSParserTokenRange { value.tokens.subspan(argumentsStart, argumentsEnd - argumentsStart) }, state, options, storage };
+    std::optional<CSSToLengthConversionData> conversionData;
+    CSSCalcSymbolTable symbolTable;
+    CSSCalc::SwiftResolverState resolver { conversionData, symbolTable, storage };
+    CSSCalc::SwiftOutputState calcOutput { storage };
+    bool inStyleRule = state.currentRule == StyleRuleType::Style || state.currentRule == StyleRuleType::Keyframe;
+    uint32_t flags = CSSCalcParseAllowUnitlessZeroLength
+        | (state.absoluteLengthUnitsOnly ? CSSCalcParseAbsoluteLengthUnitsOnly : 0)
+        | (state.context.cssRandomFunctionEnabled && inStyleRule && state.currentProperty != CSSPropertyID::Invalid && !state.randomFunctionsDisallowed ? CSSCalcParseAllowRandom : 0)
+        | (state.context.cssTreeCountingFunctionsEnabled && inStyleRule && (state.currentProperty != CSSPropertyID::Invalid || state.treeCountingFunctionsAllowed) ? CSSCalcParseAllowTreeCounting : 0)
+        | (state.context.cssCalcMixEnabled ? CSSCalcParseAllowCalcMix : 0);
+    auto parsed = cssConsumePropertyCalc(tokens, parser, resolver, calcOutput, argumentsStart, argumentsEnd, function, std::to_underlying(category), flags);
+    if (!parsed.ok || parsed.consumedTokens != argumentsEnd - argumentsStart)
+        return false;
+    RELEASE_ASSERT(!storage.nodes.isEmpty());
+    auto calcType = std::bit_cast<CSSCalc::Type>(parsed.typeBits);
+    RELEASE_ASSERT(calcType.matches(category));
+    auto tree = CSSCalc::Tree { .storage = WTF::move(storage), .type = calcType, .stage = CSSCalc::Stage::Specified, .requiresConversionData = !!parsed.requiresConversionData };
+    mutableAt(index) = { .type = type, .calc = CSS::UnevaluatedCalcBase { CSSCalc::Value::create(category, CSS::Range { rangeMin, rangeMax }, WTF::move(tree)) } };
+    return true;
+}

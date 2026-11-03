@@ -50,7 +50,16 @@ internal import WebCore_Private.Core.CSSParserIdioms
 /// consumePropertyWithSwift makes the state of `value` on its stack for this call only. Swift calls its members,
 /// CSS::toAngleUnit, CSS::toTimeUnit, CSS::toCSSUnitType, isValidCustomIdentifier, the CSSValue factories and
 /// CSSValueListBuilder, none of which reach it; only `identifier` writes a token, its CSSValueID cache, as
-/// CSSParserToken::id() does.
+/// CSSParserToken::id() does. A consumer of CSSPropertyConsumerSwiftConsumer (CSSPropertyConsumerSwiftValues.swift)
+/// also reads `value.consumerOptions`, `value.hexColorText` and `value.isIntegerNumeric`, and gives a CSS:: value to
+/// setUnresolvedResult, which writes only the caller's std::optional the state points to. beginGradientStops,
+/// appendGradientStop and setPendingColor write only the state's CSSGradientSwiftStops, a local of
+/// consumePropertyWithSwift, which CSSImageSwiftParts::appendColor and the gradient builders take from. The other
+/// CSSPropertyConsumerSwiftBuilders.h builders, for every kind of value, and CSSColorSwiftComponents::parseCalc read
+/// the tokens and the property parser's state, and keep no reference to either in what they make. Of the C++ consumers
+/// they call, consumeURLRaw and consumeColorInterpolationMethod read a range of the tokens, and consumeUnresolvedFilter
+/// and consumeUnresolvedMaskBorder can consume a color or an image through cssConsumeProperty again, with a state and
+/// a CSSGradientSwiftStops of their own.
 @_expose(Cxx)
 func cssConsumeProperty(
     _ value: borrowing WebCore.CSSPropertyConsumerSwiftValue,
@@ -212,7 +221,7 @@ public func cssConsumeNumericSwift(
 
 // MARK: - Numeric tokens
 
-private enum PropertyTokenType {
+enum PropertyTokenType {
     static var ident: UInt8 { UInt8(WebCore.IdentToken.rawValue) }
     static var function: UInt8 { UInt8(WebCore.FunctionToken.rawValue) }
     static var number: UInt8 { UInt8(WebCore.NumberToken.rawValue) }
@@ -346,7 +355,7 @@ private func lengthUnitRawValue(_ unit: WebCore.CSSUnitType) -> UInt8 {
 
 /// `AngleValidator::validate` for a dimension token, `AngleValidator::shouldAcceptUnitlessValue` for a number token.
 @inline(always)
-private func angleUnit(
+func angleUnit(
     _ tokenType: UInt8,
     _ unitType: UInt8,
     _ value: Double,
@@ -483,8 +492,12 @@ struct PropertyParser: ~Copyable, ~Escapable {
         end = tokens.count()
     }
 
-    /// The consumer of the CSSPropertyID `consumer`, or the generated one numbered `consumer`.
+    /// The consumer of the CSSPropertyID `consumer`, the generated one numbered `consumer`, or the
+    /// CSSPropertyConsumerSwiftConsumer `consumer`.
     mutating func consume(_ consumer: UInt16, _ calc: PropertyCalc) -> PropertyValue? {
+        if consumer >= WebCore.CSSPropertyConsumerSwiftConsumer.UnresolvedColor.rawValue {
+            return consumeValue(consumer, calc)
+        }
         if consumer >= WebCore.cssPropertyIDEnumValueCount {
             return consumeGenerated(consumer, calc)
         }
