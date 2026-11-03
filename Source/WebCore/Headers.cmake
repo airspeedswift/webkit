@@ -1059,6 +1059,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/parser/CSSPropertyConsumerSwiftTypes.h
     css/parser/CSSPropertyParser.h
     css/parser/CSSPropertyParserConsumer+Color.h
+    css/parser/CSSPropertyParserConsumer+Image.h
     css/parser/CSSPropertyParserState.h
     css/parser/CSSSelectorParserContext.h
     css/parser/CSSTokenizer.h
@@ -1081,17 +1082,30 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/values/CSSValueConcepts.h
     css/values/CSSValueTypes.h
 
+    css/values/backgrounds/CSSBorderImage.h
+    css/values/backgrounds/CSSBorderImageOutset.h
+    css/values/backgrounds/CSSBorderImageRepeat.h
+    css/values/backgrounds/CSSBorderImageSlice.h
+    css/values/backgrounds/CSSBorderImageSource.h
+    css/values/backgrounds/CSSBorderImageWidth.h
+
     css/values/borders/CSSBorderRadius.h
     css/values/borders/CSSBoxShadow.h
+    css/values/borders/CSSBoxShadowProperty.h
 
     css/values/color-adjust/CSSColorScheme.h
 
     css/values/color/CSSColor.h
     css/values/color/CSSColorDescriptors.h
     css/values/color/CSSColorInterpolationMethod.h
+    css/values/color/CSSColorMix.h
     css/values/color/CSSColorType.h
+    css/values/color/CSSContrastColor.h
+    css/values/color/CSSDynamicRangeLimit.h
+    css/values/color/CSSDynamicRangeLimitMix.h
     css/values/color/CSSHexColor.h
     css/values/color/CSSKeywordColor.h
+    css/values/color/CSSLightDarkColor.h
     css/values/color/CSSResolvedColor.h
 
     css/values/counter-styles/CSSCounterStyle.h
@@ -1109,10 +1123,20 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/values/grid/CSSGridTrackSize.h
 
     css/values/images/CSSGradient.h
+    css/values/images/CSSImageWrapper.h
 
     css/values/link-params/CSSLinkParameter.h
 
+    css/values/masking/CSSMaskBorder.h
+    css/values/masking/CSSMaskBorderOutset.h
+    css/values/masking/CSSMaskBorderRepeat.h
+    css/values/masking/CSSMaskBorderSlice.h
+    css/values/masking/CSSMaskBorderSource.h
+    css/values/masking/CSSMaskBorderWidth.h
+
     css/values/motion/CSSRayFunction.h
+
+    css/values/non-standard/CSSWebkitBoxReflect.h
 
     css/values/primitives/CSSCustomIdent.h
     css/values/primitives/CSSDeclarationValue.h
