@@ -946,6 +946,7 @@
 				WebCore/ScrollPhysics.cpp,
 				WebCore/ScrollPhysicsBench.cpp,
 				WebCore/ScrollViewBench.cpp,
+				WebCore/ScrollbarsControllerBench.mm,
 				WebCore/ScrollingTreeDelegateBench.cpp,
 				WebCore/SecurityOrigin.cpp,
 				WebCore/SerializedScriptValue.cpp,
