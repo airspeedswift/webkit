@@ -25,10 +25,10 @@
 
 #pragma once
 
-// A scrolling tree of Mac frame and overflow scrolling nodes, driven through the tree's own entry points:
-// state-tree commits, wheel events and display refreshes, with the scroll-animation clock replaced so a
-// session is repeatable. The tree records the calls its nodes make on it. ScrollingTreeDelegateBench.cpp
-// uses it.
+// A scrolling tree of Mac frame and overflow scrolling nodes, with fixed, sticky and positioned nodes and
+// overflow scroll proxies, driven through the tree's own entry points: state-tree commits, wheel events and
+// display refreshes, with the scroll-animation clock replaced so a session is repeatable. The tree records the
+// calls its nodes make on it. ScrollingTreeDelegateBench.cpp uses it.
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <WebCore/FloatPoint.h>
@@ -44,9 +44,13 @@
 #include <WebCore/ScrollingStateTree.h>
 #include <WebCore/ScrollingThread.h>
 #include <WebCore/ScrollingTree.h>
+#include <WebCore/ScrollingTreeFixedNodeCocoa.h>
 #include <WebCore/ScrollingTreeFrameScrollingNodeMac.h>
+#include <WebCore/ScrollingTreeOverflowScrollProxyNodeCocoa.h>
 #include <WebCore/ScrollingTreeOverflowScrollingNodeMac.h>
+#include <WebCore/ScrollingTreePositionedNodeCocoa.h>
 #include <WebCore/ScrollingTreeScrollingNode.h>
+#include <WebCore/ScrollingTreeStickyNodeCocoa.h>
 #include <WebCore/WheelEventTestMonitor.h>
 #include <bit>
 #include <cstdint>
@@ -333,9 +337,20 @@ private:
 
     Ref<ScrollingTreeNode> createScrollingTreeNode(ScrollingNodeType nodeType, ScrollingNodeID id) final
     {
-        if (nodeType == ScrollingNodeType::Overflow)
+        switch (nodeType) {
+        case ScrollingNodeType::Overflow:
             return ScrollingTreeOverflowScrollingNodeMac::create(*this, id);
-        return ScrollingTreeFrameScrollingNodeMac::create(*this, nodeType, id);
+        case ScrollingNodeType::OverflowProxy:
+            return ScrollingTreeOverflowScrollProxyNodeCocoa::create(*this, id);
+        case ScrollingNodeType::Fixed:
+            return ScrollingTreeFixedNodeCocoa::create(*this, id);
+        case ScrollingNodeType::Sticky:
+            return ScrollingTreeStickyNodeCocoa::create(*this, id);
+        case ScrollingNodeType::Positioned:
+            return ScrollingTreePositionedNodeCocoa::create(*this, id);
+        default:
+            return ScrollingTreeFrameScrollingNodeMac::create(*this, nodeType, id);
+        }
     }
 
     RefPtr<ScrollingTreeNode> scrollingNodeForPoint(FloatPoint) final
@@ -489,14 +504,49 @@ public:
         node->setScrollableAreaParameters(setup.parameters);
     }
 
+    // A subframe's frame scrolling node under any node, as one of the session's scrolling nodes.
+    unsigned addSubframe(const NodeSetup& setup, ScrollingNodeID parent)
+    {
+        auto id = nodeID(m_nextID++);
+        m_stateTree->insertNode(ScrollingNodeType::Subframe, id, parent, notFound);
+        m_nodes.push_back(id);
+        Ref frame = downcast<ScrollingStateFrameScrollingNode>(stateNode(id));
+        frame->setAsyncFrameOrOverflowScrollingEnabled(true);
+        frame->setFrameScaleFactor(1);
+        frame->setLayoutViewport(FloatRect(setup.position, setup.viewport));
+        apply(m_nodes.size() - 1, setup);
+        return m_nodes.size() - 1;
+    }
+
+    // A node that is not one of the session's scrolling nodes (a fixed, sticky or positioned node, or an overflow
+    // scroll proxy) under any node, last among its siblings.
+    ScrollingNodeID addNode(ScrollingNodeType type, ScrollingNodeID parent)
+    {
+        auto id = nodeID(m_nextID++);
+        m_stateTree->insertNode(type, id, parent, notFound);
+        return id;
+    }
+
+    // Moves a node and its descendants under another parent, as a layout that changes containing blocks does.
+    void reparent(ScrollingNodeID id, ScrollingNodeID parent) { m_stateTree->insertNode(m_stateTree->stateNodeForID(id)->nodeType(), id, parent, notFound); }
+
+    ScrollingNodeID scrollingNodeID(unsigned index) const { return m_nodes[index]; }
+    Ref<ScrollingStateNode> stateNode(ScrollingNodeID id) { return m_stateTree->stateNodeForID(id).releaseNonNull(); }
+
     Ref<ScrollingStateScrollingNode> state(unsigned index) { return downcast<ScrollingStateScrollingNode>(m_stateTree->stateNodeForID(m_nodes[index]).releaseNonNull()); }
     Ref<ScrollingStateFrameScrollingNode> rootState() { return m_stateTree->rootStateNode().releaseNonNull(); }
 
     RefPtr<ScrollingTreeScrollingNode> node(unsigned index) { return dynamicDowncast<ScrollingTreeScrollingNode>(m_tree->nodeForID(m_nodes[index])); }
 
+    // Called on each committed state tree before the tree takes it, as the UI process connects the layer identifiers
+    // a commit carries to its layers. With a connector set, commits carry layer identifiers.
+    void setLayerConnector(Function<void(ScrollingStateTree&)>&& connector) { m_layerConnector = WTF::move(connector); }
+
     void commit()
     {
-        auto stateTree = m_stateTree->commit(LayerRepresentation::PlatformLayerRepresentation);
+        auto stateTree = m_stateTree->commit(m_layerConnector ? LayerRepresentation::PlatformLayerIDRepresentation : LayerRepresentation::PlatformLayerRepresentation);
+        if (m_layerConnector)
+            m_layerConnector(*stateTree);
         stateTree->setRootFrameIdentifier(FrameIdentifier(1));
         m_tree->commitTreeState(WTF::move(stateTree));
         m_tree->startPendingScrollAnimations();
@@ -534,6 +584,9 @@ public:
         ++m_entries;
         observe();
     }
+
+    // As the tree's owner does after a commit and on a display refresh: moves the nodes' layers.
+    void applyLayerPositions() { m_tree->applyLayerPositions(); }
 
     // Runs the scrolling thread's run loop until the discrete scroll snap and scrollend timers the nodes started have
     // fired. Their 100 ms delay is in real time, not on RigClock, so this runs the run loop in 10 ms slices until no
@@ -633,6 +686,7 @@ private:
     Ref<RigScrollingTree> m_tree;
     std::unique_ptr<ScrollingStateTree> m_stateTree { makeUnique<ScrollingStateTree>() };
     std::vector<ScrollingNodeID> m_nodes;
+    Function<void(ScrollingStateTree&)> m_layerConnector;
     uint64_t m_nextID { 1 };
     uint64_t m_entries { 0 };
 };
@@ -913,6 +967,78 @@ inline void snapSelectionShape(Session& session)
         Session::Gesture gesture;
         gesture.gapBefore = 0.2;
         session.gesture(0, gesture);
+        session.framesUntilIdle();
+    }
+}
+
+// The three entries the tree has, one shape each, for their per-call cost: a commit per rendering update, a wheel
+// event and a display refresh.
+
+// A rendering update's commit on a page with many overflow scrollers: each commit moves a few of them and changes one
+// node's contents size, as a page that scrolls and grows does.
+inline void commitPerRenderingUpdateShape(Session& session)
+{
+    session.addRoot(mainFrameSetup({ 0, 1000 }));
+    for (unsigned i = 0; i < 12; ++i)
+        session.addOverflow(overflowSetup({ 0, 50.0f * i }, i), i % 3 ? 0 : session.nodeCount() - 1);
+    session.commit();
+    Lcg random(11);
+    for (unsigned update = 0; update < 600; ++update) {
+        for (unsigned moved = 0; moved < 3; ++moved) {
+            unsigned index = random.range(0, session.nodeCount() - 1);
+            session.requestScroll(index, ScrollRequestType::PositionUpdate, FloatPoint { 0, random.between(0, 2000) });
+        }
+        unsigned grown = update % session.nodeCount();
+        session.state(grown)->setTotalContentsSize({ grown ? 600.0f : 1200.0f, 3000.0f + 10.0f * (update % 400) });
+        session.commit();
+        session.applyLayerPositions();
+    }
+}
+
+// Trackpad gestures with momentum, wheel events only: no display refresh between them, so the cost is the event's.
+inline void wheelEventShape(Session& session)
+{
+    session.addRoot(mainFrameSetup({ 0, 9000 }));
+    session.addOverflow(overflowSetup({ 0, 1000 }, 1));
+    session.addOverflow(overflowSetup({ 0, 500 }, 2), 1);
+    session.commit();
+    Lcg random(12);
+    for (unsigned i = 0; i < 30; ++i) {
+        Session::Gesture gesture;
+        float sign = i % 2 ? -1 : 1;
+        gesture.deltas = decayingDeltas({ random.between(-2, 2), sign * random.between(4, 30) }, 0.97f, random.range(20, 40));
+        gesture.momentumDeltas = decayingDeltas({ 0, sign * random.between(10, 40) }, 0.94f, random.range(40, 80));
+        gesture.framesBetweenEvents = false;
+        session.gesture(i % 3, gesture);
+    }
+    session.framesUntilIdle();
+}
+
+// Display refreshes while animated and keyboard scrolls run on several nodes at once.
+inline void displayRefreshShape(Session& session)
+{
+    session.addRoot(mainFrameSetup({ 0, 0 }));
+    for (unsigned i = 0; i < 3; ++i)
+        session.addOverflow(overflowSetup({ 0, 0 }, i + 1));
+    session.commit();
+    Lcg random(13);
+    for (unsigned round = 0; round < 20; ++round) {
+        for (unsigned index = 0; index < session.nodeCount(); ++index) {
+            if ((round + index) % 3)
+                session.requestScroll(index, ScrollRequestType::AnimatedPositionUpdate, FloatPoint { 0, random.between(0, 2500) });
+            else
+                session.requestKeyboardScroll(index, KeyboardScrollAction::StartAnimation, keyboardScroll(round % 2 ? ScrollDirection::ScrollUp : ScrollDirection::ScrollDown, ScrollGranularity::Line, 40));
+        }
+        session.commit();
+        for (unsigned frame = 0; frame < 20; ++frame) {
+            session.frame();
+            session.applyLayerPositions();
+        }
+        for (unsigned index = 0; index < session.nodeCount(); ++index) {
+            if (!((round + index) % 3))
+                session.requestKeyboardScroll(index, KeyboardScrollAction::StopWithAnimation);
+        }
+        session.commit();
         session.framesUntilIdle();
     }
 }
