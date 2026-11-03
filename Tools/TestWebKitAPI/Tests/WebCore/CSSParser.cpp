@@ -492,4 +492,35 @@ TEST(CSSPropertyParser, TransformTokenCounts)
     }
 }
 
+TEST(CSSPropertyParser, GradientStopCounts)
+{
+    // Gradients of 15 to 17 stops, of keyword and rgb() colors: linear with a hint, conic, and -webkit-gradient().
+    auto color = [](unsigned i) { return i % 2 ? "rgb(1, 2, 3)"_s : "red"_s; };
+    auto stops = [&](unsigned count, ASCIILiteral unit, bool hint) {
+        StringBuilder builder;
+        for (unsigned i = 0; i < count; ++i)
+            builder.append(i ? ", "_s : ""_s, hint && i == 1 ? "1%, "_s : ""_s, color(i), ' ', 2 * i, unit);
+        return builder.toString();
+    };
+    auto colorStops = [&](unsigned count) {
+        StringBuilder builder;
+        for (unsigned i = 0; i < count; ++i)
+            builder.append(i ? ", "_s : ""_s, "color-stop("_s, (i + 1) / 100.0, ", "_s, color(i), ')');
+        return builder.toString();
+    };
+
+    for (unsigned count : { 15u, 16u, 17u }) {
+        String values[] = {
+            makeString("linear-gradient("_s, stops(count, "%"_s, true), ')'),
+            makeString("conic-gradient("_s, stops(count, "deg"_s, false), ')'),
+            makeString("-webkit-gradient(linear, 0% 0%, 100% 100%, "_s, colorStops(count), ')'),
+        };
+        for (auto& value : values) {
+            auto properties = MutableStyleProperties::create();
+            ASSERT_TRUE(CSSParser::parseDeclarationList(properties, makeString("background-image: "_s, value, ';'), strictCSSParserContext()));
+            EXPECT_EQ(properties->getPropertyValue(CSSPropertyID::BackgroundImage), value);
+        }
+    }
+}
+
 } // namespace TestWebKitAPI
