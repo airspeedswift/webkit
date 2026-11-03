@@ -59,12 +59,16 @@
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
 #include "CSSWebkitBoxReflectValue.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
 // MARK: - Border Radius
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 enum class SupportWebKitBorderRadiusQuirk : bool { No, Yes };
 
 template<SupportWebKitBorderRadiusQuirk supportQuirk> static std::optional<CSS::BorderRadius> consumeBorderRadius(CSSParserTokenRange& range, CSS::PropertyParserState& state)
@@ -182,9 +186,28 @@ std::optional<CSS::BorderRadiusSide> consumeUnresolvedBorderRadiusSide(CSSParser
         .vertical = { *verticalFirst, *verticalSecond }
     };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::BorderRadius> consumeUnresolvedBorderRadius(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderRadius>(range, state, CSSPropertyConsumerSwiftConsumer::BorderRadius);
+}
+
+std::optional<CSS::BorderRadius> consumeUnresolvedWebKitBorderRadius(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderRadius>(range, state, CSSPropertyConsumerSwiftConsumer::WebKitBorderRadius);
+}
+
+std::optional<CSS::BorderRadiusSide> consumeUnresolvedBorderRadiusSide(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderRadiusSide>(range, state, CSSPropertyConsumerSwiftConsumer::BorderRadiusSide);
+}
+#endif
 
 // MARK: - Border Image
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 std::optional<CSS::BorderImageSource> consumeUnresolvedBorderImageSource(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <'border-image-source'> = none | <image>
@@ -198,6 +221,14 @@ std::optional<CSS::BorderImageSource> consumeUnresolvedBorderImageSource(CSSPars
 
     return std::nullopt;
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::BorderImageSource> consumeUnresolvedBorderImageSource(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderImageSource>(range, state, CSSPropertyConsumerSwiftConsumer::BorderImageSource);
+}
+#endif
 
 RefPtr<CSSValue> consumeBorderImageSource(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
@@ -209,6 +240,7 @@ RefPtr<CSSValue> consumeBorderImageSource(CSSParserTokenRange& range, CSS::Prope
     return nullptr;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 std::optional<CSS::BorderImageOutset> consumeUnresolvedBorderImageOutset(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <'border-image-outset'> = [ <length [0,∞]> | <number [0,∞]> ]{1,4}
@@ -230,6 +262,14 @@ std::optional<CSS::BorderImageOutset> consumeUnresolvedBorderImageOutset(CSSPars
         .values = completeQuadFromArray<CSS::BorderImageOutset::Edges>(WTF::move(values)),
     };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::BorderImageOutset> consumeUnresolvedBorderImageOutset(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderImageOutset>(range, state, CSSPropertyConsumerSwiftConsumer::BorderImageOutset);
+}
+#endif
 
 RefPtr<CSSValue> consumeBorderImageOutset(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
@@ -241,6 +281,7 @@ RefPtr<CSSValue> consumeBorderImageOutset(CSSParserTokenRange& range, CSS::Prope
     return nullptr;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 std::optional<CSS::BorderImageRepeat> consumeUnresolvedBorderImageRepeat(CSSParserTokenRange& range, CSS::PropertyParserState&)
 {
     // <'border-image-repeat'> = [ stretch | repeat | round | space ]{1,2}
@@ -260,6 +301,14 @@ std::optional<CSS::BorderImageRepeat> consumeUnresolvedBorderImageRepeat(CSSPars
         .values = { WTF::move(*values[0]), WTF::move(*values[1]) }
     };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::BorderImageRepeat> consumeUnresolvedBorderImageRepeat(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderImageRepeat>(range, state, CSSPropertyConsumerSwiftConsumer::BorderImageRepeat);
+}
+#endif
 
 RefPtr<CSSValue> consumeBorderImageRepeat(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
@@ -271,6 +320,7 @@ RefPtr<CSSValue> consumeBorderImageRepeat(CSSParserTokenRange& range, CSS::Prope
     return nullptr;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 std::optional<CSS::BorderImageSlice> consumeUnresolvedBorderImageSlice(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageSliceOverride overridesSlice)
 {
     // <'border-image-slice'> = [<number [0,∞]> | <percentage [0,∞]>]{1,4} && fill?
@@ -302,6 +352,14 @@ std::optional<CSS::BorderImageSlice> consumeUnresolvedBorderImageSlice(CSSParser
         .fill = fill,
     };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::BorderImageSlice> consumeUnresolvedBorderImageSlice(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageSliceOverride overridesSlice)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderImageSlice>(range, state, CSSPropertyConsumerSwiftConsumer::BorderImageSlice, overridesSlice == BorderImageSliceOverride::AlwaysFill ? CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill : 0);
+}
+#endif
 
 RefPtr<CSSValue> consumeBorderImageSlice(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageSliceOverride overridesSlice)
 {
@@ -313,6 +371,7 @@ RefPtr<CSSValue> consumeBorderImageSlice(CSSParserTokenRange& range, CSS::Proper
     return nullptr;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 std::optional<CSS::BorderImageWidth> consumeUnresolvedBorderImageWidth(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageWidthOverridesWidthForLength overridesWidth)
 {
     // <'border-image-width'> = [ <length-percentage [0,∞]> | <number [0,∞]> | auto ]{1,4}
@@ -359,6 +418,14 @@ std::optional<CSS::BorderImageWidth> consumeUnresolvedBorderImageWidth(CSSParser
         .legacyWebkitBorderImage = (overridesWidth == BorderImageWidthOverridesWidthForLength::Yes && hasLength),
     };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::BorderImageWidth> consumeUnresolvedBorderImageWidth(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageWidthOverridesWidthForLength overridesWidth)
+{
+    return consumeUnresolvedWithSwift<CSS::BorderImageWidth>(range, state, CSSPropertyConsumerSwiftConsumer::BorderImageWidth, overridesWidth == BorderImageWidthOverridesWidthForLength::Yes ? CSSPropertyConsumerSwiftBorderImageWidthOverridesWidthForLength : 0);
+}
+#endif
 
 RefPtr<CSSValue> consumeBorderImageWidth(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageWidthOverridesWidthForLength overridesWidth)
 {
@@ -370,6 +437,7 @@ RefPtr<CSSValue> consumeBorderImageWidth(CSSParserTokenRange& range, CSS::Proper
     return nullptr;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageSliceOverride overridesSlice, BorderImageWidthOverridesWidthForLength overridesWidth)
 {
     // <'border-image'> = <'border-image-source'>
@@ -421,6 +489,16 @@ std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange
         .borderImageRepeat = WTF::move(repeat),
     };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageSliceOverride overridesSlice, BorderImageWidthOverridesWidthForLength overridesWidth)
+{
+    uint8_t options = (overridesSlice == BorderImageSliceOverride::AlwaysFill ? CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill : 0)
+        | (overridesWidth == BorderImageWidthOverridesWidthForLength::Yes ? CSSPropertyConsumerSwiftBorderImageWidthOverridesWidthForLength : 0);
+    return consumeUnresolvedWithSwift<CSS::BorderImage>(range, state, CSSPropertyConsumerSwiftConsumer::BorderImage, options);
+}
+#endif
 
 // MARK: - Background Size
 
@@ -496,6 +574,7 @@ RefPtr<CSSValue> consumeSingleMaskSize(CSSParserTokenRange& range, CSS::Property
 
 // MARK: - Background Repeat
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 RefPtr<CSSValue> consumeRepeatStyle(CSSParserTokenRange& range, CSS::PropertyParserState&)
 {
     // <repeat-style> = repeat-x | repeat-y | [repeat | space | round | no-repeat]{1,2}
@@ -513,9 +592,18 @@ RefPtr<CSSValue> consumeRepeatStyle(CSSParserTokenRange& range, CSS::PropertyPar
         value2 = value1;
     return CSSBackgroundRepeatValue::create(*value1, *value2);
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+RefPtr<CSSValue> consumeRepeatStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumePropertyWithSwift(range, state, CSSPropertyConsumerSwiftConsumer::RepeatStyle);
+}
+#endif
 
 // MARK: - Box Shadows
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 static std::optional<CSS::BoxShadow> consumeSingleUnresolvedBoxShadow(CSSParserTokenRange& range, CSS::PropertyParserState& state, bool isWebkitBoxShadow)
 {
     // <box-shadow> = <color>? && [<length>{2} <length [0,∞]>? <length>?] && inset?
@@ -630,6 +718,14 @@ static std::optional<CSS::BoxShadowProperty> consumeUnresolvedBoxShadow(CSSParse
         return CSS::BoxShadowProperty { WTF::move(*boxShadowList) };
     return { };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+static std::optional<CSS::BoxShadowProperty> consumeUnresolvedBoxShadow(CSSParserTokenRange& range, CSS::PropertyParserState& state, bool isWebkitBoxShadow)
+{
+    return consumeUnresolvedWithSwift<CSS::BoxShadowProperty>(range, state, isWebkitBoxShadow ? CSSPropertyConsumerSwiftConsumer::WebkitBoxShadow : CSSPropertyConsumerSwiftConsumer::BoxShadow);
+}
+#endif
 
 RefPtr<CSSValue> consumeBoxShadow(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
@@ -650,6 +746,7 @@ RefPtr<CSSValue> consumeWebkitBoxShadow(CSSParserTokenRange& range, CSS::Propert
 
 // MARK: - Reflect (non-standard)
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 static std::optional<CSS::WebkitBoxReflection> consumeUnresolvedWebkitBoxReflection(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <-webkit-box-reflection> = [ above | below | left | right ] <length-percentage>? <mask-border>?
@@ -690,6 +787,14 @@ static std::optional<CSS::WebkitBoxReflect> consumeUnresolvedWebkitBoxReflect(CS
         return CSS::WebkitBoxReflect { WTF::move(*keyword) };
     return consumeUnresolvedWebkitBoxReflection(range, state);
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+static std::optional<CSS::WebkitBoxReflect> consumeUnresolvedWebkitBoxReflect(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::WebkitBoxReflect>(range, state, CSSPropertyConsumerSwiftConsumer::WebkitBoxReflect);
+}
+#endif
 
 RefPtr<CSSValue> consumeWebkitBoxReflect(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {

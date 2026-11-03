@@ -612,6 +612,16 @@ macro(WEBKIT_OPTION_END)
         message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2 needs WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS: its consumers are PropertyParser methods")
     endif ()
     SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS_2 ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2})
+    # The counterpart of CommonBase.xcconfig's WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3: the consumers of colors,
+    # positions, images, border radii, border images, repeat styles, shadows and reflections are Swift.
+    option(WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 "Consume CSS colors, positions, images and the border and background values that use them with WebCore's Swift" OFF)
+    if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 AND NOT WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2)
+        message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 needs WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2: its consumers are PropertyParser methods that read keywords as its generated ones do")
+    endif ()
+    if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 AND NOT WK_USE_SWIFT_CSS_FAST_PATHS)
+        message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 needs WK_USE_SWIFT_CSS_FAST_PATHS: its hex colors are the fast path's")
+    endif ()
+    SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3})
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
