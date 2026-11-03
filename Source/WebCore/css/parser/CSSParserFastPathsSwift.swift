@@ -185,6 +185,13 @@ private func scanHexColor<Unit: CSSFastPathCodeUnit>(_ characters: Span<Unit>) -
     return finishParsingHexColor(value, count)
 }
 
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+/// `CSSParserFastPaths::parseHexColor`, for the property consumers: a `PackedColor::ARGB`, or -1.
+func cssHexColor(_ characters: Span<UInt16>) -> Int64 {
+    scanHexColor(characters)
+}
+#endif
+
 // MARK: - Named colors
 
 /// Code units `start..<start + count` of 8-bit input, `count` at most 8, as the bytes of a word, the first in the low byte.

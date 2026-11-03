@@ -3447,6 +3447,7 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftProperties.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftValues.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
         ${WEBCORE_DIR}/html/parser/HTMLFastPathParser.swift
@@ -3538,6 +3539,10 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
     if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_2)
         webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_PROPERTY_CONSUMERS_2" "-Xcc -DUSE_SWIFT_CSS_PROPERTY_CONSUMERS_2=1")
         list(APPEND _webcore_swift_core_submodules css/parser/CSSParserIdioms.h)
+    endif ()
+    if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3)
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_PROPERTY_CONSUMERS_3" "-Xcc -DUSE_SWIFT_CSS_PROPERTY_CONSUMERS_3=1")
+        list(APPEND _webcore_swift_core_submodules css/parser/CSSPropertyConsumerSwiftBuilders.h)
     endif ()
     list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 

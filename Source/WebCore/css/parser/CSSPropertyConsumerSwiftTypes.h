@@ -54,6 +54,55 @@ struct CSSPropertyConsumerSwiftResult {
     uint8_t ok;
 };
 
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+// The hand-written consumers of colors, positions, images, border radii, border images, repeat styles, shadows and
+// reflections that cssConsumeProperty consumes, numbered from 0x8000, above every CSSPropertyID and generated
+// consumer. Their options are in the state; those consumed into a CSS:: value give it to
+// CSSPropertyConsumerSwiftUnresolvedResult (CSSPropertyConsumerSwiftBuilders.h).
+enum class CSSPropertyConsumerSwiftConsumer : uint16_t {
+    UnresolvedColor = 0x8000, // Options: OptionSet<CSS::ColorType>.
+    Color, // Options: OptionSet<CSS::ColorType>.
+    DynamicRangeLimit,
+    ColorScheme,
+    Position,
+    BackgroundPosition,
+    PositionX,
+    PositionY,
+    OneOrTwoComponentPosition,
+    TwoComponentPositionHorizontal,
+    TwoComponentPositionVertical,
+    Image, // Options: OptionSet<CSSPropertyParserHelpers::AllowedImageType>.
+    BorderRadius,
+    WebKitBorderRadius,
+    BorderRadiusSide,
+    BorderImageSource,
+    BorderImageOutset,
+    BorderImageRepeat,
+    BorderImageSlice, // Options: CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill.
+    BorderImageWidth, // Options: CSSPropertyConsumerSwiftBorderImageWidthOverridesWidthForLength.
+    BorderImage, // Options: both.
+    RepeatStyle,
+    BoxShadow,
+    WebkitBoxShadow,
+    WebkitBoxReflect,
+};
+
+enum : uint8_t {
+    CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill = 1 << 0,
+    CSSPropertyConsumerSwiftBorderImageWidthOverridesWidthForLength = 1 << 1,
+};
+
+struct CSSGradientSwiftStops;
+class CSSPropertyConsumerSwiftUnresolvedResult;
+
+// The length of a token's text, and its first 8 characters, one per byte from the low byte, a character that is not
+// ASCII as 0.
+struct CSSColorSwiftText {
+    uint64_t characters;
+    uint32_t length;
+};
+#endif
+
 // Consumes a value with the consumer of the CSSPropertyID `consumer`, or the generated one numbered `consumer` from
 // cssPropertyIDEnumValueCount, through cssConsumeProperty.
 RefPtr<CSSValue> consumePropertyWithSwift(CSSParserTokenRange&, CSS::PropertyParserState&, uint16_t consumer);
@@ -110,6 +159,14 @@ struct __attribute__((swift_attr("~Sendable"))) CSSPropertyConsumerSwiftValue : 
     Ref<CSSValue> tokenValue(size_t index) const;
 #endif
     void setResult(CSSValue&) const;
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+    // The options of a CSSPropertyConsumerSwiftConsumer.
+    inline uint8_t consumerOptions() const;
+    // The text of a hash or ident token's value or of a dimension token's unit, for hex colors.
+    inline CSSColorSwiftText hexColorText(size_t index) const;
+    // Whether a number or dimension token's value is an integer.
+    bool isIntegerNumeric(size_t index) const { return (type(index) == NumberToken || type(index) == DimensionToken) && token(index).numericValueType() == IntegerValueType; }
+#endif
     // The calc() value of the math function `function` whose arguments are the tokens [argumentsStart, argumentsEnd),
     // which cssConsumePropertyCalc parses with calc() states of this call's own, or null if they do not parse.
     RefPtr<CSSPrimitiveValue> parseCalc(uint32_t argumentsStart, uint32_t argumentsEnd, uint16_t function, uint8_t category, uint32_t flags, double rangeMin, double rangeMax) const;
@@ -131,12 +188,44 @@ public:
     {
     }
 
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+    // For a CSSPropertyConsumerSwiftConsumer: its options, where the stops of a gradient it consumes go, and where a
+    // CSS:: value it consumes goes, if anywhere.
+    CSSPropertyConsumerSwiftValueState(std::span<const CSSParserToken> tokens, CSS::PropertyParserState& propertyParserState, RefPtr<CSSValue>& result, uint8_t consumerOptions, CSSGradientSwiftStops& gradientStops, CSSPropertyConsumerSwiftUnresolvedResult* unresolvedResult)
+        : tokens(tokens)
+        , propertyParserState(propertyParserState)
+        , result(result)
+        , options(consumerOptions)
+        , gradientStops(&gradientStops)
+        , unresolvedResult(unresolvedResult)
+    {
+    }
+#endif
+
     const std::span<const CSSParserToken> tokens;
     CSS::PropertyParserState& propertyParserState;
     RefPtr<CSSValue>& result;
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+    const uint8_t options { 0 };
+    CSSGradientSwiftStops* const gradientStops { nullptr };
+    CSSPropertyConsumerSwiftUnresolvedResult* const unresolvedResult { nullptr };
+#endif
 };
 
 inline size_t CSSPropertyConsumerSwiftValue::count() const { return static_cast<const CSSPropertyConsumerSwiftValueState&>(*this).tokens.size(); }
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+inline uint8_t CSSPropertyConsumerSwiftValue::consumerOptions() const { return static_cast<const CSSPropertyConsumerSwiftValueState&>(*this).options; }
+
+inline CSSColorSwiftText CSSPropertyConsumerSwiftValue::hexColorText(size_t index) const
+{
+    auto type = this->type(index);
+    auto text = type == HashToken || type == IdentToken ? token(index).value() : type == DimensionToken ? token(index).unitString() : StringView { };
+    uint64_t characters = 0;
+    for (unsigned i = 0; i < std::min(text.length(), 8u); ++i)
+        characters |= static_cast<uint64_t>(isASCII(text[i]) ? text[i] : 0) << (8 * i);
+    return { characters, text.length() };
+}
+#endif
 inline const CSSParserToken& CSSPropertyConsumerSwiftValue::token(size_t index) const { return static_cast<const CSSPropertyConsumerSwiftValueState&>(*this).tokens[index]; }
 
 } // namespace WebCore

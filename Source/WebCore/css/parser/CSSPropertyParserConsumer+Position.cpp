@@ -39,6 +39,9 @@
 #include "CSSValuePair.h"
 #include "CSSValuePool.h"
 #include "RenderStyleConstants.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
@@ -84,6 +87,7 @@ using namespace CSS::Literals;
 
 // MARK: Unresolved Position
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 using PositionUnresolvedComponent = Variant<
     // Horizontal
     CSS::Keyword::Left,
@@ -677,6 +681,44 @@ std::optional<CSS::TwoComponentPositionVertical> consumeTwoComponentPositionVert
         return CSS::TwoComponentPositionVertical { WTF::move(*lengthPercentage) };
     return { };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::Position> consumePositionUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::Position>(range, state, CSSPropertyConsumerSwiftConsumer::Position);
+}
+
+std::optional<CSS::Position> consumeBackgroundPositionUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::Position>(range, state, CSSPropertyConsumerSwiftConsumer::BackgroundPosition);
+}
+
+std::optional<CSS::PositionX> consumePositionXUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::PositionX>(range, state, CSSPropertyConsumerSwiftConsumer::PositionX);
+}
+
+std::optional<CSS::PositionY> consumePositionYUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::PositionY>(range, state, CSSPropertyConsumerSwiftConsumer::PositionY);
+}
+
+std::optional<CSS::Position> consumeOneOrTwoComponentPositionUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::Position>(range, state, CSSPropertyConsumerSwiftConsumer::OneOrTwoComponentPosition);
+}
+
+std::optional<CSS::TwoComponentPositionHorizontal> consumeTwoComponentPositionHorizontalUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::TwoComponentPositionHorizontal>(range, state, CSSPropertyConsumerSwiftConsumer::TwoComponentPositionHorizontal);
+}
+
+std::optional<CSS::TwoComponentPositionVertical> consumeTwoComponentPositionVerticalUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::TwoComponentPositionVertical>(range, state, CSSPropertyConsumerSwiftConsumer::TwoComponentPositionVertical);
+}
+#endif
 
 // MARK: CSSValue
 

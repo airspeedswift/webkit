@@ -69,10 +69,14 @@
 #include "CSSValuePool.h"
 #include "CSSVariableData.h"
 #include <wtf/SortedArrayMap.h>
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 // Used by radial gradient consumers internally.
 enum class ShapeKeyword : bool { Circle, Ellipse };
 
@@ -1315,6 +1319,14 @@ RefPtr<CSSValue> consumeImage(CSSParserTokenRange& range, CSS::PropertyParserSta
 
     return nullptr;
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+RefPtr<CSSValue> consumeImage(CSSParserTokenRange& range, CSS::PropertyParserState& state, OptionSet<AllowedImageType> allowedImageTypes)
+{
+    return consumePropertyWithSwift(range, state, CSSPropertyConsumerSwiftConsumer::Image, allowedImageTypes.toRaw());
+}
+#endif
 
 // MARK: <image> | none
 

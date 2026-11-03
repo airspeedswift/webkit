@@ -34,12 +34,16 @@
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSPropertyParserState.h"
 #include "CSSValueKeywords.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
 #if ENABLE(DARK_MODE_CSS)
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
 std::optional<CSS::ColorScheme> consumeUnresolvedColorScheme(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <'color-scheme'> = normal | [ light | dark | <custom-ident> ]+ && only?
@@ -109,6 +113,14 @@ std::optional<CSS::ColorScheme> consumeUnresolvedColorScheme(CSSParserTokenRange
 
     return result;
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+std::optional<CSS::ColorScheme> consumeUnresolvedColorScheme(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::ColorScheme>(range, state, CSSPropertyConsumerSwiftConsumer::ColorScheme);
+}
+#endif
 
 std::optional<CSS::ColorScheme> parseUnresolvedColorScheme(StringView string, const CSSParserContext& context)
 {
@@ -141,4 +153,22 @@ RefPtr<CSSValue> consumeColorScheme(CSSParserTokenRange& range, CSS::PropertyPar
 #endif // ENABLE(DARK_MODE_CSS)
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+#if ENABLE(DARK_MODE_CSS)
+CSS::ColorScheme makeColorScheme(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end, bool only)
+{
+    auto tokens = static_cast<const CSSPropertyConsumerSwiftValueState&>(value).tokens;
+    RELEASE_ASSERT(start <= end && end <= tokens.size());
+    CSS::ColorScheme result { .schemes = { }, .only = { } };
+    for (auto& token : tokens.subspan(start, end - start)) {
+        if (token.type() == IdentToken)
+            result.schemes.value.append(CSS::CustomIdent { token.value().toAtomString() });
+    }
+    if (only)
+        result.only = CSS::Keyword::Only { };
+    return result;
+}
+#endif
+#endif
 } // namespace WebCore
