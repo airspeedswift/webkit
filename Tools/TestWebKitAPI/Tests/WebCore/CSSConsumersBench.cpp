@@ -1915,6 +1915,1404 @@ static Vector<Block> shorthandsBlocks()
     });
 }
 
+// MARK: - Colors.
+
+static constexpr Property colorProperties[] = {
+    { CSSPropertyID::Color, "color"_s },
+    { CSSPropertyID::BackgroundColor, "background-color"_s },
+    { CSSPropertyID::BorderTopColor, "border-top-color"_s },
+    { CSSPropertyID::BorderLeftColor, "border-left-color"_s },
+    { CSSPropertyID::OutlineColor, "outline-color"_s },
+    { CSSPropertyID::TextDecorationColor, "text-decoration-color"_s },
+    { CSSPropertyID::ColumnRuleColor, "column-rule-color"_s },
+    { CSSPropertyID::CaretColor, "caret-color"_s },
+    { CSSPropertyID::Fill, "fill"_s },
+    { CSSPropertyID::StopColor, "stop-color"_s },
+    { CSSPropertyID::FloodColor, "flood-color"_s },
+    { CSSPropertyID::WebkitTextFillColor, "-webkit-text-fill-color"_s },
+};
+
+static constexpr ASCIILiteral namedColors[] = {
+    "red"_s, "blue"_s, "white"_s, "black"_s, "gray"_s, "orange"_s, "transparent"_s, "currentcolor"_s, "rebeccapurple"_s,
+    "darkslategray"_s, "lightgoldenrodyellow"_s, "cornflowerblue"_s, "tomato"_s, "silver"_s, "teal"_s, "aliceblue"_s,
+    "Navy"_s, "SteelBlue"_s, "GREEN"_s, "currentColor"_s, "Canvas"_s, "CanvasText"_s, "LinkText"_s, "ButtonFace"_s,
+};
+
+// Named colors without currentcolor, which -webkit-gradient() rejects.
+static constexpr ASCIILiteral absoluteNamedColors[] = { "red"_s, "blue"_s, "white"_s, "black"_s, "transparent"_s, "teal"_s, "SteelBlue"_s };
+
+static constexpr ASCIILiteral predefinedColorSpaces[] = {
+    "srgb"_s, "srgb-linear"_s, "display-p3"_s, "a98-rgb"_s, "prophoto-rgb"_s, "rec2020"_s, "xyz"_s, "xyz-d50"_s, "xyz-d65"_s,
+};
+
+static constexpr ASCIILiteral rectangularColorSpaces[] = {
+    "srgb"_s, "srgb-linear"_s, "display-p3"_s, "a98-rgb"_s, "prophoto-rgb"_s, "rec2020"_s, "lab"_s, "oklab"_s, "xyz"_s,
+    "xyz-d50"_s, "xyz-d65"_s,
+};
+
+static constexpr ASCIILiteral polarColorSpaces[] = { "hsl"_s, "hwb"_s, "lch"_s, "oklch"_s };
+static constexpr ASCIILiteral hueInterpolationMethods[] = { "shorter"_s, "longer"_s, "increasing"_s, "decreasing"_s };
+
+// Three, four, six and eight digits, in both cases.
+static void appendHexColor(StringBuilder& value, Random& random)
+{
+    static constexpr unsigned lengths[] = { 3, 3, 4, 6, 6, 6, 8 };
+    static constexpr char digits[] = "0123456789abcdefABCDEF";
+    unsigned length = random.pick(lengths);
+    value.append('#');
+    for (unsigned i = 0; i < length; ++i) {
+        unsigned digit = random.below(22);
+        value.append(digits[digit]);
+    }
+}
+
+static void appendFraction(StringBuilder& value, Random& random, unsigned negativeChance)
+{
+    if (random.percent(negativeChance))
+        value.append('-');
+    value.append("0."_s);
+    appendDigits(value, random, 1 + random.below(3));
+}
+
+static void appendAlpha(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(10);
+    if (variant < 3) {
+        appendNumber(value, random, 100, 0);
+        value.append('%');
+    } else if (variant < 9)
+        appendFraction(value, random, 0);
+    else
+        value.append(random.percent(50) ? '0' : '1');
+}
+
+static void appendHue(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(10);
+    if (!variant)
+        value.append("none"_s);
+    else if (variant < 4)
+        appendAngle(value, random);
+    else
+        appendSignedNumber(value, random, 360, 1, 10);
+}
+
+// A channel of a modern color function, up to `maximum` (a fraction when it is 1).
+struct Channel {
+    unsigned maximum;
+    bool isSigned;
+    bool isHue;
+};
+
+static constexpr Channel rgbChannel { 255, false, false };
+static constexpr Channel percentChannel { 100, false, false };
+static constexpr Channel hueChannel { 360, false, true };
+static constexpr Channel labChannel { 125, true, false };
+static constexpr Channel chromaChannel { 150, false, false };
+static constexpr Channel unitChannel { 1, false, false };
+static constexpr Channel signedUnitChannel { 1, true, false };
+
+// Numbers, percentages, none and calc().
+static void appendChannel(StringBuilder& value, Random& random, const Channel& channel)
+{
+    if (channel.isHue) {
+        appendHue(value, random);
+        return;
+    }
+    unsigned negativeChance = channel.isSigned ? 25 : 0;
+    unsigned variant = random.below(100);
+    if (variant < 5)
+        value.append("none"_s);
+    else if (variant < 10) {
+        value.append("calc("_s);
+        appendNumber(value, random, channel.maximum, 2);
+        value.append(" / 2)"_s);
+    } else if (variant < 35) {
+        appendSignedNumber(value, random, 100, 1, negativeChance);
+        value.append('%');
+    } else if (channel.maximum == 1)
+        appendFraction(value, random, negativeChance);
+    else
+        appendSignedNumber(value, random, channel.maximum, 2, negativeChance);
+}
+
+struct ModernColorFunction {
+    ASCIILiteral name;
+    std::array<Channel, 3> channels;
+};
+
+static constexpr ModernColorFunction modernColorFunctions[] = {
+    { "rgb"_s, { rgbChannel, rgbChannel, rgbChannel } },
+    { "rgba"_s, { rgbChannel, rgbChannel, rgbChannel } },
+    { "hsl"_s, { hueChannel, percentChannel, percentChannel } },
+    { "hsla"_s, { hueChannel, percentChannel, percentChannel } },
+    { "hwb"_s, { hueChannel, percentChannel, percentChannel } },
+    { "lab"_s, { percentChannel, labChannel, labChannel } },
+    { "lch"_s, { percentChannel, chromaChannel, hueChannel } },
+    { "oklab"_s, { unitChannel, signedUnitChannel, signedUnitChannel } },
+    { "oklch"_s, { unitChannel, unitChannel, hueChannel } },
+};
+
+static void appendOptionalAlpha(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(100);
+    if (variant < 60)
+        return;
+    value.append(" / "_s);
+    if (variant < 65)
+        value.append("none"_s);
+    else
+        appendAlpha(value, random);
+}
+
+static void appendModernColor(StringBuilder& value, Random& random, const ModernColorFunction& function)
+{
+    value.append(function.name, '(');
+    for (unsigned i = 0; i < 3; ++i) {
+        if (i)
+            value.append(' ');
+        appendChannel(value, random, function.channels[i]);
+    }
+    appendOptionalAlpha(value, random);
+    value.append(')');
+}
+
+// rgb() and rgba() with commas: all numbers or all percentages.
+static void appendLegacyRGB(StringBuilder& value, Random& random)
+{
+    bool hasAlpha = random.percent(40);
+    value.append(hasAlpha ? "rgba("_s : "rgb("_s);
+    bool percentages = random.percent(20);
+    for (unsigned i = 0; i < 3; ++i) {
+        if (i)
+            value.append(", "_s);
+        if (percentages) {
+            appendNumber(value, random, 100, 1);
+            value.append('%');
+        } else
+            appendInteger(value, random, 255, 0);
+    }
+    if (hasAlpha) {
+        value.append(", "_s);
+        appendAlpha(value, random);
+    }
+    value.append(')');
+}
+
+// hsl() and hsla() with commas.
+static void appendLegacyHSL(StringBuilder& value, Random& random)
+{
+    bool hasAlpha = random.percent(40);
+    value.append(hasAlpha ? "hsla("_s : "hsl("_s);
+    if (random.percent(30))
+        appendAngle(value, random);
+    else
+        appendNumber(value, random, 360, 1);
+    for (unsigned i = 0; i < 2; ++i) {
+        value.append(", "_s);
+        appendNumber(value, random, 100, 1);
+        value.append('%');
+    }
+    if (hasAlpha) {
+        value.append(", "_s);
+        appendAlpha(value, random);
+    }
+    value.append(')');
+}
+
+static void appendPredefinedColor(StringBuilder& value, Random& random)
+{
+    value.append("color("_s);
+    value.append(random.pick(predefinedColorSpaces));
+    for (unsigned i = 0; i < 3; ++i) {
+        value.append(' ');
+        appendChannel(value, random, unitChannel);
+    }
+    appendOptionalAlpha(value, random);
+    value.append(')');
+}
+
+static void appendKeywordOrHexColor(StringBuilder& value, Random& random)
+{
+    if (random.percent(50))
+        appendHexColor(value, random);
+    else
+        value.append(random.pick(namedColors));
+}
+
+// Every color function but the relative forms and color-mix().
+static void appendFunctionalColor(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(16);
+    if (variant < 3)
+        appendLegacyRGB(value, random);
+    else if (variant < 5)
+        appendLegacyHSL(value, random);
+    else if (variant < 14)
+        appendModernColor(value, random, modernColorFunctions[variant - 5]);
+    else if (variant < 15)
+        appendPredefinedColor(value, random);
+    else {
+        value.append("light-dark("_s);
+        appendKeywordOrHexColor(value, random);
+        value.append(", "_s);
+        appendKeywordOrHexColor(value, random);
+        value.append(')');
+    }
+}
+
+static void appendColor(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(10);
+    if (variant < 4)
+        appendHexColor(value, random);
+    else if (variant < 7)
+        value.append(random.pick(namedColors));
+    else
+        appendFunctionalColor(value, random);
+}
+
+// Colors that are not currentcolor.
+static void appendAbsoluteColor(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(10);
+    if (variant < 4)
+        appendHexColor(value, random);
+    else if (variant < 7)
+        value.append(random.pick(absoluteNamedColors));
+    else if (variant < 9)
+        appendLegacyRGB(value, random);
+    else
+        appendModernColor(value, random, modernColorFunctions[0]);
+}
+
+// Hex colors and named colors, the system colors among them.
+static Vector<Block> colorsHexNamedBlocks()
+{
+    return generateBlocks(221, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        auto& property = colorProperties[index % std::size(colorProperties)];
+        appendKeywordOrHexColor(value, random);
+        return property;
+    });
+}
+
+// rgb(), rgba(), hsl() and hsla() with commas and without, hwb(), lab(), lch(), oklab(), oklch(), color() in every
+// predefined color space and light-dark(), with none and calc() in channels and an optional alpha.
+static Vector<Block> colorsFunctionalBlocks()
+{
+    return generateBlocks(222, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        auto& property = colorProperties[index % std::size(colorProperties)];
+        appendFunctionalColor(value, random);
+        return property;
+    });
+}
+
+// MARK: - Relative colors.
+
+struct RelativeColorFunction {
+    ASCIILiteral name;
+    ASCIILiteral colorSpace;
+    std::array<ASCIILiteral, 3> keywords;
+};
+
+static constexpr RelativeColorFunction relativeColorFunctions[] = {
+    { "rgb"_s, { }, { "r"_s, "g"_s, "b"_s } },
+    { "rgb"_s, { }, { "r"_s, "g"_s, "b"_s } },
+    { "hsl"_s, { }, { "h"_s, "s"_s, "l"_s } },
+    { "hwb"_s, { }, { "h"_s, "w"_s, "b"_s } },
+    { "lab"_s, { }, { "l"_s, "a"_s, "b"_s } },
+    { "lch"_s, { }, { "l"_s, "c"_s, "h"_s } },
+    { "oklab"_s, { }, { "l"_s, "a"_s, "b"_s } },
+    { "oklch"_s, { }, { "l"_s, "c"_s, "h"_s } },
+    { "color"_s, "srgb"_s, { "r"_s, "g"_s, "b"_s } },
+    { "color"_s, "display-p3"_s, { "r"_s, "g"_s, "b"_s } },
+    { "color"_s, "rec2020"_s, { "r"_s, "g"_s, "b"_s } },
+    { "color"_s, "xyz-d65"_s, { "x"_s, "y"_s, "z"_s } },
+};
+
+// The channel's own keyword, another channel's, calc() of a keyword, none or a number.
+static void appendRelativeChannel(StringBuilder& value, Random& random, const RelativeColorFunction& function, unsigned index)
+{
+    auto keyword = function.keywords[index];
+    unsigned variant = random.below(100);
+    if (variant < 50)
+        value.append(keyword);
+    else if (variant < 60) {
+        unsigned other = random.below(3);
+        value.append(function.keywords[other]);
+    } else if (variant < 75) {
+        value.append("calc("_s, keyword, " * 0."_s);
+        appendDigits(value, random, 1 + random.below(2));
+        value.append(')');
+    } else if (variant < 88) {
+        value.append("calc("_s, keyword, additiveOperator(random));
+        appendNumber(value, random, 20, 1);
+        value.append(')');
+    } else if (variant < 93)
+        value.append("none"_s);
+    else
+        appendNumber(value, random, 1, 2);
+}
+
+static void appendRelativeColor(StringBuilder&, Random&, unsigned depth);
+
+static void appendOriginColor(StringBuilder& value, Random& random, unsigned depth)
+{
+    unsigned variant = random.below(100);
+    if (variant < 35)
+        appendHexColor(value, random);
+    else if (variant < 65)
+        value.append(random.pick(namedColors));
+    else if (variant < 92 || depth)
+        appendFunctionalColor(value, random);
+    else
+        appendRelativeColor(value, random, depth + 1);
+}
+
+static void appendRelativeColor(StringBuilder& value, Random& random, unsigned depth)
+{
+    auto& function = random.pick(relativeColorFunctions);
+    value.append(function.name, "(from "_s);
+    appendOriginColor(value, random, depth);
+    if (!function.colorSpace.isNull())
+        value.append(' ', function.colorSpace);
+    for (unsigned i = 0; i < 3; ++i) {
+        value.append(' ');
+        appendRelativeChannel(value, random, function, i);
+    }
+    unsigned alpha = random.below(10);
+    if (alpha < 2)
+        value.append(" / alpha"_s);
+    else if (alpha < 4)
+        value.append(" / calc(alpha * 0.5)"_s);
+    else if (alpha < 5) {
+        value.append(" / "_s);
+        appendAlpha(value, random);
+    }
+    value.append(')');
+}
+
+// Relative colors of every function, from hex, named, functional and (rarely) relative origins, with channel keywords
+// in their own places and swapped, calc() of channel keywords, none and numbers.
+static Vector<Block> colorsRelativeBlocks()
+{
+    return generateBlocks(223, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        auto& property = colorProperties[index % std::size(colorProperties)];
+        appendRelativeColor(value, random, 0);
+        return property;
+    });
+}
+
+// MARK: - color-mix().
+
+static void appendColorInterpolationMethod(StringBuilder& value, Random& random)
+{
+    value.append("in "_s);
+    if (random.percent(65)) {
+        value.append(random.pick(rectangularColorSpaces));
+        return;
+    }
+    value.append(random.pick(polarColorSpaces));
+    if (random.percent(40)) {
+        value.append(' ');
+        value.append(random.pick(hueInterpolationMethods));
+        value.append(" hue"_s);
+    }
+}
+
+static void appendMixPercentage(StringBuilder& value, Random& random)
+{
+    appendNumber(value, random, 99, 1);
+    value.append('%');
+}
+
+static void appendColorMix(StringBuilder&, Random&, unsigned depth);
+
+// A color with an optional percentage before or after it.
+static void appendColorMixComponent(StringBuilder& value, Random& random, unsigned depth)
+{
+    unsigned placement = random.below(10);
+    if (placement < 2) {
+        appendMixPercentage(value, random);
+        value.append(' ');
+    }
+    if (!depth && random.percent(6))
+        appendColorMix(value, random, depth + 1);
+    else
+        appendColor(value, random);
+    if (placement >= 6) {
+        value.append(' ');
+        appendMixPercentage(value, random);
+    }
+}
+
+static void appendColorMix(StringBuilder& value, Random& random, unsigned depth)
+{
+    value.append("color-mix("_s);
+    if (random.percent(90)) {
+        appendColorInterpolationMethod(value, random);
+        value.append(", "_s);
+    }
+    unsigned count = 2;
+    unsigned variant = random.below(100);
+    if (variant < 6)
+        count = 3;
+    else if (variant < 9)
+        count = 1;
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(", "_s);
+        appendColorMixComponent(value, random, depth);
+    }
+    value.append(')');
+}
+
+// color-mix() in every rectangular and polar color space, with each hue interpolation method, without a color space,
+// with percentages before, after and on neither color, with one, two and three colors, and nested.
+static Vector<Block> colorMixBlocks()
+{
+    return generateBlocks(224, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        auto& property = colorProperties[index % std::size(colorProperties)];
+        appendColorMix(value, random, 0);
+        return property;
+    });
+}
+
+// MARK: - Gradients.
+
+static constexpr Property backgroundImage { CSSPropertyID::BackgroundImage, "background-image"_s };
+static constexpr Property listStyleImage { CSSPropertyID::ListStyleImage, "list-style-image"_s };
+static constexpr Property borderImageSource { CSSPropertyID::BorderImageSource, "border-image-source"_s };
+static constexpr Property maskImage { CSSPropertyID::MaskImage, "mask-image"_s };
+
+static constexpr Property imageProperties[] = { backgroundImage, listStyleImage, borderImageSource, maskImage };
+
+enum class StopPositions : bool { Linear, Angular };
+
+static void appendStopPosition(StringBuilder& value, Random& random, StopPositions kind)
+{
+    unsigned variant = random.below(10);
+    if (kind == StopPositions::Angular) {
+        if (!variant)
+            value.append('0');
+        else if (variant < 5) {
+            appendNumber(value, random, 100, 1);
+            value.append('%');
+        } else if (variant < 9)
+            appendAngle(value, random);
+        else
+            appendCalcAngle(value, random);
+        return;
+    }
+    if (variant < 6) {
+        appendNumber(value, random, 100, 1);
+        value.append('%');
+    } else if (variant < 9)
+        appendLength(value, random, 5);
+    else
+        appendCalcLengthPercentage(value, random);
+}
+
+// Two to five stops, one in ten with three to six more; each with no position, one or two, and color hints between
+// stops where `allowsHints`.
+static void appendColorStops(StringBuilder& value, Random& random, StopPositions kind, bool allowsHints)
+{
+    unsigned count = 2 + random.below(4);
+    if (random.percent(10))
+        count += 3 + random.below(4);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i) {
+            value.append(", "_s);
+            if (allowsHints && random.percent(12)) {
+                appendStopPosition(value, random, kind);
+                value.append(", "_s);
+            }
+        }
+        appendColor(value, random);
+        unsigned positions = random.below(10);
+        if (positions >= 4) {
+            value.append(' ');
+            appendStopPosition(value, random, kind);
+        }
+        if (positions >= 8) {
+            value.append(' ');
+            appendStopPosition(value, random, kind);
+        }
+    }
+}
+
+static constexpr ASCIILiteral sidesAndCorners[] = {
+    "to top"_s, "to bottom"_s, "to left"_s, "to right"_s, "to top right"_s, "to bottom left"_s, "to left top"_s, "to right bottom"_s,
+};
+
+static void appendLinearGradient(StringBuilder& value, Random& random)
+{
+    bool repeating = random.percent(15);
+    value.append(repeating ? "repeating-linear-gradient("_s : "linear-gradient("_s);
+    unsigned prelude = random.below(20);
+    if (prelude < 6) {
+        appendAngle(value, random);
+        value.append(", "_s);
+    } else if (prelude < 7)
+        value.append("0, "_s);
+    else if (prelude < 8) {
+        appendCalcAngle(value, random);
+        value.append(", "_s);
+    } else if (prelude < 13) {
+        value.append(random.pick(sidesAndCorners));
+        value.append(", "_s);
+    } else if (prelude < 15) {
+        appendColorInterpolationMethod(value, random);
+        value.append(", "_s);
+    } else if (prelude < 16) {
+        value.append(random.pick(sidesAndCorners));
+        value.append(' ');
+        appendColorInterpolationMethod(value, random);
+        value.append(", "_s);
+    } else if (prelude < 17) {
+        appendColorInterpolationMethod(value, random);
+        value.append(' ');
+        appendAngle(value, random);
+        value.append(", "_s);
+    }
+    appendColorStops(value, random, StopPositions::Linear, true);
+    value.append(')');
+}
+
+// MARK: - Positions.
+
+static constexpr ASCIILiteral horizontalKeywords[] = { "left"_s, "center"_s, "right"_s };
+static constexpr ASCIILiteral verticalKeywords[] = { "top"_s, "center"_s, "bottom"_s };
+static constexpr ASCIILiteral horizontalEdges[] = { "left"_s, "right"_s };
+static constexpr ASCIILiteral verticalEdges[] = { "top"_s, "bottom"_s };
+
+static void appendPositionComponent(StringBuilder& value, Random& random, const ASCIILiteral (&keywords)[3])
+{
+    unsigned variant = random.below(20);
+    if (variant < 9)
+        value.append(random.pick(keywords));
+    else if (variant < 19)
+        appendLengthPercentage(value, random, 10);
+    else
+        appendCalcLengthPercentage(value, random);
+}
+
+static void appendEdgeOffset(StringBuilder& value, Random& random, const ASCIILiteral (&edges)[2])
+{
+    value.append(random.pick(edges));
+    value.append(' ');
+    appendLengthPercentage(value, random, 10);
+}
+
+// One, two or four components, and three where `allowsThree` (<bg-position>).
+static void appendPosition(StringBuilder& value, Random& random, bool allowsThree)
+{
+    unsigned variant = random.below(allowsThree ? 12 : 10);
+    if (variant < 2) {
+        value.append(random.pick(positionKeywords));
+        return;
+    }
+    if (variant < 3) {
+        appendLengthPercentage(value, random, 10);
+        return;
+    }
+    if (variant < 6) {
+        appendPositionComponent(value, random, horizontalKeywords);
+        value.append(' ');
+        appendPositionComponent(value, random, verticalKeywords);
+        return;
+    }
+    if (variant < 7) {
+        value.append(random.pick(verticalEdges));
+        value.append(' ');
+        value.append(random.pick(horizontalEdges));
+        return;
+    }
+    if (variant < 10) {
+        bool verticalFirst = random.percent(30);
+        appendEdgeOffset(value, random, verticalFirst ? verticalEdges : horizontalEdges);
+        value.append(' ');
+        appendEdgeOffset(value, random, verticalFirst ? horizontalEdges : verticalEdges);
+        return;
+    }
+    switch (random.below(3)) {
+    case 0:
+        appendEdgeOffset(value, random, horizontalEdges);
+        value.append(' ');
+        value.append(random.pick(verticalKeywords));
+        break;
+    case 1:
+        value.append(random.pick(horizontalKeywords));
+        value.append(' ');
+        appendEdgeOffset(value, random, verticalEdges);
+        break;
+    default:
+        value.append(random.pick(verticalEdges));
+        value.append(' ');
+        appendEdgeOffset(value, random, horizontalEdges);
+        break;
+    }
+}
+
+static void appendAxisPosition(StringBuilder& value, Random& random, const ASCIILiteral (&edges)[2])
+{
+    unsigned variant = random.below(10);
+    if (variant < 2)
+        value.append("center"_s);
+    else if (variant < 4)
+        value.append(random.pick(edges));
+    else if (variant < 7)
+        appendLengthPercentage(value, random, 10);
+    else
+        appendEdgeOffset(value, random, edges);
+}
+
+// MARK: - Radial and conic gradients.
+
+static constexpr ASCIILiteral radialExtents[] = { "closest-side"_s, "closest-corner"_s, "farthest-side"_s, "farthest-corner"_s };
+
+static void appendRadialGradient(StringBuilder& value, Random& random)
+{
+    bool repeating = random.percent(15);
+    value.append(repeating ? "repeating-radial-gradient("_s : "radial-gradient("_s);
+    bool hasPrelude = true;
+    bool forcesPosition = false;
+    switch (random.below(10)) {
+    case 0:
+        hasPrelude = false;
+        break;
+    case 1:
+        value.append(random.percent(50) ? "circle"_s : "ellipse"_s);
+        break;
+    case 2:
+        value.append("circle "_s);
+        appendLength(value, random, 0);
+        break;
+    case 3:
+        value.append("ellipse "_s);
+        appendLengthPercentage(value, random, 0);
+        value.append(' ');
+        appendLengthPercentage(value, random, 0);
+        break;
+    case 4:
+        value.append(random.pick(radialExtents));
+        break;
+    case 5:
+        value.append(random.percent(50) ? "circle "_s : "ellipse "_s);
+        value.append(random.pick(radialExtents));
+        break;
+    case 6:
+        value.append(random.pick(radialExtents));
+        value.append(random.percent(50) ? " circle"_s : " ellipse"_s);
+        break;
+    case 7:
+        appendLength(value, random, 0);
+        break;
+    case 8:
+        appendLengthPercentage(value, random, 0);
+        value.append(' ');
+        appendLengthPercentage(value, random, 0);
+        break;
+    default:
+        hasPrelude = false;
+        forcesPosition = true;
+        break;
+    }
+    if (forcesPosition || random.percent(45)) {
+        if (hasPrelude)
+            value.append(' ');
+        value.append("at "_s);
+        appendPosition(value, random, false);
+        hasPrelude = true;
+    }
+    if (random.percent(10)) {
+        if (hasPrelude)
+            value.append(' ');
+        appendColorInterpolationMethod(value, random);
+        hasPrelude = true;
+    }
+    if (hasPrelude)
+        value.append(", "_s);
+    appendColorStops(value, random, StopPositions::Linear, true);
+    value.append(')');
+}
+
+static void appendConicGradient(StringBuilder& value, Random& random)
+{
+    bool repeating = random.percent(15);
+    value.append(repeating ? "repeating-conic-gradient("_s : "conic-gradient("_s);
+    bool hasPrelude = false;
+    if (random.percent(50)) {
+        value.append("from "_s);
+        unsigned variant = random.below(10);
+        if (!variant)
+            value.append('0');
+        else if (variant < 9)
+            appendAngle(value, random);
+        else
+            appendCalcAngle(value, random);
+        hasPrelude = true;
+    }
+    if (random.percent(40)) {
+        if (hasPrelude)
+            value.append(' ');
+        value.append("at "_s);
+        appendPosition(value, random, false);
+        hasPrelude = true;
+    }
+    if (random.percent(15)) {
+        if (hasPrelude)
+            value.append(' ');
+        appendColorInterpolationMethod(value, random);
+        hasPrelude = true;
+    }
+    if (hasPrelude)
+        value.append(", "_s);
+    appendColorStops(value, random, StopPositions::Angular, true);
+    value.append(')');
+}
+
+// One gradient, or in one background-image or mask-image in seven, two.
+template<typename Appender>
+static Vector<Block> gradientBlocks(uint64_t seed, Appender&& appendGradient)
+{
+    return generateBlocks(seed, [&](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        auto& property = imageProperties[index % std::size(imageProperties)];
+        appendGradient(value, random);
+        bool isList = property.id == CSSPropertyID::BackgroundImage || property.id == CSSPropertyID::MaskImage;
+        if (isList && random.percent(14)) {
+            value.append(", "_s);
+            appendGradient(value, random);
+        }
+        return property;
+    });
+}
+
+// linear-gradient() and repeating-linear-gradient() with no line, an angle (unitless zero and calc() among them), a
+// side or corner, and a color interpolation method before or after it; stops with zero, one or two positions and hints.
+static Vector<Block> linearGradientsBlocks()
+{
+    return gradientBlocks(225, appendLinearGradient);
+}
+
+// radial-gradient() and repeating-radial-gradient() with every combination of shape, extent keyword, lengths and
+// `at <position>`, and a color interpolation method.
+static Vector<Block> radialGradientsBlocks()
+{
+    return gradientBlocks(226, appendRadialGradient);
+}
+
+// conic-gradient() and repeating-conic-gradient() with `from <angle>`, `at <position>` and a color interpolation
+// method, each optional; stops with angles, percentages and unitless zero.
+static Vector<Block> conicGradientsBlocks()
+{
+    return gradientBlocks(227, appendConicGradient);
+}
+
+static constexpr Property objectPosition { CSSPropertyID::ObjectPosition, "object-position"_s };
+static constexpr Property offsetPosition { CSSPropertyID::OffsetPosition, "offset-position"_s };
+static constexpr Property offsetAnchor { CSSPropertyID::OffsetAnchor, "offset-anchor"_s };
+static constexpr Property backgroundPosition { CSSPropertyID::BackgroundPosition, "background-position"_s };
+static constexpr Property maskPosition { CSSPropertyID::MaskPosition, "mask-position"_s };
+static constexpr Property backgroundPositionX { CSSPropertyID::BackgroundPositionX, "background-position-x"_s };
+static constexpr Property backgroundPositionY { CSSPropertyID::BackgroundPositionY, "background-position-y"_s };
+
+// object-position, offset-position and offset-anchor with one, two and four components; background-position (three
+// components too) and mask-position lists of one to three; background-position-x and -y lists of keywords, offsets
+// and keywords with offsets.
+static Vector<Block> positionsBlocks()
+{
+    return generateBlocks(228, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        switch (index % 7) {
+        case 0:
+            appendPosition(value, random, false);
+            return objectPosition;
+        case 1:
+            if (random.percent(8))
+                value.append(random.percent(50) ? "normal"_s : "auto"_s);
+            else
+                appendPosition(value, random, false);
+            return offsetPosition;
+        case 2:
+            if (random.percent(8))
+                value.append("auto"_s);
+            else
+                appendPosition(value, random, false);
+            return offsetAnchor;
+        default:
+            break;
+        }
+        unsigned kind = index % 7;
+        unsigned count = 1;
+        if (random.percent(25))
+            count += 1 + random.below(2);
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                value.append(", "_s);
+            if (kind == 3)
+                appendPosition(value, random, true);
+            else if (kind == 4)
+                appendPosition(value, random, false);
+            else
+                appendAxisPosition(value, random, kind == 5 ? horizontalEdges : verticalEdges);
+        }
+        if (kind == 3)
+            return backgroundPosition;
+        if (kind == 4)
+            return maskPosition;
+        return kind == 5 ? backgroundPositionX : backgroundPositionY;
+    });
+}
+
+// MARK: - Background and mask layers.
+
+static constexpr Property webkitMaskShorthand { CSSPropertyID::WebkitMask, "-webkit-mask"_s };
+
+static constexpr ASCIILiteral layerURLs[] = {
+    "url(https://example.com/a.png)"_s, "url(\"https://example.com/b.svg#c\")"_s, "url('https://example.com/d.webp')"_s,
+};
+
+static void appendLayerImage(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(10);
+    if (variant < 2)
+        value.append("none"_s);
+    else if (variant < 5)
+        value.append(random.pick(layerURLs));
+    else if (variant < 8)
+        appendLinearGradient(value, random);
+    else if (variant < 9)
+        appendRadialGradient(value, random);
+    else
+        appendConicGradient(value, random);
+}
+
+// A layer of the background, mask or -webkit-mask shorthand, with a background color only if `allowsColor`.
+static void appendFullLayer(StringBuilder& value, Random& random, const Property& property, bool allowsColor)
+{
+    bool isMask = property.id != CSSPropertyID::Background;
+    bool first = true;
+    if (random.percent(75)) {
+        appendComponentSeparator(value, first);
+        appendLayerImage(value, random);
+    }
+    if (random.percent(55)) {
+        appendComponentSeparator(value, first);
+        appendPosition(value, random, property.id != CSSPropertyID::Mask);
+        if (random.percent(40)) {
+            value.append(" / "_s);
+            appendLayerSize(value, random);
+        }
+    }
+    if (random.percent(40))
+        appendComponent(value, first, random.pick(repeatStyles));
+    if (!isMask && random.percent(20))
+        appendComponent(value, first, random.pick(backgroundAttachments));
+    if (random.percent(30)) {
+        appendComponent(value, first, random.pick(layerBoxes));
+        if (random.percent(50))
+            appendComponent(value, first, random.pick(layerBoxes));
+    }
+    if (property.id == CSSPropertyID::Mask && random.percent(25))
+        appendComponent(value, first, random.pick(maskComposites));
+    if (property.id == CSSPropertyID::Mask && random.percent(25))
+        appendComponent(value, first, random.pick(maskModes));
+    if (allowsColor && random.percent(50)) {
+        appendComponentSeparator(value, first);
+        appendColor(value, random);
+    }
+    if (first)
+        value.append("none"_s);
+}
+
+// The background, mask and -webkit-mask shorthands with one to four layers of urls, gradients, positions of every
+// form with sizes, repeats, attachments, boxes, mask composites and modes, and colors of every form in the last
+// background layer.
+static Vector<Block> backgroundLayersBlocks()
+{
+    return generateBlocks(229, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        static constexpr const Property* properties[] = { &backgroundShorthand, &backgroundShorthand, &maskShorthand, &webkitMaskShorthand };
+        auto& property = *properties[index % std::size(properties)];
+        unsigned count = 1 + random.below(4);
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                value.append(", "_s);
+            appendFullLayer(value, random, property, property.id == CSSPropertyID::Background && i == count - 1);
+        }
+        return property;
+    });
+}
+
+// MARK: - Prefixed gradients.
+
+static constexpr ASCIILiteral prefixedSides[] = { "top"_s, "bottom"_s, "left"_s, "right"_s, "top left"_s, "bottom right"_s, "left bottom"_s, "right top"_s };
+static constexpr ASCIILiteral prefixedRadialExtents[] = { "contain"_s, "cover"_s, "closest-side"_s, "closest-corner"_s, "farthest-side"_s, "farthest-corner"_s };
+
+static void appendPrefixedLinearGradient(StringBuilder& value, Random& random)
+{
+    bool repeating = random.percent(15);
+    value.append(repeating ? "-webkit-repeating-linear-gradient("_s : "-webkit-linear-gradient("_s);
+    unsigned prelude = random.below(10);
+    if (prelude < 3) {
+        value.append(random.pick(prefixedSides));
+        value.append(", "_s);
+    } else if (prelude < 6) {
+        appendAngle(value, random);
+        value.append(", "_s);
+    }
+    appendColorStops(value, random, StopPositions::Linear, false);
+    value.append(')');
+}
+
+static void appendPrefixedRadialGradient(StringBuilder& value, Random& random)
+{
+    bool repeating = random.percent(15);
+    value.append(repeating ? "-webkit-repeating-radial-gradient("_s : "-webkit-radial-gradient("_s);
+    unsigned position = random.below(10);
+    if (position < 2) {
+        value.append(random.pick(positionKeywords));
+        value.append(", "_s);
+    } else if (position < 4) {
+        value.append(random.pick(horizontalKeywords));
+        value.append(' ');
+        value.append(random.pick(verticalKeywords));
+        value.append(", "_s);
+    } else if (position < 5) {
+        appendLengthPercentage(value, random, 10);
+        value.append(' ');
+        appendLengthPercentage(value, random, 10);
+        value.append(", "_s);
+    }
+    switch (random.below(6)) {
+    case 0:
+        value.append(random.percent(50) ? "circle, "_s : "ellipse, "_s);
+        break;
+    case 1:
+        value.append(random.pick(prefixedRadialExtents));
+        value.append(", "_s);
+        break;
+    case 2:
+        value.append(random.percent(50) ? "circle "_s : "ellipse "_s);
+        value.append(random.pick(prefixedRadialExtents));
+        value.append(", "_s);
+        break;
+    case 3:
+        appendLengthPercentage(value, random, 0);
+        value.append(' ');
+        appendLengthPercentage(value, random, 0);
+        value.append(", "_s);
+        break;
+    default:
+        break;
+    }
+    appendColorStops(value, random, StopPositions::Linear, false);
+    value.append(')');
+}
+
+static void appendDeprecatedGradientPoint(StringBuilder& value, Random& random)
+{
+    static constexpr ASCIILiteral horizontal[] = { "left"_s, "right"_s, "center"_s };
+    static constexpr ASCIILiteral vertical[] = { "top"_s, "bottom"_s, "center"_s };
+    for (unsigned i = 0; i < 2; ++i) {
+        if (i)
+            value.append(' ');
+        unsigned variant = random.below(10);
+        if (variant < 5)
+            value.append(random.pick(i ? vertical : horizontal));
+        else if (variant < 8) {
+            appendNumber(value, random, 100, 0);
+            value.append('%');
+        } else
+            appendNumber(value, random, 200, 1);
+    }
+}
+
+// -webkit-gradient(linear, ...) and -webkit-gradient(radial, ...) with from(), to() and color-stop() stops.
+static void appendDeprecatedGradient(StringBuilder& value, Random& random)
+{
+    bool isRadial = random.percent(35);
+    value.append(isRadial ? "-webkit-gradient(radial, "_s : "-webkit-gradient(linear, "_s);
+    appendDeprecatedGradientPoint(value, random);
+    if (isRadial) {
+        value.append(", "_s);
+        appendNumber(value, random, 50, 1);
+    }
+    value.append(", "_s);
+    appendDeprecatedGradientPoint(value, random);
+    if (isRadial) {
+        value.append(", "_s);
+        appendNumber(value, random, 200, 1);
+    }
+    unsigned count = random.below(6);
+    for (unsigned i = 0; i < count; ++i) {
+        unsigned kind = random.below(4);
+        if (!kind)
+            value.append(", from("_s);
+        else if (kind == 1)
+            value.append(", to("_s);
+        else {
+            value.append(", color-stop("_s);
+            if (random.percent(50))
+                appendFraction(value, random, 0);
+            else {
+                appendNumber(value, random, 100, 0);
+                value.append('%');
+            }
+            value.append(", "_s);
+        }
+        appendAbsoluteColor(value, random);
+        value.append(')');
+    }
+    value.append(')');
+}
+
+static void appendPrefixedGradient(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(10);
+    if (variant < 4)
+        appendPrefixedLinearGradient(value, random);
+    else if (variant < 7)
+        appendPrefixedRadialGradient(value, random);
+    else
+        appendDeprecatedGradient(value, random);
+}
+
+// -webkit-linear-gradient(), -webkit-radial-gradient(), their repeating forms and -webkit-gradient().
+static Vector<Block> prefixedGradientsBlocks()
+{
+    return gradientBlocks(230, appendPrefixedGradient);
+}
+
+// MARK: - Shadows, border radii, border images and other images.
+
+static constexpr Property boxShadow { CSSPropertyID::BoxShadow, "box-shadow"_s };
+static constexpr Property webkitBoxShadow { CSSPropertyID::WebkitBoxShadow, "-webkit-box-shadow"_s };
+static constexpr Property borderRadius { CSSPropertyID::BorderRadius, "border-radius"_s };
+static constexpr Property webkitBorderRadius { CSSPropertyID::WebkitBorderRadius, "-webkit-border-radius"_s };
+static constexpr Property borderImage { CSSPropertyID::BorderImage, "border-image"_s };
+static constexpr Property webkitBorderImage { CSSPropertyID::WebkitBorderImage, "-webkit-border-image"_s };
+static constexpr Property webkitMaskBoxImage { CSSPropertyID::WebkitMaskBoxImage, "-webkit-mask-box-image"_s };
+static constexpr Property webkitBoxReflect { CSSPropertyID::WebkitBoxReflect, "-webkit-box-reflect"_s };
+
+static void appendShadow(StringBuilder& value, Random& random)
+{
+    bool inset = random.percent(15);
+    bool insetFirst = random.percent(50);
+    unsigned colorPlace = random.below(10);
+    if (inset && insetFirst)
+        value.append("inset "_s);
+    if (colorPlace < 3) {
+        appendColor(value, random);
+        value.append(' ');
+    }
+    appendLength(value, random, 30);
+    value.append(' ');
+    appendLength(value, random, 30);
+    unsigned lengths = random.below(3);
+    if (lengths) {
+        value.append(' ');
+        appendLength(value, random, 0);
+    }
+    if (lengths == 2) {
+        value.append(' ');
+        appendLength(value, random, 30);
+    }
+    if (colorPlace >= 3 && colorPlace < 8) {
+        value.append(' ');
+        appendColor(value, random);
+    }
+    if (inset && !insetFirst)
+        value.append(" inset"_s);
+}
+
+static void appendBorderRadiusValues(StringBuilder& value, Random& random, unsigned maximumCount)
+{
+    unsigned count = 1 + random.below(maximumCount);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(' ');
+        appendRadius(value, random);
+    }
+}
+
+static void appendBorderImageSource(StringBuilder& value, Random& random)
+{
+    unsigned variant = random.below(10);
+    if (variant < 4)
+        value.append(random.pick(layerURLs));
+    else if (variant < 7)
+        appendLinearGradient(value, random);
+    else if (variant < 8)
+        appendRadialGradient(value, random);
+    else
+        value.append("none"_s);
+}
+
+static void appendBorderImageNumbers(StringBuilder& value, Random& random, bool allowsAuto, bool allowsPercentage)
+{
+    unsigned count = 1 + random.below(4);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(' ');
+        unsigned variant = random.below(10);
+        if (allowsAuto && !variant)
+            value.append("auto"_s);
+        else if (variant < 5)
+            appendNumber(value, random, 30, allowsPercentage ? 0 : 1);
+        else if (allowsPercentage && variant < 8) {
+            appendNumber(value, random, 100, 0);
+            value.append('%');
+        } else
+            appendLength(value, random, 0);
+    }
+}
+
+// <source> <slice> [/ <width> [/ <outset>]] <repeat>, each part optional but the source, in either of two orders.
+static void appendBorderImage(StringBuilder& value, Random& random)
+{
+    static constexpr ASCIILiteral repeats[] = { "stretch"_s, "repeat"_s, "round"_s, "space"_s };
+    bool repeatFirst = random.percent(20);
+    bool hasRepeat = random.percent(50);
+    if (hasRepeat && repeatFirst) {
+        value.append(random.pick(repeats));
+        value.append(' ');
+    }
+    appendBorderImageSource(value, random);
+    if (random.percent(80)) {
+        value.append(' ');
+        bool fillFirst = random.percent(30);
+        bool fill = random.percent(25);
+        if (fill && fillFirst)
+            value.append("fill "_s);
+        unsigned count = 1 + random.below(4);
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                value.append(' ');
+            appendNumber(value, random, 40, 0);
+            if (random.percent(30))
+                value.append('%');
+        }
+        if (fill && !fillFirst)
+            value.append(" fill"_s);
+        unsigned slashes = random.below(10);
+        if (slashes >= 5) {
+            value.append(" / "_s);
+            appendBorderImageNumbers(value, random, true, true);
+        }
+        if (slashes >= 8) {
+            value.append(" / "_s);
+            appendBorderImageNumbers(value, random, false, false);
+        }
+    }
+    if (hasRepeat && !repeatFirst) {
+        value.append(' ');
+        value.append(random.pick(repeats));
+        if (random.percent(40)) {
+            value.append(' ');
+            value.append(random.pick(repeats));
+        }
+    }
+}
+
+static void appendOtherImage(StringBuilder& value, Random& random)
+{
+    switch (random.below(8)) {
+    case 0:
+        value.append(random.pick(layerURLs));
+        break;
+    case 1:
+        value.append("image-set("_s);
+        value.append(random.pick(layerURLs));
+        value.append(" 1x, "_s);
+        value.append(random.pick(layerURLs));
+        value.append(random.percent(50) ? " 2x)"_s : " 2dppx type(\"image/png\"))"_s);
+        break;
+    case 2:
+        value.append("-webkit-image-set(\"https://example.com/e.png\" 1x, "_s);
+        appendLinearGradient(value, random);
+        value.append(" 3x)"_s);
+        break;
+    case 3:
+        value.append("cross-fade("_s);
+        value.append(random.pick(layerURLs));
+        value.append(' ');
+        appendNumber(value, random, 100, 0);
+        value.append("%, "_s);
+        appendLinearGradient(value, random);
+        value.append(')');
+        break;
+    case 4:
+        value.append("-webkit-cross-fade("_s);
+        value.append(random.pick(layerURLs));
+        value.append(", "_s);
+        appendRadialGradient(value, random);
+        value.append(", "_s);
+        appendFraction(value, random, 0);
+        value.append(')');
+        break;
+    case 5:
+        value.append(random.percent(50) ? "-webkit-canvas(sprite)"_s : "-webkit-named-image(apple-pay-logo-black)"_s);
+        break;
+    case 6:
+        value.append("image("_s);
+        appendColor(value, random);
+        value.append(')');
+        break;
+    default:
+        value.append("light-dark("_s);
+        value.append(random.pick(layerURLs));
+        value.append(", "_s);
+        appendConicGradient(value, random);
+        value.append(')');
+        break;
+    }
+}
+
+// box-shadow and -webkit-box-shadow lists, the border-radius and -webkit-border-radius shorthands, border-image,
+// -webkit-border-image and -webkit-mask-box-image, -webkit-box-reflect, and url(), image-set(), cross-fade(),
+// -webkit-canvas(), -webkit-named-image(), image() and light-dark() images.
+static Vector<Block> shadowsBordersImagesBlocks()
+{
+    return generateBlocks(231, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        switch (index % 10) {
+        case 0:
+        case 1: {
+            if (random.percent(4)) {
+                value.append("none"_s);
+                return index % 10 ? webkitBoxShadow : boxShadow;
+            }
+            unsigned count = 1 + random.below(3);
+            for (unsigned i = 0; i < count; ++i) {
+                if (i)
+                    value.append(", "_s);
+                appendShadow(value, random);
+            }
+            return index % 10 ? webkitBoxShadow : boxShadow;
+        }
+        case 2:
+            appendBorderRadiusValues(value, random, 4);
+            if (random.percent(30)) {
+                value.append(" / "_s);
+                appendBorderRadiusValues(value, random, 4);
+            }
+            return borderRadius;
+        case 3:
+            appendBorderRadiusValues(value, random, 2);
+            return webkitBorderRadius;
+        case 4:
+            appendBorderImage(value, random);
+            return borderImage;
+        case 5:
+            appendBorderImage(value, random);
+            return webkitBorderImage;
+        case 6:
+            appendBorderImage(value, random);
+            return webkitMaskBoxImage;
+        case 7: {
+            static constexpr ASCIILiteral directions[] = { "above"_s, "below"_s, "left"_s, "right"_s };
+            value.append(random.pick(directions));
+            if (random.percent(60)) {
+                value.append(' ');
+                appendLength(value, random, 20);
+            }
+            if (random.percent(50)) {
+                value.append(' ');
+                appendBorderImage(value, random);
+            }
+            return webkitBoxReflect;
+        }
+        case 8:
+            appendOtherImage(value, random);
+            return listStyleImage;
+        default:
+            appendOtherImage(value, random);
+            return borderImageSource;
+        }
+    });
+}
+
+// MARK: - Invalid colors and images.
+
+struct InvalidTemplate {
+    Property property;
+    ASCIILiteral text;
+};
+
+// Each is invalid for its property whatever number replaces `@`.
+static constexpr InvalidTemplate invalidColorsImagesTemplates[] = {
+    { colorProperties[0], "#12"_s },
+    { colorProperties[1], "#12345"_s },
+    { colorProperties[2], "#1234567"_s },
+    { colorProperties[3], "#ggg"_s },
+    { colorProperties[4], "#12g"_s },
+    { colorProperties[5], "rgb(@, @)"_s },
+    { colorProperties[6], "rgb(@, @, @, @, @)"_s },
+    { colorProperties[7], "rgb(@ @, @)"_s },
+    { colorProperties[8], "rgb(@%, @, @)"_s },
+    { colorProperties[9], "hsl(@deg @% @%, 0.5)"_s },
+    { colorProperties[10], "lab(@% @ @ / )"_s },
+    { colorProperties[11], "lab(@% @)"_s },
+    { colorProperties[0], "oklch(0.@ 0.@ @ @)"_s },
+    { colorProperties[1], "color(unknown 0.@ 0.@ 0.@)"_s },
+    { colorProperties[2], "color(srgb 0.@ 0.@)"_s },
+    { colorProperties[3], "rgb(from red r g)"_s },
+    { colorProperties[4], "rgb(from #@@@ r g b q)"_s },
+    { colorProperties[5], "hsl(from blue h s x)"_s },
+    { colorProperties[6], "lch(from)"_s },
+    { colorProperties[7], "color-mix(in nowhere, red, blue)"_s },
+    { colorProperties[8], "color-mix(in srgb red, blue)"_s },
+    { colorProperties[9], "color-mix(in hsl farther hue, red, blue)"_s },
+    { colorProperties[10], "color-mix(in srgb, red 1@0%, blue)"_s },
+    { colorProperties[11], "red blue"_s },
+    { colorProperties[0], "notacolor"_s },
+    { colorProperties[1], "light-dark(red)"_s },
+    { colorProperties[2], "@px"_s },
+    { backgroundImage, "linear-gradient()"_s },
+    { listStyleImage, "linear-gradient(to middle, red, blue)"_s },
+    { borderImageSource, "linear-gradient(@deg red, blue)"_s },
+    { maskImage, "linear-gradient(red, @%, @%, blue)"_s },
+    { backgroundImage, "linear-gradient(red, blue, @%)"_s },
+    { listStyleImage, "radial-gradient(circle @px @px, red, blue)"_s },
+    { borderImageSource, "radial-gradient(ellipse @px, red, blue)"_s },
+    { maskImage, "conic-gradient(from @px, red, blue)"_s },
+    { backgroundImage, "conic-gradient(red @px, blue)"_s },
+    { listStyleImage, "-webkit-gradient(linear, left top, red)"_s },
+    { borderImageSource, "-webkit-linear-gradient(to top, red, blue)"_s },
+    { maskImage, "-webkit-gradient(radial, center, @, center, red)"_s },
+    { backgroundImage, "image-set()"_s },
+    { maskImage, "linear-gradient(red, blue) linear-gradient(red, blue)"_s },
+    { listStyleImage, "repeating-radial-gradient(at, red, blue)"_s },
+    { borderImageSource, "-webkit-cross-fade(url(https://example.com/a.png), url(https://example.com/b.png))"_s },
+    { objectPosition, "left left"_s },
+    { objectPosition, "@px @px @px"_s },
+    { offsetAnchor, "top @px bottom"_s },
+    { backgroundShorthand, "red, linear-gradient(red, blue)"_s },
+    { backgroundShorthand, "linear-gradient(red, blue) / cover"_s },
+    { maskShorthand, "red"_s },
+    { boxShadow, "@px"_s },
+    { boxShadow, "inset inset @px @px"_s },
+    { webkitBoxShadow, "@px @px -@px red"_s },
+    { borderRadius, "@px / / @px"_s },
+};
+
+// Colors, gradients, images, positions, background layers and shadows that fail at their first token, at a middle
+// one or at the last one.
+static Vector<Block> invalidColorsImagesBlocks()
+{
+    return generateBlocks(232, [](Random& random, StringBuilder& value, unsigned) -> const Property& {
+        auto& chosen = random.pick(invalidColorsImagesTemplates);
+        for (auto character : chosen.text.span()) {
+            if (character != '@') {
+                value.append(character);
+                continue;
+            }
+            unsigned number = 1 + random.below(99);
+            value.append(number);
+        }
+        return chosen.property;
+    });
+}
+
 // MARK: - Running.
 
 static size_t blockBytes(const Vector<Block>& blocks)
@@ -1998,5 +3396,18 @@ TEST(CSSConsumersBench, BorderRadiusPairs) { run("BorderRadiusPairs"_s, borderRa
 TEST(CSSConsumersBench, KeywordGroups) { run("KeywordGroups"_s, keywordGroupsBlocks(), Values::Valid, 0xbfda503034be6af6ULL, 600); }
 TEST(CSSConsumersBench, IdentsIntegersTimes) { run("IdentsIntegersTimes"_s, identsIntegersTimesBlocks(), Values::Valid, 0x6339a06c9cbfe594ULL, 550); }
 TEST(CSSConsumersBench, Shorthands) { run("Shorthands"_s, shorthandsBlocks(), Values::Valid, 0x11111383457331c3ULL, 150); }
+
+TEST(CSSConsumersBench, ColorsHexNamed) { run("ColorsHexNamed"_s, colorsHexNamedBlocks(), Values::Valid, 0xb85589f4f1c377a6ULL, 800); }
+TEST(CSSConsumersBench, ColorsFunctional) { run("ColorsFunctional"_s, colorsFunctionalBlocks(), Values::Valid, 0xb05b0a00bc7a5a9aULL, 275); }
+TEST(CSSConsumersBench, ColorsRelative) { run("ColorsRelative"_s, colorsRelativeBlocks(), Values::Valid, 0x335c0d164f596351ULL, 115); }
+TEST(CSSConsumersBench, ColorMix) { run("ColorMix"_s, colorMixBlocks(), Values::Valid, 0x594669eff9d18eaeULL, 200); }
+TEST(CSSConsumersBench, LinearGradients) { run("LinearGradients"_s, linearGradientsBlocks(), Values::Valid, 0x98fab395f76f5a3aULL, 95); }
+TEST(CSSConsumersBench, RadialGradients) { run("RadialGradients"_s, radialGradientsBlocks(), Values::Valid, 0x93e803d6b879e9ebULL, 85); }
+TEST(CSSConsumersBench, ConicGradients) { run("ConicGradients"_s, conicGradientsBlocks(), Values::Valid, 0x5c71cd70069a571bULL, 90); }
+TEST(CSSConsumersBench, Positions) { run("Positions"_s, positionsBlocks(), Values::Valid, 0x064053ed652431dbULL, 510); }
+TEST(CSSConsumersBench, BackgroundLayers) { run("BackgroundLayers"_s, backgroundLayersBlocks(), Values::Valid, 0x2e9772d502e0907eULL, 50); }
+TEST(CSSConsumersBench, PrefixedGradients) { run("PrefixedGradients"_s, prefixedGradientsBlocks(), Values::Valid, 0x2d3be6178e5cbf04ULL, 100); }
+TEST(CSSConsumersBench, ShadowsBordersImages) { run("ShadowsBordersImages"_s, shadowsBordersImagesBlocks(), Values::Valid, 0x12d771aa1b7b596cULL, 130); }
+TEST(CSSConsumersBench, InvalidColorsImages) { run("InvalidColorsImages"_s, invalidColorsImagesBlocks(), Values::Invalid, 0xeae961133aa717afULL, 370); }
 
 } // namespace TestWebKitAPI
