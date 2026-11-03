@@ -107,7 +107,7 @@ WK_SWIFT_SCROLLABLE_AREA_CONDITIONS_YES[sdk=macosx*] = USE_SWIFT_SCROLLABLE_AREA
 // Implements ScrollView's scrollbar update, coordinate conversions, scroll position and overhang members in Swift on
 // macOS. It needs WK_USE_SWIFT_SCROLLABLE_AREA. ScrollView.h tests the define, so WebKit and WebKitLegacy declare the
 // setting too.
-WK_USE_SWIFT_SCROLL_VIEW = NO;
+WK_USE_SWIFT_SCROLL_VIEW = YES;
 WK_SWIFT_SCROLL_VIEW_DEFINES_YES = USE_SWIFT_SCROLL_VIEW=0;
 WK_SWIFT_SCROLL_VIEW_DEFINES_YES[sdk=macosx*] = USE_SWIFT_SCROLL_VIEW=1;
 WK_SWIFT_SCROLL_VIEW_DEFINES_NO = USE_SWIFT_SCROLL_VIEW=0;
