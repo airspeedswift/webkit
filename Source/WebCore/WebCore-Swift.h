@@ -77,6 +77,7 @@
 
 #include "ScrollAnimatorScrollPhysicsClient.h"
 #include "ScrollPhysicsTypes.h"
+#include "ScrollbarsControllerMacTypes.h"
 #include "ScrollerPairMacTypes.h"
 #include "ScrollingTreeScrollPhysicsClient.h"
 

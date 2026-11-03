@@ -35,14 +35,10 @@
 #include <wtf/RetainPtr.h>
 #include <wtf/TZoneMalloc.h>
 
-OBJC_CLASS WebScrollerImpPairDelegate;
-OBJC_CLASS WebScrollerImpDelegate;
-
-typedef id ScrollerImpPair;
-
 namespace WebCore {
 
 class WheelEventTestMonitor;
+struct ScrollbarsControllerMacHolder;
 
 class ScrollbarsControllerMac final : public ScrollbarsController, public CanMakeCheckedPtr<ScrollbarsControllerMac> {
     WTF_MAKE_TZONE_ALLOCATED(ScrollbarsControllerMac);
@@ -99,36 +95,17 @@ public:
     NODELETE bool scrollbarPaintTimerIsActive() const;
     void startScrollbarPaintTimer();
     void stopScrollbarPaintTimer();
-    void setVisibleScrollerThumbRect(const IntRect&);
 
     void scrollbarWidthChanged(WebCore::ScrollbarWidth) final;
 private:
 
-    void updateScrollerImps();
-
-    // sendContentAreaScrolledSoon() will do the same work that sendContentAreaScrolled() does except
-    // it does it after a zero-delay timer fires. This will prevent us from updating overlay scrollbar
-    // information during layout.
-    void sendContentAreaScrolled(const FloatSize& scrollDelta);
-    void sendContentAreaScrolledSoon(const FloatSize& scrollDelta);
-
     void initialScrollbarPaintTimerFired();
     void sendContentAreaScrolledTimerFired();
-
-    WheelEventTestMonitor* wheelEventTestMonitor() const;
 
     Timer m_initialScrollbarPaintTimer;
     Timer m_sendContentAreaScrolledTimer;
 
-    const RetainPtr<ScrollerImpPair> m_scrollerImpPair;
-    const RetainPtr<WebScrollerImpPairDelegate> m_scrollerImpPairDelegate;
-    RetainPtr<WebScrollerImpDelegate> m_horizontalScrollerImpDelegate;
-    RetainPtr<WebScrollerImpDelegate> m_verticalScrollerImpDelegate;
-
-    FloatSize m_contentAreaScrolledTimerScrollDelta;
-    IntRect m_visibleScrollerThumbRect;
-
-    bool m_needsScrollerStyleUpdate { false };
+    const std::unique_ptr<ScrollbarsControllerMacHolder> m_swift;
 };
 
 } // namespace WebCore
