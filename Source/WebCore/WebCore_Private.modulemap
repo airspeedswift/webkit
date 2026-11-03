@@ -42,6 +42,9 @@ framework module WebCore_Private [system] {
         exclude header "ScrollerPairMacTypes.h"
         exclude header "ScrollerImpDelegateBinding.h"
 
+        // WebCore's Swift imports it as WebCore_Private.ScrollbarsControllerMacTypes.
+        exclude header "ScrollbarsControllerMacTypes.h"
+
         module * {
             export *
         }
@@ -74,6 +77,12 @@ framework module WebCore_Private [system] {
     explicit module ScrollerImpDelegateBinding {
         header "ScrollerImpDelegateBinding.h"
         requires cplusplus, objc
+        export *
+    }
+
+    explicit module ScrollbarsControllerMacTypes {
+        header "ScrollbarsControllerMacTypes.h"
+        requires cplusplus
         export *
     }
 }
