@@ -75,7 +75,7 @@ typedef NSUInteger NSOverlayScrollerState;
 @property CGFloat trackAlpha;
 @property CGFloat knobAlpha;
 @property (getter=isExpanded) BOOL expanded;
-@property (assign) id<NSScrollerImpDelegate> delegate;
+@property (weak) id<NSScrollerImpDelegate> delegate;
 @property (readonly) CGFloat trackBoxWidth;
 @property (readonly) CGFloat trackWidth;
 @property (readonly) CGFloat trackSideInset;
@@ -122,7 +122,7 @@ typedef NSUInteger NSOverlayScrollerState;
 @protocol NSScrollerImpPairDelegate;
 
 @interface NSScrollerImpPair : NSObject
-@property (assign) id<NSScrollerImpPairDelegate> delegate;
+@property (weak) id<NSScrollerImpPairDelegate> delegate;
 @property (retain) NSScrollerImp *verticalScrollerImp;
 @property (retain) NSScrollerImp *horizontalScrollerImp;
 @property NSScrollerStyle scrollerStyle;
