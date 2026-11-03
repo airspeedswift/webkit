@@ -95,6 +95,21 @@ TEST(ScrollingTreeDelegateBench, SnapSelection)
     runScrollingTreeShape(snapSelectionShape, "SnapSelection", 1000, 0x9659dfc9a812ce66ull);
 }
 
+TEST(ScrollingTreeDelegateBench, CommitPerRenderingUpdate)
+{
+    runScrollingTreeShape(commitPerRenderingUpdateShape, "CommitPerRenderingUpdate", 370, 0x473161518922f079ull);
+}
+
+TEST(ScrollingTreeDelegateBench, WheelEvent)
+{
+    runScrollingTreeShape(wheelEventShape, "WheelEvent", 700, 0x76548ae512fd6fe6ull);
+}
+
+TEST(ScrollingTreeDelegateBench, DisplayRefresh)
+{
+    runScrollingTreeShape(displayRefreshShape, "DisplayRefresh", 2600, 0x599dab7d2ae56305ull);
+}
+
 } // namespace TestWebKitAPI
 
 #endif // PLATFORM(MAC)
