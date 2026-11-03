@@ -46,11 +46,18 @@
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/text/TextStream.h>
 
+#if USE_SWIFT_SCROLLBARS_CONTROLLER
+#import "ScrollbarsControllerMacTypes.h"
+#import "WebCore-Swift.h"
+#import <wtf/NeverDestroyed.h>
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollbarsController);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ScrollbarsControllerMac);
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 static ScrollbarThemeMac* macScrollbarTheme()
 {
     ScrollbarTheme& scrollbarTheme = ScrollbarTheme::theme();
@@ -61,9 +68,11 @@ static NSScrollerImp *LEGACY_NODELETE scrollerImpForScrollbar(Scrollbar& scrollb
 {
     return ScrollbarThemeMac::scrollerImpForScrollbar(scrollbar);
 }
+#endif
 
 } // namespace WebCore
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 @interface WebScrollerImpPairDelegate : NSObject <NSScrollerImpPairDelegate> {
     WeakPtr<WebCore::ScrollableArea> _scrollableArea;
 }
@@ -590,8 +599,97 @@ using WebCore::LogOverlayScrollbars;
 }
 
 @end
+#endif
 
 namespace WebCore {
+
+#if USE_SWIFT_SCROLLBARS_CONTROLLER
+// ScrollbarsControllerMac's state and its AppKit delegates, which live in Swift (ScrollbarsControllerMac.swift).
+struct ScrollbarsControllerMacHolder {
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED(ScrollbarsControllerMacHolder);
+
+    explicit ScrollbarsControllerMacHolder(ScrollableArea& area)
+        : controller(MacScrollbarsController::init(ScrollbarsControllerMacArea { area }))
+    {
+    }
+
+    MacScrollbarsController controller;
+};
+
+WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(ScrollbarsControllerMacHolder);
+
+NSScrollerImp *ScrollbarsControllerMacScrollbar::scrollerImp() const
+{
+    RefPtr scrollbar = m_scrollbar;
+    return scrollbar ? ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar) : nil;
+}
+
+void ScrollbarsControllerMacScrollbar::createScrollerImp(NSScrollerImp *oldScrollerImp) const
+{
+    RefPtr scrollbar = dynamicDowncast<ScrollbarMac>(m_scrollbar);
+    RELEASE_ASSERT(scrollbar);
+    scrollbar->createScrollerImp(oldScrollerImp);
+}
+
+void ScrollbarsControllerMacScrollbar::setPaintCharacteristics() const
+{
+    RefPtr scrollbar = m_scrollbar;
+    auto& theme = ScrollbarTheme::theme();
+    if (!scrollbar || theme.isMockTheme())
+        return;
+    downcast<ScrollbarThemeMac>(theme).setPaintCharacteristicsForScrollbar(*scrollbar);
+}
+
+CALayer *ScrollbarsControllerMacArea::layerForScrollbar(ScrollbarOrientation orientation, bool& hasGraphicsLayer) const
+{
+    hasGraphicsLayer = false;
+    CheckedPtr area = m_area;
+    if (!area)
+        return nil;
+    RefPtr layer = orientation == ScrollbarOrientation::Vertical ? area->layerForVerticalScrollbar() : area->layerForHorizontalScrollbar();
+    hasGraphicsLayer = !!layer;
+    return layer ? layer->platformLayer() : nil;
+}
+
+CALayer *ScrollbarsControllerMacArea::scrollerImpDelegateLayer(ScrollbarOrientation orientation) const
+{
+    CheckedPtr area = m_area;
+    if (!area || !ScrollbarThemeMac::isCurrentlyDrawingIntoLayer())
+        return nil;
+    RefPtr layer = orientation == ScrollbarOrientation::Vertical ? area->layerForVerticalScrollbar() : area->layerForHorizontalScrollbar();
+
+    // The layer an NSScrollerImp draws into when its scrollbar has no GraphicsLayer: one for the process.
+    static NeverDestroyed<RetainPtr<CALayer>> dummyLayer = adoptNS([[CALayer alloc] init]);
+    return layer ? layer->platformLayer() : dummyLayer.get().get();
+}
+
+void ScrollbarsControllerMacArea::startScrollbarPaintTimer() const
+{
+    if (CheckedPtr area = m_area)
+        downcast<ScrollbarsControllerMac>(area->scrollbarsController()).startScrollbarPaintTimer();
+}
+
+void ScrollbarsControllerMacArea::stopScrollbarPaintTimer() const
+{
+    if (CheckedPtr area = m_area)
+        downcast<ScrollbarsControllerMac>(area->scrollbarsController()).stopScrollbarPaintTimer();
+}
+
+bool ScrollbarsControllerMacArea::scrollbarPaintTimerIsActive() const
+{
+    CheckedPtr area = m_area;
+    return area && downcast<ScrollbarsControllerMac>(area->scrollbarsController()).scrollbarPaintTimerIsActive();
+}
+
+bool ScrollbarsControllerMacArea::macThemeUsesOverlayScrollbarsChanged() const
+{
+    auto& theme = ScrollbarTheme::theme();
+    if (theme.isMockTheme())
+        return false;
+    downcast<ScrollbarThemeMac>(theme).usesOverlayScrollbarsChanged();
+    return true;
+}
+#endif
 
 std::unique_ptr<ScrollbarsController> ScrollbarsController::create(ScrollableArea& scrollableArea)
 {
@@ -602,25 +700,38 @@ ScrollbarsControllerMac::ScrollbarsControllerMac(ScrollableArea& scrollableArea)
     : ScrollbarsController(scrollableArea)
     , m_initialScrollbarPaintTimer(*this, &ScrollbarsControllerMac::initialScrollbarPaintTimerFired)
     , m_sendContentAreaScrolledTimer(*this, &ScrollbarsControllerMac::sendContentAreaScrolledTimerFired)
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     , m_scrollerImpPair(adoptNS([[NSScrollerImpPair alloc] init]))
     , m_scrollerImpPairDelegate(adoptNS([[WebScrollerImpPairDelegate alloc] initWithScrollableArea:&scrollableArea]))
+#else
+    , m_swift(makeUnique<ScrollbarsControllerMacHolder>(scrollableArea))
+#endif
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     [m_scrollerImpPair setDelegate:m_scrollerImpPairDelegate.get()];
     [m_scrollerImpPair setScrollerStyle:ScrollerStyle::recommendedScrollerStyle()];
+#endif
 }
 
 ScrollbarsControllerMac::~ScrollbarsControllerMac()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     BEGIN_BLOCK_OBJC_EXCEPTIONS
     [m_scrollerImpPairDelegate invalidate];
     [m_scrollerImpPair setDelegate:nil];
     [m_horizontalScrollerImpDelegate invalidate];
     [m_verticalScrollerImpDelegate invalidate];
     END_BLOCK_OBJC_EXCEPTIONS
+#else
+    BEGIN_BLOCK_OBJC_EXCEPTIONS
+    m_swift->controller.invalidate();
+    END_BLOCK_OBJC_EXCEPTIONS
+#endif
 }
 
 void ScrollbarsControllerMac::cancelAnimations()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollbarsControllerMac for [" << scrollableArea() << "] cancelAnimations");
     if (scrollbarPaintTimerIsActive())
         stopScrollbarPaintTimer();
@@ -628,8 +739,16 @@ void ScrollbarsControllerMac::cancelAnimations()
     [m_verticalScrollerImpDelegate cancelAnimations];
 
     ScrollbarsController::cancelAnimations();
+#else
+    BEGIN_BLOCK_OBJC_EXCEPTIONS
+    m_swift->controller.cancelAnimations();
+    END_BLOCK_OBJC_EXCEPTIONS
+
+    ScrollbarsController::cancelAnimations();
+#endif
 }
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 void ScrollbarsControllerMac::setVisibleScrollerThumbRect(const IntRect& scrollerThumb)
 {
     auto rectInViewCoordinates = scrollerThumb;
@@ -643,47 +762,65 @@ void ScrollbarsControllerMac::setVisibleScrollerThumbRect(const IntRect& scrolle
     scrollableArea->setVisibleScrollerThumbRect(rectInViewCoordinates);
     m_visibleScrollerThumbRect = rectInViewCoordinates;
 }
+#endif
 
 
 void ScrollbarsControllerMac::contentAreaWillPaint() const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     [m_scrollerImpPair contentAreaWillDraw];
 ALLOW_DEPRECATED_DECLARATIONS_END
+#else
+    m_swift->controller.contentAreaWillPaint();
+#endif
 }
 
 void ScrollbarsControllerMac::mouseEnteredContentArea()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollbarsControllerMac for [" << scrollableArea() << "] mouseEnteredContentArea");
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair mouseEnteredContentArea];
+#else
+    m_swift->controller.mouseEnteredContentArea();
+#endif
 }
 
 void ScrollbarsControllerMac::mouseExitedContentArea()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollbarsControllerMac for [" << scrollableArea() << "] mouseExitedContentArea");
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair mouseExitedContentArea];
+#else
+    m_swift->controller.mouseExitedContentArea();
+#endif
 }
 
 void ScrollbarsControllerMac::mouseMovedInContentArea()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollbarsControllerMac for [" << scrollableArea() << "] mouseMovedInContentArea");
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair mouseMovedInContentArea];
+#else
+    m_swift->controller.mouseMovedInContentArea();
+#endif
 }
 
 void ScrollbarsControllerMac::mouseEnteredScrollbar(Scrollbar* scrollbar) const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     // At this time, only legacy scrollbars needs to send notifications here.
     if (ScrollerStyle::recommendedScrollerStyle() != NSScrollerStyleLegacy)
         return;
@@ -693,10 +830,15 @@ void ScrollbarsControllerMac::mouseEnteredScrollbar(Scrollbar* scrollbar) const
 
     if (RetainPtr painter = scrollerImpForScrollbar(*scrollbar))
         [painter mouseEnteredScroller];
+#else
+    if (m_swift->controller.scrollbarMouseNotificationsAreSent())
+        m_swift->controller.mouseEnteredScrollbar(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get());
+#endif
 }
 
 void ScrollbarsControllerMac::mouseExitedScrollbar(Scrollbar* scrollbar) const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     // At this time, only legacy scrollbars needs to send notifications here.
     if (ScrollerStyle::recommendedScrollerStyle() != NSScrollerStyleLegacy)
         return;
@@ -706,10 +848,15 @@ void ScrollbarsControllerMac::mouseExitedScrollbar(Scrollbar* scrollbar) const
 
     if (RetainPtr painter = scrollerImpForScrollbar(*scrollbar))
         [painter mouseExitedScroller];
+#else
+    if (m_swift->controller.scrollbarMouseNotificationsAreSent())
+        m_swift->controller.mouseExitedScrollbar(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get());
+#endif
 }
 
 void ScrollbarsControllerMac::mouseIsDownInScrollbar(Scrollbar* scrollbar, bool mouseIsDown) const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
@@ -720,52 +867,78 @@ void ScrollbarsControllerMac::mouseIsDownInScrollbar(Scrollbar* scrollbar, bool 
         else
             [m_scrollerImpPair endScrollGesture];
     }
+#else
+    if (m_swift->controller.scrollbarsCanBeActive())
+        m_swift->controller.mouseIsDownInScrollbar(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get(), mouseIsDown);
+#endif
 }
 
 void ScrollbarsControllerMac::willStartLiveResize()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair startLiveResize];
+#else
+    m_swift->controller.willStartLiveResize();
+#endif
 }
 
 void ScrollbarsControllerMac::contentsSizeChanged() const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair contentAreaDidResize];
+#else
+    m_swift->controller.contentsSizeChanged();
+#endif
 }
 
 void ScrollbarsControllerMac::willEndLiveResize()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     ScrollbarsController::willEndLiveResize();
 
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair endLiveResize];
+#else
+    ScrollbarsController::willEndLiveResize();
+    m_swift->controller.willEndLiveResize();
+#endif
 }
 
 void ScrollbarsControllerMac::contentAreaDidShow()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair windowOrderedIn];
+#else
+    m_swift->controller.contentAreaDidShow();
+#endif
 }
 
 void ScrollbarsControllerMac::contentAreaDidHide()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
         return;
 
     [m_scrollerImpPair windowOrderedOut];
+#else
+    m_swift->controller.contentAreaDidHide();
+#endif
 }
 
 void ScrollbarsControllerMac::didBeginScrollGesture()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollbarsControllerMac for [" << scrollableArea() << "] didBeginScrollGesture");
 
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
@@ -777,10 +950,15 @@ void ScrollbarsControllerMac::didBeginScrollGesture()
         monitor->deferForReason(protect(scrollableArea())->scrollingNodeIDForTesting(), WheelEventTestMonitor::DeferReason::ContentScrollInProgress);
 
     ScrollbarsController::didBeginScrollGesture();
+#else
+    if (m_swift->controller.didBeginScrollGesture())
+        ScrollbarsController::didBeginScrollGesture();
+#endif
 }
 
 void ScrollbarsControllerMac::didEndScrollGesture()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollbarsControllerMac for [" << scrollableArea() << "] didEndScrollGesture");
 
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
@@ -792,10 +970,15 @@ void ScrollbarsControllerMac::didEndScrollGesture()
         monitor->removeDeferralForReason(protect(scrollableArea())->scrollingNodeIDForTesting(), WheelEventTestMonitor::DeferReason::ContentScrollInProgress);
 
     ScrollbarsController::didEndScrollGesture();
+#else
+    if (m_swift->controller.didEndScrollGesture())
+        ScrollbarsController::didEndScrollGesture();
+#endif
 }
 
 void ScrollbarsControllerMac::mayBeginScrollGesture()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "ScrollbarsControllerMac for [" << scrollableArea() << "] mayBeginScrollGesture");
 
     if ([m_scrollerImpPair overlayScrollerStateIsLocked])
@@ -805,10 +988,15 @@ void ScrollbarsControllerMac::mayBeginScrollGesture()
     [m_scrollerImpPair contentAreaScrolled];
 
     ScrollbarsController::mayBeginScrollGesture();
+#else
+    if (m_swift->controller.mayBeginScrollGesture())
+        ScrollbarsController::mayBeginScrollGesture();
+#endif
 }
 
 void ScrollbarsControllerMac::lockOverlayScrollbarStateToHidden(bool shouldLockState)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if (shouldLockState)
         [m_scrollerImpPair lockOverlayScrollerState:NSOverlayScrollerStateHidden];
     else {
@@ -819,15 +1007,23 @@ void ScrollbarsControllerMac::lockOverlayScrollbarStateToHidden(bool shouldLockS
         if (m_needsScrollerStyleUpdate)
             updateScrollerStyle();
     }
+#else
+    m_swift->controller.lockOverlayScrollbarStateToHidden(shouldLockState);
+#endif
 }
 
 bool ScrollbarsControllerMac::scrollbarsCanBeActive() const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     return ![m_scrollerImpPair overlayScrollerStateIsLocked];
+#else
+    return m_swift->controller.scrollbarsCanBeActive();
+#endif
 }
 
 void ScrollbarsControllerMac::didAddVerticalScrollbar(Scrollbar* scrollbar)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     RetainPtr painter = scrollerImpForScrollbar(*scrollbar);
     if (!painter)
         return;
@@ -842,10 +1038,14 @@ void ScrollbarsControllerMac::didAddVerticalScrollbar(Scrollbar* scrollbar)
     [m_scrollerImpPair setVerticalScrollerImp:painter.get()];
     if (scrollableArea().inLiveResize())
         [painter setKnobAlpha:1];
+#else
+    m_swift->controller.didAddVerticalScrollbar(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get(), ScrollbarsControllerMacScrollbar { scrollbar });
+#endif
 }
 
 void ScrollbarsControllerMac::willRemoveVerticalScrollbar(Scrollbar* scrollbar)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     RetainPtr painter = scrollerImpForScrollbar(*scrollbar);
     if (!painter)
         return;
@@ -856,10 +1056,14 @@ void ScrollbarsControllerMac::willRemoveVerticalScrollbar(Scrollbar* scrollbar)
 
     [painter setDelegate:nil];
     [m_scrollerImpPair setVerticalScrollerImp:nil];
+#else
+    m_swift->controller.willRemoveVerticalScrollbar(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get());
+#endif
 }
 
 void ScrollbarsControllerMac::didAddHorizontalScrollbar(Scrollbar* scrollbar)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     RetainPtr painter = scrollerImpForScrollbar(*scrollbar);
     if (!painter)
         return;
@@ -874,10 +1078,14 @@ void ScrollbarsControllerMac::didAddHorizontalScrollbar(Scrollbar* scrollbar)
     [m_scrollerImpPair setHorizontalScrollerImp:painter.get()];
     if (scrollableArea().inLiveResize())
         [painter setKnobAlpha:1];
+#else
+    m_swift->controller.didAddHorizontalScrollbar(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get(), ScrollbarsControllerMacScrollbar { scrollbar });
+#endif
 }
 
 void ScrollbarsControllerMac::willRemoveHorizontalScrollbar(Scrollbar* scrollbar)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     RetainPtr painter = scrollerImpForScrollbar(*scrollbar);
     if (!painter)
         return;
@@ -887,16 +1095,24 @@ void ScrollbarsControllerMac::willRemoveHorizontalScrollbar(Scrollbar* scrollbar
 
     [painter setDelegate:nil];
     [m_scrollerImpPair setHorizontalScrollerImp:nil];
+#else
+    m_swift->controller.willRemoveHorizontalScrollbar(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get());
+#endif
 }
 
 void ScrollbarsControllerMac::invalidateScrollbarPartLayers(Scrollbar* scrollbar)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     RetainPtr painter = scrollerImpForScrollbar(*scrollbar);
     [painter setNeedsDisplay:YES];
+#else
+    m_swift->controller.invalidateScrollbarPartLayers(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get());
+#endif
 }
 
 void ScrollbarsControllerMac::verticalScrollbarLayerDidChange()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     CheckedRef scrollableArea = this->scrollableArea();
     RefPtr layer = scrollableArea->layerForVerticalScrollbar();
     RefPtr scrollbar = scrollableArea->verticalScrollbar();
@@ -908,10 +1124,15 @@ void ScrollbarsControllerMac::verticalScrollbarLayerDidChange()
         return;
 
     [painter setLayer:RetainPtr { layer ? layer->platformLayer() : nil }.get()];
+#else
+    RefPtr scrollbar = scrollableArea().verticalScrollbar();
+    m_swift->controller.verticalScrollbarLayerDidChange(protect(scrollbar ? ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar) : nil).get());
+#endif
 }
 
 void ScrollbarsControllerMac::horizontalScrollbarLayerDidChange()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     CheckedRef scrollableArea = this->scrollableArea();
     RefPtr layer = scrollableArea->layerForHorizontalScrollbar();
     RefPtr scrollbar = scrollableArea->horizontalScrollbar();
@@ -923,10 +1144,15 @@ void ScrollbarsControllerMac::horizontalScrollbarLayerDidChange()
         return;
 
     [painter setLayer:RetainPtr { layer ? layer->platformLayer() : nil }.get()];
+#else
+    RefPtr scrollbar = scrollableArea().horizontalScrollbar();
+    m_swift->controller.horizontalScrollbarLayerDidChange(protect(scrollbar ? ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar) : nil).get());
+#endif
 }
 
 bool ScrollbarsControllerMac::shouldScrollbarParticipateInHitTesting(Scrollbar* scrollbar)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     // Non-overlay scrollbars should always participate in hit testing.
     if (ScrollerStyle::recommendedScrollerStyle() != NSScrollerStyleOverlay)
         return true;
@@ -936,10 +1162,16 @@ bool ScrollbarsControllerMac::shouldScrollbarParticipateInHitTesting(Scrollbar* 
     if (!painter)
         return false;
     return [painter knobAlpha] > 0;
+#else
+    if (m_swift->controller.scrollbarsAlwaysParticipateInHitTesting())
+        return true;
+    return m_swift->controller.shouldScrollbarParticipateInHitTesting(protect(ScrollbarThemeMac::scrollerImpForScrollbar(*scrollbar)).get());
+#endif
 }
 
 void ScrollbarsControllerMac::notifyContentAreaScrolled(const FloatSize& delta)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     // This function is called when a page is going into the back/forward cache, but the page
     // isn't really scrolling in that case. We should only pass the message on to the
     // ScrollerImpPair when we're really scrolling on an active page.
@@ -950,8 +1182,13 @@ void ScrollbarsControllerMac::notifyContentAreaScrolled(const FloatSize& delta)
         sendContentAreaScrolled(delta);
     else
         sendContentAreaScrolledSoon(delta);
+#else
+    if (m_swift->controller.notifyContentAreaScrolled(delta) && !m_sendContentAreaScrolledTimer.isActive())
+        m_sendContentAreaScrolledTimer.startOneShot(0_s);
+#endif
 }
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 void ScrollbarsControllerMac::updateScrollerImps()
 {
     CheckedRef scrollableArea = this->scrollableArea();
@@ -975,9 +1212,11 @@ void ScrollbarsControllerMac::updateScrollerImps()
         [m_scrollerImpPair setHorizontalScrollerImp:protect(horizontalScrollbarMac->scrollerImp()).get()];
     }
 }
+#endif
 
 void ScrollbarsControllerMac::updateScrollerStyle()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     if ([m_scrollerImpPair overlayScrollerStateIsLocked]) {
         m_needsScrollerStyleUpdate = true;
         return;
@@ -1005,6 +1244,9 @@ void ScrollbarsControllerMac::updateScrollerStyle()
     protect(scrollableArea())->scrollbarStyleChanged(newStyle == NSScrollerStyleOverlay ? ScrollbarStyle::Overlay : ScrollbarStyle::AlwaysVisible, !m_needsScrollerStyleUpdate);
 
     m_needsScrollerStyleUpdate = false;
+#else
+    m_swift->controller.updateScrollerStyle();
+#endif
 }
 
 void ScrollbarsControllerMac::startScrollbarPaintTimer()
@@ -1024,23 +1266,32 @@ void ScrollbarsControllerMac::stopScrollbarPaintTimer()
 
 void ScrollbarsControllerMac::initialScrollbarPaintTimerFired()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     LOG_WITH_STREAM(OverlayScrollbars, stream << "WebScrollerImpDelegate for [" << scrollableArea() << "] initialScrollbarPaintTimerFired - flashing scrollers");
 
     // To force the scrollbars to flash, we have to call hide first. Otherwise, the ScrollerImpPair
     // might think that the scrollbars are already showing and bail early.
     [m_scrollerImpPair hideOverlayScrollers];
     [m_scrollerImpPair flashScrollers];
+#else
+    m_swift->controller.initialScrollbarPaintTimerFired();
+#endif
 }
 
 void ScrollbarsControllerMac::sendContentAreaScrolledTimerFired()
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     sendContentAreaScrolled(m_contentAreaScrolledTimerScrollDelta);
     m_contentAreaScrolledTimerScrollDelta = { };
 
     if (RefPtr monitor = wheelEventTestMonitor())
         monitor->removeDeferralForReason(protect(scrollableArea())->scrollingNodeIDForTesting(), WheelEventTestMonitor::DeferReason::ContentScrollInProgress);
+#else
+    m_swift->controller.sendContentAreaScrolledTimerFired();
+#endif
 }
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 void ScrollbarsControllerMac::sendContentAreaScrolledSoon(const FloatSize& delta)
 {
     m_contentAreaScrolledTimerScrollDelta = delta;
@@ -1051,18 +1302,26 @@ void ScrollbarsControllerMac::sendContentAreaScrolledSoon(const FloatSize& delta
     if (RefPtr monitor = wheelEventTestMonitor())
         monitor->deferForReason(protect(scrollableArea())->scrollingNodeIDForTesting(), WheelEventTestMonitor::DeferReason::ContentScrollInProgress);
 }
+#endif
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 void ScrollbarsControllerMac::sendContentAreaScrolled(const FloatSize& delta)
 {
     [m_scrollerImpPair contentAreaScrolledInDirection:NSMakePoint(delta.width(), delta.height())];
 }
+#endif
 
 void ScrollbarsControllerMac::scrollbarWidthChanged(WebCore::ScrollbarWidth)
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     updateScrollbarsThickness();
     updateScrollerImps();
+#else
+    m_swift->controller.scrollbarWidthChanged();
+#endif
 }
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 static String scrollbarState(Scrollbar* scrollbar)
 {
     if (!scrollbar)
@@ -1095,21 +1354,32 @@ static String scrollbarState(Scrollbar* scrollbar)
 
     return result.toString();
 }
+#endif
 
 String ScrollbarsControllerMac::horizontalScrollbarStateForTesting() const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     return scrollbarState(protect(protect(scrollableArea())->horizontalScrollbar()).get());
+#else
+    return m_swift->controller.horizontalScrollbarStateForTesting();
+#endif
 }
 
 String ScrollbarsControllerMac::verticalScrollbarStateForTesting() const
 {
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     return scrollbarState(protect(protect(scrollableArea())->verticalScrollbar()).get());
+#else
+    return m_swift->controller.verticalScrollbarStateForTesting();
+#endif
 }
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 WheelEventTestMonitor* ScrollbarsControllerMac::wheelEventTestMonitor() const
 {
     return protect(scrollableArea())->scrollAnimator().wheelEventTestMonitor();
 }
+#endif
 
 
 } // namespace WebCore

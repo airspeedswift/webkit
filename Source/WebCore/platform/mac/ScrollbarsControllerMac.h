@@ -35,14 +35,19 @@
 #include <wtf/RetainPtr.h>
 #include <wtf/TZoneMalloc.h>
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
 OBJC_CLASS WebScrollerImpPairDelegate;
 OBJC_CLASS WebScrollerImpDelegate;
 
 typedef id ScrollerImpPair;
+#endif
 
 namespace WebCore {
 
 class WheelEventTestMonitor;
+#if USE_SWIFT_SCROLLBARS_CONTROLLER
+struct ScrollbarsControllerMacHolder;
+#endif
 
 class ScrollbarsControllerMac final : public ScrollbarsController, public CanMakeCheckedPtr<ScrollbarsControllerMac> {
     WTF_MAKE_TZONE_ALLOCATED(ScrollbarsControllerMac);
@@ -99,11 +104,14 @@ public:
     bool LEGACY_NODELETE scrollbarPaintTimerIsActive() const;
     void startScrollbarPaintTimer();
     void stopScrollbarPaintTimer();
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     void setVisibleScrollerThumbRect(const IntRect&);
+#endif
 
     void scrollbarWidthChanged(WebCore::ScrollbarWidth) final;
 private:
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     void updateScrollerImps();
 
     // sendContentAreaScrolledSoon() will do the same work that sendContentAreaScrolled() does except
@@ -111,15 +119,19 @@ private:
     // information during layout.
     void sendContentAreaScrolled(const FloatSize& scrollDelta);
     void sendContentAreaScrolledSoon(const FloatSize& scrollDelta);
+#endif
 
     void initialScrollbarPaintTimerFired();
     void sendContentAreaScrolledTimerFired();
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     WheelEventTestMonitor* wheelEventTestMonitor() const;
+#endif
 
     Timer m_initialScrollbarPaintTimer;
     Timer m_sendContentAreaScrolledTimer;
 
+#if !USE_SWIFT_SCROLLBARS_CONTROLLER
     const RetainPtr<ScrollerImpPair> m_scrollerImpPair;
     const RetainPtr<WebScrollerImpPairDelegate> m_scrollerImpPairDelegate;
     RetainPtr<WebScrollerImpDelegate> m_horizontalScrollerImpDelegate;
@@ -129,6 +141,9 @@ private:
     IntRect m_visibleScrollerThumbRect;
 
     bool m_needsScrollerStyleUpdate { false };
+#else
+    const std::unique_ptr<ScrollbarsControllerMacHolder> m_swift;
+#endif
 };
 
 } // namespace WebCore
