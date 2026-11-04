@@ -34,6 +34,7 @@
 #include <WebCore/FloatSize.h>
 #include <WebCore/PageIdentifier.h>
 #include <WebCore/RectEdges.h>
+#include <WebKit/WKDeclarationSpecifiers.h>
 #include <memory>
 #include <wtf/CheckedPtr.h>
 #include <wtf/Deque.h>
@@ -74,16 +75,19 @@ public:
 #endif
     };
 
+    // Made in WebKit, so a caller outside it never sizes or lays out the object from its copy of this header.
+    WK_EXPORT static std::unique_ptr<MomentumEventDispatcher> create(Client&);
+
     MomentumEventDispatcher(Client&);
-    ~MomentumEventDispatcher();
+    WK_EXPORT ~MomentumEventDispatcher();
 
-    bool handleWheelEvent(WebCore::PageIdentifier, const WebWheelEvent&, WebCore::RectEdges<WebCore::RubberBandingBehavior> rubberBandableEdges);
+    WK_EXPORT bool handleWheelEvent(WebCore::PageIdentifier, const WebWheelEvent&, WebCore::RectEdges<WebCore::RubberBandingBehavior> rubberBandableEdges);
 
-    void setScrollingAccelerationCurve(WebCore::PageIdentifier, std::optional<ScrollingAccelerationCurve>&&);
+    WK_EXPORT void setScrollingAccelerationCurve(WebCore::PageIdentifier, std::optional<ScrollingAccelerationCurve>&&);
 
-    void displayDidRefresh(WebCore::PlatformDisplayID);
+    WK_EXPORT void displayDidRefresh(WebCore::PlatformDisplayID);
 
-    void pageScreenDidChange(WebCore::PageIdentifier, WebCore::PlatformDisplayID, std::optional<unsigned> nominalFramesPerSecond);
+    WK_EXPORT void pageScreenDidChange(WebCore::PageIdentifier, WebCore::PlatformDisplayID, std::optional<unsigned> nominalFramesPerSecond);
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)
     void flushLog();

@@ -28,6 +28,7 @@
 
 #include "WebEvent.h"
 #include "WebEventPhase.h"
+#include <WebKit/WKDeclarationSpecifiers.h>
 #include <WebCore/FloatSize.h>
 #include <WebCore/IntPoint.h>
 
@@ -89,8 +90,8 @@ public:
     using Phase = WebEventPhase;
     using MomentumEndType = WebWheelEventMomentumEndType;
 
-    static Ref<WebWheelEvent> create(WebEventData&&, WebWheelEventData&&);
-    static Ref<WebWheelEvent> create(WebWheelEventInit&&);
+    WK_EXPORT static Ref<WebWheelEvent> create(WebEventData&&, WebWheelEventData&&);
+    WK_EXPORT static Ref<WebWheelEvent> create(WebWheelEventInit&&);
 
     // Callers that mutate an event they did not create must copy first, since events are now shared
     // rather than copied by value.
