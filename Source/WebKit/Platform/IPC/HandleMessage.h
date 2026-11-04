@@ -431,6 +431,14 @@ struct MethodSignatureValidation<R(MethodArgumentTypes...) const>
     static constexpr bool returnsAwaitableVoid = std::is_same_v<R, Awaitable<void>>;
 };
 
+template<typename R, typename... MethodArgumentTypes>
+struct MethodSignatureValidation<R(MethodArgumentTypes...) noexcept>
+    : MethodSignatureValidation<R(MethodArgumentTypes...)> { };
+
+template<typename R, typename... MethodArgumentTypes>
+struct MethodSignatureValidation<R(MethodArgumentTypes...) const noexcept>
+    : MethodSignatureValidation<R(MethodArgumentTypes...)> { };
+
 template<typename> struct AwaitableReturnTuple;
 template<> struct AwaitableReturnTuple<Awaitable<void>> {
     using Type = std::tuple<>;
