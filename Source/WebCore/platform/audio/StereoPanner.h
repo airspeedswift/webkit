@@ -27,15 +27,16 @@
 #pragma once
 
 #include "AudioBus.h"
+#include <WebCore/PlatformExportMacros.h>
 #include <memory>
 
 namespace WebCore {
 
 namespace StereoPanner {
     
-void panWithSampleAccurateValues(const AudioBus& inputBus, AudioBus& outputBus, std::span<const float> panValues);
+WEBCORE_EXPORT void panWithSampleAccurateValues(const AudioBus& inputBus, AudioBus& outputBus, std::span<const float> panValues);
 
-void panToTargetValue(const AudioBus& inputBus, AudioBus& outputBus, float panValue, size_t framesToProcess);
+WEBCORE_EXPORT void panToTargetValue(const AudioBus& inputBus, AudioBus& outputBus, float panValue, size_t framesToProcess);
 
 } // namespace StereoPanner
 

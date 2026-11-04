@@ -31,6 +31,7 @@
 
 #include "DynamicsCompressorKernel.h"
 #include "ZeroPole.h"
+#include <WebCore/PlatformExportMacros.h>
 #include <memory>
 #include <wtf/FixedVector.h>
 #include <wtf/TZoneMalloc.h>
@@ -44,7 +45,7 @@ class AudioBus;
 // of the loudest parts of the signal and raises the volume of the softest parts,
 // making the sound richer, fuller, and more controlled.
 
-class DynamicsCompressor final {
+class WEBCORE_EXPORT DynamicsCompressor final {
     WTF_MAKE_TZONE_ALLOCATED(DynamicsCompressor);
     WTF_MAKE_NONCOPYABLE(DynamicsCompressor);
 public:
