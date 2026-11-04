@@ -41,6 +41,7 @@
 #include <wtf/Lock.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/ThreadingPrimitives.h>
 #include <wtf/WorkQueue.h>
 
@@ -95,8 +96,8 @@ public:
     explicit EventDispatcher(WebProcess&);
     ~EventDispatcher();
 
-    void ref() const final;
-    void deref() const final;
+    SWIFT_UNSAFE void ref() const final;
+    SWIFT_UNSAFE void deref() const final;
 
     WorkQueue& queue() { return m_queue.get(); }
 
@@ -156,9 +157,9 @@ private:
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER)
     // EventDispatcher::Client
-    void handleSyntheticWheelEvent(WebCore::PageIdentifier, const WebWheelEvent&, WebCore::RectEdges<WebCore::RubberBandingBehavior> rubberBandableEdges) override;
-    void startDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID) override;
-    void stopDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID) override;
+    SWIFT_UNSAFE void handleSyntheticWheelEvent(WebCore::PageIdentifier, const WebWheelEvent&, WebCore::RectEdges<WebCore::RubberBandingBehavior> rubberBandableEdges) override;
+    SWIFT_UNSAFE void startDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID) override;
+    SWIFT_UNSAFE void stopDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID) override;
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)
     void flushMomentumEventLoggingSoon() override;
@@ -184,6 +185,6 @@ private:
     const std::unique_ptr<MomentumEventDispatcher> m_momentumEventDispatcher;
     DisplayLinkObserverID m_observerID;
 #endif
-};
+} SWIFT_SHARED_REFERENCE(.ref, .deref) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 } // namespace WebKit

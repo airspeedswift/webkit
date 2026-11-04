@@ -71,9 +71,7 @@ extension WKWebViewConfiguration {
         self.allowsImmersiveEnvironments = wrapped.allowsImmersiveEnvironments
         #endif
 
-        if let processPool = wrapped.processPool {
-            self.processPool = processPool
-        }
+        setProcessPool(wrapped.processPool)
 
         #if WTF_PLATFORM_MAC
         self._requiresUserActionForEditingControlsManager = wrapped.requiresUserActionForEditingControlsManager
@@ -93,6 +91,14 @@ extension WKWebViewConfiguration {
 
         if wrapped.siteIsolationEnabled {
             self.preferences._siteIsolationEnabled = true
+        }
+    }
+
+    // WKProcessPool is deprecated API that WebPage.Configuration still carries for testing.
+    @diagnose(DeprecatedDeclaration, as: warning)
+    private func setProcessPool(_ processPool: WKProcessPool?) {
+        if let processPool {
+            self.processPool = processPool
         }
     }
 }
