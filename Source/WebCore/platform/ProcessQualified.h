@@ -118,6 +118,12 @@ public:
         return object() >= other.object();
     }
 
+#if defined(__swift__)
+    // Swift imports object() as a pointer, and does not use the defaulted operator== above for ==.
+    T objectValue() const { return m_object; }
+    bool isEqual(const ProcessQualified& other) const { return *this == other; }
+#endif
+
 private:
     T m_object;
     ProcessIdentifier m_processIdentifier;
