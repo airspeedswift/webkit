@@ -239,18 +239,20 @@ TEST(AudioDSPBench, BiquadSampleAccurate)
     auto noise = makeNoise(kFrames, 42);
     std::vector<float> out(kQuantum);
 
-    // Build per-frame coefficient arrays once; reuse across iterations.
-    // The Biquad must be reset between iterations (re-created) to match the oracle.
-    auto setCoeffs = [&](Biquad& bq) {
-        for (unsigned i = 0; i < kFrames; ++i)
-            bq.setLowpassParams(i, (440.0 + static_cast<double>(i) * 0.01) / (kSampleRate / 2.0), 1.0);
+    // Set per-frame coefficient arrays for one quantum (indices 0..kQuantum-1).
+    // The coefficient arrays must be pre-sized; Biquad's constructor sizes them to 1.
+    // Use frame offset f0 so coefficient variation changes across quanta.
+    auto setQuantumCoeffs = [&](Biquad& bq, unsigned f0) {
+        for (unsigned j = 0; j < kQuantum; ++j)
+            bq.setLowpassParams(j, (440.0 + static_cast<double>(f0 + j) * 0.01) / (kSampleRate / 2.0), 1.0);
         bq.setHasSampleAccurateValues(true);
     };
 
     auto runOnce = [&](BenchCRC& crc) {
         Biquad bq;
-        setCoeffs(bq);
+        setQuantumCoeffs(bq, 0); // size arrays to kQuantum on first call
         for (unsigned q = 0; q < kQuanta; ++q) {
+            setQuantumCoeffs(bq, q * kQuantum);
             bq.process(std::span<const float>(noise).subspan(q * kQuantum, kQuantum), out);
             crc.feedFloats(out);
         }
