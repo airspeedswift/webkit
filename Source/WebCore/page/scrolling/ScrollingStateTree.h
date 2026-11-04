@@ -58,7 +58,7 @@ public:
     ScrollingNodeID createUnparentedNode(ScrollingNodeType, ScrollingNodeID);
     WEBCORE_EXPORT std::optional<ScrollingNodeID> insertNode(ScrollingNodeType, ScrollingNodeID, std::optional<ScrollingNodeID> parentID, size_t childIndex);
     void unparentNode(std::optional<ScrollingNodeID>);
-    void unparentChildrenAndDestroyNode(std::optional<ScrollingNodeID>);
+    WEBCORE_EXPORT void unparentChildrenAndDestroyNode(std::optional<ScrollingNodeID>);
     void detachAndDestroySubtree(std::optional<ScrollingNodeID>);
     void clear();
 
