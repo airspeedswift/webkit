@@ -27,7 +27,7 @@
 
 // This file is a no-op unless we have a feature where C++ calls into Swift
 // or uses Swift data types.
-#if ENABLE(IPC_TESTING_SWIFT) || ENABLE(BACK_FORWARD_LIST_SWIFT) || ENABLE(PHONE_NUMBER_POSSESSION)
+#if ENABLE(IPC_TESTING_SWIFT) || ENABLE(BACK_FORWARD_LIST_SWIFT) || ENABLE(PHONE_NUMBER_POSSESSION) || USE(SWIFT_SCROLLING_TREE)
 
 #ifdef __swift__
 #warning "You're including WebKit-Swift.h from a C++ header file - don't do that. This may cause circular Swift<->C++ dependencies and build problems."
@@ -60,6 +60,19 @@
 #include "PhoneNumberPossessionTypes.h"
 #endif
 
+#if USE(SWIFT_SCROLLING_TREE)
+#include "EventDispatcher.h"
+#include "RemoteScrollingCoordinator.h"
+#include "RemoteScrollingCoordinatorProxy.h"
+#include "RemoteScrollingTree.h"
+#include <WebCore/ScrollingTreeNode.h>
+#if PLATFORM(MAC)
+#include "RemoteLayerTreeEventDispatcher.h"
+#include "RemoteScrollingCoordinatorProxyMac.h"
+#include "RemoteScrollingTreeMac.h"
+#endif
+#endif
+
 #ifdef __OBJC__
 #include "WKHistoryDelegatePrivate.h"
 #include "WKSeparatedImageView.h"
@@ -86,4 +99,4 @@ IGNORE_CLANG_WARNINGS_END
 IGNORE_CLANG_WARNINGS_END
 IGNORE_CLANG_WARNINGS_END
 
-#endif // ENABLE(IPC_TESTING_SWIFT) || ENABLE(BACK_FORWARD_LIST_SWIFT) || ENABLE(PHONE_NUMBER_POSSESSION)
+#endif // ENABLE(IPC_TESTING_SWIFT) || ENABLE(BACK_FORWARD_LIST_SWIFT) || ENABLE(PHONE_NUMBER_POSSESSION) || USE(SWIFT_SCROLLING_TREE)
