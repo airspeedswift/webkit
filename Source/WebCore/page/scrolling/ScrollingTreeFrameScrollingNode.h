@@ -42,7 +42,7 @@ class WEBCORE_EXPORT ScrollingTreeFrameScrollingNode : public ScrollingTreeScrol
 public:
     virtual ~ScrollingTreeFrameScrollingNode();
 
-    bool commitStateBeforeChildren(const ScrollingStateNode&) override;
+    SWIFT_UNSAFE bool commitStateBeforeChildren(const ScrollingStateNode&) override;
     
     bool visualViewportIsSmallerThanLayoutViewport() const { return m_visualViewportIsSmallerThanLayoutViewport; }
 
@@ -66,7 +66,7 @@ public:
 
     // Repositions the scrolling layers after a delegated scale change, without the related-layer work
     // wasScrolledByDelegatedScrolling() has already done.
-    void repositionScrollingLayersForDelegatedScaleChange() WTF_REQUIRES_LOCK(scrollingTree()->treeLock());
+    SWIFT_UNSAFE void repositionScrollingLayersForDelegatedScaleChange() WTF_REQUIRES_LOCK(scrollingTree()->treeLock());
     int headerHeight() const { return m_headerHeight; }
     int footerHeight() const { return m_footerHeight; }
     FloatBoxExtent obscuredContentInsets() const { return m_obscuredContentInsets; }

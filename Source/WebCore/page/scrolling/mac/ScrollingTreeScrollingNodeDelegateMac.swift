@@ -30,6 +30,9 @@
 //
 // The delegate is used on one thread at a time, under the scrolling tree's lock.
 
+// ENABLE(SCROLLING_THREAD) and PLATFORM(MAC), as the C++ this replaces; the scrolling thread is the Mac's only.
+#if os(macOS)
+
 internal import WebCore_Private.Core.KeyboardScroll
 internal import WebCore_Private.Core.PlatformWheelEvent
 internal import WebCore_Private.Core.RubberbandingState
@@ -455,7 +458,8 @@ extension WebCore.ScrollingTreeScrollPhysicsClient: ScrollPhysicsClientProtocol 
     }
 
     mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping) {
-        node().scrollBy(delta, clamping)
+        // The node's scrolling thread calls this with the scrolling tree's lock held.
+        unsafe node().scrollBy(delta, clamping)
     }
 
     mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping, _ controller: ScrollPhysicsController) {
@@ -713,3 +717,5 @@ private func intSizeComponent(_ value: Float) -> Int32 {
     }
     return Int32(value)
 }
+
+#endif // os(macOS)

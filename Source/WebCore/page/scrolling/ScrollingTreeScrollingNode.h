@@ -69,12 +69,12 @@ class WEBCORE_EXPORT ScrollingTreeScrollingNode : public ScrollingTreeNode {
 public:
     virtual ~ScrollingTreeScrollingNode();
 
-    bool commitStateBeforeChildren(const ScrollingStateNode&) override;
-    bool commitStateAfterChildren(const ScrollingStateNode&) override;
-    NODELETE void didCompleteCommitForNode() final;
+    SWIFT_UNSAFE bool commitStateBeforeChildren(const ScrollingStateNode&) override;
+    SWIFT_UNSAFE bool commitStateAfterChildren(const ScrollingStateNode&) override;
+    NODELETE SWIFT_UNSAFE void didCompleteCommitForNode() final;
 
     virtual bool canHandleWheelEvent(const PlatformWheelEvent&, EventTargeting) const;
-    virtual WheelEventHandlingResult handleWheelEvent(const PlatformWheelEvent&, EventTargeting = EventTargeting::Propagate);
+    SWIFT_UNSAFE virtual WheelEventHandlingResult handleWheelEvent(const PlatformWheelEvent&, EventTargeting = EventTargeting::Propagate);
     virtual void handleWheelEventPhase(const PlatformWheelEventPhase) { }
     
     FloatPoint currentScrollPosition() const { return m_currentScrollPosition; }
@@ -99,22 +99,22 @@ public:
     bool restoredRubberbandingInProgress() const { return m_restoredRubberbandingInProgress; }
 #endif
 
-    virtual bool startAnimatedScrollToPosition(FloatPoint, ScrollAnimationCurve);
-    virtual void stopAnimatedScroll(EnumSet<AnimatedScrollType>);
-    void stopSpringAnimation();
+    SWIFT_UNSAFE virtual bool startAnimatedScrollToPosition(FloatPoint, ScrollAnimationCurve);
+    SWIFT_UNSAFE virtual void stopAnimatedScroll(EnumSet<AnimatedScrollType>);
+    SWIFT_UNSAFE void stopSpringAnimation();
 
-    virtual void serviceScrollAnimation(MonotonicTime);
+    SWIFT_UNSAFE virtual void serviceScrollAnimation(MonotonicTime);
 
     // These are imperative; they adjust the scrolling layers.
-    void scrollTo(const FloatPoint&, ScrollType = ScrollType::User, ScrollClamping = ScrollClamping::Clamped);
-    void scrollBy(const FloatSize&, ScrollClamping = ScrollClamping::Clamped);
+    SWIFT_UNSAFE void scrollTo(const FloatPoint&, ScrollType = ScrollType::User, ScrollClamping = ScrollClamping::Clamped);
+    SWIFT_UNSAFE void scrollBy(const FloatSize&, ScrollClamping = ScrollClamping::Clamped);
 
-    void handleScrollPositionRequests(const ScrollRequestData&);
+    SWIFT_UNSAFE void handleScrollPositionRequests(const ScrollRequestData&);
 
     void handleKeyboardScrollRequest(const RequestedKeyboardScrollData&);
-    void requestKeyboardScroll(const RequestedKeyboardScrollData&);
+    SWIFT_UNSAFE void requestKeyboardScroll(const RequestedKeyboardScrollData&);
 
-    void wasScrolledByDelegatedScrolling(const FloatPoint& position, std::optional<FloatRect> overrideLayoutViewport = { }, ScrollingLayerPositionAction = ScrollingLayerPositionAction::Sync);
+    SWIFT_UNSAFE void wasScrolledByDelegatedScrolling(const FloatPoint& position, std::optional<FloatRect> overrideLayoutViewport = { }, ScrollingLayerPositionAction = ScrollingLayerPositionAction::Sync);
     
 #if ENABLE(SCROLLING_THREAD)
     OptionSet<SynchronousScrollingReason> synchronousScrollingReasons() const { return m_synchronousScrollingReasons; }

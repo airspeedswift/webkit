@@ -216,6 +216,7 @@ private:
 
 #if ENABLE(SCROLLING_THREAD)
 class LayerTreeHitTestLocker {
+    WTF_MAKE_NONCOPYABLE(LayerTreeHitTestLocker);
 public:
     LayerTreeHitTestLocker(ScrollingCoordinator* scrollingCoordinator)
     {

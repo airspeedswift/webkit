@@ -57,7 +57,7 @@ public:
     NODELETE WEBCORE_EXPORT void willSendEventToMainThread(const PlatformWheelEvent&);
     WEBCORE_EXPORT void waitForEventToBeProcessedByMainThread(const PlatformWheelEvent&);
 
-    void invalidate() override;
+    SWIFT_UNSAFE void invalidate() override;
 
     void displayDidRefresh(PlatformDisplayID) override;
 
@@ -68,7 +68,7 @@ public:
     Lock& treeLock() LIFETIME_BOUND WTF_RETURNS_LOCK(m_treeLock) { return m_treeLock; }
 
     bool scrollAnimatorEnabled() const { return m_scrollAnimatorEnabled; }
-    void removePendingScrollAnimationForNode(ScrollingNodeID) WTF_REQUIRES_LOCK(m_treeLock) final;
+    SWIFT_UNSAFE void removePendingScrollAnimationForNode(ScrollingNodeID) WTF_REQUIRES_LOCK(m_treeLock) final;
 
 #if ENABLE(COORDINATED_TOUCH_EVENTS)
     virtual TrackingType eventTrackingTypeForTouchEvent(const PlatformTouchEvent&) { return TrackingType::NotTracking; }
@@ -84,8 +84,8 @@ protected:
     void scrollingTreeNodeDidStopWheelEventScroll(ScrollingTreeScrollingNode&) override;
     void didHandleScrollRequestForNode(ScrollingNodeID, ScrollRequestType, FloatPoint, ShouldFireScrollEnd, Markable<ScrollRequestIdentifier>) override;
 
-    RequestsScrollHandling scrollingTreeNodeRequestsScroll(ScrollingNodeID, const RequestedScrollData&) override WTF_REQUIRES_LOCK(m_treeLock);
-    bool scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeID, const RequestedKeyboardScrollData&) override WTF_REQUIRES_LOCK(m_treeLock);
+    SWIFT_UNSAFE RequestsScrollHandling scrollingTreeNodeRequestsScroll(ScrollingNodeID, const RequestedScrollData&) override WTF_REQUIRES_LOCK(m_treeLock);
+    SWIFT_UNSAFE bool scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeID, const RequestedKeyboardScrollData&) override WTF_REQUIRES_LOCK(m_treeLock);
 
     void addPendingScrollUpdateWithDeferReason(ScrollUpdate&&, WheelEventTestMonitor::DeferReason);
 
@@ -124,14 +124,14 @@ private:
 
     void hasNodeWithAnimatedScrollChanged(bool) override;
 
-    NODELETE bool isScrollingSynchronizedWithMainThread() final WTF_REQUIRES_LOCK(m_treeLock);
+    NODELETE SWIFT_UNSAFE bool isScrollingSynchronizedWithMainThread() final WTF_REQUIRES_LOCK(m_treeLock);
 
     void receivedWheelEventWithPhases(PlatformWheelEventPhase, PlatformWheelEventPhase) final;
     void deferWheelEventTestCompletionForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) final;
     void removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) final;
 
-    void lockLayersForHitTesting() final WTF_ACQUIRES_LOCK(m_layerHitTestMutex);
-    void unlockLayersForHitTesting() final WTF_RELEASES_LOCK(m_layerHitTestMutex);
+    SWIFT_UNSAFE void lockLayersForHitTesting() final WTF_ACQUIRES_LOCK(m_layerHitTestMutex);
+    SWIFT_UNSAFE void unlockLayersForHitTesting() final WTF_RELEASES_LOCK(m_layerHitTestMutex);
 
     void scrollingTreeNodeScrollUpdated(ScrollingTreeScrollingNode&, ScrollUpdateType);
 

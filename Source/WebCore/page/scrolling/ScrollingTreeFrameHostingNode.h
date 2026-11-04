@@ -42,13 +42,13 @@ public:
     virtual ~ScrollingTreeFrameHostingNode();
 
     std::optional<LayerHostingContextIdentifier> layerHostingContextIdentifier() const { return m_hostingContext; }
-    void setLayerHostingContextIdentifier(std::optional<LayerHostingContextIdentifier>);
+    SWIFT_UNSAFE void setLayerHostingContextIdentifier(std::optional<LayerHostingContextIdentifier>);
     bool isRootOfHostedSubtree() const final { return (bool)m_hostingContext; }
 
-    void willBeDestroyed() override;
-    void addHostedChild(Ref<ScrollingTreeNode>&& node) { m_hostedChildren.add(WTF::move(node)); }
-    void removeHostedChildren();
-    void removeHostedChild(ScrollingTreeNode&);
+    SWIFT_UNSAFE void willBeDestroyed() override;
+    SWIFT_UNSAFE void addHostedChild(Ref<ScrollingTreeNode>&& node) { m_hostedChildren.add(WTF::move(node)); }
+    SWIFT_UNSAFE void removeHostedChildren();
+    SWIFT_UNSAFE void removeHostedChild(ScrollingTreeNode&);
 
 private:
     ScrollingTreeFrameHostingNode(ScrollingTree&, ScrollingNodeID);
