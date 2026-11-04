@@ -26,12 +26,13 @@
 #define EqualPowerPanner_h
 
 #include "Panner.h"
+#include <WebCore/PlatformExportMacros.h>
 
 namespace WebCore {
 
 // Common type of stereo panner as found in normal audio mixing equipment.
 
-class EqualPowerPanner final : public Panner {
+class WEBCORE_EXPORT EqualPowerPanner final : public Panner {
 public:
     EqualPowerPanner();
 
