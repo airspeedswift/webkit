@@ -1122,6 +1122,21 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/values/easing/CSSSpringEasingFunction.h
     css/values/easing/CSSStepsEasingFunction.h
 
+    css/values/filter-effects/CSSAppleColorFilter.h
+    css/values/filter-effects/CSSAppleInvertLightnessFunction.h
+    css/values/filter-effects/CSSBlurFunction.h
+    css/values/filter-effects/CSSBrightnessFunction.h
+    css/values/filter-effects/CSSContrastFunction.h
+    css/values/filter-effects/CSSDropShadowFunction.h
+    css/values/filter-effects/CSSFilter.h
+    css/values/filter-effects/CSSFilterReference.h
+    css/values/filter-effects/CSSGrayscaleFunction.h
+    css/values/filter-effects/CSSHueRotateFunction.h
+    css/values/filter-effects/CSSInvertFunction.h
+    css/values/filter-effects/CSSOpacityFunction.h
+    css/values/filter-effects/CSSSaturateFunction.h
+    css/values/filter-effects/CSSSepiaFunction.h
+
     css/values/flexbox/CSSFlexWrap.h
 
     css/values/grid/CSSGridAutoFlow.h
