@@ -30,6 +30,7 @@
 #define Biquad_h
 
 #include "AudioArray.h"
+#include <WebCore/PlatformExportMacros.h>
 #include <complex>
 #include <sys/types.h>
 #include <wtf/TZoneMalloc.h>
@@ -41,7 +42,7 @@ namespace WebCore {
 // It can be configured to a number of common and very useful filters:
 //    lowpass, highpass, shelving, parameteric, notch, allpass, ...
 
-class Biquad final {
+class WEBCORE_EXPORT Biquad final {
     WTF_MAKE_TZONE_ALLOCATED(Biquad);
 public:   
     Biquad();

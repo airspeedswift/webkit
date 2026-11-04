@@ -355,7 +355,7 @@ TEST(AudioDSPBench, DynamicsCompress)
             auto dst = AudioBus::create(2, kQuantum);
             memcpy(src->channel(0)->mutableData(), noiseL.data() + q * kQuantum, kQuantum * sizeof(float));
             memcpy(src->channel(1)->mutableData(), noiseR.data() + q * kQuantum, kQuantum * sizeof(float));
-            dc.process(*src, *dst, kQuantum);
+            dc.process(src.get(), dst.get(), kQuantum);
             crc.feedFloats(std::span<const float>(dst->channel(0)->data(), kQuantum));
             crc.feedFloats(std::span<const float>(dst->channel(1)->data(), kQuantum));
         }
@@ -491,7 +491,7 @@ TEST(AudioDSPBench, StereoPan)
             auto src = AudioBus::create(1, kQuantum);
             auto dst = AudioBus::create(2, kQuantum);
             memcpy(src->channel(0)->mutableData(), noise.data() + q * kQuantum, kQuantum * sizeof(float));
-            StereoPanner::panToTargetValue(*src, *dst, kPanVal, kQuantum);
+            StereoPanner::panToTargetValue(src.get(), dst.get(), kPanVal, kQuantum);
             crc.feedFloats(std::span<const float>(dst->channel(0)->data(), kQuantum));
             crc.feedFloats(std::span<const float>(dst->channel(1)->data(), kQuantum));
         }
