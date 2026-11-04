@@ -82,6 +82,7 @@
 #include "CSSNamedImageValue.h"
 #include "CSSPaintImageValue.h"
 #include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
 #include "CSSPropertyParserConsumer+Background.h"
 #include "CSSPropertyParserConsumer+Filter.h"
 #include "CSSPropertyParserConsumer+Masking.h"
@@ -219,11 +220,6 @@ static_assert(CSS::Number<>::range == CSS::All && CSS::Percentage<>::range == CS
 // one, and CSS::Length<>'s range for box shadow offsets and spread.
 static_assert(CSS::All == CSS::Range { -CSS::Range::infinity, CSS::Range::infinity } && CSS::Nonnegative == CSS::Range { 0, CSS::Range::infinity } && CSS::Length<>::range == CSS::All);
 
-static CSS::PropertyParserState& propertyParserState(const CSSPropertyConsumerSwiftValue& value)
-{
-    return static_cast<const CSSPropertyConsumerSwiftValueState&>(value).propertyParserState;
-}
-
 uint8_t colorKeywordForSwift(const CSSPropertyConsumerSwiftValue& value, uint16_t id, uint8_t allowedColorTypes)
 {
     auto keyword = static_cast<CSSValueID>(id);
@@ -241,77 +237,6 @@ uint8_t colorContextForSwift(const CSSPropertyConsumerSwiftValue& value)
         | (context.cssDynamicRangeLimitMixEnabled ? CSSColorSwiftDynamicRangeLimitMixEnabled : 0)
         | (context.cssConstrainedDynamicRangeLimitEnabled ? CSSColorSwiftConstrainedDynamicRangeLimitEnabled : 0)
         | (context.cssAxisRelativePositionKeywordsEnabled ? CSSColorSwiftAxisRelativePositionKeywordsEnabled : 0);
-}
-
-template<typename> inline constexpr bool isColorSwiftVariant = false;
-template<typename... Ts> inline constexpr bool isColorSwiftVariant<Variant<Ts...>> = true;
-template<typename Result, typename... Ts> static Result makeColorSwiftComponent(const CSSColorSwiftComponents::Component&, brigand::list<Ts...>);
-
-// A channel's alternative of the descriptor's component Variant (or single type) Result, whose types are Ts.
-template<typename T> static bool isColorSwiftComponent(const CSSColorSwiftComponents::Component& component)
-{
-    if constexpr (isColorSwiftVariant<T>)
-        return []<typename... Ts>(const CSSColorSwiftComponents::Component& component, brigand::list<Ts...>) { return (isColorSwiftComponent<Ts>(component) || ...); }(component, brigand::as_list<T> { });
-    else if constexpr (std::same_as<T, CSS::Symbol>)
-        return component.type == CSSColorSwiftChannelNone && component.symbol;
-    else if constexpr (std::same_as<T, CSS::Keyword::None>)
-        return component.type == CSSColorSwiftChannelNone && !component.symbol;
-    else if constexpr (CSS::SpecificKeyword<T>)
-        return component.type == CSSColorSwiftChannelNone && component.symbol == std::to_underlying(T::value);
-    else if constexpr (requires { T::category; })
-        return component.type == colorSwiftChannelType<T>();
-    else
-        return false;
-}
-
-template<typename T> static T makeColorSwiftComponent(const CSSColorSwiftComponents::Component& component)
-{
-    if constexpr (isColorSwiftVariant<T>)
-        return makeColorSwiftComponent<T>(component, brigand::as_list<T> { });
-    else if constexpr (std::same_as<T, CSS::Symbol>)
-        return T { CSS::SymbolRaw { static_cast<CSSValueID>(component.symbol) } };
-    else if constexpr (CSS::SpecificKeyword<T>)
-        return T { };
-    else {
-        if (component.calc)
-            return T { typename T::Calc { *component.calc } };
-        if constexpr (T::category == CSS::Category::Angle || T::category == CSS::Category::AnglePercentage || T::category == CSS::Category::Resolution) {
-            auto unit = CSS::UnitTraits<typename T::Raw::UnitType>::validate(static_cast<CSSUnitType>(component.unit));
-            RELEASE_ASSERT(unit);
-            return T { typename T::Raw { *unit, component.value } };
-        } else if constexpr (T::category == CSS::Category::LengthPercentage || T::category == CSS::Category::Length) {
-            RELEASE_ASSERT(component.unit < T::Raw::UnitTraits::count);
-            return T { typename T::Raw { static_cast<typename T::Raw::UnitType>(component.unit), component.value } };
-        } else if constexpr (T::category == CSS::Category::Percentage)
-            return T { typename T::Raw { CSS::PercentageUnit::Percentage, component.value } };
-        else
-            return T { typename T::Raw { CSS::NumberUnit::Number, component.value } };
-    }
-}
-
-// The first of Ts that matches the component, as a Result. Types that are not one component, such as a pair of
-// lengths in a Variant, never match.
-template<typename Result, typename T, typename... Ts> static Result makeFirstColorSwiftComponent(const CSSColorSwiftComponents::Component& component)
-{
-    if constexpr (isColorSwiftVariant<T> || std::same_as<T, CSS::Symbol> || CSS::SpecificKeyword<T> || requires { T::category; }) {
-        if (isColorSwiftComponent<T>(component))
-            return Result(makeColorSwiftComponent<T>(component));
-    }
-    if constexpr (sizeof...(Ts))
-        return makeFirstColorSwiftComponent<Result, Ts...>(component);
-    else
-        RELEASE_ASSERT_NOT_REACHED();
-}
-
-template<typename Result, typename... Ts> static Result makeColorSwiftComponent(const CSSColorSwiftComponents::Component& component, brigand::list<Ts...>)
-{
-    return makeFirstColorSwiftComponent<Result, Ts...>(component);
-}
-
-// The T of a component, or none if it is absent.
-template<typename T> static std::optional<T> optionalSwiftComponent(const CSSColorSwiftComponents::Component& component)
-{
-    return component.type ? std::optional { makeColorSwiftComponent<T>(component) } : std::nullopt;
 }
 
 template<typename Descriptor, unsigned Index> static auto makeAbsoluteColorSwiftComponent(const CSSColorSwiftComponents& components)
@@ -509,13 +434,6 @@ static_assert(CSS::GradientLinearColorStopPosition::value_type::range == CSS::Ra
 static_assert(CSS::RadialGradient::Ellipse::Size::value_type::range == CSS::Nonnegative && CSS::RadialGradient::Circle::Length::range == CSS::Nonnegative && CSS::Number<CSS::Nonnegative>::range == CSS::Nonnegative && CSS::Resolution<>::range == CSS::Nonnegative && CSS::AnglePercentage<>::range == CSS::All);
 static_assert(CSS::WebkitCrossfade::Progress::Number::range == CSS::Range { 0, 1, CSS::RangeParseTimeBehavior::Clamp, CSS::RangeParseTimeBehavior::Clamp } && CSS::WebkitCrossfade::Progress::Percentage::range == CSS::Range { 0, 100, CSS::RangeParseTimeBehavior::Clamp, CSS::RangeParseTimeBehavior::Clamp } && CSS::Crossfade::Component::Percentage::range == CSS::Range { 0, 100 });
 static_assert(CSSPropertyParserHelpers::CSSColorParsingOptions { }.allowedColorTypes.toRaw() == 7);
-
-static CSSParserTokenRange swiftTokenRange(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end)
-{
-    auto tokens = static_cast<const CSSPropertyConsumerSwiftValueState&>(value).tokens;
-    RELEASE_ASSERT(start <= end && end <= tokens.size());
-    return CSSParserTokenRange { tokens.subspan(start, end - start) };
-}
 
 uint32_t consumeColorInterpolationMethodForSwift(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end, CSS::ColorInterpolationMethod& method)
 {
