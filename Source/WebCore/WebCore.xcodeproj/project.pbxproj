@@ -67,6 +67,16 @@
 		7062FCE22554E977B1F0B135 /* HTMLImageDensityCorrectedSizing.h in Headers */ = {isa = PBXBuildFile; fileRef = 73AFE9029ADA26681AC9083A /* HTMLImageDensityCorrectedSizing.h */; };
 		9178B94013138BFA254F89DD /* WorkerInternals.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6327BA18D22FB8A4195DCD14 /* WorkerInternals.cpp */; };
 		9DAE6B91E7F40B76A6883FF1 /* JSRequestedGPU.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 3CFE80DDA749005FD4E3712C /* JSRequestedGPU.cpp */; };
+		BCB955DE2C6BBEF5006D6C7F /* CSSPropertyParserConsumer+Font.h in Headers */ = {isa = PBXBuildFile; fileRef = BCB955DC2C6BBEF5006D6C7F /* CSSPropertyParserConsumer+Font.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		97AB7406F40C489C0955F519 /* CSSCubicBezierEasingFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BCD2C6E92D0F42FB00F77591 /* CSSCubicBezierEasingFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		88A4878FFE4DA4429B99CDDD /* CSSEasingFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BCD2C6EC2D0F4A0100F77591 /* CSSEasingFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		9AABB2F5436CC232ED29BFA4 /* CSSLinearEasingFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BCD2C6E72D0F403700F77591 /* CSSLinearEasingFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		633FFB2E46FB1E99A4C250E5 /* CSSPropertyParserConsumer+Animations.h in Headers */ = {isa = PBXBuildFile; fileRef = BCE411CF2CF258D700731E47 /* CSSPropertyParserConsumer+Animations.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		1CD864F9B10221752CBB59BC /* CSSPropertyParserConsumer+Easing.h in Headers */ = {isa = PBXBuildFile; fileRef = BC6EF49B2C813A77000E007D /* CSSPropertyParserConsumer+Easing.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		546E21CCE83057B3FC005A5A /* CSSSpringEasingFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BCD2C6EB2D0F480D00F77591 /* CSSSpringEasingFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		86E4735E97BB1E77EE1249EF /* CSSStepsEasingFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BCD2C6EA2D0F43F600F77591 /* CSSStepsEasingFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		C55DD36D2CBB16A5007831A7 /* CSSPropertyParserConsumer+Filter.h in Headers */ = {isa = PBXBuildFile; fileRef = BC95FC0C2C838E9C00051FAE /* CSSPropertyParserConsumer+Filter.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		88BB1C013C20C65F384E2112 /* CSSPropertyParserConsumer+LinkParameters.h in Headers */ = {isa = PBXBuildFile; fileRef = 7AB1C0332FD20004008AF649 /* CSSPropertyParserConsumer+LinkParameters.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		D93A5C8E2B10F46A7C05E8D3 /* ReplacedElementIntrinsicSizing.h in Headers */ = {isa = PBXBuildFile; fileRef = E4B7A2C10F63D5948A1E2B70 /* ReplacedElementIntrinsicSizing.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		E6C3442408974A03886A869E /* ImmersiveElement.h in Headers */ = {isa = PBXBuildFile; fileRef = C5C1BDC22A5707719EFC9564 /* ImmersiveElement.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		F3D7B2EBBB8E3FDE13BA0023 /* ReplacedElementSizing.h in Headers */ = {isa = PBXBuildFile; fileRef = E48A470E5FA9F189AC831CF5 /* ReplacedElementSizing.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -45239,6 +45249,7 @@
 				4CBE86982955BAA500832AAA /* CSSCounterStyleRegistry.h in Headers */,
 				98F9D66925FDE02200BD842D /* CSSCounterStyleRule.h in Headers */,
 				2D8FEBDD143E3EF70072502B /* CSSCrossfadeValue.h in Headers */,
+				97AB7406F40C489C0955F519 /* CSSCubicBezierEasingFunction.h in Headers */,
 				AA21ECCD0ABF0FC6002B834C /* CSSCursorImageValue.h in Headers */,
 				3084F8492F643F2600EC9C6E /* CSSCustomIdent.h in Headers */,
 				46531BB52D616D7A008D8EFC /* CSSCustomPropertySyntax.h in Headers */,
@@ -45247,6 +45258,7 @@
 				BCC7443B85B7CD8A54ECB7C2 /* CSSDynamicRangeLimit.h in Headers */,
 				BC000C9150EC30DD35EE111D /* CSSDynamicRangeLimitMix.h in Headers */,
 				BC5C89BB2D567D06000F45B7 /* CSSDynamicRangeLimitValue.h in Headers */,
+				88A4878FFE4DA4429B99CDDD /* CSSEasingFunction.h in Headers */,
 				BCB2721B2CC1F21B00265123 /* CSSEllipseFunction.h in Headers */,
 				BCB272162CC1F21B00265123 /* CSSFillRule.h in Headers */,
 				FBB0C5B817BBD629003D3677 /* CSSFilterImageValue.h in Headers */,
@@ -45301,6 +45313,7 @@
 				E4FFCEBB2760AC0100A68B03 /* CSSLayerStatementRule.h in Headers */,
 				BCFF16D8417661870AF22696 /* CSSLightDarkColor.h in Headers */,
 				4958FE612FCABBA4008AF649 /* CSSLightDarkImageValue.h in Headers */,
+				9AABB2F5436CC232ED29BFA4 /* CSSLinearEasingFunction.h in Headers */,
 				7AB1C0422FD30003008AF649 /* CSSLinkParameter.h in Headers */,
 				946D374A1D6D06280077084F /* CSSMarkup.h in Headers */,
 				BC4C218D253C411906E4FEC3 /* CSSMaskBorder.h in Headers */,
@@ -45376,8 +45389,13 @@
 				BC3BEDBC2DD56E38004E87D7 /* CSSPropertyInitialValues.h in Headers */,
 				656580F409D12B20000E61D7 /* CSSPropertyNames.h in Headers */,
 				46531BB42D616BCE008D8EFC /* CSSPropertyParser.h in Headers */,
+				633FFB2E46FB1E99A4C250E5 /* CSSPropertyParserConsumer+Animations.h in Headers */,
 				BC26505E2D9315E10027337D /* CSSPropertyParserConsumer+Color.h in Headers */,
+				1CD864F9B10221752CBB59BC /* CSSPropertyParserConsumer+Easing.h in Headers */,
+				C55DD36D2CBB16A5007831A7 /* CSSPropertyParserConsumer+Filter.h in Headers */,
+				BCB955DE2C6BBEF5006D6C7F /* CSSPropertyParserConsumer+Font.h in Headers */,
 				BC43DC7F0CE1644B5CBD1443 /* CSSPropertyParserConsumer+Image.h in Headers */,
+				88BB1C013C20C65F384E2112 /* CSSPropertyParserConsumer+LinkParameters.h in Headers */,
 				62641BBD2F3C5E5D006EA1D3 /* CSSPropertyParserConsumer+Overflow.h in Headers */,
 				E462E5A52D1164690058FD21 /* CSSPropertyParserConsumer+PositionTry.h in Headers */,
 				BC3BEDB92DD5507E004E87D7 /* CSSPropertyParserResult.h in Headers */,
@@ -45408,7 +45426,9 @@
 				2A538A2A26F0104200965FC8 /* CSSSkew.h in Headers */,
 				2A538A2B26F0104500965FC8 /* CSSSkewX.h in Headers */,
 				2A538A2C26F0104800965FC8 /* CSSSkewY.h in Headers */,
+				546E21CCE83057B3FC005A5A /* CSSSpringEasingFunction.h in Headers */,
 				E4E364742B67DF0000734648 /* CSSStartingStyleRule.h in Headers */,
+				86E4735E97BB1E77EE1249EF /* CSSStepsEasingFunction.h in Headers */,
 				BC66AF682F7E151300345E91 /* CSSString.h in Headers */,
 				A80E6E0F0A19911C007FB8C5 /* CSSStyleDeclaration.h in Headers */,
 				4B438650219CD56100F8D3C5 /* CSSStyleImageValue.h in Headers */,
