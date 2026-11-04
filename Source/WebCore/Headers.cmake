@@ -981,6 +981,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSFontFaceRule.h
     css/CSSFontPaletteValuesRule.h
     css/CSSFunctionValue.h
+    css/CSSGridAutoFlowValue.h
     css/CSSGridTemplateListValue.h
     css/CSSGroupingRule.h
     css/CSSImportRule.h
