@@ -1059,8 +1059,13 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/parser/CSSPropertyConsumerSwiftBuilders.h
     css/parser/CSSPropertyConsumerSwiftTypes.h
     css/parser/CSSPropertyParser.h
+    css/parser/CSSPropertyParserConsumer+Animations.h
     css/parser/CSSPropertyParserConsumer+Color.h
+    css/parser/CSSPropertyParserConsumer+Easing.h
+    css/parser/CSSPropertyParserConsumer+Filter.h
+    css/parser/CSSPropertyParserConsumer+Font.h
     css/parser/CSSPropertyParserConsumer+Image.h
+    css/parser/CSSPropertyParserConsumer+LinkParameters.h
     css/parser/CSSPropertyParserState.h
     css/parser/CSSSelectorParserContext.h
     css/parser/CSSTokenizer.h
@@ -1110,6 +1115,12 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/values/color/CSSResolvedColor.h
 
     css/values/counter-styles/CSSCounterStyle.h
+
+    css/values/easing/CSSCubicBezierEasingFunction.h
+    css/values/easing/CSSEasingFunction.h
+    css/values/easing/CSSLinearEasingFunction.h
+    css/values/easing/CSSSpringEasingFunction.h
+    css/values/easing/CSSStepsEasingFunction.h
 
     css/values/flexbox/CSSFlexWrap.h
 
