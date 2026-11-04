@@ -60,8 +60,8 @@ enum class Category : uint8_t;
 
 // Type-erased helpers to allow for shared code.
 
-NODELETE void unevaluatedCalcRef(CSSCalc::Value*);
-void unevaluatedCalcDeref(CSSCalc::Value*);
+NODELETE WEBCORE_EXPORT void unevaluatedCalcRef(CSSCalc::Value*);
+WEBCORE_EXPORT void unevaluatedCalcDeref(CSSCalc::Value*);
 
 // `UnevaluatedCalc` annotates a `CSSCalc::Value` with the raw value type that it
 // will be evaluated to, allowing the processing of calc in generic code.
