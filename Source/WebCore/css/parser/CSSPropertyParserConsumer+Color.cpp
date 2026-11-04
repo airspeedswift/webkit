@@ -385,31 +385,6 @@ CSS::DynamicRangeLimit makeDynamicRangeLimitMix(CSSDynamicRangeLimitSwiftMix&& m
     };
 }
 
-// A position's axis T: its keyword or offset is the component at bits 0-3 of `layout`, its length at bits 4-7.
-template<typename T> static T makePositionSwiftAxis(const CSSColorSwiftComponents& components, uint16_t layout)
-{
-    using Offset = decltype(T::offset);
-    if constexpr (requires { typename Offset::Tuple; }) {
-        using Keyword = std::tuple_element_t<0, typename Offset::Tuple>;
-        return T { { makeColorSwiftComponent<Keyword>(components.at(layout & 0xf), brigand::as_list<Keyword> { }), makeColorSwiftComponent<CSS::LengthPercentage<>>(components.at((layout >> 4) & 0xf)) } };
-    } else
-        return T { makeColorSwiftComponent<Offset>(components.at(layout & 0xf), brigand::as_list<Offset> { }) };
-}
-
-// The position whose parts are in `components` at `layout`, as setPositionResult describes it.
-static CSS::Position makePositionSwift(const CSSColorSwiftComponents& components, uint16_t layout)
-{
-    bool horizontalLength = (layout & 0xf0) != 0xf0;
-    bool verticalLength = (layout & 0xf000) != 0xf000;
-    if (horizontalLength && verticalLength)
-        return CSS::Position { CSS::FourComponentPositionHorizontalVertical { makePositionSwiftAxis<CSS::FourComponentPositionHorizontal>(components, layout), makePositionSwiftAxis<CSS::FourComponentPositionVertical>(components, layout >> 8) } };
-    if (horizontalLength)
-        return CSS::Position { CSS::ThreeComponentPositionHorizontalVerticalLengthFirst { makePositionSwiftAxis<CSS::FourComponentPositionHorizontal>(components, layout), makePositionSwiftAxis<CSS::ThreeComponentPositionVertical>(components, layout >> 8) } };
-    if (verticalLength)
-        return CSS::Position { CSS::ThreeComponentPositionHorizontalVerticalLengthSecond { makePositionSwiftAxis<CSS::ThreeComponentPositionHorizontal>(components, layout), makePositionSwiftAxis<CSS::FourComponentPositionVertical>(components, layout >> 8) } };
-    return CSS::Position { CSS::TwoComponentPositionHorizontalVertical { makePositionSwiftAxis<CSS::TwoComponentPositionHorizontal>(components, layout), makePositionSwiftAxis<CSS::TwoComponentPositionVertical>(components, layout >> 8) } };
-}
-
 void setPositionResult(const CSSPropertyConsumerSwiftValue& value, uint16_t consumer, const CSSColorSwiftComponents& components, uint16_t layout)
 {
     using Result = CSSPropertyConsumerSwiftUnresolvedResult;
@@ -675,15 +650,6 @@ Ref<CSSValue> makeImageSetOptionValue(const CSSPropertyConsumerSwiftValue& value
 // Swift's border, shadow and reflection consumers parse these primitives in these ranges.
 static_assert(CSS::BorderRadius::LengthPercentage::range == CSS::Nonnegative && CSS::BorderImageSlice::Value::Number::range == CSS::Nonnegative && CSS::BorderImageSlice::Value::Percentage::range == CSS::Nonnegative && CSS::BorderImageWidth::Value::Number::range == CSS::Nonnegative && CSS::BorderImageWidth::Value::LengthPercentage::range == CSS::Nonnegative && CSS::BorderImageOutset::Value::Number::range == CSS::Nonnegative && CSS::BorderImageOutset::Value::Length::range == CSS::Nonnegative);
 static_assert(CSS::WebkitBoxReflection::Offset::range == CSS::All);
-
-// The edges Edges of the components [offset, offset + 4) of `positions`, of the types Ts, completed from the present ones.
-template<typename Edges, typename Positions, typename... Ts> static Edges makeBorderSwiftEdges(const Positions& positions, size_t offset, brigand::list<Ts...> types)
-{
-    std::array<std::optional<typename Edges::value_type>, 4> values;
-    for (size_t i = 0; i < 4 && positions[offset + i].type; ++i)
-        values[i] = makeColorSwiftComponent<typename Edges::value_type>(positions[offset + i], types);
-    return CSSPropertyParserHelpers::completeQuadFromArray<Edges>(WTF::move(values));
-}
 
 uint32_t setBorderResult(const CSSPropertyConsumerSwiftValue& value, uint16_t consumer, CSSImageSwiftParts&& parts, uint32_t maskStart)
 {
