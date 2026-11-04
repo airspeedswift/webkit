@@ -42,11 +42,13 @@ namespace WebCore {
 class ScrollingStateFixedNode;
 class ScrollingTree;
 class ScrollingTreeFrameScrollingNode;
+class ScrollingTreeLockedAccess;
 class ScrollingTreeScrollingNode;
 
 class ScrollingTreeNode : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<ScrollingTreeNode> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(ScrollingTreeNode, WEBCORE_EXPORT);
     friend class ScrollingTree;
+    friend class ScrollingTreeLockedAccess;
 public:
     virtual ~ScrollingTreeNode();
 
@@ -106,7 +108,7 @@ public:
 protected:
     ScrollingTreeNode(ScrollingTree&, ScrollingNodeType, ScrollingNodeID);
 
-    virtual void applyLayerPositions() = 0;
+    SWIFT_UNSAFE virtual void applyLayerPositions() = 0;
 
     WEBCORE_EXPORT virtual void dumpProperties(WTF::TextStream&, OptionSet<ScrollingStateTreeAsTextBehavior>) const;
 

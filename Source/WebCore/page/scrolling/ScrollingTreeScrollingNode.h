@@ -94,7 +94,7 @@ public:
     void setScrollSnapInProgress(bool);
 
 #if HAVE(RUBBER_BANDING)
-    std::optional<RubberbandingState> captureRubberbandingState() const;
+    SWIFT_UNSAFE std::optional<RubberbandingState> captureRubberbandingState() const;
     void setRestoredRubberbandingInProgress(bool inProgress) { m_restoredRubberbandingInProgress = inProgress; }
     bool restoredRubberbandingInProgress() const { return m_restoredRubberbandingInProgress; }
 #endif
@@ -111,7 +111,7 @@ public:
 
     SWIFT_UNSAFE void handleScrollPositionRequests(const ScrollRequestData&);
 
-    void handleKeyboardScrollRequest(const RequestedKeyboardScrollData&);
+    SWIFT_UNSAFE void handleKeyboardScrollRequest(const RequestedKeyboardScrollData&);
     SWIFT_UNSAFE void requestKeyboardScroll(const RequestedKeyboardScrollData&);
 
     SWIFT_UNSAFE void wasScrolledByDelegatedScrolling(const FloatPoint& position, std::optional<FloatRect> overrideLayoutViewport = { }, ScrollingLayerPositionAction = ScrollingLayerPositionAction::Sync);

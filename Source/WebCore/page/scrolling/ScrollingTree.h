@@ -42,6 +42,7 @@
 #include <WebCore/ScrollingTreeGestureState.h>
 #include <WebCore/ScrollingTreeLatchingController.h>
 #include <WebCore/WheelEventTestMonitor.h>
+#include <wtf/ForbidHeapAllocation.h>
 #include <wtf/HashMap.h>
 #include <wtf/Lock.h>
 #include <wtf/MonotonicTime.h>
@@ -61,6 +62,7 @@ class ScrollingTreeOverflowScrollProxyNode;
 class ScrollingTreePositionedNode;
 class ScrollingTreeScrollingNode;
 class ScrollingTreeFrameHostingNode;
+class ScrollingTreeLockedAccess;
 enum class EventListenerRegionType : uint64_t;
 
 using FramesPerSecond = unsigned;
@@ -77,6 +79,7 @@ enum class RequestsScrollHandling : uint8_t {
 class ScrollingTree : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<ScrollingTree> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(ScrollingTree, WEBCORE_EXPORT);
     friend class ScrollingTreeLatchingController;
+    friend class ScrollingTreeLockedAccess;
 public:
     WEBCORE_EXPORT ScrollingTree();
     WEBCORE_EXPORT virtual ~ScrollingTree();
@@ -186,9 +189,9 @@ public:
     virtual void removeWheelEventTestCompletionDeferralForReason(ScrollingNodeID, WheelEventTestMonitor::DeferReason) { }
 
 #if PLATFORM(MAC)
-    virtual void handleWheelEventPhase(ScrollingNodeID, PlatformWheelEventPhase) = 0;
+    SWIFT_UNSAFE virtual void handleWheelEventPhase(ScrollingNodeID, PlatformWheelEventPhase) = 0;
 #else
-    void handleWheelEventPhase(ScrollingNodeID, PlatformWheelEventPhase) { }
+    SWIFT_UNSAFE void handleWheelEventPhase(ScrollingNodeID, PlatformWheelEventPhase) { }
 #endif
 
     virtual void setActiveScrollSnapIndices(ScrollingNodeID, std::optional<unsigned> /*horizontalIndex*/, std::optional<unsigned> /*verticalIndex*/) { }
@@ -428,6 +431,7 @@ protected:
     bool m_allowLatching { true };
 
 private:
+    bool m_hasLockedAccess WTF_GUARDED_BY_LOCK(m_treeLock) { false }; // Whether a ScrollingTreeLockedAccess for this tree exists.
     ThreadSafeWeakHashSet<ScrollingTreeNode> m_fixedOrStickyNodes;
     std::atomic<bool> m_isHandlingProgrammaticScroll { false };
     std::atomic<bool> m_needsApplyLayerPositions { false };
@@ -437,6 +441,65 @@ private:
     bool m_asyncFrameOrOverflowScrollingEnabled { false };
     bool m_wheelEventGesturesBecomeNonBlocking { false };
     bool m_inCommitTreeState { false };
+};
+
+// Witness that a scrolling tree's m_treeLock is held, for Swift: Swift calls the members of the tree and of its nodes
+// that need the lock through one of these, and cannot make one itself. Only code that holds the tree lock constructs
+// one (the constructor requires the lock, and Swift may not call it), and the lock stays held until it is destroyed:
+// it must not be constructed in a scope that drops the lock, such as the Condition waits on m_treeLock in
+// ThreadedScrollingTree::waitForEventToBeProcessedByMainThread(),
+// ThreadedScrollingTree::waitForRenderingUpdateCompletionOrTimeout() and
+// RemoteScrollingTreeMac::waitForEventDefaultHandlingCompletion(). Only one exists for a tree at a time; constructing
+// a second one while the first is alive crashes. It must not be constructed while the frame holds a reference or an
+// iterator into the tree's or its nodes' storage, and the frame keeps a reference to the tree, taken before the lock.
+// It cannot be copied, moved or put on the heap, so it lives in the frame that holds the lock, and Swift receives it
+// borrowed for one call. Each member checks that the lock is locked and that the nodes it is given belong to its tree.
+class SWIFT_NONCOPYABLE __attribute__((swift_attr("~Sendable"))) WEBCORE_EXPORT ScrollingTreeLockedAccess {
+    WTF_MAKE_NONCOPYABLE(ScrollingTreeLockedAccess);
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    SWIFT_UNSAFE explicit ScrollingTreeLockedAccess(ScrollingTree& tree) WTF_REQUIRES_LOCK(tree.treeLock());
+    // Swift imports a noncopyable class only if it has a move constructor, so one is declared; it traps.
+    [[noreturn]] ScrollingTreeLockedAccess(ScrollingTreeLockedAccess&&);
+    ScrollingTreeLockedAccess& operator=(ScrollingTreeLockedAccess&&) = delete;
+    // Swift would otherwise give the class an init() that zero-fills it.
+    ScrollingTreeLockedAccess() = delete;
+    ~ScrollingTreeLockedAccess();
+
+    RefPtr<ScrollingTreeNode> nodeForID(ScrollingNodeID) const;
+    RefPtr<ScrollingTreeFrameScrollingNode> rootNode() const;
+    RefPtr<ScrollingTreeNode> scrollingNodeForPoint(FloatPoint) const;
+    void removeNode(ScrollingNodeID) const;
+    void removeNode(ScrollingNodeID, ScrollingTreeFrameHostingNode&) const;
+    void addScrollingNodeToHostedSubtreeMap(LayerHostingContextIdentifier, ScrollingTreeFrameHostingNode&) const;
+    void removeFrameHostingNode(LayerHostingContextIdentifier) const;
+
+    bool commitStateBeforeChildren(ScrollingTreeNode&, const ScrollingStateNode&) const;
+    bool commitStateAfterChildren(ScrollingTreeNode&, const ScrollingStateNode&) const;
+    void didCompleteCommitForNode(ScrollingTreeNode&) const;
+    void willBeDestroyed(ScrollingTreeNode&) const;
+    RefPtr<ScrollingTreeNode> parent(ScrollingTreeNode&) const;
+    void setParent(ScrollingTreeNode&, ScrollingTreeNode* parent) const;
+    void appendChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const;
+    void removeChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const;
+    void removeAllChildren(ScrollingTreeNode&) const;
+
+    WheelEventHandlingResult handleWheelEvent(ScrollingTreeScrollingNode&, const PlatformWheelEvent&, EventTargeting) const;
+    void stopSpringAnimation(ScrollingTreeScrollingNode&) const;
+    void serviceScrollAnimation(ScrollingTreeScrollingNode&, MonotonicTime) const;
+    void scrollTo(ScrollingTreeScrollingNode&, const FloatPoint&, ScrollType, ScrollClamping) const;
+    void scrollBy(ScrollingTreeScrollingNode&, const FloatSize&, ScrollClamping) const;
+
+    void setLayerHostingContextIdentifier(ScrollingTreeFrameHostingNode&, std::optional<LayerHostingContextIdentifier>) const;
+    void addHostedChild(ScrollingTreeFrameHostingNode&, ScrollingTreeNode& child) const;
+    void removeHostedChildren(ScrollingTreeFrameHostingNode&) const;
+    void removeHostedChild(ScrollingTreeFrameHostingNode&, ScrollingTreeNode& child) const;
+
+private:
+    ScrollingTree& tree() const;
+    void checkNode(const ScrollingTreeNode&) const;
+
+    const Ref<ScrollingTree> m_tree;
 };
 
 class ScrollingTreeWheelEventTestMonitorCompletionDeferrer {
