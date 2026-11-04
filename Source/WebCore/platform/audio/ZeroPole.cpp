@@ -28,7 +28,12 @@
 
 #include "config.h"
 
+#if !defined(USE_SWIFT_AUDIO_DSP)
+#define USE_SWIFT_AUDIO_DSP 0
+#endif
 #if ENABLE(WEB_AUDIO)
+
+#if !USE_SWIFT_AUDIO_DSP
 
 #include "ZeroPole.h"
 
@@ -73,5 +78,26 @@ void ZeroPole::process(std::span<const float> source, std::span<float> destinati
 }
 
 } // namespace WebCore
+
+
+#endif // !USE_SWIFT_AUDIO_DSP
+
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#include "ZeroPole.h"
+#include <wtf/TZoneMallocInlines.h>
+
+namespace WebCore {
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(ZeroPole);
+
+void ZeroPole::process(std::span<const float> source, std::span<float> destination, unsigned framesToProcess)
+{
+    zeroPoleProcess(source.first(framesToProcess), destination.first(framesToProcess),
+        framesToProcess, m_zero, m_pole, m_lastX, m_lastY, m_lastX, m_lastY);
+}
+
+} // namespace WebCore
+#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

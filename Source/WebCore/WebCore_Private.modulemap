@@ -24,6 +24,9 @@ framework module WebCore_Private [system] {
         exclude header "WAKView.h"
         exclude header "WAKWindow.h"
 
+        // Excludes handled in explicit submodules below.
+        exclude header "AudioDSPBoundaryTypes.h"
+
         // Defines a category on NSView, which WAKAppKitStubs.h maps to WAKView
         // on iOS, so it needs the definition of the class excluded above.
         exclude header "WebCoreView.h"
@@ -31,5 +34,10 @@ framework module WebCore_Private [system] {
         module * {
             export *
         }
+    }
+
+    explicit module AudioDSPBoundaryTypes {
+        header "AudioDSPBoundaryTypes.h"
+        export *
     }
 }

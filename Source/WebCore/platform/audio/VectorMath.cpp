@@ -25,7 +25,12 @@
 
 #include "config.h"
 
+#if !defined(USE_SWIFT_AUDIO_DSP)
+#define USE_SWIFT_AUDIO_DSP 0
+#endif
 #if ENABLE(WEB_AUDIO)
+
+#if !USE_SWIFT_AUDIO_DSP
 
 #include "AudioUtilities.h"
 #include "VectorMath.h"
@@ -1249,5 +1254,86 @@ void convolve(std::span<const float> signal, std::span<const float> filter, std:
 } // namespace VectorMath
 
 } // namespace WebCore
+
+
+#endif // !USE_SWIFT_AUDIO_DSP
+
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#include "AudioDSPBoundaryTypes.h"
+#include "VectorMath.h"
+
+namespace WebCore {
+namespace VectorMath {
+
+void multiplyByScalarThenAddToOutput(std::span<const float> input, float scalar, std::span<float> output)
+{ vmMultiplyByScalarThenAddToOutput(input, scalar, output); }
+
+void multiplyByScalarThenAddToVector(std::span<const float> in1, float scalar, std::span<const float> in2, std::span<float> out)
+{ vmMultiplyByScalarThenAddToVector(in1, scalar, in2, out); }
+
+void addVectorsThenMultiplyByScalar(std::span<const float> in1, std::span<const float> in2, float scalar, std::span<float> out)
+{ vmAddVectorsThenMultiplyByScalar(in1, in2, scalar, out); }
+
+void multiplyByScalar(std::span<const float> in, float scalar, std::span<float> out)
+{ vmMultiplyByScalar(in, scalar, out); }
+
+void addScalar(std::span<const float> in, float scalar, std::span<float> out)
+{ vmAddScalar(in, scalar, out); }
+
+void substract(std::span<const float> in1, std::span<const float> in2, std::span<float> out)
+{ vmSubstract(in1, in2, out); }
+
+void add(std::span<const int>, std::span<const int>, std::span<int>) { }
+
+void add(std::span<const float> in1, std::span<const float> in2, std::span<float> out)
+{ vmAddFloat(in1, in2, out); }
+
+void add(std::span<const double> in1, std::span<const double> in2, std::span<double> out)
+{ vmAddDouble(in1, in2, out); }
+
+void multiply(std::span<const float> in1, std::span<const float> in2, std::span<float> out)
+{
+    // Boundary contract: output must not alias either input (vDSP_vmul requirement).
+    ASSERT(out.data() != in1.data() && out.data() != in2.data());
+    vmMultiply(in1, in2, out);
+}
+
+float dotProduct(std::span<const float> in1, std::span<const float> in2)
+{ return vmDotProduct(in1, in2); }
+
+float maximumMagnitude(std::span<const float> in)
+{ return vmMaximumMagnitude(in); }
+
+float sumOfSquares(std::span<const float> in)
+{ return vmSumOfSquares(in); }
+
+void multiplyComplex(std::span<const float> r1, std::span<const float> i1, std::span<const float> r2, std::span<const float> i2, std::span<float> rOut, std::span<float> iOut)
+{ vmMultiplyComplex(r1, i1, r2, i2, rOut, iOut); }
+
+void clamp(std::span<const float> in, float mn, float mx, std::span<float> out)
+{ vmClamp(in, mn, mx, out); }
+
+void linearToDecibels(std::span<const float> in, std::span<float> out)
+{ vmLinearToDecibels(in, out); }
+
+void interpolate(std::span<const float> in1, std::span<float> in2, float factor, std::span<float> out)
+{ vmInterpolate(in1, in2, factor, out); }
+
+#if USE(ACCELERATE)
+void filterBiquad(std::span<const double> src, std::span<const double, 5> coef, std::span<double> dst, size_t n)
+{ vmFilterBiquad(src, std::span<const double>(coef.data(), coef.size()), dst, static_cast<int>(n)); }
+#endif
+
+void convolve(std::span<const float> signal, std::span<const float> filter, std::span<float> out)
+{
+    // Boundary contract: output must not alias signal or filter.
+    ASSERT(out.data() != signal.data() && out.data() != filter.data());
+    vmConvolve(signal, filter, out);
+}
+
+} // namespace VectorMath
+} // namespace WebCore
+#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

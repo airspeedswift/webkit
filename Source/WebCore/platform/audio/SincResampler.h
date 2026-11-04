@@ -52,6 +52,11 @@ public:
     // Processes samples in `source` to produce source.size() / scaleFactor frames in `destination`.
     WEBCORE_EXPORT static void processBuffer(std::span<const float> source, std::span<float> destination, double scaleFactor);
 
+#if USE_SWIFT_AUDIO_DSP
+    // Accessor for gate-on shim: expose kernel for passing to Swift.
+    std::span<const float> kernelSpan() const { return m_kernelStorage.span(); }
+#endif
+
     // Process with provideInput callback function for streaming applications.
     void process(std::span<float> destination, size_t framesToProcess);
 

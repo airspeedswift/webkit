@@ -28,7 +28,12 @@
 
 #include "config.h"
 
+#if !defined(USE_SWIFT_AUDIO_DSP)
+#define USE_SWIFT_AUDIO_DSP 0
+#endif
 #if ENABLE(WEB_AUDIO)
+
+#if !USE_SWIFT_AUDIO_DSP
 
 #include "DynamicsCompressor.h"
 
@@ -185,5 +190,112 @@ void DynamicsCompressor::setNumberOfChannels(unsigned numberOfChannels)
 }
 
 } // namespace WebCore
+
+
+#endif // !USE_SWIFT_AUDIO_DSP
+
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#include "AudioDSPBoundaryTypes.h"
+#include "AudioBus.h"
+#include "DynamicsCompressor.h"
+#include <wtf/TZoneMallocInlines.h>
+
+namespace WebCore {
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(DynamicsCompressor);
+
+DynamicsCompressor::DynamicsCompressor(float sampleRate, unsigned numberOfChannels)
+    : m_numberOfChannels(numberOfChannels)
+    , m_sampleRate(sampleRate)
+    , m_sourceChannels(numberOfChannels)
+    , m_destinationChannels(numberOfChannels)
+    , m_compressor(sampleRate, numberOfChannels)
+{
+    initializeParameters();
+}
+
+void DynamicsCompressor::initializeParameters()
+{
+    // Match the C++ reference defaults exactly.
+    m_parameters[ParamThreshold] = -24;
+    m_parameters[ParamKnee] = 30;
+    m_parameters[ParamRatio] = 12;
+    m_parameters[ParamAttack] = 0.003f;
+    m_parameters[ParamRelease] = 0.250f;
+    m_parameters[ParamPreDelay] = 0.006f;
+    m_parameters[ParamReleaseZone1] = 0.09f;
+    m_parameters[ParamReleaseZone2] = 0.16f;
+    m_parameters[ParamReleaseZone3] = 0.42f;
+    m_parameters[ParamReleaseZone4] = 0.98f;
+    m_parameters[ParamPostGain] = 0;
+    m_parameters[ParamReduction] = 0;
+    m_parameters[ParamEffectBlend] = 1;
+}
+
+void DynamicsCompressor::setParameterValue(unsigned paramID, float value)
+{
+    if (paramID < ParamLast)
+        m_parameters[paramID] = value;
+}
+
+float DynamicsCompressor::parameterValue(unsigned paramID)
+{
+    if (paramID < ParamLast)
+        return m_parameters[paramID];
+    return 0.0f;
+}
+
+void DynamicsCompressor::process(const AudioBus& sourceBus, AudioBus& destinationBus, unsigned framesToProcess)
+{
+    unsigned numberOfChannels = destinationBus.numberOfChannels();
+    unsigned numberOfSourceChannels = sourceBus.numberOfChannels();
+
+    if (numberOfChannels != m_numberOfChannels || !numberOfSourceChannels) {
+        destinationBus.zero();
+        return;
+    }
+
+    // Build channel span arrays for the kernel, matching the C++ reference.
+    switch (numberOfChannels) {
+    case 2:
+        m_sourceChannels[0] = sourceBus.channel(0)->span();
+        m_sourceChannels[1] = numberOfSourceChannels > 1
+            ? sourceBus.channel(1)->span()
+            : m_sourceChannels[0];  // duplicate mono to right channel
+        break;
+    default:
+        ASSERT_NOT_REACHED();
+        destinationBus.zero();
+        return;
+    }
+    for (unsigned i = 0; i < numberOfChannels; ++i)
+        m_destinationChannels[i] = destinationBus.channel(i)->mutableSpan();
+
+    m_compressor.process(
+        std::span<const std::span<const float>>(m_sourceChannels.span()),
+        m_destinationChannels.mutableSpan(),
+        framesToProcess,
+        m_parameters[ParamThreshold], m_parameters[ParamKnee], m_parameters[ParamRatio],
+        m_parameters[ParamAttack], m_parameters[ParamRelease], m_parameters[ParamPreDelay],
+        m_parameters[ParamPostGain], m_parameters[ParamEffectBlend],
+        m_parameters[ParamReleaseZone1], m_parameters[ParamReleaseZone2],
+        m_parameters[ParamReleaseZone3], m_parameters[ParamReleaseZone4]);
+
+    setParameterValue(ParamReduction, m_compressor.meteringGain());
+}
+
+void DynamicsCompressor::reset() { m_compressor.reset(); }
+
+void DynamicsCompressor::setNumberOfChannels(unsigned n)
+{
+    m_numberOfChannels = n;
+    m_sourceChannels = FixedVector<std::span<const float>>(n);
+    m_destinationChannels = FixedVector<std::span<float>>(n);
+    m_compressor.setNumberOfChannels(n);
+}
+
+} // namespace WebCore
+#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

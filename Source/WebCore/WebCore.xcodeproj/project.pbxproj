@@ -310,6 +310,7 @@
 		07D6A4F81BF2307D00174146 /* AudioTrackPrivateMediaStream.h in Headers */ = {isa = PBXBuildFile; fileRef = 07D6A4F61BF2307D00174146 /* AudioTrackPrivateMediaStream.h */; };
 		07E047C3305A9DB000DFCC4B /* SwiftStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E047C2305A9DB000DFCC4B /* SwiftStub.swift */; };
 		5A1E00000000000000000002 /* SIMDHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000001 /* SIMDHelpers.swift */; };
+		AD10000000000000000A0001 /* AudioDSP.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD10000000000000000A0000 /* AudioDSP.swift */; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
 		5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000007 /* SIMDHighBitMask.swift */; };
@@ -3548,7 +3549,7 @@
 		839A095D2524F37F00EEF328 /* WorkerOrWorkletScriptController.h in Headers */ = {isa = PBXBuildFile; fileRef = 839A095B2524F37600EEF328 /* WorkerOrWorkletScriptController.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		839AAFED1A0C0C8D00605F99 /* HTMLWBRElement.h in Headers */ = {isa = PBXBuildFile; fileRef = 839AAFEB1A0C0C8D00605F99 /* HTMLWBRElement.h */; };
 		839B297B463A43FE0B6E9D57 /* UnifiedSource74-header-RenderStyleGetters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41FF206D0243146B78FDD0FB /* UnifiedSource74-header-RenderStyleGetters.cpp */; };
-		839BE6D524F58762004DF50F /* IIRFilter.h in Headers */ = {isa = PBXBuildFile; fileRef = 839BE6D224F58755004DF50F /* IIRFilter.h */; };
+		839BE6D524F58762004DF50F /* IIRFilter.h in Headers */ = {isa = PBXBuildFile; fileRef = 839BE6D224F58755004DF50F /* IIRFilter.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		839C69D02810D11D00E69BAD /* CommonAtomStrings.h in Headers */ = {isa = PBXBuildFile; fileRef = 839C69CE2810D11C00E69BAD /* CommonAtomStrings.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		83A2ABDB24D86DE000E2D73D /* DelayOptions.h in Headers */ = {isa = PBXBuildFile; fileRef = 83A2ABD824D86DC600E2D73D /* DelayOptions.h */; };
 		83A8AC401FABBFE5002064AC /* ServiceWorkerIdentifier.h in Headers */ = {isa = PBXBuildFile; fileRef = 83A8AC3E1FABBFD1002064AC /* ServiceWorkerIdentifier.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -7466,7 +7467,7 @@
 		FC54D05816A7676E00575E4D /* JSCSSSupportsRule.h in Headers */ = {isa = PBXBuildFile; fileRef = FC84802E167AB444008CD100 /* JSCSSSupportsRule.h */; };
 		FC9A0F75164094CF003D6B8D /* DOMCSSNamespace.h in Headers */ = {isa = PBXBuildFile; fileRef = FC9A0F72164094CF003D6B8D /* DOMCSSNamespace.h */; };
 		FC9E0E4D16419C1E00392BE3 /* JSDOMCSSNamespace.h in Headers */ = {isa = PBXBuildFile; fileRef = FC9E0E4B16419C1E00392BE3 /* JSDOMCSSNamespace.h */; };
-		FD00D7A514A3F61900734011 /* SincResampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD00D7A314A3F61900734011 /* SincResampler.h */; };
+		FD00D7A514A3F61900734011 /* SincResampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD00D7A314A3F61900734011 /* SincResampler.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD06DFA6134A4DEF006F5D7D /* DefaultAudioDestinationNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD06DFA4134A4DEF006F5D7D /* DefaultAudioDestinationNode.h */; };
 		FD1660A513787C6D001FFA7B /* DenormalDisabler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD1660A413787C6D001FFA7B /* DenormalDisabler.h */; };
 		FD1762E0176686D900D836A8 /* UpSampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD1762DE176686D900D836A8 /* UpSampler.h */; };
@@ -7502,6 +7503,7 @@
 		FD31607C12B026F700C1A359 /* AudioBus.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604612B026F700C1A359 /* AudioBus.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31607E12B026F700C1A359 /* AudioChannel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604812B026F700C1A359 /* AudioChannel.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31607F12B026F700C1A359 /* AudioDestination.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604912B026F700C1A359 /* AudioDestination.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		484E29CA10A14D4FA8B254CE /* AudioDSPBoundaryTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 836D8CC03B6C421F9945AF99 /* AudioDSPBoundaryTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608012B026F700C1A359 /* AudioDSPKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604A12B026F700C1A359 /* AudioDSPKernel.h */; };
 		FD31608212B026F700C1A359 /* AudioDSPKernelProcessor.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604C12B026F700C1A359 /* AudioDSPKernelProcessor.h */; };
 		FD31608312B026F700C1A359 /* AudioFileReader.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604D12B026F700C1A359 /* AudioFileReader.h */; };
@@ -7510,10 +7512,11 @@
 		FD31608812B026F700C1A359 /* AudioResamplerKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605212B026F700C1A359 /* AudioResamplerKernel.h */; };
 		FD31608912B026F700C1A359 /* AudioSourceProvider.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605312B026F700C1A359 /* AudioSourceProvider.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608B12B026F700C1A359 /* AudioUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605512B026F700C1A359 /* AudioUtilities.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FD31608D12B026F700C1A359 /* Biquad.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605712B026F700C1A359 /* Biquad.h */; };
+		FD31608D12B026F700C1A359 /* Biquad.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605712B026F700C1A359 /* Biquad.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608F12B026F700C1A359 /* Cone.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605912B026F700C1A359 /* Cone.h */; };
 		FD31609112B026F700C1A359 /* Distance.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605B12B026F700C1A359 /* Distance.h */; };
-		FD31609312B026F700C1A359 /* EqualPowerPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605D12B026F700C1A359 /* EqualPowerPanner.h */; };
+		4DDD6D23C4B6441BBEB5B07E /* StereoPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = E7FBE7C424EC36F300A18E62 /* StereoPanner.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		FD31609312B026F700C1A359 /* EqualPowerPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605D12B026F700C1A359 /* EqualPowerPanner.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31609512B026F700C1A359 /* FFTConvolver.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605F12B026F700C1A359 /* FFTConvolver.h */; };
 		FD31609712B026F700C1A359 /* FFTFrame.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606112B026F700C1A359 /* FFTFrame.h */; };
 		FD31609912B026F700C1A359 /* HRTFDatabase.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606312B026F700C1A359 /* HRTFDatabase.h */; };
@@ -7521,21 +7524,21 @@
 		FD31609D12B026F700C1A359 /* HRTFElevation.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606712B026F700C1A359 /* HRTFElevation.h */; };
 		FD31609F12B026F700C1A359 /* HRTFKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606912B026F700C1A359 /* HRTFKernel.h */; };
 		FD3160A112B026F700C1A359 /* HRTFPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606B12B026F700C1A359 /* HRTFPanner.h */; };
-		FD3160A312B026F700C1A359 /* Panner.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606D12B026F700C1A359 /* Panner.h */; };
+		FD3160A312B026F700C1A359 /* Panner.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606D12B026F700C1A359 /* Panner.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD3160A512B026F700C1A359 /* Reverb.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31606F12B026F700C1A359 /* Reverb.h */; };
 		FD3160A712B026F700C1A359 /* ReverbAccumulationBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607112B026F700C1A359 /* ReverbAccumulationBuffer.h */; };
 		FD3160A912B026F700C1A359 /* ReverbConvolver.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607312B026F700C1A359 /* ReverbConvolver.h */; };
 		FD3160AB12B026F700C1A359 /* ReverbConvolverStage.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607512B026F700C1A359 /* ReverbConvolverStage.h */; };
 		FD3160AD12B026F700C1A359 /* ReverbInputBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607712B026F700C1A359 /* ReverbInputBuffer.h */; };
-		FD3160AF12B026F700C1A359 /* VectorMath.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607912B026F700C1A359 /* VectorMath.h */; };
+		FD3160AF12B026F700C1A359 /* VectorMath.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607912B026F700C1A359 /* VectorMath.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD359190138DB22000E1EBEC /* AudioParamTimeline.h in Headers */ = {isa = PBXBuildFile; fileRef = FD35918E138DB22000E1EBEC /* AudioParamTimeline.h */; };
 		FD45A94F175D3F3E00C21EC8 /* LayoutShape.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A87F175D3926002CD360 /* LayoutShape.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD45A952175D3F3E00C21EC8 /* ShapeOutsideInfo.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A887175D3926002CD360 /* ShapeOutsideInfo.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD45A957175D414C00C21EC8 /* PolygonLayoutShape.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A87B175D3926002CD360 /* PolygonLayoutShape.h */; };
 		FD45A958175D414C00C21EC8 /* RectangleLayoutShape.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A87D175D3926002CD360 /* RectangleLayoutShape.h */; };
 		FD45A95B175D41EE00C21EC8 /* ShapeInterval.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A885175D3926002CD360 /* ShapeInterval.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FD537353137B651800008DCE /* ZeroPole.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537351137B651800008DCE /* ZeroPole.h */; };
-		FD537357137B653B00008DCE /* DynamicsCompressorKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537355137B653B00008DCE /* DynamicsCompressorKernel.h */; };
+		FD537353137B651800008DCE /* ZeroPole.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537351137B651800008DCE /* ZeroPole.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		FD537357137B653B00008DCE /* DynamicsCompressorKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537355137B653B00008DCE /* DynamicsCompressorKernel.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD5686CA13AC180200B69C68 /* AsyncAudioDecoder.h in Headers */ = {isa = PBXBuildFile; fileRef = FD5686C813AC180200B69C68 /* AsyncAudioDecoder.h */; };
 		FD5686CC13AC181400B69C68 /* AudioBufferCallback.h in Headers */ = {isa = PBXBuildFile; fileRef = FD5686CB13AC181400B69C68 /* AudioBufferCallback.h */; };
 		FD581FAF1520F91F003A7A75 /* OscillatorNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD581FAC1520F91F003A7A75 /* OscillatorNode.h */; };
@@ -7544,7 +7547,7 @@
 		FD62F52E145898D80094B0ED /* AudioSourceProviderClient.h in Headers */ = {isa = PBXBuildFile; fileRef = FD62F52D145898D80094B0ED /* AudioSourceProviderClient.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD671A78159BB07000197559 /* MediaStreamAudioSourceNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD671A75159BB07000197559 /* MediaStreamAudioSourceNode.h */; };
 		FD6ED2C4136B8E42003CF072 /* DynamicsCompressorNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6ED2C2136B8E42003CF072 /* DynamicsCompressorNode.h */; };
-		FD6ED2C8136B8E66003CF072 /* DynamicsCompressor.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6ED2C6136B8E66003CF072 /* DynamicsCompressor.h */; };
+		FD6ED2C8136B8E66003CF072 /* DynamicsCompressor.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6ED2C6136B8E66003CF072 /* DynamicsCompressor.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD6F252D13F5EF0E0065165F /* MediaElementAudioSourceNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6F252A13F5EF0E0065165F /* MediaElementAudioSourceNode.h */; };
 		FD7868BA136B999200D403DF /* JSDynamicsCompressorNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD7868B8136B999200D403DF /* JSDynamicsCompressorNode.h */; };
 		FD7F299213D4C0CB00AD9535 /* WaveShaperDSPKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD7F298B13D4C0CB00AD9535 /* WaveShaperDSPKernel.h */; };
@@ -7572,7 +7575,7 @@
 		FDA3E95C134A49EF008D4B5A /* OfflineAudioDestinationNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FDA3E958134A49EF008D4B5A /* OfflineAudioDestinationNode.h */; };
 		FDA9325E16703B2A008982DC /* OfflineAudioContext.h in Headers */ = {isa = PBXBuildFile; fileRef = FDA9325B16703B2A008982DC /* OfflineAudioContext.h */; };
 		FDA9326716703BA9008982DC /* JSOfflineAudioContext.h in Headers */ = {isa = PBXBuildFile; fileRef = FDA9326516703BA9008982DC /* JSOfflineAudioContext.h */; };
-		FDAF19991513D131008DB0C3 /* DirectConvolver.h in Headers */ = {isa = PBXBuildFile; fileRef = FDAF19971513D131008DB0C3 /* DirectConvolver.h */; };
+		FDAF19991513D131008DB0C3 /* DirectConvolver.h in Headers */ = {isa = PBXBuildFile; fileRef = FDAF19971513D131008DB0C3 /* DirectConvolver.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FDB052E01561A42C00B500D6 /* AudioSummingJunction.h in Headers */ = {isa = PBXBuildFile; fileRef = FDB052DE1561A42C00B500D6 /* AudioSummingJunction.h */; };
 		FDB1700614A2BAB200A2B5D9 /* MultiChannelResampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FDB1700414A2BAB200A2B5D9 /* MultiChannelResampler.h */; };
 		FDBD480D159BC6870093EB4F /* JSMediaStreamAudioSourceNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FDBD480B159BC6870093EB4F /* JSMediaStreamAudioSourceNode.h */; };
@@ -8248,6 +8251,7 @@
 		07DB47062BC27E0A00B5A958 /* WritingSuggestionData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WritingSuggestionData.h; sourceTree = "<group>"; };
 		07E047C2305A9DB000DFCC4B /* SwiftStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftStub.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000001 /* SIMDHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHelpers.swift; sourceTree = "<group>"; };
+		AD10000000000000000A0000 /* AudioDSP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDSP.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000003 /* SIMDTableLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDTableLookup.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDSaturatingSubtract.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000007 /* SIMDHighBitMask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHighBitMask.swift; sourceTree = "<group>"; };
@@ -24106,6 +24110,7 @@
 		FD31604712B026F700C1A359 /* AudioChannel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioChannel.cpp; sourceTree = "<group>"; };
 		FD31604812B026F700C1A359 /* AudioChannel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioChannel.h; sourceTree = "<group>"; };
 		FD31604912B026F700C1A359 /* AudioDestination.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDestination.h; sourceTree = "<group>"; };
+		836D8CC03B6C421F9945AF99 /* AudioDSPBoundaryTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDSPBoundaryTypes.h; sourceTree = "<group>"; };
 		FD31604A12B026F700C1A359 /* AudioDSPKernel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDSPKernel.h; sourceTree = "<group>"; };
 		FD31604B12B026F700C1A359 /* AudioDSPKernelProcessor.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioDSPKernelProcessor.cpp; sourceTree = "<group>"; };
 		FD31604C12B026F700C1A359 /* AudioDSPKernelProcessor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDSPKernelProcessor.h; sourceTree = "<group>"; };
@@ -25021,6 +25026,7 @@
 				65C97AF208EA908800ACD273 /* config.h */,
 				07E047C2305A9DB000DFCC4B /* SwiftStub.swift */,
 				5A1E00000000000000000001 /* SIMDHelpers.swift */,
+				AD10000000000000000A0000 /* AudioDSP.swift */,
 				5A1E00000000000000000003 /* SIMDTableLookup.swift */,
 				5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */,
 				5A1E00000000000000000007 /* SIMDHighBitMask.swift */,
@@ -44320,6 +44326,7 @@
 				FD31604912B026F700C1A359 /* AudioDestination.h */,
 				7BC9642B291E765D00377DF1 /* AudioDestinationResampler.cpp */,
 				7BC9642A291E765D00377DF1 /* AudioDestinationResampler.h */,
+				836D8CC03B6C421F9945AF99 /* AudioDSPBoundaryTypes.h */,
 				FD31604A12B026F700C1A359 /* AudioDSPKernel.h */,
 				FD31604B12B026F700C1A359 /* AudioDSPKernelProcessor.cpp */,
 				FD31604C12B026F700C1A359 /* AudioDSPKernelProcessor.h */,
@@ -44807,6 +44814,7 @@
 				9B1229C423FE4BD2008CA751 /* AudioDestinationCocoa.h in Headers */,
 				FD31600812B0267600C1A359 /* AudioDestinationNode.h in Headers */,
 				7BC9642C291E76BE00377DF1 /* AudioDestinationResampler.h in Headers */,
+				484E29CA10A14D4FA8B254CE /* AudioDSPBoundaryTypes.h in Headers */,
 				FD31608012B026F700C1A359 /* AudioDSPKernel.h in Headers */,
 				FD31608212B026F700C1A359 /* AudioDSPKernelProcessor.h in Headers */,
 				5CE40F64DF8D457695087B59 /* AudioEncodedData.h in Headers */,
@@ -46016,6 +46024,7 @@
 				F403E7872363B58C00044550 /* EnterKeyHint.h in Headers */,
 				5CA126B428DBA3AB00B65AD3 /* EphemeralNonce.h in Headers */,
 				05FD69E012845D4300B2BEB3 /* EpochTimeStamp.h in Headers */,
+				4DDD6D23C4B6441BBEB5B07E /* StereoPanner.h in Headers */,
 				FD31609312B026F700C1A359 /* EqualPowerPanner.h in Headers */,
 				8371AC3B1F509BE400FBF284 /* ErrorCallback.h in Headers */,
 				2ECF7AE210162B5800427DE7 /* ErrorEvent.h in Headers */,
@@ -51715,6 +51724,7 @@
 				A833C7CA0A2CF06B00D57664 /* SVGNames.cpp in Sources */,
 				07E047C3305A9DB000DFCC4B /* SwiftStub.swift in Sources */,
 				5A1E00000000000000000002 /* SIMDHelpers.swift in Sources */,
+				AD10000000000000000A0001 /* AudioDSP.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,
 				5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */,

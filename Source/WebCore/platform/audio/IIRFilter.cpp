@@ -25,7 +25,12 @@
 
 #include "config.h"
 
+#if !defined(USE_SWIFT_AUDIO_DSP)
+#define USE_SWIFT_AUDIO_DSP 0
+#endif
 #if ENABLE(WEB_AUDIO)
+
+#if !USE_SWIFT_AUDIO_DSP
 #include "IIRFilter.h"
 
 #include "AudioArray.h"
@@ -238,5 +243,61 @@ double IIRFilter::tailTime(double sampleRate, bool isFilterStable)
 }
 
 } // namespace WebCore
+
+
+#endif // !USE_SWIFT_AUDIO_DSP
+
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#include "AudioDSPBoundaryTypes.h"
+#include "IIRFilter.h"
+#include <wtf/TZoneMallocInlines.h>
+
+namespace WebCore {
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(IIRFilter);
+
+static constexpr size_t bufferLength = 32;
+static_assert(bufferLength > IIRFilter::maxOrder && (bufferLength & (bufferLength - 1)) == 0,
+    "bufferLength must be a power of two larger than maxOrder");
+
+IIRFilter::IIRFilter(const Vector<double>& feedforward, const Vector<double>& feedback)
+    : m_feedforward(feedforward), m_feedback(feedback)
+{
+    m_xBuffer.fill(0, bufferLength);
+    m_yBuffer.fill(0, bufferLength);
+}
+
+void IIRFilter::reset()
+{
+    int32_t idx = 0;
+    iirReset(m_xBuffer.mutableSpan(), m_yBuffer.mutableSpan(), idx);
+    m_bufferIndex = static_cast<size_t>(idx);
+}
+
+void IIRFilter::process(std::span<const float> source, std::span<float> destination)
+{
+    // Boundary contract: source and destination must not overlap.
+    ASSERT(source.data() != destination.data());
+    int32_t idx = static_cast<int32_t>(m_bufferIndex);
+    iirProcess(source, destination,
+        std::span<const double>(m_feedforward.span()), std::span<const double>(m_feedback.span()),
+        m_xBuffer.mutableSpan(), m_yBuffer.mutableSpan(),
+        idx, idx);
+    m_bufferIndex = static_cast<size_t>(idx);
+}
+
+void IIRFilter::getFrequencyResponse(std::span<const float> freqHz, std::span<float> mag, std::span<float> phase, double nyquist)
+{
+    iirGetFrequencyResponse(freqHz, mag, phase, nyquist, std::span<const double>(m_feedforward.span()), std::span<const double>(m_feedback.span()));
+}
+
+double IIRFilter::tailTime(double sampleRate, bool isFilterStable)
+{
+    return iirTailTime(sampleRate, isFilterStable, std::span<const double>(m_feedforward.span()), std::span<const double>(m_feedback.span()));
+}
+
+} // namespace WebCore
+#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)
