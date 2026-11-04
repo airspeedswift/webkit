@@ -127,6 +127,14 @@ private:
     }
 
     inline static bool m_generationProtected { false };
+
+#if defined(__swift__)
+public:
+    // Swift imports none of the members of a base class whose destructor is protected, and does not use the
+    // operator== function template below for ==.
+    uint64_t toUInt64() const { return ObjectIdentifierGenericBase::toUInt64(); }
+    bool isEqual(const ObjectIdentifierGeneric& other) const { return toUInt64() == other.toUInt64(); }
+#endif
 };
 
 template<typename T, typename ThreadSafety>
