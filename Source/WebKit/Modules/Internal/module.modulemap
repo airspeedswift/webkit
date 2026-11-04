@@ -471,6 +471,78 @@ module WebKit_Internal [system] {
         export *
     }
 
+    module EventDispatcher {
+        requires cplusplus20,objc
+        header "../../WebProcess/WebPage/EventDispatcher.h"
+        export *
+    }
+
+    module RemoteLayerTreeEventDispatcher {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/mac/RemoteLayerTreeEventDispatcher.h"
+        export *
+    }
+
+    module RemoteLayerTreeScrollingPerformanceData {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/RemoteLayerTreeScrollingPerformanceData.h"
+        export *
+    }
+
+    module RemoteScrollingCoordinator {
+        requires cplusplus20,objc
+        header "../../WebProcess/WebPage/RemoteLayerTree/RemoteScrollingCoordinator.h"
+        export *
+    }
+
+    module RemoteScrollingCoordinatorProxy {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/RemoteScrollingCoordinatorProxy.h"
+        export *
+    }
+
+    module RemoteScrollingCoordinatorProxyMac {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/mac/RemoteScrollingCoordinatorProxyMac.h"
+        export *
+    }
+
+    module RemoteScrollingTree {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/RemoteScrollingTree.h"
+        export *
+    }
+
+    module RemoteScrollingTreeCocoa {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/cocoa/RemoteScrollingTreeCocoa.h"
+        export *
+    }
+
+    module RemoteScrollingTreeMac {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/mac/RemoteScrollingTreeMac.h"
+        export *
+    }
+
+    module ScrollingTreeFrameScrollingNodeRemoteMac {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/mac/ScrollingTreeFrameScrollingNodeRemoteMac.h"
+        export *
+    }
+
+    module ScrollingTreeOverflowScrollingNodeRemoteMac {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/mac/ScrollingTreeOverflowScrollingNodeRemoteMac.h"
+        export *
+    }
+
+    module ScrollingTreePluginScrollingNodeRemoteMac {
+        requires cplusplus20,objc
+        header "../../UIProcess/RemoteLayerTree/mac/ScrollingTreePluginScrollingNodeRemoteMac.h"
+        export *
+    }
+
     module SecurityFlags {
         requires cplusplus20
         header "SecurityFlagsForSwift.h"

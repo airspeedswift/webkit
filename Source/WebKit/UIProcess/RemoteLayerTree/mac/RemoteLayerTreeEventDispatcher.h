@@ -110,8 +110,8 @@ public:
     void flushMainThreadTransactionIfNeeded();
 
 #if ENABLE(THREADED_ANIMATIONS)
-    void lockForAnimationChanges() WTF_ACQUIRES_LOCK(m_animationLock);
-    void unlockForAnimationChanges() WTF_RELEASES_LOCK(m_animationLock);
+    SWIFT_UNSAFE void lockForAnimationChanges() WTF_ACQUIRES_LOCK(m_animationLock);
+    SWIFT_UNSAFE void unlockForAnimationChanges() WTF_RELEASES_LOCK(m_animationLock);
     void animationsWereAddedToNode(RemoteLayerTreeNode&);
     void animationsWereRemovedFromNode(RemoteLayerTreeNode&);
     void updateTimelinesRegistration(WebCore::ProcessIdentifier, const WebCore::AcceleratedTimelinesUpdate&, MonotonicTime);
@@ -170,9 +170,9 @@ private:
 #endif
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER)
-    void handleSyntheticWheelEvent(WebCore::PageIdentifier, const WebWheelEvent&, WebCore::RectEdges<WebCore::RubberBandingBehavior> rubberBandableEdges);
-    void startDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID);
-    void stopDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID);
+    SWIFT_UNSAFE void handleSyntheticWheelEvent(WebCore::PageIdentifier, const WebWheelEvent&, WebCore::RectEdges<WebCore::RubberBandingBehavior> rubberBandableEdges);
+    SWIFT_UNSAFE void startDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID);
+    SWIFT_UNSAFE void stopDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID);
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)
     void flushMomentumEventLoggingSoon();
 #endif

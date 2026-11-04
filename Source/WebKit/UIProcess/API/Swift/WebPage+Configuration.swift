@@ -193,6 +193,7 @@ extension WebPage {
 
         /// The process pool to use for the page, used for testing.
         @_spi(Testing)
+        @diagnose(DeprecatedDeclaration, as: warning)
         public var processPool: WKProcessPool? = nil
 
         #if WTF_PLATFORM_MAC

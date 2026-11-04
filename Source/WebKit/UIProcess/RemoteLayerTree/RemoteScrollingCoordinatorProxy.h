@@ -158,8 +158,8 @@ public:
     virtual void scrollingTreeNodeDidBeginScrollSnapping(WebCore::ScrollingNodeID) { }
     virtual void scrollingTreeNodeDidEndScrollSnapping(WebCore::ScrollingNodeID) { }
     
-    virtual void willCommitLayerAndScrollingTrees() { }
-    virtual void didCommitLayerAndScrollingTrees() { }
+    SWIFT_UNSAFE virtual void willCommitLayerAndScrollingTrees() { }
+    SWIFT_UNSAFE virtual void didCommitLayerAndScrollingTrees() { }
 
 #if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
     virtual void updateOverlayRegions(const Vector<WebCore::PlatformLayerIdentifier>& destroyedLayers = { }) { }

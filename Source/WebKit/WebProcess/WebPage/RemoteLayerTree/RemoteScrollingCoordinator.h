@@ -50,8 +50,8 @@ public:
         return adoptRef(*new RemoteScrollingCoordinator(page));
     }
 
-    void ref() const final { WebCore::AsyncScrollingCoordinator::ref(); }
-    void deref() const final { WebCore::AsyncScrollingCoordinator::deref(); }
+    SWIFT_UNSAFE void ref() const final { WebCore::AsyncScrollingCoordinator::ref(); }
+    SWIFT_UNSAFE void deref() const final { WebCore::AsyncScrollingCoordinator::deref(); }
 
     RemoteScrollingCoordinatorTransaction buildTransaction(WebCore::FrameIdentifier);
 

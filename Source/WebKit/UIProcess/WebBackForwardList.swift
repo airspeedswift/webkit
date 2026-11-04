@@ -741,7 +741,7 @@ final class WebBackForwardList {
         }
 
         for (i, entry) in entries.enumerated() {
-            if filter.pointee.__convertToBool() && !filter.pointee(entry) {
+            if Bool(fromCxx: filter.pointee) && !filter.pointee(entry) {
                 if let stateCurrentIndex = Optional(fromCxx: backForwardListState.currentIndex) {
                     if i <= stateCurrentIndex && stateCurrentIndex != 0 {
                         setOptionalUInt32Value(&backForwardListState.currentIndex, stateCurrentIndex - 1)

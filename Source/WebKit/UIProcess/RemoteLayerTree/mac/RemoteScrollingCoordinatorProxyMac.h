@@ -73,8 +73,8 @@ private:
     void flushMainThreadTransactionIfNeeded() override;
 
 #if ENABLE(THREADED_ANIMATIONS)
-    void willCommitLayerAndScrollingTrees() override WTF_ACQUIRES_LOCK(m_eventDispatcher->m_animationLock);
-    void didCommitLayerAndScrollingTrees() override WTF_RELEASES_LOCK(m_eventDispatcher->m_animationLock);
+    SWIFT_UNSAFE void willCommitLayerAndScrollingTrees() override WTF_ACQUIRES_LOCK(m_eventDispatcher->m_animationLock);
+    SWIFT_UNSAFE void didCommitLayerAndScrollingTrees() override WTF_RELEASES_LOCK(m_eventDispatcher->m_animationLock);
 
     void animationsWereAddedToNode(RemoteLayerTreeNode&) override;
     void animationsWereRemovedFromNode(RemoteLayerTreeNode&) override;
@@ -85,8 +85,8 @@ private:
     HashSet<Ref<RemoteProgressBasedTimeline>> timelinesForScrollingNodeIDForTesting(WebCore::ScrollingNodeID) const override;
     HashSet<Ref<RemoteMonotonicTimeline>> monotonicTimelinesForProcessForTesting(WebCore::ProcessIdentifier) const override;
 #else
-    void willCommitLayerAndScrollingTrees() override;
-    void didCommitLayerAndScrollingTrees() override;
+    SWIFT_UNSAFE void willCommitLayerAndScrollingTrees() override;
+    SWIFT_UNSAFE void didCommitLayerAndScrollingTrees() override;
 #endif
 
     const Ref<RemoteLayerTreeEventDispatcher> m_eventDispatcher;
