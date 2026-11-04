@@ -63,6 +63,10 @@ class ScrollingTreePositionedNode;
 class ScrollingTreeScrollingNode;
 class ScrollingTreeFrameHostingNode;
 class ScrollingTreeLockedAccess;
+
+// Whether a ScrollingTreeLockedAccess was made for the commit of tree state, which may change the tree's structure.
+enum class ScrollingTreeAccessMode : bool { Event, Commit };
+
 enum class EventListenerRegionType : uint64_t;
 
 using FramesPerSecond = unsigned;
@@ -450,15 +454,20 @@ private:
 // ThreadedScrollingTree::waitForEventToBeProcessedByMainThread(),
 // ThreadedScrollingTree::waitForRenderingUpdateCompletionOrTimeout() and
 // RemoteScrollingTreeMac::waitForEventDefaultHandlingCompletion(). Only one exists for a tree at a time; constructing
-// a second one while the first is alive crashes. It must not be constructed while the frame holds a reference or an
-// iterator into the tree's or its nodes' storage, and the frame keeps a reference to the tree, taken before the lock.
+// a second one while the first is alive crashes. The frame that declares the Locker holds a Ref to the tree declared
+// before the Locker, and no frame from that one down to the witness holds a reference or iterator into the tree's or
+// its nodes' storage.
 // It cannot be copied, moved or put on the heap, so it lives in the frame that holds the lock, and Swift receives it
 // borrowed for one call. Each member checks that the lock is locked and that the nodes it is given belong to its tree.
+// The code that constructs it chooses its mode: ScrollingTreeAccessMode::Commit only in ScrollingTree::commitTreeState()
+// and what it calls, the thread that writes the tree's structure, whose readers on that thread take no lock. The members
+// that change the tree's structure (the root, the node map, the hosted subtrees, a node's parent, children and hosted
+// children) and the node commit members crash on a witness of mode Event, such as one handed to the wheel event entries.
 class SWIFT_NONCOPYABLE __attribute__((swift_attr("~Sendable"))) WEBCORE_EXPORT ScrollingTreeLockedAccess {
     WTF_MAKE_NONCOPYABLE(ScrollingTreeLockedAccess);
     WTF_FORBID_HEAP_ALLOCATION;
 public:
-    SWIFT_UNSAFE explicit ScrollingTreeLockedAccess(ScrollingTree& tree) WTF_REQUIRES_LOCK(tree.treeLock());
+    SWIFT_UNSAFE ScrollingTreeLockedAccess(ScrollingTree& tree, ScrollingTreeAccessMode) WTF_REQUIRES_LOCK(tree.treeLock());
     // Swift imports a noncopyable class only if it has a move constructor, so one is declared; it traps.
     [[noreturn]] ScrollingTreeLockedAccess(ScrollingTreeLockedAccess&&);
     ScrollingTreeLockedAccess& operator=(ScrollingTreeLockedAccess&&) = delete;
@@ -468,7 +477,8 @@ public:
 
     RefPtr<ScrollingTreeNode> nodeForID(ScrollingNodeID) const;
     RefPtr<ScrollingTreeFrameScrollingNode> rootNode() const;
-    RefPtr<ScrollingTreeNode> scrollingNodeForPoint(FloatPoint) const;
+    // On a RemoteScrollingTreeMac the caller must also hold the layer hit-test lock, which the witness does not show.
+    SWIFT_UNSAFE RefPtr<ScrollingTreeNode> scrollingNodeForPoint(FloatPoint) const;
     void removeNode(ScrollingNodeID) const;
     void removeNode(ScrollingNodeID, ScrollingTreeFrameHostingNode&) const;
     void addScrollingNodeToHostedSubtreeMap(LayerHostingContextIdentifier, ScrollingTreeFrameHostingNode&) const;
@@ -483,12 +493,23 @@ public:
     void appendChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const;
     void removeChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const;
     void removeAllChildren(ScrollingTreeNode&) const;
+    // The child at index of node, which must be less than childCount(node): an index past the end crashes. The result
+    // is never null. Swift iterates by index, holding no iterator into the children across calls.
+    size_t childCount(ScrollingTreeNode&) const;
+    RefPtr<ScrollingTreeNode> childAt(ScrollingTreeNode&, size_t index) const;
+
+    // The tree's root node; null is allowed. The node must belong to the tree.
+    void setRootNode(ScrollingTreeFrameScrollingNode*) const;
+    void removeAllNodes() const;
+    // Adds node to the node map under its ID, replacing any node with that ID, and to the nodes of frameID.
+    void addNode(ScrollingTreeNode&, FrameIdentifier) const;
 
     WheelEventHandlingResult handleWheelEvent(ScrollingTreeScrollingNode&, const PlatformWheelEvent&, EventTargeting) const;
     void stopSpringAnimation(ScrollingTreeScrollingNode&) const;
     void serviceScrollAnimation(ScrollingTreeScrollingNode&, MonotonicTime) const;
     void scrollTo(ScrollingTreeScrollingNode&, const FloatPoint&, ScrollType, ScrollClamping) const;
     void scrollBy(ScrollingTreeScrollingNode&, const FloatSize&, ScrollClamping) const;
+    void handleWheelEventPhase(ScrollingNodeID, PlatformWheelEventPhase) const;
 
     void setLayerHostingContextIdentifier(ScrollingTreeFrameHostingNode&, std::optional<LayerHostingContextIdentifier>) const;
     void addHostedChild(ScrollingTreeFrameHostingNode&, ScrollingTreeNode& child) const;
@@ -498,8 +519,10 @@ public:
 private:
     ScrollingTree& tree() const;
     void checkNode(const ScrollingTreeNode&) const;
+    void checkCommit() const;
 
     const Ref<ScrollingTree> m_tree;
+    const ScrollingTreeAccessMode m_mode;
 };
 
 class ScrollingTreeWheelEventTestMonitorCompletionDeferrer {

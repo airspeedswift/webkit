@@ -277,6 +277,15 @@ public:
         return m_controlBlock == &controlBlock;
     }
 
+    // refersToControlBlock() without taking m_lock, for storage that is never reassigned after construction.
+    // Then m_controlBlock is written only by the constructor and the destructor: the constructor's write
+    // happens-before any caller (which can reach the owner only after it is published), and the destructor
+    // cannot run while a caller keeps the owner alive, so the unlocked read races with neither.
+    bool refersToControlBlockWithoutLocking(const ThreadSafeWeakPtrControlBlock& controlBlock) const WTF_IGNORES_THREAD_SAFETY_ANALYSIS
+    {
+        return m_controlBlock == &controlBlock;
+    }
+
     void copyFrom(const ThreadSafeWeakPtrStorage& other)
     {
         ThreadSafeWeakPtrControlBlock* controlBlock;
@@ -550,6 +559,11 @@ public:
 
     // Whether this was made from an object whose control block is controlBlock, without making a strong reference.
     bool refersToControlBlock(const ThreadSafeWeakPtrControlBlock& controlBlock) const { return m_storage.refersToControlBlock(controlBlock); }
+    // The same without taking the storage's lock. Only for a ThreadSafeWeakPtr that is never assigned after construction:
+    // declare it const, and static_assert at the call site that it is (std::is_const_v<decltype(Owner::member)>). The
+    // caller must keep the object that holds it alive. An overload on const would not do: a const reference to a
+    // reassignable ThreadSafeWeakPtr would select it too.
+    bool refersToControlBlockWithoutLocking(const ThreadSafeWeakPtrControlBlock& controlBlock) const { return m_storage.refersToControlBlockWithoutLocking(controlBlock); }
 
 private:
     struct ControlBlockAndObjectOffset {
