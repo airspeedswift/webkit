@@ -31,6 +31,7 @@
 #include "Logging.h"
 #include <WebCore/AnimationFrameRate.h>
 #include <WebCore/Scrollbar.h>
+#include <WebCore/ScrollingEffectsClock.h>
 #include <wtf/Borrow.h>
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -47,6 +48,11 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(MomentumEventDispatcher);
 MomentumEventDispatcher::MomentumEventDispatcher(Client& client)
     : m_client(client)
 {
+}
+
+std::unique_ptr<MomentumEventDispatcher> MomentumEventDispatcher::create(Client& client)
+{
+    return makeUnique<MomentumEventDispatcher>(client);
 }
 
 MomentumEventDispatcher::~MomentumEventDispatcher()
@@ -174,7 +180,7 @@ void MomentumEventDispatcher::dispatchSyntheticMomentumEvent(WebWheelEvent::Phas
     auto appKitScrollMultiplier = appKitScrollMultiplierForEvent(initiatingEvent);
     auto appKitAcceleratedDelta = delta * appKitScrollMultiplier;
     auto wheelTicks = appKitAcceleratedDelta / WebCore::Scrollbar::pixelsPerLineStep();
-    auto time = MonotonicTime::now();
+    auto time = WebCore::scrollingEffectsClockNow();
 
     // FIXME: Ideally we would stick legitimate rawPlatformDeltas on the event,
     // but currently nothing will consume them, and we'd have to keep track of them separately.
@@ -217,7 +223,7 @@ void MomentumEventDispatcher::didStartMomentumPhase(WebCore::PageIdentifier page
     m_currentGesture.pageIdentifier = pageIdentifier;
     m_currentGesture.initiatingEvent = &event;
     m_currentGesture.currentOffset = { };
-    m_currentGesture.startTime = MonotonicTime::now();
+    m_currentGesture.startTime = WebCore::scrollingEffectsClockNow();
     m_currentGesture.displayNominalFrameRate = displayProperties->nominalFrameRate;
     m_currentGesture.accelerationCurve = scrollingAccelerationCurveForPage(pageIdentifier);
 
@@ -337,7 +343,7 @@ std::optional<WebCore::FloatSize> MomentumEventDispatcher::consumeDeltaForCurren
 {
     WebCore::FloatSize delta;
 
-    auto animationTime = MonotonicTime::now() - m_currentGesture.startTime;
+    auto animationTime = WebCore::scrollingEffectsClockNow() - m_currentGesture.startTime;
     if (animationTime < m_currentGesture.tailStartDelay) {
         auto desiredOffset = offsetAtTime(animationTime);
         delta = roundedIntSize(desiredOffset - m_currentGesture.currentOffset);
