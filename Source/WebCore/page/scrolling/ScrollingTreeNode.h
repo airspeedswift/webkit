@@ -74,27 +74,27 @@ public:
     bool isOverflowScrollingNode() const { return nodeType() == ScrollingNodeType::Overflow; }
     bool isOverflowScrollProxyNode() const { return nodeType() == ScrollingNodeType::OverflowProxy; }
 
-    virtual bool commitStateBeforeChildren(const ScrollingStateNode&) = 0;
-    virtual bool commitStateAfterChildren(const ScrollingStateNode&) { return true; }
-    virtual void didCompleteCommitForNode() { }
+    SWIFT_UNSAFE virtual bool commitStateBeforeChildren(const ScrollingStateNode&) = 0;
+    SWIFT_UNSAFE virtual bool commitStateAfterChildren(const ScrollingStateNode&) { return true; }
+    SWIFT_UNSAFE virtual void didCompleteCommitForNode() { }
     
-    virtual void willBeDestroyed() { }
+    SWIFT_UNSAFE virtual void willBeDestroyed() { }
 
-    RefPtr<ScrollingTreeNode> parent() const { return m_parent; }
-    void setParent(RefPtr<ScrollingTreeNode>&& parent) { m_parent = parent; }
+    SWIFT_UNSAFE RefPtr<ScrollingTreeNode> parent() const { return m_parent; }
+    SWIFT_UNSAFE void setParent(RefPtr<ScrollingTreeNode>&& parent) { m_parent = parent; }
 
     WEBCORE_EXPORT bool isRootNode() const;
 
     const Vector<Ref<ScrollingTreeNode>>& children() const LIFETIME_BOUND { return m_children; }
 
-    void appendChild(Ref<ScrollingTreeNode>&&);
-    void removeChild(ScrollingTreeNode&);
-    void removeAllChildren();
+    SWIFT_UNSAFE void appendChild(Ref<ScrollingTreeNode>&&);
+    SWIFT_UNSAFE void removeChild(ScrollingTreeNode&);
+    SWIFT_UNSAFE void removeAllChildren();
 
     virtual bool isRootOfHostedSubtree() const { return false; }
 
-    WEBCORE_EXPORT RefPtr<ScrollingTreeFrameScrollingNode> enclosingFrameNodeIncludingSelf();
-    WEBCORE_EXPORT RefPtr<ScrollingTreeScrollingNode> enclosingScrollingNodeIncludingSelf();
+    SWIFT_UNSAFE WEBCORE_EXPORT RefPtr<ScrollingTreeFrameScrollingNode> enclosingFrameNodeIncludingSelf();
+    SWIFT_UNSAFE WEBCORE_EXPORT RefPtr<ScrollingTreeScrollingNode> enclosingScrollingNodeIncludingSelf();
 
     WEBCORE_EXPORT void dump(WTF::TextStream&, OptionSet<ScrollingStateTreeAsTextBehavior>) const;
 

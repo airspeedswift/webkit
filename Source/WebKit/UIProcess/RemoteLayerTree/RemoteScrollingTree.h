@@ -61,7 +61,7 @@ public:
 
     bool isRemoteScrollingTree() const final { return true; }
 
-    void invalidate() final;
+    SWIFT_UNSAFE void invalidate() final;
 
     virtual void willSendEventForDefaultHandling(const WebCore::PlatformWheelEvent&) { }
     virtual void waitForEventDefaultHandlingCompletion(const WebCore::PlatformWheelEvent&) { }
@@ -75,8 +75,8 @@ public:
     void scrollingTreeNodeDidScroll(WebCore::ScrollingTreeScrollingNode&, WebCore::ScrollingLayerPositionAction = WebCore::ScrollingLayerPositionAction::Sync) override;
     void scrollingTreeNodeDidStopAnimatedScroll(WebCore::ScrollingTreeScrollingNode&) override;
     void scrollingTreeNodeDidStopWheelEventScroll(WebCore::ScrollingTreeScrollingNode&) override;
-    WebCore::RequestsScrollHandling scrollingTreeNodeRequestsScroll(WebCore::ScrollingNodeID, const WebCore::RequestedScrollData&) override;
-    bool scrollingTreeNodeRequestsKeyboardScroll(WebCore::ScrollingNodeID, const WebCore::RequestedKeyboardScrollData&) override;
+    SWIFT_UNSAFE WebCore::RequestsScrollHandling scrollingTreeNodeRequestsScroll(WebCore::ScrollingNodeID, const WebCore::RequestedScrollData&) override;
+    SWIFT_UNSAFE bool scrollingTreeNodeRequestsKeyboardScroll(WebCore::ScrollingNodeID, const WebCore::RequestedKeyboardScrollData&) override;
 
     void didHandleScrollRequestForNode(WebCore::ScrollingNodeID, WebCore::ScrollRequestType, WebCore::FloatPoint scrollPosition, WebCore::ShouldFireScrollEnd, Markable<WebCore::ScrollRequestIdentifier>) override;
 

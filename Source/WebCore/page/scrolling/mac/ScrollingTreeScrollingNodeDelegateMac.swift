@@ -473,7 +473,8 @@ extension WebCore.ScrollingTreeScrollPhysicsClient: ScrollPhysicsClientProtocol 
     }
 
     mutating func immediateScrollBy(_ delta: WebCore.FloatSize, _ clamping: WebCore.ScrollClamping) {
-        node().scrollBy(delta, clamping)
+        // The node's scrolling thread calls this with the scrolling tree's lock held.
+        unsafe node().scrollBy(delta, clamping)
     }
 
     #if USE_SWIFT_SCROLL_ANIMATOR
