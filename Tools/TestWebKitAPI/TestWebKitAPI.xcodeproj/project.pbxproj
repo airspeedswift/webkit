@@ -801,6 +801,7 @@
 				WebCore/ApduTest.cpp,
 				WebCore/ApplicationManifestParser.cpp,
 				WebCore/ASN1Utilities.cpp,
+				WebCore/AudioDSPBench.cpp,
 				WebCore/AudioSampleFormat.cpp,
 				WebCore/AV1UtilitiesTests.cpp,
 				WebCore/BezierUtilitiesTests.cpp,
