@@ -267,6 +267,12 @@ public:
 
     void clear() { adopt(nullptr, 0); }
 
+    bool refersToControlBlock(const ThreadSafeWeakPtrControlBlock& controlBlock) const
+    {
+        Locker locker { m_lock };
+        return m_controlBlock == &controlBlock;
+    }
+
     void copyFrom(const ThreadSafeWeakPtrStorage& other)
     {
         ThreadSafeWeakPtrControlBlock* controlBlock;
@@ -533,6 +539,9 @@ public:
     }
 
     RefPtr<T> get() const { return m_storage.makeStrongReferenceIfPossible<T>(); }
+
+    // Whether this was made from an object whose control block is controlBlock, without making a strong reference.
+    bool refersToControlBlock(const ThreadSafeWeakPtrControlBlock& controlBlock) const { return m_storage.refersToControlBlock(controlBlock); }
 
 private:
     struct ControlBlockAndObjectOffset {

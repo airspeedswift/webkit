@@ -1295,6 +1295,197 @@ void ScrollingTree::fixedOrStickyNodeAdded(ScrollingTreeNode& node)
     m_fixedOrStickyNodes.add(node);
 }
 
+// Swift relocates a noncopyable class with a trivial destructor bitwise, so the destructor is user-provided.
+static_assert(!std::is_trivially_destructible_v<ScrollingTreeLockedAccess>);
+static_assert(!std::is_copy_constructible_v<ScrollingTreeLockedAccess>);
+static_assert(!std::is_copy_assignable_v<ScrollingTreeLockedAccess>);
+static_assert(!std::is_move_assignable_v<ScrollingTreeLockedAccess>);
+static_assert(!std::is_default_constructible_v<ScrollingTreeLockedAccess>);
+
+ScrollingTreeLockedAccess::ScrollingTreeLockedAccess(ScrollingTree& tree)
+    : m_tree(tree)
+{
+    RELEASE_ASSERT(!tree.m_hasLockedAccess);
+    tree.m_hasLockedAccess = true;
+}
+
+ScrollingTreeLockedAccess::ScrollingTreeLockedAccess(ScrollingTreeLockedAccess&& other)
+    : m_tree(other.m_tree)
+{
+    RELEASE_ASSERT_NOT_REACHED();
+}
+
+ScrollingTreeLockedAccess::~ScrollingTreeLockedAccess()
+{
+    auto& tree = this->tree();
+    assertIsHeld(tree.m_treeLock);
+    tree.m_hasLockedAccess = false;
+}
+
+ScrollingTree& ScrollingTreeLockedAccess::tree() const
+{
+    RELEASE_ASSERT(m_tree->m_treeLock.isLocked());
+    assertIsHeld(m_tree->m_treeLock);
+    return m_tree.get();
+}
+
+void ScrollingTreeLockedAccess::checkNode(const ScrollingTreeNode& node) const
+{
+    // m_tree keeps the tree's weak pointer control block alive, so no node of another tree, live or dead, refers to it.
+    RELEASE_ASSERT(node.m_scrollingTree.refersToControlBlock(tree().controlBlock()));
+}
+
+RefPtr<ScrollingTreeNode> ScrollingTreeLockedAccess::nodeForID(ScrollingNodeID nodeID) const
+{
+    return tree().nodeForID(nodeID);
+}
+
+RefPtr<ScrollingTreeFrameScrollingNode> ScrollingTreeLockedAccess::rootNode() const
+{
+    return tree().rootNode();
+}
+
+RefPtr<ScrollingTreeNode> ScrollingTreeLockedAccess::scrollingNodeForPoint(FloatPoint point) const
+{
+    return tree().scrollingNodeForPoint(point);
+}
+
+void ScrollingTreeLockedAccess::removeNode(ScrollingNodeID nodeID) const
+{
+    tree().removeNode(nodeID);
+}
+
+void ScrollingTreeLockedAccess::removeNode(ScrollingNodeID nodeID, ScrollingTreeFrameHostingNode& hostingNode) const
+{
+    checkNode(hostingNode);
+    tree().removeNode(nodeID, &hostingNode);
+}
+
+void ScrollingTreeLockedAccess::addScrollingNodeToHostedSubtreeMap(LayerHostingContextIdentifier identifier, ScrollingTreeFrameHostingNode& hostingNode) const
+{
+    checkNode(hostingNode);
+    tree().addScrollingNodeToHostedSubtreeMap(identifier, Ref { hostingNode });
+}
+
+void ScrollingTreeLockedAccess::removeFrameHostingNode(LayerHostingContextIdentifier identifier) const
+{
+    tree().removeFrameHostingNode(identifier);
+}
+
+bool ScrollingTreeLockedAccess::commitStateBeforeChildren(ScrollingTreeNode& node, const ScrollingStateNode& stateNode) const
+{
+    checkNode(node);
+    return node.commitStateBeforeChildren(stateNode);
+}
+
+bool ScrollingTreeLockedAccess::commitStateAfterChildren(ScrollingTreeNode& node, const ScrollingStateNode& stateNode) const
+{
+    checkNode(node);
+    return node.commitStateAfterChildren(stateNode);
+}
+
+void ScrollingTreeLockedAccess::didCompleteCommitForNode(ScrollingTreeNode& node) const
+{
+    checkNode(node);
+    node.didCompleteCommitForNode();
+}
+
+void ScrollingTreeLockedAccess::willBeDestroyed(ScrollingTreeNode& node) const
+{
+    checkNode(node);
+    node.willBeDestroyed();
+}
+
+RefPtr<ScrollingTreeNode> ScrollingTreeLockedAccess::parent(ScrollingTreeNode& node) const
+{
+    checkNode(node);
+    return node.parent();
+}
+
+void ScrollingTreeLockedAccess::setParent(ScrollingTreeNode& node, ScrollingTreeNode* parent) const
+{
+    checkNode(node);
+    if (parent)
+        checkNode(*parent);
+    node.setParent(parent);
+}
+
+void ScrollingTreeLockedAccess::appendChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const
+{
+    checkNode(parent);
+    checkNode(child);
+    parent.appendChild(Ref { child });
+}
+
+void ScrollingTreeLockedAccess::removeChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const
+{
+    checkNode(parent);
+    checkNode(child);
+    parent.removeChild(child);
+}
+
+void ScrollingTreeLockedAccess::removeAllChildren(ScrollingTreeNode& node) const
+{
+    checkNode(node);
+    node.removeAllChildren();
+}
+
+WheelEventHandlingResult ScrollingTreeLockedAccess::handleWheelEvent(ScrollingTreeScrollingNode& node, const PlatformWheelEvent& wheelEvent, EventTargeting eventTargeting) const
+{
+    checkNode(node);
+    return node.handleWheelEvent(wheelEvent, eventTargeting);
+}
+
+void ScrollingTreeLockedAccess::stopSpringAnimation(ScrollingTreeScrollingNode& node) const
+{
+    checkNode(node);
+    node.stopSpringAnimation();
+}
+
+void ScrollingTreeLockedAccess::serviceScrollAnimation(ScrollingTreeScrollingNode& node, MonotonicTime currentTime) const
+{
+    checkNode(node);
+    node.serviceScrollAnimation(currentTime);
+}
+
+void ScrollingTreeLockedAccess::scrollTo(ScrollingTreeScrollingNode& node, const FloatPoint& position, ScrollType scrollType, ScrollClamping clamping) const
+{
+    checkNode(node);
+    node.scrollTo(position, scrollType, clamping);
+}
+
+void ScrollingTreeLockedAccess::scrollBy(ScrollingTreeScrollingNode& node, const FloatSize& offset, ScrollClamping clamping) const
+{
+    checkNode(node);
+    node.scrollBy(offset, clamping);
+}
+
+void ScrollingTreeLockedAccess::setLayerHostingContextIdentifier(ScrollingTreeFrameHostingNode& node, std::optional<LayerHostingContextIdentifier> identifier) const
+{
+    checkNode(node);
+    node.setLayerHostingContextIdentifier(identifier);
+}
+
+void ScrollingTreeLockedAccess::addHostedChild(ScrollingTreeFrameHostingNode& node, ScrollingTreeNode& child) const
+{
+    checkNode(node);
+    checkNode(child);
+    node.addHostedChild(Ref { child });
+}
+
+void ScrollingTreeLockedAccess::removeHostedChildren(ScrollingTreeFrameHostingNode& node) const
+{
+    checkNode(node);
+    node.removeHostedChildren();
+}
+
+void ScrollingTreeLockedAccess::removeHostedChild(ScrollingTreeFrameHostingNode& node, ScrollingTreeNode& child) const
+{
+    checkNode(node);
+    checkNode(child);
+    node.removeHostedChild(child);
+}
+
 } // namespace WebCore
 
 #endif // ENABLE(ASYNC_SCROLLING)
