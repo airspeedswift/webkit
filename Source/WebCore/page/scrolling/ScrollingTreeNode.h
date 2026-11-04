@@ -115,7 +115,8 @@ protected:
     Vector<Ref<ScrollingTreeNode>> m_children;
 
 private:
-    ThreadSafeWeakPtr<ScrollingTree> m_scrollingTree;
+    // const: set only by the constructor, so ScrollingTreeLockedAccess::checkNode() reads it without its lock.
+    const ThreadSafeWeakPtr<ScrollingTree> m_scrollingTree;
 
     const ScrollingNodeType m_nodeType;
     const ScrollingNodeID m_nodeID;

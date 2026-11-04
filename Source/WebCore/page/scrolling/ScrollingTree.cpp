@@ -1302,8 +1302,9 @@ static_assert(!std::is_copy_assignable_v<ScrollingTreeLockedAccess>);
 static_assert(!std::is_move_assignable_v<ScrollingTreeLockedAccess>);
 static_assert(!std::is_default_constructible_v<ScrollingTreeLockedAccess>);
 
-ScrollingTreeLockedAccess::ScrollingTreeLockedAccess(ScrollingTree& tree)
+ScrollingTreeLockedAccess::ScrollingTreeLockedAccess(ScrollingTree& tree, ScrollingTreeAccessMode mode)
     : m_tree(tree)
+    , m_mode(mode)
 {
     RELEASE_ASSERT(!tree.m_hasLockedAccess);
     tree.m_hasLockedAccess = true;
@@ -1311,6 +1312,7 @@ ScrollingTreeLockedAccess::ScrollingTreeLockedAccess(ScrollingTree& tree)
 
 ScrollingTreeLockedAccess::ScrollingTreeLockedAccess(ScrollingTreeLockedAccess&& other)
     : m_tree(other.m_tree)
+    , m_mode(other.m_mode)
 {
     RELEASE_ASSERT_NOT_REACHED();
 }
@@ -1332,7 +1334,16 @@ ScrollingTree& ScrollingTreeLockedAccess::tree() const
 void ScrollingTreeLockedAccess::checkNode(const ScrollingTreeNode& node) const
 {
     // m_tree keeps the tree's weak pointer control block alive, so no node of another tree, live or dead, refers to it.
-    RELEASE_ASSERT(node.m_scrollingTree.refersToControlBlock(tree().controlBlock()));
+    // m_scrollingTree is const, so it is read without its lock; the caller's reference keeps node alive.
+    static_assert(std::is_const_v<decltype(ScrollingTreeNode::m_scrollingTree)>);
+    RELEASE_ASSERT(node.m_scrollingTree.refersToControlBlockWithoutLocking(tree().controlBlock()));
+}
+
+void ScrollingTreeLockedAccess::checkCommit() const
+{
+    // The tree's structure is written only by the commit, on its thread, so readers there need no lock; a change
+    // from any other entry, on another thread, would race with them.
+    RELEASE_ASSERT(m_mode == ScrollingTreeAccessMode::Commit);
 }
 
 RefPtr<ScrollingTreeNode> ScrollingTreeLockedAccess::nodeForID(ScrollingNodeID nodeID) const
@@ -1352,46 +1363,54 @@ RefPtr<ScrollingTreeNode> ScrollingTreeLockedAccess::scrollingNodeForPoint(Float
 
 void ScrollingTreeLockedAccess::removeNode(ScrollingNodeID nodeID) const
 {
+    checkCommit();
     tree().removeNode(nodeID);
 }
 
 void ScrollingTreeLockedAccess::removeNode(ScrollingNodeID nodeID, ScrollingTreeFrameHostingNode& hostingNode) const
 {
+    checkCommit();
     checkNode(hostingNode);
     tree().removeNode(nodeID, &hostingNode);
 }
 
 void ScrollingTreeLockedAccess::addScrollingNodeToHostedSubtreeMap(LayerHostingContextIdentifier identifier, ScrollingTreeFrameHostingNode& hostingNode) const
 {
+    checkCommit();
     checkNode(hostingNode);
     tree().addScrollingNodeToHostedSubtreeMap(identifier, Ref { hostingNode });
 }
 
 void ScrollingTreeLockedAccess::removeFrameHostingNode(LayerHostingContextIdentifier identifier) const
 {
+    checkCommit();
     tree().removeFrameHostingNode(identifier);
 }
 
 bool ScrollingTreeLockedAccess::commitStateBeforeChildren(ScrollingTreeNode& node, const ScrollingStateNode& stateNode) const
 {
+    checkCommit();
     checkNode(node);
     return node.commitStateBeforeChildren(stateNode);
 }
 
 bool ScrollingTreeLockedAccess::commitStateAfterChildren(ScrollingTreeNode& node, const ScrollingStateNode& stateNode) const
 {
+    checkCommit();
     checkNode(node);
     return node.commitStateAfterChildren(stateNode);
 }
 
 void ScrollingTreeLockedAccess::didCompleteCommitForNode(ScrollingTreeNode& node) const
 {
+    checkCommit();
     checkNode(node);
     node.didCompleteCommitForNode();
 }
 
 void ScrollingTreeLockedAccess::willBeDestroyed(ScrollingTreeNode& node) const
 {
+    checkCommit();
     checkNode(node);
     node.willBeDestroyed();
 }
@@ -1404,6 +1423,7 @@ RefPtr<ScrollingTreeNode> ScrollingTreeLockedAccess::parent(ScrollingTreeNode& n
 
 void ScrollingTreeLockedAccess::setParent(ScrollingTreeNode& node, ScrollingTreeNode* parent) const
 {
+    checkCommit();
     checkNode(node);
     if (parent)
         checkNode(*parent);
@@ -1412,6 +1432,7 @@ void ScrollingTreeLockedAccess::setParent(ScrollingTreeNode& node, ScrollingTree
 
 void ScrollingTreeLockedAccess::appendChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const
 {
+    checkCommit();
     checkNode(parent);
     checkNode(child);
     parent.appendChild(Ref { child });
@@ -1419,6 +1440,7 @@ void ScrollingTreeLockedAccess::appendChild(ScrollingTreeNode& parent, Scrolling
 
 void ScrollingTreeLockedAccess::removeChild(ScrollingTreeNode& parent, ScrollingTreeNode& child) const
 {
+    checkCommit();
     checkNode(parent);
     checkNode(child);
     parent.removeChild(child);
@@ -1426,8 +1448,53 @@ void ScrollingTreeLockedAccess::removeChild(ScrollingTreeNode& parent, Scrolling
 
 void ScrollingTreeLockedAccess::removeAllChildren(ScrollingTreeNode& node) const
 {
+    checkCommit();
     checkNode(node);
     node.removeAllChildren();
+}
+
+size_t ScrollingTreeLockedAccess::childCount(ScrollingTreeNode& node) const
+{
+    checkNode(node);
+    return node.children().size();
+}
+
+RefPtr<ScrollingTreeNode> ScrollingTreeLockedAccess::childAt(ScrollingTreeNode& node, size_t index) const
+{
+    checkNode(node);
+    auto& children = node.children();
+    RELEASE_ASSERT(index < children.size());
+    return children[index].ptr();
+}
+
+void ScrollingTreeLockedAccess::setRootNode(ScrollingTreeFrameScrollingNode* node) const
+{
+    checkCommit();
+    if (node)
+        checkNode(*node);
+    tree().m_rootNode = node;
+}
+
+void ScrollingTreeLockedAccess::removeAllNodes() const
+{
+    checkCommit();
+    auto& tree = this->tree();
+    // The analysis does not see that tree() checked the lock of the tree it returns.
+    assertIsHeld(tree.m_treeLock);
+    tree.removeAllNodes();
+}
+
+void ScrollingTreeLockedAccess::addNode(ScrollingTreeNode& node, FrameIdentifier frameID) const
+{
+    checkCommit();
+    checkNode(node);
+    auto& tree = this->tree();
+    tree.m_nodeMap.set(node.scrollingNodeID(), node);
+    {
+        Locker locker { tree.m_frameIDMapLock };
+        tree.m_nodeMapPerFrame.ensure(frameID, [] { return HashSet<ScrollingNodeID> { }; }).iterator->value.add(node.scrollingNodeID());
+    }
+    node.setFrameIdentifier(frameID);
 }
 
 WheelEventHandlingResult ScrollingTreeLockedAccess::handleWheelEvent(ScrollingTreeScrollingNode& node, const PlatformWheelEvent& wheelEvent, EventTargeting eventTargeting) const
@@ -1460,14 +1527,21 @@ void ScrollingTreeLockedAccess::scrollBy(ScrollingTreeScrollingNode& node, const
     node.scrollBy(offset, clamping);
 }
 
+void ScrollingTreeLockedAccess::handleWheelEventPhase(ScrollingNodeID nodeID, PlatformWheelEventPhase phase) const
+{
+    tree().handleWheelEventPhase(nodeID, phase);
+}
+
 void ScrollingTreeLockedAccess::setLayerHostingContextIdentifier(ScrollingTreeFrameHostingNode& node, std::optional<LayerHostingContextIdentifier> identifier) const
 {
+    checkCommit();
     checkNode(node);
     node.setLayerHostingContextIdentifier(identifier);
 }
 
 void ScrollingTreeLockedAccess::addHostedChild(ScrollingTreeFrameHostingNode& node, ScrollingTreeNode& child) const
 {
+    checkCommit();
     checkNode(node);
     checkNode(child);
     node.addHostedChild(Ref { child });
@@ -1475,12 +1549,14 @@ void ScrollingTreeLockedAccess::addHostedChild(ScrollingTreeFrameHostingNode& no
 
 void ScrollingTreeLockedAccess::removeHostedChildren(ScrollingTreeFrameHostingNode& node) const
 {
+    checkCommit();
     checkNode(node);
     node.removeHostedChildren();
 }
 
 void ScrollingTreeLockedAccess::removeHostedChild(ScrollingTreeFrameHostingNode& node, ScrollingTreeNode& child) const
 {
+    checkCommit();
     checkNode(node);
     checkNode(child);
     node.removeHostedChild(child);
