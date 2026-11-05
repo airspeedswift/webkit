@@ -47,7 +47,7 @@ class AudioProcessor;
 // It uses one AudioDSPKernel object per channel to do the processing, thus there is no cross-channel processing.
 // Despite this limitation it turns out to be a very common and useful type of processor.
 
-class AudioDSPKernelProcessor : public AudioProcessor, public CanMakeThreadSafeCheckedPtr<AudioDSPKernelProcessor> {
+class WEBCORE_EXPORT AudioDSPKernelProcessor : public AudioProcessor, public CanMakeThreadSafeCheckedPtr<AudioDSPKernelProcessor> {
     WTF_MAKE_TZONE_ALLOCATED(AudioDSPKernelProcessor);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(AudioDSPKernelProcessor);
 public:

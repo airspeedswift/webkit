@@ -38,12 +38,17 @@ class DelayDSPKernel final : public AudioDSPKernel {
 public:
     explicit DelayDSPKernel(DelayProcessor*);
     DelayDSPKernel(double maxDelayTime, float sampleRate);
+#if USE_SWIFT_WEBAUDIO_KERNELS
+    ~DelayDSPKernel();
+#endif
     
     void process(std::span<const float> source, std::span<float> destination) override;
     void processOnlyAudioParams(size_t framesToProcess) final;
     void reset() override;
     
+#if !USE_SWIFT_WEBAUDIO_KERNELS
     double maxDelayTime() const { return m_maxDelayTime; }
+#endif
     
     void setDelayFrames(double numberOfFrames) { m_desiredDelayFrames = numberOfFrames; }
 
@@ -52,6 +57,7 @@ public:
     bool NODELETE requiresTailProcessing() const final;
 
 private:
+#if !USE_SWIFT_WEBAUDIO_KERNELS
     void processARate(std::span<const float> source, std::span<float> destination);
     void processKRate(std::span<const float> source, std::span<float> destination);
 
@@ -63,6 +69,11 @@ private:
     AudioFloatArray m_delayTimes;
     // Temporary buffer used to hold the second sample for interpolation if needed.
     AudioFloatArray m_tempBuffer;
+#else
+    struct SwiftState;
+    std::unique_ptr<SwiftState> m_swift;
+    double m_desiredDelayFrames { 0 };
+#endif
 
     DelayProcessor* delayProcessor() { return downcast<DelayProcessor>(processor()); }
 };

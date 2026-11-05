@@ -31,6 +31,10 @@
 #ifndef AudioDSPKernel_h
 #define AudioDSPKernel_h
 
+#if !defined(USE_SWIFT_WEBAUDIO_KERNELS)
+#define USE_SWIFT_WEBAUDIO_KERNELS 0
+#endif
+
 #include "AudioDSPKernelProcessor.h"
 #include <wtf/CheckedPtr.h>
 #include <wtf/TZoneMallocInlines.h>

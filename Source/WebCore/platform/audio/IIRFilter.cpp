@@ -37,6 +37,8 @@
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#if !USE_SWIFT_WEBAUDIO_KERNELS
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(IIRFilter);
@@ -238,5 +240,7 @@ double IIRFilter::tailTime(double sampleRate, bool isFilterStable)
 }
 
 } // namespace WebCore
+
+#endif // !USE_SWIFT_WEBAUDIO_KERNELS
 
 #endif // ENABLE(WEB_AUDIO)
