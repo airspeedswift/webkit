@@ -97,6 +97,14 @@ struct Position {
     {
     }
 
+    // For Swift, which imports no constructor template. C++ overload resolution keeps the template for every argument
+    // it took before: for an alternative's type the template is an exact match and this needs a conversion, and for a
+    // Kind both are exact and the non-template wins with the same body.
+    Position(Kind&& value)
+        : value { WTF::move(value) }
+    {
+    }
+
     template<typename... F> decltype(auto) switchOn(NOESCAPE F&&... f) const
     {
         return WTF::switchOn(value, std::forward<F>(f)...);
@@ -120,6 +128,14 @@ struct PositionX {
     {
     }
 
+    // For Swift, which imports no constructor template. C++ overload resolution keeps the template for every argument
+    // it took before: for an alternative's type the template is an exact match and this needs a conversion, and for a
+    // Kind both are exact and the non-template wins with the same body.
+    PositionX(Kind&& value)
+        : value { WTF::move(value) }
+    {
+    }
+
     template<typename... F> decltype(auto) switchOn(NOESCAPE F&&... f) const
     {
         return WTF::switchOn(value, std::forward<F>(f)...);
@@ -140,6 +156,14 @@ struct PositionY {
     template<typename T>
     PositionY(T&& value)
         : value { std::forward<T>(value) }
+    {
+    }
+
+    // For Swift, which imports no constructor template. C++ overload resolution keeps the template for every argument
+    // it took before: for an alternative's type the template is an exact match and this needs a conversion, and for a
+    // Kind both are exact and the non-template wins with the same body.
+    PositionY(Kind&& value)
+        : value { WTF::move(value) }
     {
     }
 
