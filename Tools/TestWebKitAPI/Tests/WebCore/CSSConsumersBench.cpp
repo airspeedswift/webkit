@@ -29,21 +29,32 @@
 #include <WebCore/CSSParser.h>
 #include <WebCore/CSSParserContext.h>
 #include <WebCore/CSSPropertyNames.h>
+#include <WebCore/CSSPropertyParserConsumer+Easing.h>
+#include <WebCore/CSSPropertyParserConsumer+Font.h>
+#include <WebCore/DocumentInlines.h>
 #include <WebCore/MutableStyleProperties.h>
+#include <WebCore/ProcessWarming.h>
+#include <WebCore/Settings.h>
 #include <WebCore/StyleProperties.h>
+#include <WebCore/StyleRule.h>
+#include <WebCore/StyleSheetContents.h>
+#include <WebCore/TimingFunction.h>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <iterator>
 #include <span>
 #include <wtf/MonotonicTime.h>
+#include <wtf/URL.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringView.h>
 #include <wtf/text/WTFString.h>
 
 // Each test parses declaration blocks of one family of property values once through the declaration-list parser and
 // checks a checksum of what was parsed. With WEBKIT_RUN_BENCHMARKS set, it then parses them a fixed number of times
-// and prints the time taken.
+// and prints the time taken. FontShorthands also parses its strings with parseUnresolvedFont, TimingFunctions parses
+// each of its easings with parseEasingFunctionDeprecated, and FontFaceBlocks parses style sheets of @font-face rules
+// and reads their descriptors back.
 //
 // The generators make every random draw in its own statement, so the inputs do not depend on the order in which a
 // compiler evaluates function arguments.
@@ -3313,6 +3324,1571 @@ static Vector<Block> invalidColorsImagesBlocks()
     });
 }
 
+// MARK: - Font families.
+
+static constexpr Property fontFamily { CSSPropertyID::FontFamily, "font-family"_s };
+static constexpr Property fontShorthand { CSSPropertyID::Font, "font"_s };
+
+static constexpr ASCIILiteral genericFamilies[] = {
+    "serif"_s, "sans-serif"_s, "monospace"_s, "cursive"_s, "fantasy"_s, "system-ui"_s, "ui-serif"_s, "ui-sans-serif"_s,
+    "ui-monospace"_s, "ui-rounded"_s, "math"_s, "emoji"_s, "fangsong"_s, "-webkit-body"_s, "-webkit-pictograph"_s,
+};
+static constexpr ASCIILiteral singleWordFamilies[] = {
+    "Arial"_s, "Helvetica"_s, "Roboto"_s, "Inter"_s, "Georgia"_s, "Menlo"_s, "Verdana"_s, "Tahoma"_s, "-apple-system"_s,
+    "BlinkMacSystemFont"_s, "Ubuntu"_s, "Consolas"_s,
+};
+// Some contain a generic family's word, which unquoted is still part of one family name.
+static constexpr ASCIILiteral multiWordFamilies[] = {
+    "Helvetica Neue"_s, "Segoe UI"_s, "Times New Roman"_s, "Noto Sans CJK JP"_s, "Source Code Pro"_s, "Apple Color Emoji"_s,
+    "Liberation Sans"_s, "PT Serif"_s, "Fira Mono"_s, "Segoe UI Emoji"_s, "Open Sans"_s,
+};
+// Entries that invalidate a list of more than one: CSS-wide and default keywords as unquoted names, a number, an
+// empty entry (and so a trailing comma), a URL. Alone, a CSS-wide keyword is valid.
+static constexpr ASCIILiteral invalidFamilyEntries[] = { "inherit"_s, "initial"_s, "default"_s, "unset"_s, "12px"_s, ""_s, "serif 2"_s, "url(a)"_s };
+
+static constexpr unsigned familyCounts[] = { 1, 1, 2, 3, 5, 5, 10 };
+
+static void appendFamilyName(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 20) {
+        auto& generic = random.pick(genericFamilies);
+        if (random.percent(10))
+            value.append('"', generic, '"');
+        else
+            value.append(generic);
+        return;
+    }
+    auto& name = kind < 60 ? random.pick(singleWordFamilies) : random.pick(multiWordFamilies);
+    unsigned quoting = random.below(100);
+    if (quoting < 25)
+        value.append('"', name, '"');
+    else if (quoting < 35)
+        value.append('\'', name, '\'');
+    else
+        value.append(name);
+}
+
+static void appendFamilyList(StringBuilder& value, Random& random, unsigned count, unsigned invalidChance)
+{
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(", "_s);
+        if (random.percent(invalidChance)) {
+            value.append(random.pick(invalidFamilyEntries));
+            continue;
+        }
+        appendFamilyName(value, random);
+    }
+}
+
+// font-family stacks of 1, 2, 3, 5 and 10 names: quoted and unquoted, single- and multi-word, generic and quoted
+// generic, with an invalid entry in about one list in six of ten names.
+static Vector<Block> fontFamilyStacksBlocks()
+{
+    return generateBlocks(301, [](Random& random, StringBuilder& value, unsigned) -> const Property& {
+        unsigned count = random.pick(familyCounts);
+        appendFamilyList(value, random, count, 2);
+        return fontFamily;
+    });
+}
+
+// MARK: - The font shorthand.
+
+static constexpr ASCIILiteral shorthandFontStyles[] = { "italic"_s, "oblique"_s, "oblique 10deg"_s, "oblique -20deg"_s, "normal"_s };
+static constexpr ASCIILiteral shorthandFontWeights[] = {
+    "bold"_s, "bolder"_s, "lighter"_s, "normal"_s, "100"_s, "300"_s, "500"_s, "600"_s, "700"_s, "900"_s, "1000"_s, "450"_s, "calc(400 + 50)"_s,
+};
+static constexpr ASCIILiteral fontWidthKeywords[] = {
+    "condensed"_s, "semi-condensed"_s, "ultra-condensed"_s, "extra-condensed"_s, "semi-expanded"_s, "expanded"_s,
+    "extra-expanded"_s, "ultra-expanded"_s, "normal"_s,
+};
+static constexpr ASCIILiteral fontSizeKeywords[] = {
+    "xx-small"_s, "x-small"_s, "small"_s, "medium"_s, "large"_s, "x-large"_s, "xx-large"_s, "xxx-large"_s, "-webkit-xxx-large"_s,
+    "smaller"_s, "larger"_s, "math"_s,
+};
+static constexpr ASCIILiteral shorthandLineHeights[] = { "normal"_s, "1"_s, "1.5"_s, "1.25"_s, "120%"_s, "20px"_s, "1.2em"_s, "calc(1em + 4px)"_s };
+static constexpr ASCIILiteral systemFonts[] = {
+    "caption"_s, "icon"_s, "menu"_s, "message-box"_s, "small-caption"_s, "status-bar"_s, "-apple-system-body"_s,
+    "-apple-system-headline"_s, "-webkit-control"_s, "-webkit-small-control"_s,
+};
+// No size, no family, '/' with no line height, five slots, a slot after the size, a negative size, a lone keyword,
+// a repeated slot, an angle out of range, a trailing comma, a CSS-wide keyword (valid only for the declaration).
+static constexpr ASCIILiteral invalidFontStrings[] = {
+    "bold serif"_s, "12px"_s, "italic bold 12px/ serif"_s, "italic small-caps bold condensed normal 12px serif"_s,
+    "12px bold serif"_s, "-12px serif"_s, "bold"_s, "12px/1.5"_s, "italic italic 12px serif"_s, "small-caps 12px, serif"_s,
+    "12px serif,"_s, "oblique 100deg 12px serif"_s, "inherit"_s, "12px inherit"_s,
+};
+
+static void appendFontSize(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 20) {
+        value.append(random.pick(fontSizeKeywords));
+        return;
+    }
+    if (kind < 30) {
+        appendNumber(value, random, 200, 1);
+        value.append('%');
+        return;
+    }
+    if (kind < 35) {
+        appendCalcLengthPercentage(value, random);
+        return;
+    }
+    appendLength(value, random, 0);
+}
+
+// Up to four of style, small-caps, weight and width in any order (a repeat written as `normal`), a size, a line
+// height in two in five, and a family list; one in twenty a system font, one in fourteen an invalid string.
+static void appendFontString(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 5) {
+        value.append(random.pick(systemFonts));
+        return;
+    }
+    if (kind < 12) {
+        value.append(random.pick(invalidFontStrings));
+        return;
+    }
+    unsigned slots = random.below(5);
+    std::array<bool, 4> used { };
+    for (unsigned i = 0; i < slots; ++i) {
+        unsigned slot = random.below(4);
+        if (used[slot]) {
+            value.append("normal "_s);
+            continue;
+        }
+        used[slot] = true;
+        switch (slot) {
+        case 0:
+            value.append(random.pick(shorthandFontStyles));
+            break;
+        case 1:
+            value.append("small-caps"_s);
+            break;
+        case 2:
+            value.append(random.pick(shorthandFontWeights));
+            break;
+        default:
+            value.append(random.pick(fontWidthKeywords));
+            break;
+        }
+        value.append(' ');
+    }
+    appendFontSize(value, random);
+    if (random.percent(40)) {
+        value.append('/');
+        value.append(random.pick(shorthandLineHeights));
+    }
+    value.append(' ');
+    unsigned count = random.pick(familyCounts);
+    appendFamilyList(value, random, count, 1);
+}
+
+static Vector<String> fontShorthandStrings()
+{
+    Random random(302);
+    Vector<String> strings;
+    for (unsigned i = 0; i < declarationCount; ++i) {
+        StringBuilder value;
+        appendFontString(value, random);
+        strings.append(value.toString());
+    }
+    return strings;
+}
+
+// One `font` declaration per block, on the same strings parseUnresolvedFont parses.
+static Vector<Block> fontShorthandBlocks(const Vector<String>& strings)
+{
+    Vector<Block> blocks;
+    BlockBuilder builder;
+    for (auto& string : strings) {
+        builder.add(fontShorthand, string);
+        blocks.append(builder.take());
+    }
+    return blocks;
+}
+
+// MARK: - @font-face blocks.
+
+static constexpr ASCIILiteral webfontFormats[] = { "woff2"_s, "woff"_s, "truetype"_s, "opentype"_s, "embedded-opentype"_s, "svg"_s, "collection"_s };
+static constexpr ASCIILiteral webfontTechnologies[] = {
+    "variations"_s, "color-COLRv1"_s, "color-SVG"_s, "color-sbix"_s, "features-opentype"_s, "incremental"_s, "palettes"_s,
+};
+// An unknown format (dropped, the rest kept), an unknown technology (the whole descriptor fails), an empty local(),
+// an empty format(), a bare ident, two formats.
+static constexpr ASCIILiteral invalidSourceEntries[] = {
+    "url(x.woff) format(\"unknown\")"_s, "url(x.woff) tech(bogus)"_s, "local()"_s, "url(x.ttf) format()"_s, "foo"_s,
+    "url(x.ttf) format(woff2) format(woff)"_s,
+};
+// Past U+10FFFF, seven digits, start after end, no digits, a non-hex digit.
+static constexpr ASCIILiteral invalidUnicodeRanges[] = { "U+110000"_s, "U+1234567"_s, "U+50-20"_s, "U+"_s, "U+G0"_s, "U+0-110000"_s };
+static constexpr ASCIILiteral fontFaceWeights[] = { "400"_s, "bold"_s, "normal"_s, "100 900"_s, "300 700"_s, "200.5"_s, "900 100"_s, "auto"_s };
+static constexpr ASCIILiteral fontFaceStyles[] = { "normal"_s, "italic"_s, "oblique"_s, "oblique 0deg"_s, "oblique 0deg 0deg"_s, "oblique 10deg"_s, "oblique 0deg 20deg"_s, "oblique -10deg 10deg"_s };
+static constexpr ASCIILiteral fontDisplays[] = { "auto"_s, "block"_s, "swap"_s, "fallback"_s, "optional"_s };
+static constexpr ASCIILiteral fontFaceOverrides[] = { "normal"_s, "90%"_s, "105.5%"_s, "0%"_s, "-5%"_s };
+
+static void appendHexDigits(StringBuilder& value, unsigned number, unsigned digits)
+{
+    for (unsigned i = digits; i--;) {
+        unsigned digit = (number >> (4 * i)) & 0xF;
+        value.append(static_cast<char>(digit < 10 ? '0' + digit : 'A' + digit - 10));
+    }
+}
+
+static void appendUnicodeRange(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 3) {
+        value.append(random.pick(invalidUnicodeRanges));
+        return;
+    }
+    value.append("U+"_s);
+    if (kind < 15) {
+        unsigned prefix = random.below(0x100);
+        appendHexDigits(value, prefix, 2);
+        value.append(random.percent(50) ? "??"_s : "?"_s);
+        return;
+    }
+    unsigned start = random.below(0x30000);
+    appendHexDigits(value, start, start > 0xFFFF ? 5 : 4);
+    if (kind < 40)
+        return;
+    unsigned length = random.below(0x200);
+    unsigned end = start + length;
+    value.append('-');
+    appendHexDigits(value, end, end > 0xFFFF ? 5 : 4);
+}
+
+static void appendFontSource(StringBuilder& value, Random& random, unsigned index)
+{
+    unsigned kind = random.below(100);
+    if (kind < 3) {
+        value.append(random.pick(invalidSourceEntries));
+        return;
+    }
+    if (kind < 30) {
+        auto& name = random.pick(multiWordFamilies);
+        if (random.percent(60))
+            value.append("local(\""_s, name, "\")"_s);
+        else
+            value.append("local("_s, name, ')');
+        return;
+    }
+    auto& format = random.pick(webfontFormats);
+    value.append("url(\"fonts/face-"_s, index, '.', format, "\")"_s);
+    unsigned formatKind = random.below(100);
+    if (formatKind < 50)
+        value.append(" format(\""_s, format, "\")"_s);
+    else if (formatKind < 80)
+        value.append(" format("_s, format, ')');
+    if (random.percent(20))
+        value.append(" tech("_s, random.pick(webfontTechnologies), ')');
+}
+
+static constexpr unsigned fontFaceRulesPerSheet = 4;
+static constexpr unsigned fontFaceSheetCount = 1024;
+
+// Style sheets of four @font-face rules: a family, a `src` list of one to four sources (url() with and without
+// format() and tech(), local() quoted and not), a `unicode-range` of ten ranges (single, span, wildcard; 5- and
+// 4-digit), weight and style ranges, font-display and, in some, font-feature-settings and the metric overrides.
+static Vector<String> fontFaceSheets()
+{
+    Random random(303);
+    Vector<String> sheets;
+    for (unsigned sheetIndex = 0; sheetIndex < fontFaceSheetCount; ++sheetIndex) {
+        StringBuilder sheet;
+        for (unsigned rule = 0; rule < fontFaceRulesPerSheet; ++rule) {
+            unsigned index = sheetIndex * fontFaceRulesPerSheet + rule;
+            sheet.append("@font-face { font-family: "_s);
+            appendFamilyName(sheet, random);
+            sheet.append("; src: "_s);
+            unsigned sources = 1 + random.below(4);
+            for (unsigned i = 0; i < sources; ++i) {
+                if (i)
+                    sheet.append(", "_s);
+                appendFontSource(sheet, random, index);
+            }
+            sheet.append("; unicode-range: "_s);
+            for (unsigned i = 0; i < 10; ++i) {
+                if (i)
+                    sheet.append(", "_s);
+                appendUnicodeRange(sheet, random);
+            }
+            sheet.append("; font-weight: "_s, random.pick(fontFaceWeights));
+            sheet.append("; font-style: "_s, random.pick(fontFaceStyles));
+            sheet.append("; font-display: "_s, random.pick(fontDisplays));
+            if (random.percent(30))
+                sheet.append("; font-feature-settings: \"liga\" 0, \"kern\""_s);
+            if (random.percent(25)) {
+                sheet.append("; size-adjust: "_s, random.pick(fontFaceOverrides));
+                sheet.append("; ascent-override: "_s, random.pick(fontFaceOverrides));
+                sheet.append("; descent-override: "_s, random.pick(fontFaceOverrides));
+                sheet.append("; line-gap-override: "_s, random.pick(fontFaceOverrides));
+            }
+            sheet.append("; }\n"_s);
+        }
+        sheets.append(sheet.toString());
+    }
+    return sheets;
+}
+
+// MARK: - Font feature settings and the other font longhands.
+
+static constexpr Property fontFeatureSettings { CSSPropertyID::FontFeatureSettings, "font-feature-settings"_s };
+static constexpr Property fontVariationSettings { CSSPropertyID::FontVariationSettings, "font-variation-settings"_s };
+static constexpr Property fontSizeAdjust { CSSPropertyID::FontSizeAdjust, "font-size-adjust"_s };
+static constexpr Property fontPalette { CSSPropertyID::FontPalette, "font-palette"_s };
+static constexpr Property fontStyle { CSSPropertyID::FontStyle, "font-style"_s };
+static constexpr Property fontWeight { CSSPropertyID::FontWeight, "font-weight"_s };
+static constexpr Property fontWidth { CSSPropertyID::FontWidth, "font-width"_s };
+static constexpr Property fontSize { CSSPropertyID::FontSize, "font-size"_s };
+
+static constexpr ASCIILiteral featureTags[] = {
+    "liga"_s, "kern"_s, "calt"_s, "ss01"_s, "ss02"_s, "smcp"_s, "c2sc"_s, "tnum"_s, "onum"_s, "zero"_s, "cv11"_s, "frac"_s, "dlig"_s, "salt"_s,
+};
+static constexpr ASCIILiteral featureValues[] = { ""_s, ""_s, " on"_s, " off"_s, " 0"_s, " 1"_s, " 2"_s, " 3"_s };
+// Three and five characters, unquoted, negative, fractional, two values, empty, a character below 0x20.
+static constexpr ASCIILiteral invalidFeatureEntries[] = {
+    "\"lig\""_s, "\"ligat\""_s, "liga"_s, "\"liga\" -1"_s, "\"liga\" 1.5"_s, "\"liga\" on off"_s, "\"\""_s, "\"li\\9 g\""_s,
+};
+static constexpr ASCIILiteral variationTags[] = { "wght"_s, "wdth"_s, "opsz"_s, "slnt"_s, "ital"_s, "GRAD"_s, "XHGT"_s };
+static constexpr ASCIILiteral invalidVariationEntries[] = { "\"wght\" bold"_s, "\"wgh\" 400"_s, "wght 400"_s, "\"wght\""_s, "\"wght\" 1px"_s };
+static constexpr ASCIILiteral fontSizeAdjustValues[] = {
+    "none"_s, "from-font"_s, "0.5"_s, "ex-height 0.5"_s, "cap-height from-font"_s, "ch-width 0.4"_s, "ic-width 1"_s,
+    "ic-height from-font"_s, "calc(0.25 * 2)"_s, "-0.5"_s, "ex-height"_s, "cap-height cap-height 1"_s,
+};
+static constexpr ASCIILiteral fontPaletteValues[] = {
+    "normal"_s, "light"_s, "dark"_s, "--brand"_s, "--x"_s, "palette-mix(in lch, light, dark 30%)"_s,
+    "palette-mix(in srgb, 40% --a, --b)"_s, "brand"_s, "light dark"_s,
+};
+static constexpr ASCIILiteral fontStyleValues[] = {
+    "normal"_s, "italic"_s, "oblique"_s, "oblique 14deg"_s, "oblique -90deg"_s, "oblique 90deg"_s, "oblique 91deg"_s,
+    "oblique calc(10deg * 2)"_s, "oblique 0.2turn"_s, "italic 10deg"_s,
+};
+static constexpr ASCIILiteral fontWeightKeywords[] = { "normal"_s, "bold"_s, "bolder"_s, "lighter"_s, "0"_s, "1001"_s };
+
+template<size_t tagCount, size_t invalidCount>
+static void appendTagList(StringBuilder& value, Random& random, const ASCIILiteral (&tags)[tagCount], const ASCIILiteral (&invalid)[invalidCount], bool numericValues)
+{
+    if (random.percent(10)) {
+        value.append("normal"_s);
+        return;
+    }
+    unsigned count = 1 + random.below(5);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(", "_s);
+        if (random.percent(4)) {
+            value.append(random.pick(invalid));
+            continue;
+        }
+        auto& tag = random.pick(tags);
+        bool singleQuoted = random.percent(20);
+        value.append(singleQuoted ? '\'' : '"', tag, singleQuoted ? '\'' : '"');
+        if (numericValues) {
+            value.append(' ');
+            appendSignedNumber(value, random, 1000, 1, 10);
+        } else
+            value.append(random.pick(featureValues));
+    }
+}
+
+// font-feature-settings and font-variation-settings (OpenType tags, quoted either way, with and without values, and
+// their errors), and the font longhands with a grammar of their own: font-size-adjust, font-palette, font-style
+// with angles, font-weight numbers, font-width percentages, font-size.
+static Vector<Block> fontFeatureSettingsBlocks()
+{
+    return generateBlocks(304, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        switch (index % 10) {
+        case 0:
+        case 1:
+        case 2:
+            appendTagList(value, random, featureTags, invalidFeatureEntries, false);
+            return fontFeatureSettings;
+        case 3:
+        case 4:
+            appendTagList(value, random, variationTags, invalidVariationEntries, true);
+            return fontVariationSettings;
+        case 5:
+            value.append(random.pick(fontSizeAdjustValues));
+            return fontSizeAdjust;
+        case 6:
+            value.append(random.pick(fontPaletteValues));
+            return fontPalette;
+        case 7:
+            value.append(random.pick(fontStyleValues));
+            return fontStyle;
+        case 8:
+            if (random.percent(30))
+                value.append(random.pick(fontWeightKeywords));
+            else
+                appendNumber(value, random, 1000, 1);
+            return fontWeight;
+        default:
+            if (random.percent(50)) {
+                if (random.percent(50))
+                    value.append(random.pick(fontWidthKeywords));
+                else {
+                    appendSignedNumber(value, random, 200, 1, 5);
+                    value.append('%');
+                }
+                return fontWidth;
+            }
+            appendFontSize(value, random);
+            return fontSize;
+        }
+    });
+}
+
+// MARK: - Alignment.
+
+static constexpr Property alignmentProperties[] = {
+    { CSSPropertyID::AlignContent, "align-content"_s },
+    { CSSPropertyID::AlignItems, "align-items"_s },
+    { CSSPropertyID::AlignSelf, "align-self"_s },
+    { CSSPropertyID::JustifyContent, "justify-content"_s },
+    { CSSPropertyID::JustifyItems, "justify-items"_s },
+    { CSSPropertyID::JustifySelf, "justify-self"_s },
+};
+static constexpr Property placeProperties[] = {
+    { CSSPropertyID::PlaceContent, "place-content"_s },
+    { CSSPropertyID::PlaceItems, "place-items"_s },
+    { CSSPropertyID::PlaceSelf, "place-self"_s },
+};
+
+// Every value is valid for some of the properties and invalid for others; the last ones are invalid for all.
+static constexpr ASCIILiteral alignmentValues[] = {
+    "normal"_s, "stretch"_s, "baseline"_s, "first baseline"_s, "last baseline"_s, "center"_s, "start"_s, "end"_s,
+    "self-start"_s, "self-end"_s, "flex-start"_s, "flex-end"_s, "left"_s, "right"_s, "safe center"_s, "unsafe end"_s,
+    "safe flex-end"_s, "unsafe self-start"_s, "space-between"_s, "space-around"_s, "space-evenly"_s, "auto"_s, "legacy"_s,
+    "legacy right"_s, "legacy left"_s, "center legacy"_s, "right legacy"_s, "legacy center"_s, "anchor-center"_s,
+    "safe normal"_s, "center"_s, "start"_s, "flex-start"_s, "space-between"_s, "stretch"_s,
+    "baseline last"_s, "safe"_s, "first"_s, "legacy legacy"_s, "safe space-between"_s, "unsafe left right"_s,
+    "first last baseline"_s, "self-start legacy"_s,
+};
+
+// align-*, justify-* and place-* (one value or two): the overflow positions, baseline positions, legacy in either
+// order, distributions, and their combinations each property rejects.
+static Vector<Block> alignmentKeywordsBlocks()
+{
+    return generateBlocks(305, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        unsigned kind = index % (std::size(alignmentProperties) + std::size(placeProperties));
+        value.append(random.pick(alignmentValues));
+        if (kind < std::size(alignmentProperties))
+            return alignmentProperties[kind];
+        if (random.percent(60)) {
+            value.append(' ');
+            value.append(random.pick(alignmentValues));
+        }
+        return placeProperties[kind - std::size(alignmentProperties)];
+    });
+}
+
+// MARK: - Display.
+
+static constexpr Property display { CSSPropertyID::Display, "display"_s };
+
+static constexpr ASCIILiteral displaySingles[] = {
+    "block"_s, "inline"_s, "inline-block"_s, "flex"_s, "inline-flex"_s, "grid"_s, "inline-grid"_s, "flow-root"_s, "none"_s,
+    "contents"_s, "list-item"_s, "table"_s, "inline-table"_s, "table-row"_s, "table-cell"_s, "table-caption"_s,
+    "table-row-group"_s, "table-header-group"_s, "table-footer-group"_s, "table-column"_s, "table-column-group"_s,
+    "flow"_s, "run-in"_s, "ruby"_s, "ruby-base"_s, "ruby-text"_s, "-webkit-box"_s, "-webkit-inline-box"_s, "-webkit-flex"_s,
+    "-webkit-inline-flex"_s, "grid-lanes"_s, "inline-grid-lanes"_s,
+};
+static constexpr ASCIILiteral displayPairs[] = {
+    "block flow"_s, "inline flow"_s, "inline flow-root"_s, "block flex"_s, "inline flex"_s, "block grid"_s, "inline grid"_s,
+    "block flow-root"_s, "block list-item"_s, "list-item block"_s, "inline list-item"_s, "list-item inline flow"_s,
+    "flow list-item block"_s, "inline table"_s, "block table"_s, "block ruby"_s, "inline ruby"_s, "run-in flow"_s,
+    "flex inline"_s, "grid block"_s,
+};
+static constexpr ASCIILiteral invalidDisplays[] = {
+    "block inline"_s, "flex flex"_s, "list-item list-item"_s, "table-row block"_s, "inline-block flow"_s, "list-item flex"_s,
+    "block block"_s, "inline-block list-item"_s, "contents block"_s, "grid flex"_s, "blocks"_s, "inline-"_s,
+};
+
+// display: single keywords (the fast path's), legacy -webkit- keywords, two- and three-keyword pairs in either order,
+// and invalid combinations.
+static Vector<Block> displayPairsBlocks()
+{
+    return generateBlocks(306, [](Random& random, StringBuilder& value, unsigned) -> const Property& {
+        unsigned kind = random.below(100);
+        if (kind < 55)
+            value.append(random.pick(displaySingles));
+        else if (kind < 90)
+            value.append(random.pick(displayPairs));
+        else
+            value.append(random.pick(invalidDisplays));
+        return display;
+    });
+}
+
+// MARK: - Grid templates.
+
+static constexpr Property gridTemplateColumns { CSSPropertyID::GridTemplateColumns, "grid-template-columns"_s };
+static constexpr Property gridTemplateRows { CSSPropertyID::GridTemplateRows, "grid-template-rows"_s };
+static constexpr Property gridTemplateAreas { CSSPropertyID::GridTemplateAreas, "grid-template-areas"_s };
+static constexpr Property gridTemplate { CSSPropertyID::GridTemplate, "grid-template"_s };
+static constexpr Property gridShorthand { CSSPropertyID::Grid, "grid"_s };
+static constexpr Property gridAutoColumns { CSSPropertyID::GridAutoColumns, "grid-auto-columns"_s };
+static constexpr Property gridAutoRows { CSSPropertyID::GridAutoRows, "grid-auto-rows"_s };
+static constexpr Property gridAutoFlow { CSSPropertyID::GridAutoFlow, "grid-auto-flow"_s };
+
+static constexpr ASCIILiteral gridLineNames[] = { "a"_s, "full-start"_s, "content-start"_s, "content-end"_s, "full-end"_s, "col"_s, "main"_s, "sidebar-start"_s };
+static constexpr ASCIILiteral commonTrackLists[] = {
+    "repeat(auto-fill, minmax(200px, 1fr))"_s, "repeat(auto-fit, minmax(min(100%, 250px), 1fr))"_s,
+    "[full-start] minmax(1rem, 1fr) [content-start] minmax(0, 60rem) [content-end] minmax(1rem, 1fr) [full-end]"_s,
+    "repeat(12, [col-start] 1fr)"_s, "200px 1fr"_s, "1fr 1fr 1fr"_s, "auto 1fr auto"_s, "subgrid"_s, "subgrid [a] [b] repeat(auto-fill, [c])"_s,
+    "none"_s, "fit-content(40%) 1fr"_s, "repeat(2, 100px 1fr) 50px"_s, "minmax(100px, max-content) 1fr"_s, "repeat(10000, 10px)"_s,
+    "repeat(auto-fill, [a] 100px [b])"_s, "masonry"_s,
+};
+// A non-fixed auto-repeat, two auto-repeats, a zero count, names with no track, a flexible minimum, a dangling
+// slash, no tracks in repeat(), a negative size, `span` as a name.
+static constexpr ASCIILiteral invalidTrackLists[] = {
+    "repeat(auto-fill, 1fr)"_s, "repeat(auto-fill, 100px) repeat(auto-fit, 100px)"_s, "repeat(0, 1fr)"_s, "[a] [b]"_s,
+    "minmax(1fr, 100px)"_s, "1fr /"_s, "repeat(3)"_s, "-1px"_s, "100px [span]"_s, "subgrid 1fr"_s,
+};
+// 4x4 templates with spans, runs of dots, `a.b` split into three names.
+static constexpr ASCIILiteral commonTemplateAreas[] = {
+    "\"h h h h\" \"s m m a\" \"s m m a\" \"f f f f\""_s,
+    "\"a a b b\" \"a a b b\" \"c d d e\" \"c . . e\""_s,
+    "\". h h .\" \"n m m s\" \"n m m s\" \". f f .\""_s,
+    "\"hd hd hd hd\" \"sd main main main\" \"sd main main main\" \"ft ft ft ft\""_s,
+    "\"... a a ....\" \"b b c c\" \"b b c c\" \"d d d d\""_s,
+    "\"a.b c\""_s, "none"_s,
+};
+// Not rectangular, rows of different lengths, a whitespace-only row, a code point that is not a name.
+static constexpr ASCIILiteral invalidTemplateAreas[] = {
+    "\"a b\" \"b a\""_s, "\"a a a a\" \"a b b a\""_s, "\"a\" \"b c\""_s, "\"   \""_s, "\"a@b\""_s, "\"a\" 10px"_s,
+};
+static constexpr ASCIILiteral areaNames[] = { "header"_s, "nav"_s, "main"_s, "aside"_s, "footer"_s, "ad"_s, "x"_s, "y"_s };
+static constexpr ASCIILiteral commonGridTemplates[] = {
+    "auto 1fr / auto 1fr auto"_s, "[header-left] \"head head\" 30px [header-right] [main-left] \"nav main\" 1fr [main-right] / 120px 1fr"_s,
+    "\"a a a\" 40px \"b c c\" 40px / 1fr 1fr 1fr"_s, "none"_s, "100px / repeat(3, 1fr)"_s, "\"a\" \"b\" / 1fr 2fr"_s,
+};
+static constexpr ASCIILiteral commonGridShorthands[] = {
+    "auto-flow / 1fr 1fr"_s, "100px 300px / auto-flow 200px"_s, "repeat(3, 80px) / auto-flow dense"_s,
+    "auto-flow dense 40px / repeat(auto-fill, minmax(10rem, 1fr))"_s, "\"a b\" 1fr / auto 1fr"_s, "none"_s, "auto-flow / auto-flow"_s,
+};
+static constexpr ASCIILiteral gridAutoFlows[] = { "row"_s, "column"_s, "dense"_s, "row dense"_s, "column dense"_s, "dense row"_s, "dense column"_s, "row column"_s, "dense dense"_s };
+
+static void appendLineNames(StringBuilder& value, Random& random)
+{
+    value.append('[');
+    value.append(random.pick(gridLineNames));
+    if (random.percent(30)) {
+        value.append(' ');
+        value.append(random.pick(gridLineNames));
+    }
+    value.append(']');
+}
+
+static void appendTrackBreadth(StringBuilder& value, Random& random, bool fixed)
+{
+    unsigned kind = random.below(fixed ? 60 : 100);
+    if (kind < 45)
+        appendLengthPercentage(value, random, 2);
+    else if (kind < 50)
+        appendCalcLengthPercentage(value, random);
+    else if (kind < 60)
+        value.append("auto"_s);
+    else if (kind < 80) {
+        appendNumber(value, random, 4, 1);
+        value.append("fr"_s);
+    } else if (kind < 88)
+        value.append("min-content"_s);
+    else if (kind < 96)
+        value.append("max-content"_s);
+    else
+        value.append("-webkit-min-content"_s);
+}
+
+static void appendTrackSize(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 20) {
+        value.append("minmax("_s);
+        appendTrackBreadth(value, random, random.percent(70));
+        value.append(", "_s);
+        appendTrackBreadth(value, random, false);
+        value.append(')');
+    } else if (kind < 28) {
+        value.append("fit-content("_s);
+        appendLengthPercentage(value, random, 2);
+        value.append(')');
+    } else
+        appendTrackBreadth(value, random, false);
+}
+
+static void appendTrackList(StringBuilder& value, Random& random)
+{
+    unsigned count = 1 + random.below(6);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(' ');
+        if (random.percent(25)) {
+            appendLineNames(value, random);
+            value.append(' ');
+        }
+        if (random.percent(12)) {
+            unsigned repetitions = 1 + random.below(12);
+            value.append("repeat("_s, repetitions, ", "_s);
+            appendTrackSize(value, random);
+            if (random.percent(40)) {
+                value.append(' ');
+                appendTrackSize(value, random);
+            }
+            value.append(')');
+            continue;
+        }
+        appendTrackSize(value, random);
+    }
+    if (random.percent(15)) {
+        value.append(' ');
+        appendLineNames(value, random);
+    }
+}
+
+// Four quadrants split at a random column and row, so every area is a rectangle and most span cells.
+static void appendQuadrantAreas(StringBuilder& value, Random& random)
+{
+    unsigned columnSplit = 1 + random.below(3);
+    unsigned rowSplit = 1 + random.below(3);
+    std::array<ASCIILiteral, 4> names;
+    for (auto& name : names)
+        name = random.percent(10) ? "."_s : random.pick(areaNames);
+    for (unsigned row = 0; row < 4; ++row) {
+        if (row)
+            value.append(' ');
+        value.append('"');
+        for (unsigned column = 0; column < 4; ++column) {
+            if (column)
+                value.append(' ');
+            value.append(names[(row < rowSplit ? 0 : 2) + (column < columnSplit ? 0 : 1)]);
+        }
+        value.append('"');
+    }
+}
+
+static void appendGridTemplateValue(StringBuilder& value, Random& random, unsigned commonChance)
+{
+    unsigned kind = random.below(100);
+    if (kind < 6)
+        value.append(random.pick(invalidTrackLists));
+    else if (kind < 6 + commonChance)
+        value.append(random.pick(commonTrackLists));
+    else
+        appendTrackList(value, random);
+}
+
+// grid-template-columns and -rows (repeat(auto-fill, minmax(200px, 1fr)), named lines, subgrid, the repeat() clamp,
+// generated track lists), 4x4 grid-template-areas with spans, the grid-template and grid shorthands, the grid-auto-*
+// properties, and their errors.
+static Vector<Block> gridTemplatesBlocks()
+{
+    return generateBlocks(307, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        unsigned variant = random.below(100);
+        switch (index % 8) {
+        case 0:
+            appendGridTemplateValue(value, random, 35);
+            return gridTemplateColumns;
+        case 1:
+            appendGridTemplateValue(value, random, 20);
+            return gridTemplateRows;
+        case 2:
+            if (variant < 8)
+                value.append(random.pick(invalidTemplateAreas));
+            else if (variant < 40)
+                value.append(random.pick(commonTemplateAreas));
+            else
+                appendQuadrantAreas(value, random);
+            return gridTemplateAreas;
+        case 3:
+            if (variant < 50)
+                value.append(random.pick(commonGridTemplates));
+            else {
+                appendTrackList(value, random);
+                value.append(" / "_s);
+                appendTrackList(value, random);
+            }
+            return gridTemplate;
+        case 4:
+            value.append(random.pick(commonGridShorthands));
+            return gridShorthand;
+        case 5:
+            appendTrackSize(value, random);
+            if (variant < 30) {
+                value.append(' ');
+                appendTrackSize(value, random);
+            }
+            return gridAutoColumns;
+        case 6:
+            appendTrackSize(value, random);
+            return gridAutoRows;
+        default:
+            value.append(random.pick(gridAutoFlows));
+            return gridAutoFlow;
+        }
+    });
+}
+
+// MARK: - Grid lines.
+
+static constexpr Property gridLineProperties[] = {
+    { CSSPropertyID::GridRowStart, "grid-row-start"_s },
+    { CSSPropertyID::GridRowEnd, "grid-row-end"_s },
+    { CSSPropertyID::GridColumnStart, "grid-column-start"_s },
+    { CSSPropertyID::GridColumnEnd, "grid-column-end"_s },
+};
+static constexpr Property gridRow { CSSPropertyID::GridRow, "grid-row"_s };
+static constexpr Property gridColumn { CSSPropertyID::GridColumn, "grid-column"_s };
+static constexpr Property gridArea { CSSPropertyID::GridArea, "grid-area"_s };
+
+// A lone `span`, a zero or negative span, `auto` with an integer, two spans, two idents, a fraction.
+static constexpr ASCIILiteral invalidGridLines[] = { "span"_s, "span 0"_s, "span -2"_s, "auto 2"_s, "span a span"_s, "a b"_s, "1.5"_s, "span auto"_s };
+
+static void appendGridLine(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 15)
+        value.append("auto"_s);
+    else if (kind < 40)
+        appendInteger(value, random, 20, 30);
+    else if (kind < 52) {
+        value.append("span "_s);
+        appendInteger(value, random, 6, 0);
+    } else if (kind < 56) {
+        appendInteger(value, random, 6, 0);
+        value.append(" span"_s);
+    } else if (kind < 68)
+        value.append(random.pick(areaNames));
+    else if (kind < 74) {
+        value.append(random.pick(areaNames), ' ');
+        appendInteger(value, random, 4, 20);
+    } else if (kind < 78) {
+        appendInteger(value, random, 4, 20);
+        value.append(' ', random.pick(areaNames));
+    } else if (kind < 86)
+        value.append("span "_s, random.pick(areaNames));
+    else if (kind < 92) {
+        value.append("span "_s, random.pick(areaNames), ' ');
+        appendInteger(value, random, 4, 0);
+    } else
+        value.append(random.pick(invalidGridLines));
+}
+
+// The grid line longhands (integers including 0, spans with integer and ident in either order, idents), grid-row and
+// grid-column with one or two lines, grid-area with one to four.
+static Vector<Block> gridLinesBlocks()
+{
+    return generateBlocks(308, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        unsigned kind = index % 7;
+        if (kind < std::size(gridLineProperties)) {
+            appendGridLine(value, random);
+            return gridLineProperties[kind];
+        }
+        unsigned count = kind == 6 ? 1 + random.below(4) : 1 + random.below(2);
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                value.append(" / "_s);
+            appendGridLine(value, random);
+        }
+        return kind == 4 ? gridRow : kind == 5 ? gridColumn : gridArea;
+    });
+}
+
+// MARK: - Timing functions.
+
+static constexpr Property transitionTimingFunction { CSSPropertyID::TransitionTimingFunction, "transition-timing-function"_s };
+static constexpr Property animationTimingFunction { CSSPropertyID::AnimationTimingFunction, "animation-timing-function"_s };
+
+static constexpr ASCIILiteral namedEasings[] = { "ease"_s, "linear"_s, "ease-in"_s, "ease-out"_s, "ease-in-out"_s, "step-start"_s, "step-end"_s };
+static constexpr ASCIILiteral stepPositions[] = { "jump-start"_s, "jump-end"_s, "jump-none"_s, "jump-both"_s, "start"_s, "end"_s };
+// x out of [0, 1], three arguments, zero steps, one step with jump-none, fractional steps, one stop, no stops, a
+// lone percentage, an unknown position, two keywords, a trailing comma, spring() (behind a setting).
+static constexpr ASCIILiteral invalidEasings[] = {
+    "cubic-bezier(1.5, 0, 0, 1)"_s, "cubic-bezier(0, 0, 1)"_s, "steps(0)"_s, "steps(1, jump-none)"_s, "steps(2.5)"_s, "linear(1)"_s,
+    "linear()"_s, "linear(50%)"_s, "steps(3, middle)"_s, "ease-in ease-out"_s, "cubic-bezier(-0.1, 0, 1, 1)"_s, "steps(4,)"_s,
+    "spring(1 100 10 0)"_s,
+};
+
+static void appendLinearEasing(StringBuilder& value, Random& random, unsigned stops)
+{
+    value.append("linear("_s);
+    for (unsigned i = 0; i < stops; ++i) {
+        if (i)
+            value.append(", "_s);
+        appendSignedNumber(value, random, 1, 3, 5);
+        unsigned percentages = random.below(10);
+        if (percentages < 4)
+            continue;
+        unsigned percentage = (100 * i) / (stops - 1);
+        value.append(' ', percentage, '%');
+        if (percentages == 9) {
+            unsigned second = percentage + 1;
+            value.append(' ', second, '%');
+        }
+    }
+    value.append(')');
+}
+
+static void appendEasing(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 30)
+        value.append(random.pick(namedEasings));
+    else if (kind < 50) {
+        value.append("cubic-bezier("_s);
+        appendNumber(value, random, 0, 3);
+        value.append(", "_s);
+        appendSignedNumber(value, random, 2, 2, 20);
+        value.append(", "_s);
+        appendNumber(value, random, 1, 3);
+        value.append(", "_s);
+        appendSignedNumber(value, random, 2, 2, 20);
+        value.append(')');
+    } else if (kind < 65) {
+        unsigned count = 2 + random.below(19);
+        value.append("steps("_s, count);
+        if (random.percent(70))
+            value.append(", "_s, random.pick(stepPositions));
+        value.append(')');
+    } else if (kind < 80) {
+        unsigned stops = 2 + random.below(5);
+        appendLinearEasing(value, random, stops);
+    } else if (kind < 92)
+        appendLinearEasing(value, random, 40);
+    else
+        value.append(random.pick(invalidEasings));
+}
+
+// transition- and animation-timing-function lists of one to three: the named curves and steps, cubic-bezier(),
+// steps() with every position, linear() with 2-6 stops and with 40, and their errors. Each easing of the lists is
+// also appended to `easings`, the strings the Web Animations entry (parseEasingFunctionDeprecated) parses one by one.
+static Vector<Block> timingFunctionsBlocks(Vector<String>& easings)
+{
+    return generateBlocks(309, [&easings](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        unsigned count = 1 + random.below(3);
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                value.append(", "_s);
+            StringBuilder easing;
+            appendEasing(easing, random);
+            easings.append(easing.toString());
+            value.append(easings.last());
+        }
+        return index % 2 ? animationTimingFunction : transitionTimingFunction;
+    });
+}
+
+// MARK: - Filters.
+
+static constexpr Property filter { CSSPropertyID::Filter, "filter"_s };
+static constexpr Property backdropFilter { CSSPropertyID::BackdropFilter, "backdrop-filter"_s };
+
+static constexpr ASCIILiteral amountFilters[] = { "brightness"_s, "contrast"_s, "grayscale"_s, "invert"_s, "opacity"_s, "saturate"_s, "sepia"_s };
+static constexpr ASCIILiteral commonFilters[] = {
+    "drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2)) blur(4px)"_s, "saturate(180%) blur(20px)"_s, "blur(10px)"_s, "grayscale(100%)"_s,
+    "brightness(0.9) contrast(1.1)"_s, "url(#filter)"_s, "none"_s,
+};
+// A negative blur, a shadow with no lengths, a colour between lengths, a unitless angle, two arguments, a negative
+// amount, `none` in a list, a second amount, a negative shadow blur, an unknown function.
+static constexpr ASCIILiteral invalidFilters[] = {
+    "blur(-2px)"_s, "drop-shadow(red)"_s, "drop-shadow(1px red 2px)"_s, "hue-rotate(10)"_s, "blur(1px, 2px)"_s, "saturate(-1)"_s,
+    "none blur(1px)"_s, "opacity(50% 1)"_s, "drop-shadow(1px 1px -2px)"_s, "glow(1px)"_s,
+};
+
+static void appendFilterFunction(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 20) {
+        value.append("blur("_s);
+        if (random.percent(95))
+            appendLength(value, random, 0);
+        value.append(')');
+    } else if (kind < 60) {
+        value.append(random.pick(amountFilters), '(');
+        unsigned amount = random.below(100);
+        if (amount < 40) {
+            appendNumber(value, random, 300, 0);
+            value.append('%');
+        } else if (amount < 95)
+            appendNumber(value, random, 3, 2);
+        value.append(')');
+    } else if (kind < 72) {
+        value.append("hue-rotate("_s);
+        if (random.percent(10))
+            value.append('0');
+        else
+            appendAngle(value, random);
+        value.append(')');
+    } else if (kind < 96) {
+        value.append("drop-shadow("_s);
+        bool hasColor = random.percent(60);
+        bool colorFirst = random.percent(50);
+        if (hasColor && colorFirst) {
+            appendKeywordOrHexColor(value, random);
+            value.append(' ');
+        }
+        appendLength(value, random, 30);
+        value.append(' ');
+        appendLength(value, random, 30);
+        if (random.percent(60)) {
+            value.append(' ');
+            appendLength(value, random, 0);
+        }
+        if (hasColor && !colorFirst) {
+            value.append(' ');
+            appendKeywordOrHexColor(value, random);
+        }
+        value.append(')');
+    } else
+        value.append("url(#f)"_s);
+}
+
+// filter and backdrop-filter: chains of one to four functions (blur, the amounts as numbers and percentages,
+// hue-rotate with a zero, drop-shadow with the colour first, last or absent, url()), empty arguments, the two common
+// stacks, and invalid lists.
+static Vector<Block> filtersBlocks()
+{
+    return generateBlocks(310, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        unsigned kind = random.below(100);
+        if (kind < 15)
+            value.append(random.pick(commonFilters));
+        else if (kind < 22)
+            value.append(random.pick(invalidFilters));
+        else {
+            unsigned count = 1 + random.below(4);
+            for (unsigned i = 0; i < count; ++i) {
+                if (i)
+                    value.append(' ');
+                appendFilterFunction(value, random);
+            }
+        }
+        return index % 3 == 2 ? backdropFilter : filter;
+    });
+}
+
+// MARK: - Clip paths.
+
+static constexpr Property clipPath { CSSPropertyID::ClipPath, "clip-path"_s };
+static constexpr Property shapeOutside { CSSPropertyID::ShapeOutside, "shape-outside"_s };
+static constexpr Property clip { CSSPropertyID::Clip, "clip"_s };
+
+static constexpr ASCIILiteral geometryBoxes[] = { "border-box"_s, "padding-box"_s, "content-box"_s, "margin-box"_s, "fill-box"_s, "stroke-box"_s, "view-box"_s };
+static constexpr ASCIILiteral shapeRadii[] = { "closest-side"_s, "farthest-side"_s };
+// A fill rule with no comma, one radius for an ellipse, no insets, two radii for a circle, round in polygon(), a
+// negative radius, five insets, no vertices, two boxes, mixed separators in rect().
+static constexpr ASCIILiteral invalidClipPaths[] = {
+    "polygon(nonzero 0 0, 1px 1px, 2px 2px)"_s, "ellipse(10px)"_s, "inset()"_s, "circle(1px 2px)"_s,
+    "polygon(0 0, 1px 1px round 2px)"_s, "circle(-1px)"_s, "inset(1px 2px 3px 4px 5px)"_s, "polygon()"_s,
+    "border-box padding-box"_s, "rect(1px, 2px 3px, 4px)"_s,
+};
+
+static void appendShapeRadius(StringBuilder& value, Random& random)
+{
+    if (random.percent(25))
+        value.append(random.pick(shapeRadii));
+    else
+        appendLengthPercentage(value, random, 0);
+}
+
+static void appendBasicShape(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 30) {
+        value.append("inset("_s);
+        unsigned count = 1 + random.below(4);
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                value.append(' ');
+            appendLengthPercentage(value, random, 5);
+        }
+        if (random.percent(60)) {
+            value.append(" round "_s);
+            unsigned radii = 1 + random.below(4);
+            for (unsigned i = 0; i < radii; ++i) {
+                if (i)
+                    value.append(' ');
+                appendRadius(value, random);
+            }
+            if (random.percent(20)) {
+                value.append(" / "_s);
+                appendRadius(value, random);
+            }
+        }
+        value.append(')');
+    } else if (kind < 50) {
+        value.append("circle("_s);
+        bool hasRadius = random.percent(70);
+        if (hasRadius)
+            appendShapeRadius(value, random);
+        if (random.percent(60)) {
+            value.append(hasRadius ? " at "_s : "at "_s);
+            appendPosition(value, random, false);
+        }
+        value.append(')');
+    } else if (kind < 62) {
+        value.append("ellipse("_s);
+        bool hasRadii = random.percent(70);
+        if (hasRadii) {
+            appendShapeRadius(value, random);
+            value.append(' ');
+            appendShapeRadius(value, random);
+        }
+        if (random.percent(60)) {
+            value.append(hasRadii ? " at "_s : "at "_s);
+            appendPosition(value, random, false);
+        }
+        value.append(')');
+    } else {
+        value.append("polygon("_s);
+        if (random.percent(20))
+            value.append(random.percent(50) ? "evenodd, "_s : "nonzero, "_s);
+        unsigned vertices = 3 + random.below(10);
+        for (unsigned i = 0; i < vertices; ++i) {
+            if (i)
+                value.append(", "_s);
+            appendLengthPercentage(value, random, 5);
+            value.append(' ');
+            appendLengthPercentage(value, random, 5);
+        }
+        value.append(')');
+    }
+}
+
+static void appendClipRect(StringBuilder& value, Random& random)
+{
+    bool commas = random.percent(70);
+    value.append("rect("_s);
+    for (unsigned i = 0; i < 4; ++i) {
+        if (i)
+            value.append(commas ? ", "_s : " "_s);
+        if (random.percent(15))
+            value.append("auto"_s);
+        else
+            appendLength(value, random, 10);
+    }
+    value.append(')');
+}
+
+// clip-path and shape-outside: inset() with and without round (and a second radius set), circle() and ellipse() with
+// and without radii and positions, polygon() of 3-12 vertices with and without a fill rule, a geometry box before or
+// after the shape or alone, url(), none; clip rect() with commas or spaces; and their errors.
+static Vector<Block> clipPathsBlocks()
+{
+    return generateBlocks(311, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        unsigned kind = random.below(100);
+        if (index % 5 == 4) {
+            if (kind < 10)
+                value.append("auto"_s);
+            else if (kind < 15)
+                value.append(random.pick(invalidClipPaths));
+            else
+                appendClipRect(value, random);
+            return clip;
+        }
+        auto& property = index % 5 == 3 ? shapeOutside : clipPath;
+        if (kind < 6)
+            value.append(random.pick(invalidClipPaths));
+        else if (kind < 10)
+            value.append("none"_s);
+        else if (kind < 14)
+            value.append("url(#clip)"_s);
+        else if (kind < 20)
+            value.append(random.pick(geometryBoxes));
+        else {
+            bool hasBox = random.percent(20);
+            bool boxFirst = random.percent(50);
+            if (hasBox && boxFirst)
+                value.append(random.pick(geometryBoxes), ' ');
+            appendBasicShape(value, random);
+            if (hasBox && !boxFirst)
+                value.append(' ', random.pick(geometryBoxes));
+        }
+        return property;
+    });
+}
+
+// MARK: - Rare shapes and mask-border.
+
+static constexpr Property offsetPath { CSSPropertyID::OffsetPath, "offset-path"_s };
+static constexpr Property maskBorder { CSSPropertyID::MaskBorder, "mask-border"_s };
+static constexpr Property maskBorderSlice { CSSPropertyID::MaskBorderSlice, "mask-border-slice"_s };
+static constexpr Property maskBorderOutset { CSSPropertyID::MaskBorderOutset, "mask-border-outset"_s };
+static constexpr Property maskBorderRepeat { CSSPropertyID::MaskBorderRepeat, "mask-border-repeat"_s };
+static constexpr Property maskBorderWidth { CSSPropertyID::MaskBorderWidth, "mask-border-width"_s };
+
+static constexpr ASCIILiteral pathCommands[] = { "M"_s, "m"_s, "L"_s, "l"_s, "H"_s, "h"_s, "V"_s, "v"_s, "C"_s, "c"_s, "Q"_s, "q"_s, "A"_s, "Z"_s };
+static constexpr ASCIILiteral shapeCommands[] = {
+    "line to 10px 20px"_s, "line by 5% 5%"_s, "hline to 50%"_s, "vline by -10px"_s, "hline by 2em"_s, "vline to bottom"_s,
+    "curve to 100px 0 with 50px -20px"_s, "curve to 0 0 with 10px 10px / 20px 20px"_s, "curve by 5px 5px with start 1px 1px"_s,
+    "smooth to 10px 10px with 5px 5px"_s, "smooth by 10px 10px"_s, "arc to 50% 50% of 20px"_s,
+    "arc by 10px 10px of 10px 20px cw large rotate 45deg"_s, "arc to 0 0 of 5px small ccw"_s, "move to 0 0"_s, "move by 10px 0"_s,
+    "line to right center"_s, "close"_s,
+};
+// An empty path, an unknown command, a missing string, no commands, no `from`, duplicate arc keywords, too few
+// xywh() values, a negative xywh() size.
+static constexpr ASCIILiteral invalidRareShapes[] = {
+    "path(\"\")"_s, "path(\"X 10\")"_s, "path(nonzero)"_s, "shape()"_s, "shape(line to 0 0)"_s,
+    "shape(from 0 0, arc to 1px 1px of 1px cw ccw)"_s, "xywh(0 0 10px)"_s, "xywh(0 0 -10px 10px)"_s,
+};
+static constexpr ASCIILiteral maskBorderRepeats[] = { "stretch"_s, "repeat"_s, "round"_s, "space"_s, "stretch round"_s, "repeat space"_s, "fill"_s };
+
+static void appendPathData(StringBuilder& value, Random& random)
+{
+    value.append("M 0 0"_s);
+    unsigned count = 2 + random.below(9);
+    for (unsigned i = 0; i < count; ++i) {
+        auto& command = random.pick(pathCommands);
+        value.append(' ', command);
+        unsigned arguments = 2;
+        if (command == "H"_s || command == "h"_s || command == "V"_s || command == "v"_s)
+            arguments = 1;
+        else if (command == "C"_s || command == "c"_s)
+            arguments = 6;
+        else if (command == "Q"_s || command == "q"_s)
+            arguments = 4;
+        else if (command == "A"_s)
+            arguments = 0;
+        else if (command == "Z"_s)
+            continue;
+        if (!arguments) {
+            unsigned large = random.below(2);
+            unsigned sweep = random.below(2);
+            value.append(" 10 10 0 "_s, large, ' ', sweep, ' ');
+            appendSignedNumber(value, random, 100, 1, 20);
+            value.append(' ');
+            appendSignedNumber(value, random, 100, 1, 20);
+            continue;
+        }
+        for (unsigned j = 0; j < arguments; ++j) {
+            value.append(' ');
+            appendSignedNumber(value, random, 200, 1, 20);
+        }
+    }
+}
+
+static void appendRareShape(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 6) {
+        value.append(random.pick(invalidRareShapes));
+        return;
+    }
+    if (kind < 35) {
+        value.append("path("_s);
+        if (random.percent(20))
+            value.append(random.percent(50) ? "evenodd, "_s : "nonzero, "_s);
+        value.append('"');
+        appendPathData(value, random);
+        value.append("\")"_s);
+        return;
+    }
+    if (kind < 70) {
+        value.append("shape("_s);
+        if (random.percent(15))
+            value.append("evenodd "_s);
+        value.append("from "_s);
+        appendPosition(value, random, false);
+        unsigned count = 1 + random.below(8);
+        for (unsigned i = 0; i < count; ++i)
+            value.append(", "_s, random.pick(shapeCommands));
+        value.append(')');
+        return;
+    }
+    value.append(kind < 85 ? "xywh("_s : "rect("_s);
+    for (unsigned i = 0; i < 4; ++i) {
+        if (i)
+            value.append(' ');
+        if (kind >= 85 && random.percent(15))
+            value.append("auto"_s);
+        else
+            appendLengthPercentage(value, random, i < 2 ? 10 : 0);
+    }
+    if (random.percent(40)) {
+        value.append(" round "_s);
+        appendRadius(value, random);
+    }
+    value.append(')');
+}
+
+static void appendMaskBorderNumbers(StringBuilder& value, Random& random, bool allowsPercentage)
+{
+    unsigned count = 1 + random.below(4);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(' ');
+        if (allowsPercentage && random.percent(30)) {
+            appendNumber(value, random, 50, 0);
+            value.append('%');
+        } else
+            appendNumber(value, random, 40, 1);
+    }
+}
+
+// path() (generated SVG path data, with and without a fill rule), shape() (every command, the arc keywords, control
+// points relative and absolute), xywh() and rect() with round, in clip-path, shape-outside and offset-path; the
+// mask-border shorthand and longhands (a leading `fill`, slices with percentages, outsets, widths, repeats).
+static Vector<Block> shapesRareBlocks()
+{
+    return generateBlocks(312, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        switch (index % 8) {
+        case 0:
+        case 1:
+            appendRareShape(value, random);
+            return clipPath;
+        case 2:
+            appendRareShape(value, random);
+            return shapeOutside;
+        case 3:
+            appendRareShape(value, random);
+            return offsetPath;
+        case 4:
+            value.append("url(m.png) "_s);
+            appendMaskBorderNumbers(value, random, true);
+            if (random.percent(30))
+                value.append(" fill"_s);
+            if (random.percent(50)) {
+                value.append(" / "_s);
+                appendLength(value, random, 0);
+                if (random.percent(50)) {
+                    value.append(" / "_s);
+                    appendMaskBorderNumbers(value, random, false);
+                }
+            }
+            value.append(' ', random.pick(maskBorderRepeats));
+            return maskBorder;
+        case 5: {
+            bool leadingFill = random.percent(15);
+            if (leadingFill)
+                value.append("fill "_s);
+            appendMaskBorderNumbers(value, random, true);
+            if (!leadingFill && random.percent(25))
+                value.append(" fill"_s);
+            return maskBorderSlice;
+        }
+        case 6:
+            if (random.percent(50)) {
+                appendMaskBorderNumbers(value, random, false);
+                return maskBorderOutset;
+            }
+            value.append(random.pick(maskBorderRepeats));
+            return maskBorderRepeat;
+        default: {
+            unsigned count = 1 + random.below(4);
+            for (unsigned i = 0; i < count; ++i) {
+                if (i)
+                    value.append(' ');
+                unsigned kind = random.below(3);
+                if (!kind)
+                    value.append("auto"_s);
+                else if (kind == 1)
+                    appendLengthPercentage(value, random, 5);
+                else
+                    appendNumber(value, random, 4, 1);
+            }
+            return maskBorderWidth;
+        }
+        }
+    });
+}
+
+// MARK: - Content and counters.
+
+static constexpr Property content { CSSPropertyID::Content, "content"_s };
+static constexpr Property quotes { CSSPropertyID::Quotes, "quotes"_s };
+static constexpr Property counterReset { CSSPropertyID::CounterReset, "counter-reset"_s };
+static constexpr Property counterIncrement { CSSPropertyID::CounterIncrement, "counter-increment"_s };
+static constexpr Property counterSet { CSSPropertyID::CounterSet, "counter-set"_s };
+static constexpr Property listStyleType { CSSPropertyID::ListStyleType, "list-style-type"_s };
+
+static constexpr ASCIILiteral counterNames[] = { "item"_s, "section"_s, "chapter"_s, "list-item"_s, "c1"_s, "Fig"_s };
+static constexpr ASCIILiteral counterStyleNames[] = {
+    "decimal"_s, "lower-roman"_s, "upper-alpha"_s, "disc"_s, "circle"_s, "square"_s, "cjk-decimal"_s, "hebrew"_s, "armenian"_s,
+    "georgian"_s, "ethiopic-numeric"_s, "disclosure-open"_s, "decimal-leading-zero"_s, "my-style"_s, "none"_s,
+};
+static constexpr ASCIILiteral contentStrings[] = { "\"\""_s, "\"\\201C\""_s, "\"Note: \""_s, "\"\\2192\""_s, "'x'"_s, "\" / \""_s };
+static constexpr ASCIILiteral contentKeywords[] = { "open-quote"_s, "close-quote"_s, "no-open-quote"_s, "no-close-quote"_s };
+// No name, three arguments, no separator, an empty attr(), `none` among items, `match-parent`, two alt texts, a
+// number.
+static constexpr ASCIILiteral invalidContents[] = {
+    "counter()"_s, "counter(a, decimal, b)"_s, "counters(a)"_s, "attr()"_s, "\"a\" none"_s, "match-parent"_s,
+    "\"a\" / \"b\" / \"c\""_s, "12"_s,
+};
+static constexpr ASCIILiteral quotePairs[] = { "\"\\AB\" \"\\BB\""_s, "\"\\2039\" \"\\203A\""_s, "'\"' '\"'"_s, "\"\\201C\" \"\\201D\""_s, "\"(\" \")\""_s };
+static constexpr ASCIILiteral invalidCounters[] = { "none item"_s, "item 1.5"_s, "item item"_s, "1"_s, "item 2 3"_s, "initial item"_s };
+static constexpr ASCIILiteral listStyleTypeExtras[] = {
+    "\"\\2192  \""_s, "'-'"_s, "symbols(cyclic \"*\" \"\\2020\")"_s, "symbols(numeric \"0\" \"1\")"_s, "symbols()"_s, "decimal decimal"_s,
+    "\"a\" \"b\""_s, "1"_s,
+};
+
+static void appendContentItem(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 30)
+        value.append(random.pick(contentStrings));
+    else if (kind < 50) {
+        value.append("counter("_s, random.pick(counterNames));
+        if (random.percent(40))
+            value.append(", "_s, random.pick(counterStyleNames));
+        value.append(')');
+    } else if (kind < 60) {
+        value.append("counters("_s, random.pick(counterNames), ", \".\""_s);
+        if (random.percent(40))
+            value.append(", "_s, random.pick(counterStyleNames));
+        value.append(')');
+    } else if (kind < 72)
+        value.append("attr("_s, random.pick(customIdents), ')');
+    else if (kind < 88)
+        value.append(random.pick(contentKeywords));
+    else if (kind < 95)
+        value.append("url(icon.png)"_s);
+    else
+        value.append("linear-gradient(red, blue)"_s);
+}
+
+static void appendCounterList(StringBuilder& value, Random& random, bool allowsReversed)
+{
+    unsigned kind = random.below(100);
+    if (kind < 10) {
+        value.append("none"_s);
+        return;
+    }
+    if (kind < 15) {
+        value.append(random.pick(invalidCounters));
+        return;
+    }
+    unsigned count = 1 + random.below(3);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(' ');
+        auto& name = random.pick(counterNames);
+        if (allowsReversed && random.percent(15))
+            value.append("reversed("_s, name, ')');
+        else
+            value.append(name);
+        unsigned integer = random.below(100);
+        if (integer < 40) {
+            value.append(' ');
+            appendInteger(value, random, 20, 30);
+        } else if (integer < 45)
+            value.append(" calc(1 + 2)"_s);
+    }
+}
+
+// content (strings, counter() and counters() with and without a style, attr(), the quote keywords, images, an alt
+// text after `/`, none and normal), quotes, counter-reset (with reversed()), counter-increment and counter-set, and
+// list-style-type (predefined and custom styles, strings, symbols()), with their errors.
+static Vector<Block> contentAndCountersBlocks()
+{
+    return generateBlocks(313, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        unsigned kind = random.below(100);
+        switch (index % 6) {
+        case 0:
+        case 1:
+            if (kind < 5)
+                value.append(kind < 3 ? "none"_s : "normal"_s);
+            else if (kind < 11)
+                value.append(random.pick(invalidContents));
+            else {
+                unsigned count = 1 + random.below(4);
+                for (unsigned i = 0; i < count; ++i) {
+                    if (i)
+                        value.append(' ');
+                    appendContentItem(value, random);
+                }
+                if (random.percent(10))
+                    value.append(" / \"alt\""_s);
+            }
+            return content;
+        case 2:
+            if (kind < 15)
+                value.append(kind < 8 ? "auto"_s : "none"_s);
+            else if (kind < 22)
+                value.append("\"\\AB\" \"\\BB\" \"\\2039\""_s);
+            else {
+                unsigned pairs = 1 + random.below(3);
+                for (unsigned i = 0; i < pairs; ++i) {
+                    if (i)
+                        value.append(' ');
+                    value.append(random.pick(quotePairs));
+                }
+            }
+            return quotes;
+        case 3:
+            appendCounterList(value, random, true);
+            return counterReset;
+        case 4:
+            appendCounterList(value, random, false);
+            return kind < 50 ? counterIncrement : counterSet;
+        default:
+            if (kind < 80)
+                value.append(random.pick(counterStyleNames));
+            else
+                value.append(random.pick(listStyleTypeExtras));
+            return listStyleType;
+        }
+    });
+}
+
+// MARK: - Small families.
+
+static constexpr Property height { CSSPropertyID::Height, "height"_s };
+static constexpr Property textShadow { CSSPropertyID::TextShadow, "text-shadow"_s };
+static constexpr Property marginTrim { CSSPropertyID::MarginTrim, "margin-trim"_s };
+static constexpr Property textBoxEdge { CSSPropertyID::TextBoxEdge, "text-box-edge"_s };
+static constexpr Property lineFitEdge { CSSPropertyID::LineFitEdge, "line-fit-edge"_s };
+static constexpr Property overflowClipMargin { CSSPropertyID::OverflowClipMargin, "overflow-clip-margin"_s };
+static constexpr Property positionArea { CSSPropertyID::PositionArea, "position-area"_s };
+static constexpr Property linkParameters { CSSPropertyID::LinkParameters, "link-parameters"_s };
+static constexpr Property animationName { CSSPropertyID::AnimationName, "animation-name"_s };
+
+static constexpr ASCIILiteral calcSizeValues[] = {
+    "calc-size(auto, size)"_s, "calc-size(fit-content, size + 20px)"_s, "calc-size(min-content, size * 2)"_s,
+    "calc-size(calc-size(auto, size + 1px), size * 2)"_s, "calc-size(any, 100px)"_s, "calc-size(50%, size - 10px)"_s,
+    "calc-size(max-content, round(up, size, 10px))"_s, "auto"_s, "100px"_s, "fit-content"_s,
+    "calc-size(auto)"_s, "calc-size(size, auto)"_s, "calc-size(auto, size +)"_s,
+};
+static constexpr ASCIILiteral offsetPathValues[] = {
+    "none"_s, "ray(45deg)"_s, "ray(90deg closest-side contain)"_s, "ray(at 50% 50% 30deg farthest-corner)"_s, "ray(sides 0.25turn)"_s,
+    "url(#p)"_s, "border-box"_s, "margin-box"_s, "ray(10deg) margin-box"_s, "circle(10px) border-box"_s,
+    "ray()"_s, "ray(10deg 20deg)"_s, "url(#p) border-box"_s,
+};
+static constexpr ASCIILiteral marginTrimValues[] = {
+    "none"_s, "block"_s, "inline"_s, "block-start"_s, "block-end"_s, "inline-start"_s, "inline-end"_s, "block-start block-end"_s,
+    "inline-end inline-start"_s, "block-start inline-start block-end"_s, "block block"_s, "none block"_s,
+};
+static constexpr ASCIILiteral textBoxEdgeValues[] = {
+    "auto"_s, "text"_s, "cap alphabetic"_s, "ex text"_s, "text text"_s, "ideographic"_s, "ideographic-ink"_s, "cap"_s,
+    "alphabetic cap"_s, "cap cap"_s, "text auto"_s,
+};
+static constexpr ASCIILiteral lineFitEdgeValues[] = {
+    "leading"_s, "text"_s, "cap"_s, "ex"_s, "ideographic"_s, "ideographic-ink"_s, "cap alphabetic"_s, "text text"_s,
+    "leading text"_s, "alphabetic"_s,
+};
+static constexpr ASCIILiteral overflowClipMarginValues[] = {
+    "0px"_s, "10px"_s, "content-box"_s, "padding-box 5px"_s, "border-box 2em"_s, "5px content-box"_s, "padding-box 0px"_s,
+    "-1px"_s, "10px 20px"_s, "content-box padding-box"_s,
+};
+static constexpr ASCIILiteral positionAreaValues[] = {
+    "top"_s, "top left"_s, "span-left bottom"_s, "center"_s, "span-all"_s, "block-start inline-end"_s, "x-start y-end"_s,
+    "self-block-start"_s, "start start"_s, "span-all top"_s, "end span-start"_s, "none"_s,
+    "top top"_s, "left right"_s, "span-all span-all x"_s,
+};
+static constexpr ASCIILiteral linkParametersValues[] = {
+    "none"_s, "param(--a, red)"_s, "param(--color, #123), param(--size, 10px)"_s, "param(--empty,)"_s,
+    "param(--a)"_s, "param(a, b)"_s,
+};
+static constexpr ASCIILiteral keyframesIdents[] = {
+    "fade"_s, "slide-in"_s, "spin"_s, "pulse2"_s, "_x"_s, "-webkit-bounce"_s, "FadeOut"_s, "a-very-long-keyframes-name"_s,
+};
+// A string that is a valid identifier (a <custom-ident>), one that is not (`none`, a CSS-wide keyword: a string
+// value), and other strings.
+static constexpr ASCIILiteral keyframesStrings[] = {
+    "\"fade\""_s, "\"none\""_s, "\"initial\""_s, "\"quoted name\""_s, "\"12\""_s, "\"\\66 ade\""_s,
+};
+// An empty string, the excluded `default`, a CSS-wide keyword in a list, a number, a dimension, two names without a
+// comma, a trailing comma.
+static constexpr ASCIILiteral invalidKeyframesNames[] = {
+    "\"\""_s, "default"_s, "fade, inherit"_s, "12"_s, "1s"_s, "fade spin"_s, "fade,"_s,
+};
+
+// animation-name lists of one to four: `none`, identifiers and strings, and their errors.
+static void appendAnimationNames(StringBuilder& value, Random& random)
+{
+    if (random.percent(6)) {
+        value.append(random.pick(invalidKeyframesNames));
+        return;
+    }
+    unsigned count = 1 + random.below(4);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(", "_s);
+        unsigned kind = random.below(100);
+        if (kind < 10)
+            value.append("none"_s);
+        else if (kind < 75)
+            value.append(random.pick(keyframesIdents));
+        else
+            value.append(random.pick(keyframesStrings));
+    }
+}
+
+static void appendTextShadow(StringBuilder& value, Random& random)
+{
+    unsigned count = 1 + random.below(3);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(", "_s);
+        bool colorFirst = random.percent(40);
+        if (colorFirst) {
+            appendKeywordOrHexColor(value, random);
+            value.append(' ');
+        }
+        appendLength(value, random, 30);
+        value.append(' ');
+        appendLength(value, random, 30);
+        unsigned blur = random.below(100);
+        if (blur < 50) {
+            value.append(' ');
+            appendLength(value, random, 5);
+        }
+        if (blur >= 97)
+            value.append(" 1px 1px"_s);
+        if (!colorFirst && random.percent(50)) {
+            value.append(' ');
+            appendKeywordOrHexColor(value, random);
+        }
+    }
+}
+
+// calc-size() in width and height, offset-path (ray(), url(), boxes), text-shadow, margin-trim, text-box-edge,
+// line-fit-edge, overflow-clip-margin, position-area, link-parameters (param()) and animation-name, each with its
+// errors.
+static Vector<Block> smallFamiliesBlocks()
+{
+    return generateBlocks(314, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        switch (index % 11) {
+        case 0:
+            value.append(random.pick(calcSizeValues));
+            return width;
+        case 1:
+            value.append(random.pick(calcSizeValues));
+            return height;
+        case 2:
+            value.append(random.pick(offsetPathValues));
+            return offsetPath;
+        case 3:
+            appendTextShadow(value, random);
+            return textShadow;
+        case 4:
+            value.append(random.pick(marginTrimValues));
+            return marginTrim;
+        case 5:
+            value.append(random.pick(textBoxEdgeValues));
+            return textBoxEdge;
+        case 6:
+            value.append(random.pick(lineFitEdgeValues));
+            return lineFitEdge;
+        case 7:
+            value.append(random.pick(overflowClipMarginValues));
+            return overflowClipMargin;
+        case 8:
+            value.append(random.pick(positionAreaValues));
+            return positionArea;
+        case 9:
+            value.append(random.pick(linkParametersValues));
+            return linkParameters;
+        default:
+            appendAnimationNames(value, random);
+            return animationName;
+        }
+    });
+}
+
 // MARK: - Running.
 
 static size_t blockBytes(const Vector<Block>& blocks)
@@ -3371,6 +4947,216 @@ static void run(ASCIILiteral name, const Vector<Block>& blocks, Values values, u
     printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum);
 }
 
+
+// MARK: - Running the font shorthand and @font-face shapes.
+
+static size_t stringBytes(const Vector<String>& strings)
+{
+    size_t bytes = 0;
+    for (auto& string : strings)
+        bytes += string.length();
+    return bytes;
+}
+
+// The alternative a value took, and its keyword's name if it is one. The numbers are in the `font` declaration's
+// serialization of the same string.
+template<typename... Alternatives>
+static void addKeywordOrKind(Checksum& checksum, const Variant<CSSValueID, Alternatives...>& value)
+{
+    checksum.add(static_cast<uint64_t>(value.index()));
+    WTF::switchOn(value,
+        [&](CSSValueID keyword) { checksum.add(nameString(keyword).string()); },
+        [](const auto&) { });
+}
+
+static uint64_t checksumOfUnresolvedFonts(const Vector<String>& strings, ScriptExecutionContext& context, unsigned& parsedFonts)
+{
+    Checksum checksum;
+    for (auto& string : strings) {
+        auto font = CSSPropertyParserHelpers::parseUnresolvedFont(string, context);
+        checksum.add(font.has_value());
+        if (!font)
+            continue;
+        ++parsedFonts;
+        addKeywordOrKind(checksum, font->style);
+        checksum.add(nameString(font->variantCaps).string());
+        addKeywordOrKind(checksum, font->weight);
+        addKeywordOrKind(checksum, font->width);
+        addKeywordOrKind(checksum, font->size);
+        addKeywordOrKind(checksum, font->lineHeight);
+        checksum.add(font->family.size());
+        for (auto& name : font->family) {
+            checksum.add(static_cast<uint64_t>(name.index()));
+            WTF::switchOn(name,
+                [&](CSSValueID keyword) { checksum.add(nameString(keyword).string()); },
+                [&](const AtomString& family) { checksum.add(family.string()); });
+        }
+    }
+    return checksum.value();
+}
+
+// The same strings through the declaration parser (`font: <string>;`, one declaration a block) and through
+// parseUnresolvedFont (the canvas and FontFaceSet entry, with a document as its context); one pass is both.
+static void runFontShorthands(ASCIILiteral name, uint64_t expectedChecksum, unsigned passes)
+{
+    ProcessWarming::initializeNames();
+    auto settings = Settings::create(nullptr);
+    Ref document = Document::create(settings.get(), aboutBlankURL());
+
+    auto strings = fontShorthandStrings();
+    auto blocks = fontShorthandBlocks(strings);
+    auto& context = strictCSSParserContext();
+    auto bytes = blockBytes(blocks) + stringBytes(strings);
+    ASSERT_GT(bytes, 0u);
+    unsigned parsedValues = 0;
+    unsigned changedBlocks = 0;
+    unsigned parsedFonts = 0;
+    Checksum checksum;
+    checksum.add(checksumOfParse(blocks, context, parsedValues, changedBlocks));
+    checksum.add(checksumOfUnresolvedFonts(strings, document.get(), parsedFonts));
+    EXPECT_GT(parsedValues, 0u);
+    EXPECT_GT(parsedFonts, 0u);
+    EXPECT_EQ(expectedChecksum, checksum.value()) << "checksum=" << std::hex << checksum.value();
+    if (!runsBenchmarks())
+        return;
+
+    unsigned changed = 0;
+    unsigned fonts = 0;
+    auto start = MonotonicTime::now();
+    for (unsigned pass = 0; pass < passes; ++pass) {
+        for (auto& block : blocks) {
+            Ref properties = MutableStyleProperties::create();
+            changed += CSSParser::parseDeclarationList(properties, block.text, context);
+        }
+        for (auto& string : strings)
+            fonts += CSSPropertyParserHelpers::parseUnresolvedFont(string, document.get()).has_value();
+    }
+    auto elapsed = MonotonicTime::now() - start;
+    EXPECT_EQ(changedBlocks * passes, changed);
+    EXPECT_EQ(parsedFonts * passes, fonts);
+    printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum.value());
+}
+
+// MARK: - Running the timing function shape.
+
+// Whether each easing parsed, the kind of timing function it made and that function's serialization.
+static uint64_t checksumOfTimingFunctions(const Vector<String>& easings, const CSSParserContext& context, unsigned& parsedEasings)
+{
+    Checksum checksum;
+    for (auto& easing : easings) {
+        auto function = CSSPropertyParserHelpers::parseEasingFunctionDeprecated(easing, context);
+        checksum.add(!!function);
+        if (!function)
+            continue;
+        ++parsedEasings;
+        checksum.add(static_cast<uint64_t>(function->type()));
+        checksum.add(function->cssText());
+    }
+    return checksum.value();
+}
+
+// The timing function lists through the declaration parser, and each of their easings through
+// parseEasingFunctionDeprecated (the Web Animations entry: KeyframeEffect and AnimationEffect easings); one pass is
+// both.
+static void runTimingFunctions(ASCIILiteral name, uint64_t expectedChecksum, unsigned passes)
+{
+    Vector<String> easings;
+    auto blocks = timingFunctionsBlocks(easings);
+    auto& context = strictCSSParserContext();
+    auto bytes = blockBytes(blocks) + stringBytes(easings);
+    ASSERT_GT(bytes, 0u);
+    unsigned parsedValues = 0;
+    unsigned changedBlocks = 0;
+    unsigned parsedEasings = 0;
+    Checksum checksum;
+    checksum.add(checksumOfParse(blocks, context, parsedValues, changedBlocks));
+    checksum.add(checksumOfTimingFunctions(easings, context, parsedEasings));
+    EXPECT_GT(parsedValues, 0u);
+    EXPECT_GT(parsedEasings, 0u);
+    EXPECT_GT(easings.size(), parsedEasings);
+    EXPECT_EQ(expectedChecksum, checksum.value()) << "checksum=" << std::hex << checksum.value();
+    if (!runsBenchmarks())
+        return;
+
+    unsigned changed = 0;
+    unsigned functions = 0;
+    auto start = MonotonicTime::now();
+    for (unsigned pass = 0; pass < passes; ++pass) {
+        for (auto& block : blocks) {
+            Ref properties = MutableStyleProperties::create();
+            changed += CSSParser::parseDeclarationList(properties, block.text, context);
+        }
+        for (auto& easing : easings)
+            functions += !!CSSPropertyParserHelpers::parseEasingFunctionDeprecated(easing, context);
+    }
+    auto elapsed = MonotonicTime::now() - start;
+    EXPECT_EQ(changedBlocks * passes, changed);
+    EXPECT_EQ(parsedEasings * passes, functions);
+    printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum.value());
+}
+
+static constexpr CSSPropertyID fontFaceDescriptors[] = {
+    CSSPropertyID::FontFamily, CSSPropertyID::Src, CSSPropertyID::UnicodeRange, CSSPropertyID::FontWeight, CSSPropertyID::FontStyle,
+    CSSPropertyID::FontDisplay, CSSPropertyID::FontFeatureSettings, CSSPropertyID::SizeAdjust, CSSPropertyID::AscentOverride,
+    CSSPropertyID::DescentOverride, CSSPropertyID::LineGapOverride,
+};
+
+static uint64_t checksumOfSheets(const Vector<String>& sheets, const CSSParserContext& context, unsigned& parsedDescriptors, unsigned& parsedRules)
+{
+    Checksum checksum;
+    for (auto& text : sheets) {
+        Ref sheet = StyleSheetContents::create(context);
+        checksum.add(sheet->parseString(text));
+        auto& rules = sheet->childRules();
+        parsedRules += static_cast<unsigned>(rules.size());
+        checksum.add(rules.size());
+        for (auto& rule : rules) {
+            RefPtr fontFace = dynamicDowncast<StyleRuleFontFace>(rule.get());
+            checksum.add(!!fontFace);
+            if (!fontFace)
+                continue;
+            for (auto descriptor : fontFaceDescriptors) {
+                auto value = fontFace->properties().getPropertyValue(descriptor);
+                parsedDescriptors += !value.isEmpty();
+                checksum.add(value);
+            }
+        }
+    }
+    return checksum.value();
+}
+
+// Style sheets through StyleSheetContents::parseString, the @font-face rules' descriptors read back.
+static void runFontFaceSheets(ASCIILiteral name, const Vector<String>& sheets, uint64_t expectedChecksum, unsigned passes)
+{
+    // The descriptors serialise generic family names from the names table, which a process without it fills only when
+    // a Document is made (FontShorthands): without this, the shape's checksum depends on which shapes ran before it.
+    ProcessWarming::initializeNames();
+    auto& context = strictCSSParserContext();
+    auto bytes = stringBytes(sheets);
+    ASSERT_GT(bytes, 0u);
+    unsigned parsedDescriptors = 0;
+    unsigned parsedRules = 0;
+    auto checksum = checksumOfSheets(sheets, context, parsedDescriptors, parsedRules);
+    EXPECT_GT(parsedRules, 0u);
+    EXPECT_GT(parsedDescriptors, 0u);
+    EXPECT_EQ(expectedChecksum, checksum) << "checksum=" << std::hex << checksum;
+    if (!runsBenchmarks())
+        return;
+
+    unsigned rules = 0;
+    auto start = MonotonicTime::now();
+    for (unsigned pass = 0; pass < passes; ++pass) {
+        for (auto& text : sheets) {
+            Ref sheet = StyleSheetContents::create(context);
+            sheet->parseString(text);
+            rules += static_cast<unsigned>(sheet->childRules().size());
+        }
+    }
+    auto elapsed = MonotonicTime::now() - start;
+    EXPECT_EQ(parsedRules * passes, rules);
+    printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum);
+}
+
 } // namespace CSSConsumersBenchmark
 
 using namespace CSSConsumersBenchmark;
@@ -3409,5 +5195,20 @@ TEST(CSSConsumersBench, BackgroundLayers) { run("BackgroundLayers"_s, background
 TEST(CSSConsumersBench, PrefixedGradients) { run("PrefixedGradients"_s, prefixedGradientsBlocks(), Values::Valid, 0x2d3be6178e5cbf04ULL, 100); }
 TEST(CSSConsumersBench, ShadowsBordersImages) { run("ShadowsBordersImages"_s, shadowsBordersImagesBlocks(), Values::Valid, 0x12d771aa1b7b596cULL, 130); }
 TEST(CSSConsumersBench, InvalidColorsImages) { run("InvalidColorsImages"_s, invalidColorsImagesBlocks(), Values::Invalid, 0xeae961133aa717afULL, 370); }
+
+TEST(CSSConsumersBench, FontFamilyStacks) { run("FontFamilyStacks"_s, fontFamilyStacksBlocks(), Values::Valid, 0x74464000cb39c39bULL, 250); }
+TEST(CSSConsumersBench, FontShorthands) { runFontShorthands("FontShorthands"_s, 0x01cee9dfa656d72fULL, 100); }
+TEST(CSSConsumersBench, FontFaceBlocks) { runFontFaceSheets("FontFaceBlocks"_s, fontFaceSheets(), 0x37dae25b194bca45ULL, 110); }
+TEST(CSSConsumersBench, FontFeatureSettings) { run("FontFeatureSettings"_s, fontFeatureSettingsBlocks(), Values::Valid, 0xb0d631a684db0892ULL, 450); }
+TEST(CSSConsumersBench, AlignmentKeywords) { run("AlignmentKeywords"_s, alignmentKeywordsBlocks(), Values::Valid, 0x4ece3ad8585bfb93ULL, 700); }
+TEST(CSSConsumersBench, DisplayPairs) { run("DisplayPairs"_s, displayPairsBlocks(), Values::Valid, 0xe7a2d68e3a2ad997ULL, 900); }
+TEST(CSSConsumersBench, GridTemplates) { run("GridTemplates"_s, gridTemplatesBlocks(), Values::Valid, 0xedd99a6c825560a5ULL, 240); }
+TEST(CSSConsumersBench, GridLines) { run("GridLines"_s, gridLinesBlocks(), Values::Valid, 0x9ede339757af349bULL, 600); }
+TEST(CSSConsumersBench, TimingFunctions) { runTimingFunctions("TimingFunctions"_s, 0x4b4b0e85e722e03aULL, 60); }
+TEST(CSSConsumersBench, Filters) { run("Filters"_s, filtersBlocks(), Values::Valid, 0x015e10f5f94b8c04ULL, 250); }
+TEST(CSSConsumersBench, ClipPaths) { run("ClipPaths"_s, clipPathsBlocks(), Values::Valid, 0xc2fda9b8edee40c9ULL, 200); }
+TEST(CSSConsumersBench, ShapesRare) { run("ShapesRare"_s, shapesRareBlocks(), Values::Valid, 0xf3b04e261f1daf91ULL, 150); }
+TEST(CSSConsumersBench, ContentAndCounters) { run("ContentAndCounters"_s, contentAndCountersBlocks(), Values::Valid, 0x6261324865658724ULL, 400); }
+TEST(CSSConsumersBench, SmallFamilies) { run("SmallFamilies"_s, smallFamiliesBlocks(), Values::Valid, 0xe6b2ff5e0da3d285ULL, 450); }
 
 } // namespace TestWebKitAPI
