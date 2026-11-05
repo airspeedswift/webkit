@@ -47,19 +47,38 @@ internal import WebCore_Private.Core.CSSParserIdioms
 /// consumed.
 /// `parserMode` is the CSSParserMode and `numericFlags` the CSSNumericConsumerSwift bits.
 ///
-/// consumePropertyWithSwift makes the state of `value` on its stack for this call only. Swift calls its members,
-/// CSS::toAngleUnit, CSS::toTimeUnit, CSS::toCSSUnitType, isValidCustomIdentifier, the CSSValue factories and
-/// CSSValueListBuilder, none of which reach it; only `identifier` writes a token, its CSSValueID cache, as
-/// CSSParserToken::id() does. A consumer of CSSPropertyConsumerSwiftConsumer (CSSPropertyConsumerSwiftValues.swift)
-/// also reads `value.consumerOptions`, `value.hexColorText` and `value.isIntegerNumeric`, and gives a CSS:: value to
-/// setUnresolvedResult, which writes only the caller's std::optional the state points to. beginGradientStops,
-/// appendGradientStop and setPendingColor write only the state's CSSGradientSwiftStops, a local of
-/// consumePropertyWithSwift, which CSSImageSwiftParts::appendColor and the gradient builders take from. The other
-/// CSSPropertyConsumerSwiftBuilders.h builders, for every kind of value, and CSSColorSwiftComponents::parseCalc read
-/// the tokens and the property parser's state, and keep no reference to either in what they make. Of the C++ consumers
-/// they call, consumeURLRaw and consumeColorInterpolationMethod read a range of the tokens, and consumeUnresolvedFilter
-/// and consumeUnresolvedMaskBorder can consume a color or an image through cssConsumeProperty again, with a state and
-/// a CSSGradientSwiftStops of their own.
+/// consumePropertyWithSwift makes the state of `value` on its stack for this call only, with the CSSGradientSwiftStops
+/// and the std::optional it points to. No C++ function Swift calls keeps a reference to the tokens or the state, or
+/// reaches the state other than through what Swift passes it:
+/// - every consumer: the state's members, CSS::toAngleUnit, CSS::toTimeUnit, CSS::toFlexUnit, CSS::toResolutionUnit,
+///   CSS::toCSSUnitType, isValidCustomIdentifier, the CSSValue factories, CSSValueListBuilder, appendKeywordForSwift
+///   and CSSColorSwiftComponents::parseCalc. Only `identifier` writes a token, its CSSValueID cache, as
+///   CSSParserToken::id() does.
+/// - CSSPropertyConsumerSwiftValues.swift: setUnresolvedResult, which writes only the caller's std::optional;
+///   beginGradientStops, appendGradientStop and setPendingColor, which write only the CSSGradientSwiftStops;
+///   colorKeywordForSwift, colorContextForSwift, colorSwiftChannel, the CSS:: color constructors and the color, image,
+///   filter, border and position builders; consumeURLRaw and consumeColorInterpolationMethodForSwift, which read a
+///   range of the tokens.
+/// - CSSPropertyConsumerSwiftAlignment.swift and CSSPropertyConsumerSwiftSmall.swift: consumerContextForSwift, which
+///   reads only the context; currentPropertyForSwift; isTimelineRangeNameForSwift; valueForPositionArea;
+///   setParamFunctionResult (CSSCustomPropertySyntax::consumeType,
+///   CSSSubstitutionParser::containsSubstitutionFunctions, CSSVariableData::create); counterStyleIntegerForSwift,
+///   consumeCounterStyleSymbolForSwift and the counter style, content, quotes, text-shadow and keyframe builders
+///   (isPredefinedCounterStyle, consumeSpecificUnresolvedIdent, Style::deprecatedToStyleFromCSSValue); and
+///   consumeCalcSizeSumForSwift and makeCalcSizeValue, which add <calc-sum>s to the CSSGradientSwiftStops and take
+///   them.
+/// - CSSPropertyConsumerSwiftEffects.swift: appendLinearEasingStop and setEasingFunctionResult, and beginFilterValues,
+///   appendFilterFunction, appendDropShadowFilter, appendFilterURL (consumeURLRaw) and makeFilterValue, which write
+///   and take only the CSSGradientSwiftStops.
+/// - CSSPropertyConsumerSwiftFonts.swift: isGenericFontFamilyForSwift (genericFontFamily), isObliqueAngleForSwift, the
+///   state's CSSValuePool, AngleValidator, fromCSSValueID<FontTechnology>, consumeURLRaw,
+///   consumeColorInterpolationMethodForSwift and the font builders.
+/// - CSSPropertyConsumerSwiftGrid.swift: CSS::addRow, MetaConsumer for an <integer> or <flex> calc(),
+///   Style::GridPosition::max(), CSSGridAutoFlowValue::create and the grid builders.
+/// - CSSPropertyConsumerSwiftShapes.swift: buildSVGPathByteStreamFromString, makeURLValue (consumeURL) and the basic
+///   shape, clip, mask-border and ray() builders.
+/// A url() with a param() modifier, and the image of the generated consumeSymbol, are consumed through
+/// cssConsumeProperty again, each with a state of its own.
 @_expose(Cxx)
 func cssConsumeProperty(
     _ value: borrowing WebCore.CSSPropertyConsumerSwiftValue,
@@ -495,6 +514,10 @@ struct PropertyParser: ~Copyable, ~Escapable {
     /// The consumer of the CSSPropertyID `consumer`, the generated one numbered `consumer`, or the
     /// CSSPropertyConsumerSwiftConsumer `consumer`.
     mutating func consume(_ consumer: UInt16, _ calc: PropertyCalc) -> PropertyValue? {
+        // consumeValue4's consumers are the last, from AlignContent.
+        if consumer >= WebCore.CSSPropertyConsumerSwiftConsumer.AlignContent.rawValue {
+            return consumeValue4(consumer, calc)
+        }
         if consumer >= WebCore.CSSPropertyConsumerSwiftConsumer.UnresolvedColor.rawValue {
             return consumeValue(consumer, calc)
         }

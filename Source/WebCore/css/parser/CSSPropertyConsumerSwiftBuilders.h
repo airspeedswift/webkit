@@ -51,6 +51,12 @@
 #include <wtf/UniqueRef.h>
 #include <wtf/Variant.h>
 
+#include <WebCore/CSSAppleColorFilter.h>
+#include <WebCore/CSSCalcSizeFunction.h>
+#include <WebCore/CSSFilter.h>
+#include <WebCore/CSSGridAutoFlowValue.h>
+#include <WebCore/CSSLinearEasingFunction.h>
+
 namespace WebCore {
 
 // Where a CSSPropertyConsumerSwiftConsumer puts the CSS:: value it consumes: Swift gives it to setUnresolvedResult,
@@ -255,8 +261,15 @@ public:
         RELEASE_ASSERT(index < m_components.size());
         return m_components[index];
     }
+    const Component& operator[](size_t index) const
+    {
+        RELEASE_ASSERT(index < m_components.size());
+        return m_components[index];
+    }
 
 private:
+    // The four components of a position at `offset` among CSSImageSwiftParts's, for shape().
+    friend CSSColorSwiftComponents makePositionSwiftComponents(const Vector<Component, 16>&, size_t offset);
     ALWAYS_INLINE void set(uint8_t index, uint8_t type, uint8_t unit, uint16_t symbol, double value)
     {
         auto& component = mutableAt(index);
@@ -339,6 +352,19 @@ enum : uint8_t {
 };
 uint8_t colorContextForSwift(const CSSPropertyConsumerSwiftValue&);
 
+// What the context enables for the consumers that are not of colors.
+enum : uint32_t {
+    CSSConsumerSwiftGridLanesEnabled = 1 << 0,
+    CSSConsumerSwiftRubyDisplayTypesEnabled = 1 << 1,
+    CSSConsumerSwiftSpringTimingFunctionEnabled = 1 << 2,
+    CSSConsumerSwiftSymbolsFunctionEnabled = 1 << 3,
+    CSSConsumerSwiftCalcSizeFunctionEnabled = 1 << 4,
+    CSSConsumerSwiftLegacyFontFaceAttributeMode = 1 << 5,
+    CSSConsumerSwiftFontPaletteMixFunctionEnabled = 1 << 6,
+    CSSConsumerSwiftMeshGradientsEnabled = 1 << 7,
+};
+uint32_t consumerContextForSwift(const CSSPropertyConsumerSwiftValue&);
+
 // The CSS::Color of a color function with `descriptor` (CSSColorSwiftDescriptor), as consumeAbsoluteFunctionParameters
 // and consumeRelativeFunctionParameters make it, nested `nestingLevel` deep.
 CSS::Color makeAbsoluteColor(const CSSPropertyConsumerSwiftValue&, uint8_t descriptor, const CSSColorSwiftComponents&, uint32_t nestingLevel);
@@ -382,11 +408,12 @@ struct CSSColorSwiftStopColor {
     uint32_t nestingLevel { 0 };
 };
 
-// The stops of the gradient being consumed, of the kind beginGradientStops gave, and the color setPendingColor gave:
-// on consumePropertyWithSwift's stack, for one call.
+// The stops of the gradient being consumed, of the kind beginGradientStops gave, the color setPendingColor gave, and
+// the stops of a linear() easing function, the functions of a filter or the <calc-sum>s of a calc-size(): on
+// consumePropertyWithSwift's stack, for one call.
 struct CSSGradientSwiftStops {
     template<typename Stop> using Stops = Vector<Stop, 16>;
-    Variant<std::monostate, Stops<CSS::GradientLinearColorStop>, Stops<CSS::GradientAngularColorStop>, Stops<CSS::GradientDeprecatedColorStop>> stops;
+    Variant<std::monostate, Stops<CSS::GradientLinearColorStop>, Stops<CSS::GradientAngularColorStop>, Stops<CSS::GradientDeprecatedColorStop>, Vector<CSS::LinearEasingParameters::Stop>, CSS::FilterValueList, CSS::AppleColorFilterValueList, Vector<CSS::CalcSizeCalculation>> stops;
     Markable<CSS::Color> pendingColor;
 
     WTF_FORBID_HEAP_ALLOCATION;
@@ -428,6 +455,12 @@ public:
 private:
     friend Ref<CSSValue> makeImageValue(const CSSPropertyConsumerSwiftValue&, uint16_t, const CSSColorSwiftComponents&, const CSSColorSwiftComponents&, uint16_t, CSSImageSwiftParts&&);
     friend uint32_t setBorderResult(const CSSPropertyConsumerSwiftValue&, uint16_t, CSSImageSwiftParts&&, uint32_t);
+    friend void setKeyframeKeyListResult(const CSSPropertyConsumerSwiftValue&, CSSImageSwiftParts&&);
+    friend Ref<CSSValue> makeTextShadowValue(const CSSPropertyConsumerSwiftValue&, CSSImageSwiftParts&&);
+    friend RefPtr<CSSValue> setEasingFunctionResult(const CSSPropertyConsumerSwiftValue&, uint16_t, uint16_t, uint16_t, const CSSColorSwiftComponents&, double, uint32_t, CSSImageSwiftParts&&);
+    friend RefPtr<CSSValue> makeBasicShapeValue(const CSSPropertyConsumerSwiftValue&, uint16_t, uint16_t, uint32_t, bool, const CSSColorSwiftComponents&, uint16_t, CSSImageSwiftParts&&);
+    friend CSS::MaskBorder makeMaskBorderSwift(CSSImageSwiftParts&, size_t);
+    friend RefPtr<CSSValue> makeMaskingValue(const CSSPropertyConsumerSwiftValue&, uint16_t, CSSImageSwiftParts&&);
 
     // Inline, for three shadows or a border-image's 16 components.
     Vector<Markable<CSS::Color>, 3> colors;
@@ -440,15 +473,25 @@ private:
 constexpr uint16_t CSSImageSwiftNoPosition = 0xffff;
 constexpr uint16_t CSSImageSwiftTypeFunction = std::to_underlying(CSSValueID::Type);
 
+// A mesh-gradient() point's header: bits 0-1 its location, bit 2 whether it begins a row.
+enum : uint16_t {
+    CSSMeshGradientSwiftNoLocation,
+    CSSMeshGradientSwiftAbsoluteLocation,
+    CSSMeshGradientSwiftRelativeLocation,
+    CSSMeshGradientSwiftBeginsRow = 1 << 2,
+};
+
 // The gradient, cross-fade(), image(), light-dark() or image-set() `function` (a CSSValueID). A gradient's line or
 // size and shape (a symbol at component 3: circle or ellipse) are in `line`, its position (setPositionResult's layout)
 // in `position`, or for -webkit-gradient(radial), its radii; -webkit-cross-fade()'s progress is at component 0 of
-// `line`, and an image of none is the keyword.
+// `line`, and an image of none is the keyword. mesh-gradient()'s background color, or none, is the first color of
+// `parts`, and each other color is a point's, whose component is its header (a symbol, CSSMeshGradientSwift bits); an
+// absolute location follows it as a position (its layout as a symbol, then its four components), a relative one as a
+// coordinate pair (two components), then its control points, each a position, or a coordinate pair and its anchor
+// (origin as a symbol, or absent), then one absent component.
 Ref<CSSValue> makeImageValue(const CSSPropertyConsumerSwiftValue&, uint16_t function, const CSSColorSwiftComponents& line, const CSSColorSwiftComponents& position, uint16_t positionLayout, CSSImageSwiftParts&&);
 // The image of the string or url() among the tokens [start, end), as consumeImage and consumeURLRaw make it.
 RefPtr<CSSValue> makeImageURLValue(const CSSPropertyConsumerSwiftValue&, uint32_t start, uint32_t end);
-// filter() of `image` and the filter of all the tokens [start, end), or null if they are not one.
-RefPtr<CSSValue> makeFilterImageValue(const CSSPropertyConsumerSwiftValue&, CSSValue& image, uint32_t start, uint32_t end);
 // -webkit-canvas(), -webkit-named-image() or paint() (`function`) of the identifier at `name`, paint() with the
 // arguments [argumentsStart, argumentsEnd), or null for paint() without the CSS Painting API.
 RefPtr<CSSValue> makeNamedImageValue(const CSSPropertyConsumerSwiftValue&, uint16_t function, uint32_t name, uint32_t argumentsStart, uint32_t argumentsEnd);
@@ -464,9 +507,8 @@ Ref<CSSValue> makeImageSetOptionValue(const CSSPropertyConsumerSwiftValue&, CSSV
 // width at 5, outset at 9, rules at 13 and a source at 15 (type None) if they are present. A source is the image of
 // `parts`, or none without one. Shadow `i` is color `i` with inset at 5i, and x, y, blur and spread at 5i+1 to 5i+4;
 // none without shadows. A reflection is its direction at 0 and offset at 1, or none without components, with the
-// mask-border among the tokens from `maskStart` to the end unless it is UINT32_MAX. Absent edges complete the
-// present ones; absent optional parts stay absent. Returns the tokens the mask-border consumed, or UINT32_MAX and
-// gives nothing to setUnresolvedResult if they are not one.
+// mask-border's parts, if any, from 2, laid out as a border-image's. Absent edges complete the present ones; absent
+// optional parts stay absent. Returns 0; `maskStart` is unused.
 uint32_t setBorderResult(const CSSPropertyConsumerSwiftValue&, uint16_t consumer, CSSImageSwiftParts&&, uint32_t maskStart);
 // consumeRepeatStyle's CSSValue.
 Ref<CSSValue> makeBackgroundRepeatValue(uint16_t horizontal, uint16_t vertical);
@@ -475,6 +517,341 @@ Ref<CSSValue> makeBackgroundRepeatValue(uint16_t horizontal, uint16_t vertical);
 // The color-scheme of the identifiers among the tokens [start, end).
 CSS::ColorScheme makeColorScheme(const CSSPropertyConsumerSwiftValue&, uint32_t start, uint32_t end, bool only);
 #endif
+
+// MARK: - Keyframes, text shadows, position areas, link parameters and easing functions
+
+// Whether the CSSValueID `id` is a <timeline-range-name>.
+bool isTimelineRangeNameForSwift(uint16_t id);
+// Gives consumeKeyframeKeyList's keys to setUnresolvedResult: key `i` is the CSSValueID symbol at component 2i of
+// `parts`, Normal for from, to and a percentage alone, and the percentage at component 2i + 1.
+void setKeyframeKeyListResult(const CSSPropertyConsumerSwiftValue&, CSSImageSwiftParts&&);
+// The <keyframes-name> of the string token at `index`, or null if it is empty.
+RefPtr<CSSValue> makeKeyframesNameValue(const CSSPropertyConsumerSwiftValue&, uint32_t index);
+// The text-shadow of `parts`: shadow `i` is color `i` with x, y and blur at components 4i + 1 to 4i + 3; none
+// without shadows.
+Ref<CSSValue> makeTextShadowValue(const CSSPropertyConsumerSwiftValue&, CSSImageSwiftParts&&);
+// The position-area of the identifiers `first` and `second` (CSSValueIDs), or of `first` alone if `second` is
+// UINT32_MAX, or null if they are not one.
+RefPtr<CSSValue> makePositionAreaValue(uint16_t first, uint32_t second);
+// Gives the param() to setUnresolvedResult whose spec is the keyword `keyword`, or if it is Invalid, the dashed
+// identifier at `name` and the <css-type> that starts the arguments [start, end), followed by a comma and the value.
+// Returns false and gives nothing if they are not one.
+bool setParamFunctionResult(const CSSPropertyConsumerSwiftValue&, uint16_t keyword, uint32_t name, uint32_t start, uint32_t end);
+// The easing function of the EasingFunction or UnresolvedEasingFunction `consumer`: the keyword `keyword` if
+// `function` is Invalid, else the function `function` (CSSValueIDs). cubic-bezier()'s and spring()'s numbers are
+// components 0-3 of `numbers`; steps() has the position `keyword` and the integer `count`, or unless it is UINT32_MAX,
+// the calc() at the token `countCalc`;
+// linear()'s stops are those appendLinearEasingStop gave. Returns the CSSValue of an EasingFunction; gives an
+// UnresolvedEasingFunction's to setUnresolvedResult and returns null.
+RefPtr<CSSValue> setEasingFunctionResult(const CSSPropertyConsumerSwiftValue&, uint16_t consumer, uint16_t function, uint16_t keyword, const CSSColorSwiftComponents& numbers, double count, uint32_t countCalc, CSSImageSwiftParts&&);
+// A linear() stop: its output at component 0 of `stop`, and its input at components 1 and 2 or none.
+void appendLinearEasingStop(const CSSPropertyConsumerSwiftValue&, const CSSColorSwiftComponents& stop);
+
+// MARK: - Counter styles, quotes, content, calc-size() and unicode-range
+
+// The <counter-style-name> of the identifier at `index`: its keyword if it is a predefined counter style, else a
+// <custom-ident>.
+Ref<CSSValue> makeCounterStyleNameValue(const CSSPropertyConsumerSwiftValue&, uint32_t index);
+// symbols() with the <symbols-type> at the token `system`, or none for UINT32_MAX, and the strings among the tokens
+// [start, end), or null if `system` is not a <symbols-type>.
+RefPtr<CSSValue> makeSymbolsFunctionValue(const CSSPropertyConsumerSwiftValue&, uint32_t system, uint32_t start, uint32_t end);
+// The integer of the <integer> (<integer [0,∞]> if `nonnegative`) primitive `integer`, as the style builder resolves
+// it: clamped to int, a calc() evaluated.
+int counterStyleIntegerForSwift(CSSValue& integer, bool nonnegative);
+// The <symbol> at the start of the tokens [start, end), and in `next` where it ends, or null if there is none.
+RefPtr<CSSValue> consumeCounterStyleSymbolForSwift(const CSSPropertyConsumerSwiftValue&, uint32_t start, uint32_t end, uint32_t& next);
+
+// quotes of the keyword `keyword` (a CSSValueID), or if it is Invalid, of the strings among the tokens [start, end).
+Ref<CSSValue> makeQuotesValue(const CSSPropertyConsumerSwiftValue&, uint16_t keyword, uint32_t start, uint32_t end);
+
+// The kinds of a content item.
+enum : uint8_t {
+    CSSContentSwiftText, // The string at `token`.
+    CSSContentSwiftImage, // The next of the images.
+    CSSContentSwiftKeyword, // The identifier at `token`: a quote, or a glyph in the UA sheet.
+    CSSContentSwiftCounter, // counter() of the identifier at `token`.
+    CSSContentSwiftCounters, // counters() of the identifier at `token` and the string at `separator`.
+};
+
+// The items of a content value as Swift consumed them, and its alternative text: the items from beginAltContent on.
+class CSSContentSwiftParts {
+    WTF_MAKE_NONCOPYABLE(CSSContentSwiftParts);
+public:
+    // Swift zero-fills an object before calling a constructor without arguments; it calls this one without the fill.
+    explicit CSSContentSwiftParts(uint8_t) { }
+    CSSContentSwiftParts(CSSContentSwiftParts&&) = default;
+    ~CSSContentSwiftParts();
+
+    // An item of `kind`. A counter's style is decimal if `style` is UINT32_MAX, else the identifier or the symbols()
+    // at the token `style`, with the <symbols-type> at `system` and the strings among [start, end).
+    void append(uint8_t kind, uint32_t token, uint32_t separator, uint32_t style, uint32_t system, uint32_t start, uint32_t end) { items.append({ kind, token, separator, style, system, start, end }); }
+    void appendImage(CSSValue& image) { items.append({ CSSContentSwiftImage, 0, 0, 0, 0, 0, 0 }); images.append(image); }
+    void beginAltContent() { altStart = items.size(); }
+
+private:
+    friend RefPtr<CSSValue> makeContentValue(const CSSPropertyConsumerSwiftValue&, uint16_t, CSSContentSwiftParts&&);
+
+    struct Item {
+        uint8_t kind;
+        uint32_t token;
+        uint32_t separator;
+        uint32_t style;
+        uint32_t system;
+        uint32_t start;
+        uint32_t end;
+    };
+    Vector<Item, 4> items;
+    CSSValueListBuilder images;
+    std::optional<size_t> altStart;
+};
+
+// content of the keyword `keyword` (a CSSValueID), or if it is Invalid, of `parts`, or null if an identifier or a
+// counter style in them is not one.
+RefPtr<CSSValue> makeContentValue(const CSSPropertyConsumerSwiftValue&, uint16_t keyword, CSSContentSwiftParts&&);
+
+// The levels of a calc-size() as Swift consumed them, the innermost first: each level's basis. Their <calc-sum>s are
+// in the state's CSSGradientSwiftStops, in the order they appear.
+class CSSCalcSizeSwiftParts {
+    WTF_MAKE_NONCOPYABLE(CSSCalcSizeSwiftParts);
+public:
+    // Swift zero-fills an object before calling a constructor without arguments; it calls this one without the fill.
+    explicit CSSCalcSizeSwiftParts(uint8_t) { }
+    CSSCalcSizeSwiftParts(CSSCalcSizeSwiftParts&&) = default;
+    ~CSSCalcSizeSwiftParts();
+
+    // A level whose basis is the keyword `basis` (a CSSValueID), CalcSize for the level before it, or Invalid for the
+    // <calc-sum> before its calculation's.
+    void appendLevel(uint16_t basis) { bases.append(basis); }
+
+private:
+    friend Ref<CSSValue> makeCalcSizeValue(const CSSPropertyConsumerSwiftValue&, CSSCalcSizeSwiftParts&&);
+
+    Vector<uint16_t, 4> bases;
+};
+
+// The CSSPropertyID of the property being parsed.
+uint16_t currentPropertyForSwift(const CSSPropertyConsumerSwiftValue&);
+// Appends to the state's CSSGradientSwiftStops the <calc-sum> at the start of the tokens [start, end) as calc-size()
+// parses it, allowing `size` if `allowsSize`, and gives in `next` where it ends; returns false if there is none.
+bool consumeCalcSizeSumForSwift(const CSSPropertyConsumerSwiftValue&, uint32_t start, uint32_t end, bool allowsSize, uint32_t& next);
+// The calc-size() of `parts` and the <calc-sum>s in the state's CSSGradientSwiftStops.
+Ref<CSSValue> makeCalcSizeValue(const CSSPropertyConsumerSwiftValue&, CSSCalcSizeSwiftParts&&);
+
+// MARK: - Fonts
+
+// Whether the CSSValueID `id` names a generic font family, which a <family-name> of one identifier cannot be.
+bool isGenericFontFamilyForSwift(uint16_t id);
+// The font family name of the generic family `keyword` (a CSSValueID), or if it is Invalid, of the string token at
+// `start` or of the identifiers and numbers among the tokens [start, end), joined by spaces.
+Ref<CSSValue> makeFontFamilyNameValue(const CSSPropertyConsumerSwiftValue&, uint16_t keyword, uint32_t start, uint32_t end);
+// Whether the angle `value` in the CSSUnitType `unit` is an oblique font style's angle, [-90deg, 90deg].
+bool isObliqueAngleForSwift(double value, uint8_t unit);
+// The oblique font style of the angle at component 0.
+Ref<CSSValue> makeFontStyleWithAngleValue(const CSSColorSwiftComponents&);
+
+struct CSSFontPaletteSwiftStack;
+
+// The font palettes and the open palette-mix() functions of a font-palette, as Swift consumed them.
+class CSSFontPaletteSwiftParts {
+    WTF_MAKE_NONCOPYABLE(CSSFontPaletteSwiftParts);
+public:
+    // Swift zero-fills an object before calling a constructor without arguments; it calls this one without the fill.
+    explicit CSSFontPaletteSwiftParts(uint8_t);
+    CSSFontPaletteSwiftParts(CSSFontPaletteSwiftParts&&);
+    ~CSSFontPaletteSwiftParts();
+
+    // A palette: normal, light or dark (a CSSValueID), or the identifier token at `index`.
+    void appendKeyword(uint16_t);
+    void appendIdentifier(const CSSPropertyConsumerSwiftValue&, uint32_t index);
+    // A palette-mix(), whose components are the palettes appended until endMix().
+    void beginMix();
+    void setColorInterpolationMethod(CSS::ColorInterpolationMethod&&);
+    // Makes the last palette a component of the open palette-mix(), with the percentage at component 0 or none.
+    void endMixComponent(const CSSColorSwiftComponents& percentage);
+    void endMix();
+
+private:
+    friend Ref<CSSValue> makeFontPaletteValue(CSSFontPaletteSwiftParts&&);
+
+    // Behind UniqueRef so that the percentages, which Swift imports as unsafe, do not make this type unsafe.
+    UniqueRef<CSSFontPaletteSwiftStack> stack;
+};
+
+// The font-palette of the last palette of `parts`.
+Ref<CSSValue> makeFontPaletteValue(CSSFontPaletteSwiftParts&&);
+// The <feature-tag-value> of the tag `tag` (its four characters from the low byte up) and the integer `integer`, or
+// if `calc` is not UINT32_MAX, the integer calc() at the token `calc`.
+Ref<CSSValue> makeFontFeatureValue(const CSSPropertyConsumerSwiftValue&, uint32_t tag, double integer, uint32_t calc);
+// The <variation-tag-value> of the tag `tag` and the number `number`.
+Ref<CSSValue> makeFontVariationValue(uint32_t tag, CSSValue& number);
+
+enum class FontTechnology : uint8_t;
+
+// The families of a font, the technologies of a tech(), or the family names of a @font-feature-values prelude, as
+// Swift consumed them.
+class CSSFontSwiftParts {
+    WTF_MAKE_NONCOPYABLE(CSSFontSwiftParts);
+public:
+    // Swift zero-fills an object before calling a constructor without arguments; it calls this one without the fill.
+    explicit CSSFontSwiftParts(uint8_t) { }
+    CSSFontSwiftParts(CSSFontSwiftParts&&) = default;
+    ~CSSFontSwiftParts();
+
+    // The generic family `keyword` (a CSSValueID), or if it is Invalid, the family name of the tokens [start, end).
+    void appendFamily(uint16_t keyword, uint32_t start, uint32_t end) { families.append({ keyword, start, end }); }
+    // The font technology the CSSValueID `id` names; false if it names none.
+    bool appendTechnology(uint16_t id);
+
+private:
+    friend void setUnresolvedFontResult(const CSSPropertyConsumerSwiftValue&, const CSSColorSwiftComponents&, uint16_t, uint16_t, CSSFontSwiftParts&&);
+    friend void setFontTechResult(const CSSPropertyConsumerSwiftValue&, CSSFontSwiftParts&&);
+    friend RefPtr<CSSValue> makeFontFaceSrcResourceValue(const CSSPropertyConsumerSwiftValue&, uint32_t, uint32_t, uint32_t, CSSFontSwiftParts&&);
+    friend void setFontFeatureValuesPreludeResult(const CSSPropertyConsumerSwiftValue&, CSSFontSwiftParts&&);
+
+    struct Family {
+        uint16_t keyword;
+        uint32_t start;
+        uint32_t end;
+    };
+    Vector<Family, 4> families;
+    Vector<FontTechnology> technologies;
+};
+
+// The font of the style, weight, size and line height at components 0 to 3 (an absent one is normal), the
+// font-variant-caps and font-width keywords `variantCaps` and `width` (CSSValueIDs), and the families of `parts`.
+void setUnresolvedFontResult(const CSSPropertyConsumerSwiftValue&, const CSSColorSwiftComponents&, uint16_t variantCaps, uint16_t width, CSSFontSwiftParts&&);
+// The technologies of `parts`.
+void setFontTechResult(const CSSPropertyConsumerSwiftValue&, CSSFontSwiftParts&&);
+// The text of the token `index`, a font format.
+void setFontFormatResult(const CSSPropertyConsumerSwiftValue&, uint32_t index);
+// The src resource of the URL of the tokens [urlStart, urlEnd), the format at the token `format` unless it is
+// UINT32_MAX, and the technologies of `parts`; null if the URL does not parse.
+RefPtr<CSSValue> makeFontFaceSrcResourceValue(const CSSPropertyConsumerSwiftValue&, uint32_t urlStart, uint32_t urlEnd, uint32_t format, CSSFontSwiftParts&&);
+// The src local() of the family name of the string token at `start` or of the identifiers among the tokens [start, end).
+Ref<CSSValue> makeFontFaceSrcLocalValue(const CSSPropertyConsumerSwiftValue&, uint32_t start, uint32_t end);
+// The @font-face font-style `keyword` (a CSSValueID), and for oblique, its `angles` angles at components 0 and 1.
+Ref<CSSValue> makeFontFaceFontStyleValue(uint16_t keyword, const CSSColorSwiftComponents&, uint8_t angles);
+// The family names of `parts`.
+void setFontFeatureValuesPreludeResult(const CSSPropertyConsumerSwiftValue&, CSSFontSwiftParts&&);
+
+// MARK: - Grid
+
+// The parts of a grid value, in the order Swift consumed them.
+enum : uint8_t {
+    CSSGridSwiftLineNames, // '[': the CSSGridSwiftLineName parts up to CSSGridSwiftLineNamesEnd.
+    CSSGridSwiftLineName, // The <custom-ident> at `token`.
+    CSSGridSwiftLineNamesEnd,
+    CSSGridSwiftAreaName, // `length` characters from `offset` of the string at `token`, a grid-template-areas name.
+    CSSGridSwiftAreaRowEnd,
+    CSSGridSwiftBreadthKeyword, // The <track-breadth> `keyword`: MinContent, MaxContent or Auto.
+    CSSGridSwiftFlex, // A <flex [0,∞]>: the number of fr, or unless `token` is UINT32_MAX, the calc() at `token`.
+    CSSGridSwiftLengthPercentage, // A <length-percentage [0,∞]>.
+    CSSGridSwiftMinMax, // minmax(): its two breadths follow.
+    CSSGridSwiftFitContent, // fit-content(): its <length-percentage [0,∞]> follows.
+    // A repeat() of tracks: `keyword` AutoFill or AutoFit, or the count in `component.value` or unless `token` is
+    // UINT32_MAX the calc() at `token`; its line names and track sizes follow, up to CSSGridSwiftRepeatEnd.
+    CSSGridSwiftRepeat,
+    // A repeat() of line names: `keyword` AutoFill or a count as CSSGridSwiftRepeat's; line names follow, up to
+    // CSSGridSwiftRepeatEnd.
+    CSSGridSwiftNameRepeat,
+    CSSGridSwiftRepeatEnd,
+    CSSGridSwiftSubgrid, // subgrid: its line names and line-name repeats follow.
+};
+
+class CSSGridSwiftParts {
+    WTF_MAKE_NONCOPYABLE(CSSGridSwiftParts);
+public:
+    // Swift zero-fills an object before calling a constructor without arguments; it calls this one without the fill.
+    explicit CSSGridSwiftParts(uint8_t) { }
+    CSSGridSwiftParts(CSSGridSwiftParts&&) = default;
+    ~CSSGridSwiftParts();
+
+    uint32_t size() const { return m_parts.size(); }
+    // Drops the parts from `size` on, those of a nested grammar that did not parse.
+    void shrink(uint32_t size) { m_parts.shrink(size); }
+    void append(uint8_t kind, uint32_t token) { m_parts.append({ kind, 0, token, 0, 0, { } }); }
+    void appendAreaName(uint32_t token, uint32_t offset, uint32_t length) { m_parts.append({ CSSGridSwiftAreaName, 0, token, offset, length, { } }); }
+    void appendKeyword(uint8_t kind, uint16_t keyword) { m_parts.append({ kind, keyword, UINT32_MAX, 0, 0, { } }); }
+    void appendFlex(double value, uint32_t calc) { m_parts.append({ CSSGridSwiftFlex, 0, calc, 0, 0, { .value = value } }); }
+    void appendRepeat(uint8_t kind, uint16_t keyword, double count, uint32_t calc) { m_parts.append({ kind, keyword, calc, 0, 0, { .value = count } }); }
+    // The <length-percentage> at component `index` of `components`.
+    void appendLengthPercentage(const CSSColorSwiftComponents& components, uint8_t index) { m_parts.append({ CSSGridSwiftLengthPercentage, 0, UINT32_MAX, 0, 0, components.at(index) }); }
+
+private:
+    friend RefPtr<CSSValue> setGridResult(const CSSPropertyConsumerSwiftValue&, uint16_t, CSSGridSwiftParts&&);
+
+    struct Part {
+        uint8_t kind;
+        uint16_t keyword; // A CSSValueID.
+        uint32_t token; // A token index, or UINT32_MAX.
+        uint32_t offset;
+        uint32_t length;
+        CSSColorSwiftComponents::Component component;
+    };
+    // Inline, for a 4x4 grid-template-areas (16 names and 4 row ends) or a template list of 12 tracks with names.
+    Vector<Part, 32> m_parts;
+};
+
+// The grid value of `consumer` from `parts`: grid-template-areas' rows (null if CSS::addRow rejects one), a row of
+// grid-template-areas or line names alone, a track size or sizes, an explicit track list, or a template list. Gives a
+// typed consumer's value to setUnresolvedResult and returns null.
+RefPtr<CSSValue> setGridResult(const CSSPropertyConsumerSwiftValue&, uint16_t consumer, CSSGridSwiftParts&&);
+
+// The kinds of setGridLineResult's <grid-line>.
+enum : uint8_t {
+    CSSGridSwiftLineAuto,
+    CSSGridSwiftLineCustomIdent,
+    CSSGridSwiftLineExplicit,
+    CSSGridSwiftLineSpan,
+    CSSGridSwiftLineSpanOfInteger,
+};
+// The <grid-line> of `consumer` (GridLine or UnresolvedGridLine) of `kind`, with the integer `index` or unless it is
+// UINT32_MAX the calc() at the token `indexCalc`, and the <custom-ident> at the token `name` unless it is UINT32_MAX:
+// a span of an index read as an <integer> (SpanOfInteger) narrowed to [1, ∞]. Returns the CSSValue of a GridLine;
+// gives an UnresolvedGridLine's to setUnresolvedResult and returns null.
+RefPtr<CSSValue> setGridLineResult(const CSSPropertyConsumerSwiftValue&, uint16_t consumer, uint8_t kind, double index, uint32_t indexCalc, uint32_t name);
+
+// MARK: - Shapes
+
+// The basic shape `function` (a CSSValueID) Swift consumed, from `parts`: circle() radius 0 and ellipse() radii 0-1, each
+// a symbol (an extent) or a length, with the position (setPositionResult's layout `positionLayout`, or
+// CSSImageSwiftNoPosition for none); inset() insets 0-3 (absent ones completed), rect() edges 0-3, xywh() location 0-1
+// and size 2-3, each with radii 4-11 (absent: the default); polygon() vertices, two components each; path() the string at
+// the token `pathString`; shape() its starting point and commands, as makeShapeSwift reads them. `fillRule` is a
+// CSSValueID, or Invalid for none. A path() is a CSSPathValue if `asPathValue`.
+// Null if the path does not parse or is empty.
+RefPtr<CSSValue> makeBasicShapeValue(const CSSPropertyConsumerSwiftValue&, uint16_t function, uint16_t fillRule, uint32_t pathString, bool asPathValue, const CSSColorSwiftComponents& position, uint16_t positionLayout, CSSImageSwiftParts&&);
+// The CSSValue of clip, or for UnresolvedMaskBorder the CSS::MaskBorder given to setUnresolvedResult, of `consumer`,
+// from `parts`: clip's rect() edges at 0-3, or auto as a symbol at 0 alone; a mask-border as makeMaskBorderSwift reads
+// it.
+RefPtr<CSSValue> makeMaskingValue(const CSSPropertyConsumerSwiftValue&, uint16_t consumer, CSSImageSwiftParts&&);
+// The CSSValue of the mask-border longhand `consumer`: of mask-border-slice from the edges of `components` (absent ones
+// completed), with fill if `countOrFill` is 1; of mask-border-width or mask-border-outset from its edges; of
+// mask-border-repeat from its first rule and its second, or the first again if `countOrFill` is 1; of
+// mask-border-source from `image`, or none if it is null.
+Ref<CSSValue> makeMaskBorderLonghandValue(uint16_t consumer, const CSSColorSwiftComponents& components, uint8_t countOrFill, CSSValue* image);
+// The url of the url token or url() among the tokens [start, end), as consumeURL makes it with no modifiers, or null.
+RefPtr<CSSValue> makeURLValue(const CSSPropertyConsumerSwiftValue&, uint32_t start, uint32_t end);
+// ray() of the angle at component 0 of `ray`, its size (a symbol, or absent for closest-side) at 1 and contain (a
+// symbol, or absent) at 2, with the position of `position` at `positionLayout`, or none for CSSImageSwiftNoPosition.
+Ref<CSSValue> makeRayValue(const CSSColorSwiftComponents& ray, const CSSColorSwiftComponents& position, uint16_t positionLayout);
+
+// MARK: - Filters
+
+// Begins the functions of a filter, or of an -apple-color-filter if `apple`, dropping what the state's
+// CSSGradientSwiftStops held.
+void beginFilterValues(const CSSPropertyConsumerSwiftValue&, bool apple);
+// Appends the filter function `function` (a CSSValueID) other than drop-shadow(), of an -apple-color-filter if `apple`,
+// with its argument at component 0 of `argument` (absent for none; -apple-invert-lightness() has none).
+void appendFilterFunction(const CSSPropertyConsumerSwiftValue&, bool apple, uint16_t function, const CSSColorSwiftComponents& argument);
+// Appends drop-shadow() of `color` (or none), with x, y and blur at components 0-2 of `lengths`.
+void appendDropShadowFilter(const CSSPropertyConsumerSwiftValue&, const CSSColorSwiftStopColor&, const CSSColorSwiftComponents& channels, const CSSColorSwiftComponents& lengths);
+// Appends the url of the url token or url() among the tokens [start, end), as consumeURLRaw makes it; false if it is not one.
+bool appendFilterURL(const CSSPropertyConsumerSwiftValue&, uint32_t start, uint32_t end);
+// The filter, or for AppleColorFilter the -apple-color-filter, of the functions since beginFilterValues, or none
+// without one. Filter and AppleColorFilter return their CSSValue, UnresolvedFilter gives the CSS::Filter to
+// setUnresolvedResult; with an `image`, the filter() image of it.
+RefPtr<CSSValue> makeFilterValue(const CSSPropertyConsumerSwiftValue&, uint16_t consumer, CSSValue* image);
 
 // The CSS:: value T a CSSPropertyConsumerSwiftConsumer consumes, if it consumes one.
 template<typename T> std::optional<T> consumeUnresolvedWithSwift(CSSParserTokenRange& range, CSS::PropertyParserState& state, CSSPropertyConsumerSwiftConsumer consumer, uint8_t options = 0)

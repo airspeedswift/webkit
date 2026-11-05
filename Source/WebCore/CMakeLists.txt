@@ -3424,7 +3424,13 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/css/calc/StyleCalculationSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwift.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftAlignment.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftEffects.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftFonts.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftGrid.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftShapes.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftProperties.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftSmall.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftValues.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift

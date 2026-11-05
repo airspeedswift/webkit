@@ -45,152 +45,21 @@
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
 #include <wtf/SortedArrayMap.h>
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-static RefPtr<CSSValue> consumeRayFunction(CSSParserTokenRange& range, CSS::PropertyParserState& state)
-{
-    // ray( <angle> && <ray-size>? && contain? && [at <position>]? )
-    // <ray-size> = closest-side | closest-corner | farthest-side | farthest-corner | sides
-    // https://drafts.fxtf.org/motion-1/#ray-function
-
-    static constexpr SortedArrayMap sizeMap { WTF::toArray<std::pair<CSSValueID, CSS::RaySize>>({
-        { CSSValueID::ClosestSide, CSS::RaySize { CSS::Keyword::ClosestSide { } } },
-        { CSSValueID::ClosestCorner, CSS::RaySize { CSS::Keyword::ClosestCorner { } } },
-        { CSSValueID::FarthestSide, CSS::RaySize { CSS::Keyword::FarthestSide { } } },
-        { CSSValueID::FarthestCorner, CSS::RaySize { CSS::Keyword::FarthestCorner { } } },
-        { CSSValueID::Sides, CSS::RaySize { CSS::Keyword::Sides { } } },
-    }) };
-
-    if (range.peek().type() != FunctionToken || range.peek().functionId() != CSSValueID::Ray)
-        return { };
-
-    auto args = consumeFunction(range);
-
-    std::optional<CSS::Angle<>> angle;
-    std::optional<CSS::RaySize> size;
-    std::optional<CSS::Keyword::Contain> contain;
-    std::optional<CSS::Position> position;
-
-    auto consumeAngle = [&] -> bool {
-        if (angle)
-            return false;
-        angle = MetaConsumer<CSS::Angle<>>::consume(args, state);
-        return angle.has_value();
-    };
-    auto consumeSize = [&] -> bool {
-        if (size)
-            return false;
-        size = consumeIdentUsingMapping(args, sizeMap);
-        return size.has_value();
-    };
-    auto consumeContain = [&] -> bool {
-        if (contain || !consumeIdentRaw<CSSValueID::Contain>(args).has_value())
-            return false;
-        contain = CSS::Keyword::Contain { };
-        return contain.has_value();
-    };
-    auto consumeAtPosition = [&] -> bool {
-        if (position || !consumeIdentRaw<CSSValueID::At>(args).has_value())
-            return false;
-        position = consumePositionUnresolved(args, state);
-        return position.has_value();
-    };
-
-    while (!args.atEnd()) {
-        if (consumeAngle() || consumeSize() || consumeContain() || consumeAtPosition())
-            continue;
-        return { };
-    }
-
-    // The <angle> argument is the only one that is required.
-    if (!angle)
-        return { };
-
-    return CSSRayValue::create(
-        CSS::RayFunction {
-            .parameters = CSS::Ray {
-                WTF::move(*angle),
-                size.value_or(CSS::RaySize { CSS::Keyword::ClosestSide { } }),
-                WTF::move(contain),
-                WTF::move(position)
-            }
-        }
-    );
-}
-
-RefPtr<CSSValue> consumeOffsetPath(CSSParserTokenRange& range, CSS::PropertyParserState& state)
-{
-    // <'offset-path'> = none | <offset-path> || <coord-box>
-    //
-    // NOTE: The sub-production, <offset-path> (without the quotation marks) is distinct and defined as:
-    //    <offset-path> = <ray()> | <url> | <basic-shape>
-    //
-    // So, this expands out to a grammar of:
-    //
-    // <'offset-path'> = none | [ <ray()> | <url> | <basic-shape> || <coord-box> ]
-    //
-    // which is almost the same as <'clip-path'> above, with the following differences:
-    //
-    // 1. <'clip-path'> does not support `ray()`.
-    // 2. <'clip-path'> does not allow a `box` to be provided with `<url>`.
-    // 3. <'clip-path'> specifies `<geometry-box>` rather than `<coord-box>`.
-    //
-    // https://drafts.fxtf.org/motion-1/#propdef-offset-path
-
-    if (range.peek().id() == CSSValueID::None)
-        return consumeIdent(range);
-
-    // FIXME: It should be possible to consume both a <url> and <coord-box>.
-    if (auto url = consumeURL(range, state, { }))
-        return url;
-
-    RefPtr<CSSValue> shapeOrRay;
-    RefPtr<CSSValue> box;
-
-    auto consumeRay = [&]() -> bool {
-        if (shapeOrRay)
-            return false;
-        shapeOrRay = consumeRayFunction(range, state);
-        return !!shapeOrRay;
-    };
-    auto consumeShape = [&]() -> bool {
-        if (shapeOrRay)
-            return false;
-        shapeOrRay = consumeBasicShape(range, state, BasicShapeParsingOptions::RejectPathFunctionFillRule);
-        return !!shapeOrRay;
-    };
-    auto consumeBox = [&]() -> bool {
-        if (box)
-            return false;
-        // FIXME: The Motion Path spec calls for this to be a <coord-box>, not a <geometry-box>, the difference being that the former does not contain "margin-box" as a valid term.
-        // However, the spec also has a few examples using "margin-box", so there seems to be some abiguity to be resolved. See: https://github.com/w3c/fxtf-drafts/issues/481.
-        box = CSSPropertyParsing::consumeGeometryBox(range);
-        return !!box;
-    };
-
-    while (!range.atEnd()) {
-        if (consumeRay() || consumeShape() || consumeBox())
-            continue;
-        break;
-    }
-
-    bool hasShapeOrRay = !!shapeOrRay;
-
-    CSSValueListBuilder list;
-    if (shapeOrRay)
-        list.append(shapeOrRay.releaseNonNull());
-
-    // Default value is border-box.
-    if (box && (!isValueID(box, CSSValueID::BorderBox) || !hasShapeOrRay))
-        list.append(box.releaseNonNull());
-
-    if (list.isEmpty())
-        return nullptr;
-
-    return CSSValueList::createSpaceSeparated(WTF::move(list));
-}
-
 } // namespace CSSPropertyParserHelpers
+
+Ref<CSSValue> makeRayValue(const CSSColorSwiftComponents& ray, const CSSColorSwiftComponents& position, uint16_t positionLayout)
+{
+    return CSSRayValue::create(CSS::RayFunction { .parameters = CSS::Ray {
+        makeColorSwiftComponent<CSS::Angle<>>(ray.at(0)),
+        ray.at(1).type ? makeColorSwiftComponent<CSS::RaySize>(ray.at(1)) : CSS::RaySize { CSS::Keyword::ClosestSide { } },
+        ray.at(2).type ? std::optional { CSS::Keyword::Contain { } } : std::nullopt,
+        positionLayout == CSSImageSwiftNoPosition ? std::nullopt : std::optional { makePositionSwift(position, positionLayout) }
+    } });
+}
 } // namespace WebCore

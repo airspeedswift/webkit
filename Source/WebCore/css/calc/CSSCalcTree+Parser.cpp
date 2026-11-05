@@ -342,6 +342,16 @@ RefPtr<WebCore::CSSValue> WebCore::consumePropertyWithSwift(CSSParserTokenRange&
     return consumed.ok ? WTF::move(result) : nullptr;
 }
 
+// Defined here, beside the function above, because this file includes WebCore-Swift.h.
+WebCore::CSSUnicodeRangeSwiftResult WebCore::consumeUnicodeRangeWithSwift(CSSParserTokenRange& range)
+{
+    CSSUnicodeRangeSwiftTokensState tokens { range.span() };
+    auto consumed = cssConsumeUnicodeRange(tokens);
+    RELEASE_ASSERT(consumed.consumedTokens <= range.size());
+    range = range.span().subspan(consumed.consumedTokens);
+    return consumed;
+}
+
 #include "CSSCustomIdentValue.h"
 #include "CSSStringValue.h"
 

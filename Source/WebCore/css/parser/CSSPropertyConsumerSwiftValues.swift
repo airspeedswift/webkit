@@ -299,7 +299,7 @@ extension PropertyParser {
     mutating func borderImageSlice(_ calc: PropertyCalc) -> PropertyValue? {
         var slice = WebCore.CSSColorSwiftComponents()
         var fill = WebCore.CSSColorSwiftComponents()
-        guard consumeBorderImageSlice(&slice, &fill) else {
+        guard consumeBorderImageSlice(&slice, &fill, alwaysFill: sliceAlwaysFill) else {
             return nil
         }
         var parts = WebCore.CSSImageSwiftParts()
@@ -323,6 +323,17 @@ extension PropertyParser {
     /// `consumeUnresolvedBorderImage`, with both options: <'border-image-source'> || <'border-image-slice'>
     /// [ / <'border-image-width'> | / <'border-image-width'>? / <'border-image-outset'> ]? || <'border-image-repeat'>
     mutating func borderImage(_ calc: PropertyCalc) -> PropertyValue? {
+        var parts = WebCore.CSSImageSwiftParts()
+        guard consumeBorderImageParts(&parts, alwaysFill: sliceAlwaysFill) else {
+            return nil
+        }
+        return setBorderResult(.BorderImage, parts)
+    }
+
+    /// Appends the parts of a border-image or a mask-border, which share a grammar, until the end: its slice and the
+    /// slice's fill, its width, outset, rules and source, an absent part's first component absent. The slice is filled
+    /// if `alwaysFill`.
+    mutating func consumeBorderImageParts(_ parts: inout WebCore.CSSImageSwiftParts, alwaysFill: Bool) -> Bool {
         var source: BorderImageSource? = nil
         var slice = WebCore.CSSColorSwiftComponents()
         var fill = WebCore.CSSColorSwiftComponents()
@@ -344,23 +355,22 @@ extension PropertyParser {
                     continue
                 }
             }
-            guard !hasSlice, consumeBorderImageSlice(&slice, &fill) else {
-                return nil
+            guard !hasSlice, consumeBorderImageSlice(&slice, &fill, alwaysFill: alwaysFill) else {
+                return false
             }
             hasSlice = true
             if consumeSlash() {
                 let hasWidth = consumeBorderImageWidth(&width)
                 if consumeSlash() {
                     guard consumeBorderImageOutset(&outset) else {
-                        return nil
+                        return false
                     }
                 } else if !hasWidth {
-                    return nil
+                    return false
                 }
             }
         } while !atEnd
         // An absent part's first component is absent.
-        var parts = WebCore.CSSImageSwiftParts()
         parts.append(slice, 0..<4)
         parts.append(fill, 0)
         parts.append(width, 0..<4)
@@ -381,7 +391,7 @@ extension PropertyParser {
         } else {
             parts.append(present, 0)
         }
-        return setBorderResult(.BorderImage, parts)
+        return true
     }
 
     /// `consumeRepeatStyle`: repeat-x | repeat-y | [repeat | space | round | no-repeat]{1,2}
@@ -440,14 +450,15 @@ extension PropertyParser {
             }
         }
         parts.append(reflection, 0..<2)
-        // At most the token count, an Int from a UInt32.
-        let maskStart = atEnd ? UInt32.max : UInt32(truncatingIfNeeded: index)
-        let consumed = WebCore.setBorderResult(tokens.value, WebCore.CSSPropertyConsumerSwiftConsumer.WebkitBoxReflect.rawValue, consuming: consume parts, maskStart)
-        guard consumed != UInt32.max else {
-            return nil
+        // The mask-border follows, with its slice always filled; if it does not parse, nothing is consumed.
+        if !atEnd {
+            let start = index
+            guard consumeBorderImageParts(&parts, alwaysFill: true) else {
+                index = start
+                return nil
+            }
         }
-        index &+= Int(consumed) // At most the tokens after index.
-        return nil
+        return setBorderResult(.WebkitBoxReflect, parts)
     }
 }
 
@@ -481,7 +492,7 @@ extension WebCore.CSSImageSwiftParts {
 }
 
 extension PropertyParser {
-    /// setBorderResult for `consumer`, whose value has no mask-border.
+    /// setBorderResult for `consumer`, with any mask-border in `parts`.
     private func setBorderResult(_ consumer: WebCore.CSSPropertyConsumerSwiftConsumer, _ parts: consuming WebCore.CSSImageSwiftParts) -> PropertyValue? {
         _ = WebCore.setBorderResult(tokens.value, consumer.rawValue, consuming: consume parts, UInt32.max)
         return nil
@@ -490,20 +501,28 @@ extension PropertyParser {
     /// `consumeBorderRadius` for border-radius, or with the quirk of -webkit-border-radius, where `a b` is `a / b`:
     /// <length-percentage [0,∞]>{1,4} [ / <length-percentage [0,∞]>{1,4} ]?
     private mutating func consumeBorderRadius(_ consumer: WebCore.CSSPropertyConsumerSwiftConsumer) -> PropertyValue? {
+        var parts = WebCore.CSSImageSwiftParts()
+        guard consumeBorderRadius(&parts, consumer) else {
+            return nil
+        }
+        return setBorderResult(consumer, parts)
+    }
+
+    /// Appends the eight radii of `consumeBorderRadius`, horizontal then vertical, absent ones completing the present.
+    mutating func consumeBorderRadius(_ parts: inout WebCore.CSSImageSwiftParts, _ consumer: WebCore.CSSPropertyConsumerSwiftConsumer) -> Bool {
         var horizontal = WebCore.CSSColorSwiftComponents()
         var count: UInt8 = 0
         while count < 4 && !atEnd && peekType() != PropertyTokenType.delimiter {
             guard consumeNumeric(&horizontal, count, .nonnegativeLengthPercentage) else {
-                return nil
+                return false
             }
             count += 1
         }
         guard count != 0 else {
-            return nil
+            return false
         }
         // Absent radii complete the present ones.
         let absent = WebCore.CSSColorSwiftComponents()
-        var parts = WebCore.CSSImageSwiftParts()
         if atEnd {
             if consumer == .WebKitBorderRadius && count == 2 {
                 parts.append(horizontal, 0..<1)
@@ -514,29 +533,29 @@ extension PropertyParser {
                 parts.append(horizontal, 0..<4)
                 parts.append(horizontal, 0..<4)
             }
-            return setBorderResult(consumer, parts)
+            return true
         }
         guard consumeSlash() else {
-            return nil
+            return false
         }
         var vertical = WebCore.CSSColorSwiftComponents()
         var verticalCount: UInt8 = 0
         while verticalCount < 4 && !atEnd {
             guard consumeNumeric(&vertical, verticalCount, .nonnegativeLengthPercentage) else {
-                return nil
+                return false
             }
             verticalCount += 1
         }
         guard verticalCount != 0, atEnd else {
-            return nil
+            return false
         }
         parts.append(horizontal, 0..<4)
         parts.append(vertical, 0..<4)
-        return setBorderResult(consumer, parts)
+        return true
     }
 
     /// `consumeUnresolvedBorderImageSource`: none | <image>. Consumes nothing if it is neither.
-    private mutating func consumeBorderImageSource() -> BorderImageSource? {
+    mutating func consumeBorderImageSource() -> BorderImageSource? {
         if peekIdent() == .None {
             consumeIncludingWhitespace()
             return BorderImageSource(image: nil)
@@ -550,7 +569,7 @@ extension PropertyParser {
     }
 
     /// `consumeUnresolvedBorderImageOutset` into `outset`: [ <length [0,∞]> | <number [0,∞]> ]{1,4}
-    private mutating func consumeBorderImageOutset(_ outset: inout WebCore.CSSColorSwiftComponents) -> Bool {
+    mutating func consumeBorderImageOutset(_ outset: inout WebCore.CSSColorSwiftComponents) -> Bool {
         var count: UInt8 = 0
         while count < 4 && (consumeNumeric(&outset, count, .nonnegativeNumber) || consumeNumeric(&outset, count, .nonnegativeLength)) {
             count += 1
@@ -560,7 +579,7 @@ extension PropertyParser {
 
     /// `consumeUnresolvedBorderImageRepeat` into `rules` as symbols: [ stretch | repeat | round | space ]{1,2}. Returns
     /// how many it consumed.
-    private mutating func consumeBorderImageRepeat(_ rules: inout WebCore.CSSColorSwiftComponents) -> UInt8 {
+    mutating func consumeBorderImageRepeat(_ rules: inout WebCore.CSSColorSwiftComponents) -> UInt8 {
         var count: UInt8 = 0
         while count < 2 {
             let id = peekIdent()
@@ -574,9 +593,14 @@ extension PropertyParser {
         return count
     }
 
-    /// `consumeUnresolvedBorderImageSlice` into `slice` and its fill into `fill` 0:
+    /// Whether the CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill option is set.
+    var sliceAlwaysFill: Bool {
+        tokens.value.consumerOptions() & UInt8(WebCore.CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill) != 0
+    }
+
+    /// `consumeUnresolvedBorderImageSlice` into `slice` and its fill into `fill` 0, filled if `alwaysFill`:
     /// [<number [0,∞]> | <percentage [0,∞]>]{1,4} && fill?
-    private mutating func consumeBorderImageSlice(_ slice: inout WebCore.CSSColorSwiftComponents, _ fill: inout WebCore.CSSColorSwiftComponents) -> Bool {
+    mutating func consumeBorderImageSlice(_ slice: inout WebCore.CSSColorSwiftComponents, _ fill: inout WebCore.CSSColorSwiftComponents, alwaysFill: Bool) -> Bool {
         var hasFill = peekIdent() == .Fill
         if hasFill {
             consumeIncludingWhitespace()
@@ -593,16 +617,20 @@ extension PropertyParser {
             hasFill = true
         }
         // For backwards compatibility, -webkit-border-image sets fill unconditionally.
-        if hasFill || tokens.value.consumerOptions() & UInt8(WebCore.CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill) != 0 {
+        if hasFill || alwaysFill {
             fill.setSymbol(0, WebCore.CSSValueID.Fill.rawValue)
         }
         return true
     }
 
     /// `consumeUnresolvedBorderImageWidth` into `width`: [ <length-percentage [0,∞]> | <number [0,∞]> | auto ]{1,4}
-    private mutating func consumeBorderImageWidth(_ width: inout WebCore.CSSColorSwiftComponents) -> Bool {
+    mutating func consumeBorderImageWidth(_ width: inout WebCore.CSSColorSwiftComponents) -> Bool {
         var count: UInt8 = 0
         while count < 4 {
+            // FIXME: Figure out and document why the <length-percentage> is consumed in standard mode here, or remove
+            // the special case.
+            // FIXME: As this falls into the "<length> ambiguous with <number>" case, the <length-percentage> should
+            // probably forbid a unitless zero in case the order of checks ever changes.
             if !consumeNumeric(&width, count, .nonnegativeNumber) && !consumeNumeric(&width, count, .standardModeNonnegativeLengthPercentage) {
                 guard peekIdent() == .Auto else {
                     break
@@ -981,7 +1009,7 @@ extension PropertyParser {
     }
 
     /// Leaves the arguments of `function`, consuming it and the whitespace after it if `consumed`, else nothing.
-    private mutating func endColorFunction(_ function: Function, _ consumed: Bool) {
+    mutating func endColorFunction(_ function: Function, _ consumed: Bool) {
         end = function.end
         guard consumed else {
             index = function.start
@@ -992,7 +1020,7 @@ extension PropertyParser {
     }
 
     /// `consumeSlashIncludingWhitespace`.
-    private mutating func consumeSlash() -> Bool {
+    mutating func consumeSlash() -> Bool {
         guard peekType() == PropertyTokenType.delimiter, tokens.value.delimiter(index) == 0x2F else {
             return false
         }
@@ -1401,7 +1429,7 @@ extension PropertyParser {
 
 /// Where setPositionResult finds a position's parts among the components: a horizontal keyword or offset, its length,
 /// a vertical keyword or offset and its length, four bits each, 0xf for none.
-private func positionLayout(_ horizontal: UInt16, _ horizontalLength: UInt16 = 0xf, vertical: UInt16, _ verticalLength: UInt16 = 0xf) -> UInt16 {
+func positionLayout(_ horizontal: UInt16, _ horizontalLength: UInt16 = 0xf, vertical: UInt16, _ verticalLength: UInt16 = 0xf) -> UInt16 {
     horizontal | horizontalLength << 4 | vertical << 8 | verticalLength << 12
 }
 
@@ -1556,31 +1584,9 @@ extension PropertyParser {
         var components = WebCore.CSSColorSwiftComponents()
         var hasLength = false
         if peekType() == PropertyTokenType.ident {
-            let id = peekIdent()
-            switch id {
-            case .Left, .Right:
-                guard horizontal else {
-                    return nil
-                }
-            case .Top, .Bottom:
-                guard !horizontal else {
-                    return nil
-                }
-            case .XStart, .XEnd:
-                guard horizontal, axisRelativePositionKeywordsEnabled() else {
-                    return nil
-                }
-            case .YStart, .YEnd:
-                guard !horizontal, axisRelativePositionKeywordsEnabled() else {
-                    return nil
-                }
-            case .Center:
-                break
-            default:
+            guard let id = consumeAxisKeyword(&components, horizontal: horizontal) else {
                 return nil
             }
-            consumeIncludingWhitespace()
-            components.setSymbol(0, id.rawValue)
             if id != .Center && (consumer == .PositionX || consumer == .PositionY) {
                 hasLength = consumeNumeric(&components, 1, .lengthPercentage)
             }
@@ -1590,6 +1596,37 @@ extension PropertyParser {
         let axis = positionLayout(0, hasLength ? 1 : 0xf, vertical: 0xf)
         WebCore.setPositionResult(tokens.value, consumer.rawValue, components, horizontal ? axis : axis << 8 | 0xff)
         return nil
+    }
+
+    /// A keyword of the horizontal or the vertical axis, or center, into component 0. Consumes nothing and returns nil
+    /// if there is none.
+    mutating func consumeAxisKeyword(_ components: inout WebCore.CSSColorSwiftComponents, horizontal: Bool) -> WebCore.CSSValueID? {
+        let id = peekIdent()
+        switch id {
+        case .Left, .Right:
+            guard horizontal else {
+                return nil
+            }
+        case .Top, .Bottom:
+            guard !horizontal else {
+                return nil
+            }
+        case .XStart, .XEnd:
+            guard horizontal, axisRelativePositionKeywordsEnabled() else {
+                return nil
+            }
+        case .YStart, .YEnd:
+            guard !horizontal, axisRelativePositionKeywordsEnabled() else {
+                return nil
+            }
+        case .Center:
+            break
+        default:
+            return nil
+        }
+        consumeIncludingWhitespace()
+        components.setSymbol(0, id.rawValue)
+        return id
     }
 
     /// `MetaConsumer` of the numeric primitive `numeric` into component `slot`. Consumes nothing if there is none.
@@ -1606,7 +1643,8 @@ extension PropertyParser {
         let unit: UInt8
         switch numeric.type {
         case NumericComponent.angle.type, NumericComponent.anglePercentage.type:
-            // AngleValidator and AnglePercentageValidator, with unitless zero angles allowed; the unit is a CSSUnitType.
+            // AngleValidator and AnglePercentageValidator, with unitless zero angles allowed unless the primitive forbids
+            // them; the unit is a CSSUnitType.
             guard !value.isInfinite else {
                 return false
             }
@@ -1616,7 +1654,7 @@ extension PropertyParser {
                 }
                 unit = WebCore.CSSUnitType.Percentage.rawValue
             } else {
-                guard let angle = angleUnit(type, unitType, value, parserMode, numericFlags, allowsUnitlessZero: true) else {
+                guard let angle = angleUnit(type, unitType, value, parserMode, numericFlags, allowsUnitlessZero: numeric.unitlessZeroAngle) else {
                     return false
                 }
                 unit = angle.rawValue
@@ -1660,6 +1698,8 @@ struct NumericComponent {
     var minBehavior = UInt8(WebCore.CSS.RangeParseTimeBehavior.Default.rawValue)
     var maxBehavior = UInt8(WebCore.CSS.RangeParseTimeBehavior.Default.rawValue)
     var standardMode = false
+    /// Whether a number token 0 is an angle, as `UnitlessZeroQuirk::Allow` makes it.
+    var unitlessZeroAngle = true
 
     /// The CSS::Category of a number, percentage, length or length-percentage.
     var category: UInt8 {
@@ -1716,7 +1756,7 @@ struct NumericComponent {
 private typealias AllowedImageType = WebCore.CSSPropertyParserHelpers.AllowedImageType
 
 /// consumeImage's default OptionSet<AllowedImageType>: url(), image-set() and generated images.
-private var defaultAllowedImageTypes: UInt8 {
+var defaultAllowedImageTypes: UInt8 {
     AllowedImageType.URLFunction.rawValue | AllowedImageType.ImageSet.rawValue | AllowedImageType.GeneratedImage.rawValue
 }
 
@@ -1737,7 +1777,7 @@ extension PropertyParser {
             switch name {
             case .RadialGradient, .RepeatingRadialGradient, .WebkitLinearGradient, .WebkitRepeatingLinearGradient, .RepeatingLinearGradient,
                 .LinearGradient, .WebkitGradient, .WebkitRadialGradient, .WebkitRepeatingRadialGradient, .ConicGradient, .RepeatingConicGradient,
-                .WebkitCrossFade, .CrossFade, .WebkitCanvas, .WebkitNamedImage, .Image, .WebkitFilter, .Filter, .Paint:
+                .MeshGradient, .WebkitCrossFade, .CrossFade, .WebkitCanvas, .WebkitNamedImage, .Image, .WebkitFilter, .Filter, .Paint:
                 guard allowed & AllowedImageType.GeneratedImage.rawValue != 0 else {
                     return nil
                 }
@@ -1760,7 +1800,7 @@ extension PropertyParser {
     }
 
     /// `consumeImageOrNone`: `none` as a keyword where generated images are allowed, or an image.
-    private mutating func consumeImageOrNone(_ allowed: UInt8) -> PropertyValue? {
+    mutating func consumeImageOrNone(_ allowed: UInt8) -> PropertyValue? {
         if peekIdent() == .None && allowed & AllowedImageType.GeneratedImage.rawValue != 0 {
             return consumeKeyword(peeked: .None)
         }
@@ -1807,6 +1847,8 @@ extension PropertyParser {
             image = consumePrefixedRadialGradient(name)
         case .ConicGradient, .RepeatingConicGradient:
             image = consumeConicGradient(name)
+        case .MeshGradient:
+            image = consumeMeshGradient()
         case .WebkitGradient:
             image = consumeDeprecatedGradient()
         case .WebkitCrossFade:
@@ -1844,7 +1886,7 @@ extension PropertyParser {
 
     /// The color of a stop, a shadow or image(): `consumeUnresolvedColor` with its default options, as appendGradientStop
     /// and appendColor make it, with the channels of a color function in `channels`. Consumes nothing if there is none.
-    private mutating func consumeStopColor(_ state: inout ColorConsumerState, _ channels: inout WebCore.CSSColorSwiftComponents) -> WebCore.CSSColorSwiftStopColor {
+    mutating func consumeStopColor(_ state: inout ColorConsumerState, _ channels: inout WebCore.CSSColorSwiftComponents) -> WebCore.CSSColorSwiftStopColor {
         let start = index
         var color = WebCore.CSSColorSwiftStopColor()
         // consumeColor's level; at most one for each token.
@@ -1885,7 +1927,7 @@ extension PropertyParser {
         return true
     }
 
-    private func gradientColorState() -> ColorConsumerState {
+    func gradientColorState() -> ColorConsumerState {
         // CSSColorParsingOptions' default OptionSet<CSS::ColorType>, which a static_assert in CSSPropertyParserConsumer+Color.cpp
         // checks: absolute, current and system colors.
         ColorConsumerState(allowedColorTypes: 7, context: WebCore.colorContextForSwift(tokens.value))
@@ -2193,6 +2235,182 @@ extension PropertyParser {
         return makeImageValue(name, parts, line: line, position: position, positionLayout: positionLayout)
     }
 
+    // MARK: mesh-gradient()
+    // https://github.com/w3c/csswg-drafts/blob/main/css-images-5/explainers/2d-gradients.md#mesh-gradient
+
+    /// mesh-gradient( [ <color-interpolation-method> || <color> ]?, <mesh-point># [ ';' <mesh-point># ]* ), behind the
+    /// CSSMeshGradientsEnabled preference. The background color, or none, is the first color of the parts, and each point
+    /// is a color with its header and location, as makeImageValue describes them.
+    private mutating func consumeMeshGradient() -> PropertyValue? {
+        guard contextEnables(UInt32(WebCore.CSSConsumerSwiftMeshGradientsEnabled)) else {
+            return nil
+        }
+        // FIXME: A lone <color> is ambiguous between the prelude and the first <mesh-point> so the prelude is
+        // only recognized when it contains a <color-interpolation-method>.
+        var parts = WebCore.CSSImageSwiftParts()
+        var state = gradientColorState()
+        var background = WebCore.CSSColorSwiftStopColor()
+        var backgroundChannels = WebCore.CSSColorSwiftComponents()
+        var hasMethod = false
+        let start = index
+        if peekIdent() == .In {
+            guard consumeGradientColorInterpolationMethod(&parts) else {
+                return nil
+            }
+            hasMethod = true
+            if peekType() != PropertyTokenType.comma {
+                background = consumeStopColor(&state, &backgroundChannels)
+                guard background.kind != UInt8(WebCore.CSSColorSwiftNoColor) else {
+                    return nil
+                }
+            }
+        } else {
+            background = consumeStopColor(&state, &backgroundChannels)
+            if background.kind != UInt8(WebCore.CSSColorSwiftNoColor) && peekIdent() == .In {
+                guard consumeGradientColorInterpolationMethod(&parts) else {
+                    return nil
+                }
+                hasMethod = true
+            }
+        }
+        if hasMethod {
+            guard consumeComma() else {
+                return nil
+            }
+        } else {
+            // A color without a method is the first point's, consumed again below.
+            index = start
+            background = WebCore.CSSColorSwiftStopColor()
+        }
+        parts.appendColor(tokens.value, background, backgroundChannels, WebCore.CSSColorSwiftComponents())
+
+        // The rows' count, the first row's length, and whether every row has that length.
+        var rows = 0
+        var firstRowLength = 0
+        var rowLength = 0
+        var sameLengths = true
+        while true {
+            guard appendMeshGradientPoint(&parts, &state, beginsRow: rowLength == 0) else {
+                return nil
+            }
+            rowLength += 1
+            if consumeComma() {
+                continue
+            }
+            if rows == 0 {
+                firstRowLength = rowLength
+            } else if rowLength != firstRowLength {
+                sameLengths = false
+            }
+            rows += 1
+            rowLength = 0
+            if atEnd {
+                break
+            }
+            // consumeSemicolon.
+            guard peekType() == UInt8(WebCore.SemicolonToken.rawValue) else {
+                return nil
+            }
+            consumeIncludingWhitespace()
+        }
+        // FIXME: The explainer doesn't say what grids are valid. For now, require a minimum of 2x2 and that
+        // each row has the same number of points.
+        guard rows >= 2, firstRowLength >= 2, sameLengths else {
+            return nil
+        }
+        return makeImageValue(.MeshGradient, parts)
+    }
+
+    /// <mesh-point> = <color> [ <mesh-absolute-position> | <mesh-relative-position> ]?, appended as its color with its
+    /// header, then its location and control points.
+    private mutating func appendMeshGradientPoint(_ parts: inout WebCore.CSSImageSwiftParts, _ state: inout ColorConsumerState, beginsRow: Bool) -> Bool {
+        var channels = WebCore.CSSColorSwiftComponents()
+        let color = consumeStopColor(&state, &channels)
+        guard color.kind != UInt8(WebCore.CSSColorSwiftNoColor) else {
+            return false
+        }
+        // The location is read before the color is appended, which reads no color, so a pending color stays pending.
+        var location = WebCore.CSSColorSwiftComponents()
+        var header = UInt16(WebCore.CSSMeshGradientSwiftNoLocation)
+        var layout: UInt16 = 0
+        if peekIdent() == .By {
+            // <mesh-relative-position> = by <coordinate-pair> [ with <mesh-relative-control-point> [ / <mesh-relative-control-point> ]{0,3} ]?
+            consumeIncludingWhitespace()
+            guard consumeMeshGradientCoordinatePair(&location) else {
+                return false
+            }
+            header = UInt16(WebCore.CSSMeshGradientSwiftRelativeLocation)
+        } else if let positionLayout = consumePosition(&location, maxComponents: 4, allowsThree: false) {
+            // <mesh-absolute-position> = <position> [ with <position> [ / <position> ]{0,3} ]?
+            layout = positionLayout
+            header = UInt16(WebCore.CSSMeshGradientSwiftAbsoluteLocation)
+        }
+        if beginsRow {
+            header |= UInt16(WebCore.CSSMeshGradientSwiftBeginsRow)
+        }
+        var headerComponents = WebCore.CSSColorSwiftComponents()
+        headerComponents.setSymbol(0, header)
+        parts.appendColor(tokens.value, color, channels, headerComponents)
+        let relative = header & 3 == UInt16(WebCore.CSSMeshGradientSwiftRelativeLocation)
+        if relative {
+            parts.append(location, 0..<2)
+        } else if header & 3 == UInt16(WebCore.CSSMeshGradientSwiftAbsoluteLocation) {
+            appendMeshGradientPosition(&parts, location, layout)
+        } else {
+            return true
+        }
+        // [ with <control-point> [ / <control-point> ]{0,3} ]?, then one absent component.
+        if peekIdent() == .With {
+            consumeIncludingWhitespace()
+            var count = 0
+            repeat {
+                var components = WebCore.CSSColorSwiftComponents()
+                if relative {
+                    // <mesh-relative-control-point> = <coordinate-pair> [from origin]?
+                    guard consumeMeshGradientCoordinatePair(&components) else {
+                        return false
+                    }
+                    if peekIdent() == .From {
+                        consumeIncludingWhitespace()
+                        guard peekIdent() == .Origin else {
+                            return false
+                        }
+                        consumeIncludingWhitespace()
+                        components.setSymbol(2, WebCore.CSSValueID.Origin.rawValue)
+                    }
+                    parts.append(components, 0..<3)
+                } else {
+                    guard let controlLayout = consumePosition(&components, maxComponents: 4, allowsThree: false) else {
+                        return false
+                    }
+                    appendMeshGradientPosition(&parts, components, controlLayout)
+                }
+                count += 1
+            } while count < 4 && consumeSlash()
+        }
+        parts.append(WebCore.CSSColorSwiftComponents(), 0)
+        return true
+    }
+
+    /// A position: its layout as a symbol, then its four components.
+    private func appendMeshGradientPosition(_ parts: inout WebCore.CSSImageSwiftParts, _ components: borrowing WebCore.CSSColorSwiftComponents, _ layout: UInt16) {
+        var header = WebCore.CSSColorSwiftComponents()
+        header.setSymbol(0, layout)
+        parts.append(header, 0)
+        parts.append(components, 0..<4)
+    }
+
+    /// `consumeCoordinatePair`: <coordinate-pair> = <length-percentage>{2}, into components 0 and 1. Consumes nothing
+    /// if there is none.
+    private mutating func consumeMeshGradientCoordinatePair(_ components: inout WebCore.CSSColorSwiftComponents) -> Bool {
+        let start = index
+        guard consumeNumeric(&components, 0, .lengthPercentage), consumeNumeric(&components, 1, .lengthPercentage) else {
+            index = start
+            return false
+        }
+        return true
+    }
+
     /// -webkit-gradient(): linear or radial, its points (and radii), and stops.
     private mutating func consumeDeprecatedGradient() -> PropertyValue? {
         let kind = peekIdent()
@@ -2371,12 +2589,11 @@ extension PropertyParser {
         guard let image = consumeImageOrNone(defaultAllowedImageTypes), consumeComma() else {
             return nil
         }
-        // Both at most the token count, an Int from a UInt32.
-        guard let filter = WebCore.makeFilterImageValue(tokens.value, image, UInt32(truncatingIfNeeded: index), UInt32(truncatingIfNeeded: end)).get() else {
+        // The filter is all the rest of the arguments.
+        guard filterList(apple: false), atEnd else {
             return nil
         }
-        index = end
-        return filter
+        return WebCore.makeFilterValue(tokens.value, WebCore.CSSPropertyConsumerSwiftConsumer.Filter.rawValue, image).get()
     }
 
     /// paint(): an identifier, and after a comma, any arguments.

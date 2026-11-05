@@ -37,9 +37,5 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
-// <'overflow-clip-margin'> = <visual-box> || <length [0,∞]>
-// https://drafts.csswg.org/css-overflow/#overflow-clip-margin
-RefPtr<CSSValue> consumeOverflowClipMargin(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

@@ -34,131 +34,20 @@
 #include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringParsingBuffer.h>
+#include "CSSPropertyConsumerSwiftTypes.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-NODELETE static bool consumeOptionalDelimiter(CSSParserTokenRange& range, char16_t value)
-{
-    if (!(range.peek().type() == DelimiterToken && range.peek().delimiter() == value))
-        return false;
-    range.consume();
-    return true;
-}
-
-NODELETE static StringView consumeIdentifier(CSSParserTokenRange& range)
-{
-    if (range.peek().type() != IdentToken)
-        return { };
-    return range.consume().value();
-}
-
-static bool consumeAndAppendOptionalNumber(StringBuilder& builder, CSSParserTokenRange& range, CSSParserTokenType type = NumberToken)
-{
-    if (range.peek().type() != type)
-        return false;
-    auto originalText = range.consume().originalText();
-    if (originalText.isNull())
-        return false;
-    builder.append(originalText);
-    return true;
-}
-
-static bool consumeAndAppendOptionalDelimiter(StringBuilder& builder, CSSParserTokenRange& range, char16_t value)
-{
-    if (!consumeOptionalDelimiter(range, value))
-        return false;
-    builder.append(value);
-    return true;
-}
-
-static void consumeAndAppendOptionalQuestionMarks(StringBuilder& builder, CSSParserTokenRange& range)
-{
-    while (consumeAndAppendOptionalDelimiter(builder, range, '?')) { }
-}
-
-static String consumeUnicodeRangeString(CSSParserTokenRange& range)
-{
-    if (!equalLettersIgnoringASCIICase(consumeIdentifier(range), "u"_s))
-        return { };
-    StringBuilder builder;
-    if (consumeAndAppendOptionalNumber(builder, range, DimensionToken))
-        consumeAndAppendOptionalQuestionMarks(builder, range);
-    else if (consumeAndAppendOptionalNumber(builder, range)) {
-        if (!(consumeAndAppendOptionalNumber(builder, range, DimensionToken) || consumeAndAppendOptionalNumber(builder, range)))
-            consumeAndAppendOptionalQuestionMarks(builder, range);
-    } else if (consumeOptionalDelimiter(range, '+')) {
-        builder.append('+');
-        if (auto identifier = consumeIdentifier(range); !identifier.isNull())
-            builder.append(identifier);
-        else if (!consumeAndAppendOptionalDelimiter(builder, range, '?'))
-            return { };
-        consumeAndAppendOptionalQuestionMarks(builder, range);
-    } else
-        return { };
-    return builder.toString();
-}
-
-struct UnicodeRange {
-    char32_t start;
-    char32_t end;
-};
-
-// MARK: <unicode-range-token> consuming (unresolved)
-static std::optional<UnicodeRange> consumeUnicodeRangeTokenUnresolved(CSSParserTokenRange& range)
-{
-    return readCharactersForParsing(consumeUnicodeRangeString(range), [&](auto buffer) -> std::optional<UnicodeRange> {
-        if (!skipExactly(buffer, '+'))
-            return std::nullopt;
-        char32_t start = 0;
-        unsigned hexDigitCount = 0;
-        while (buffer.hasCharactersRemaining() && isASCIIHexDigit(*buffer)) {
-            if (++hexDigitCount > 6)
-                return std::nullopt;
-            start <<= 4;
-            start |= toASCIIHexValue(*buffer++);
-        }
-        auto end = start;
-        while (skipExactly(buffer, '?')) {
-            if (++hexDigitCount > 6)
-                return std::nullopt;
-            start <<= 4;
-            end <<= 4;
-            end |= 0xF;
-        }
-        if (!hexDigitCount)
-            return std::nullopt;
-        if (start == end && buffer.hasCharactersRemaining()) {
-            if (!skipExactly(buffer, '-'))
-                return std::nullopt;
-            end = 0;
-            hexDigitCount = 0;
-            while (buffer.hasCharactersRemaining() && isASCIIHexDigit(*buffer)) {
-                if (++hexDigitCount > 6)
-                    return std::nullopt;
-                end <<= 4;
-                end |= toASCIIHexValue(*buffer++);
-            }
-            if (!hexDigitCount)
-                return std::nullopt;
-        }
-        if (buffer.hasCharactersRemaining())
-            return std::nullopt;
-        return { { start, end } };
-    });
-}
+// The largest code point of a unicode-range Swift consumes.
+static_assert(UCHAR_MAX_VALUE == 0x10FFFF);
 
 RefPtr<CSSValue> consumeUnicodeRangeToken(CSSParserTokenRange& range)
 {
-    auto rangeCopy = range;
-
-    auto unicodeRange = consumeUnicodeRangeTokenUnresolved(rangeCopy);
-    rangeCopy.consumeWhitespace();
-    if (!unicodeRange || unicodeRange->end > UCHAR_MAX_VALUE || unicodeRange->start > unicodeRange->end)
+    auto unicodeRange = consumeUnicodeRangeWithSwift(range);
+    if (!unicodeRange.ok)
         return nullptr;
-
-    range = rangeCopy;
-    return CSSUnicodeRangeValue::create(unicodeRange->start, unicodeRange->end);
+    return CSSUnicodeRangeValue::create(unicodeRange.start, unicodeRange.end);
 }
 
 } // namespace CSSPropertyParserHelpers

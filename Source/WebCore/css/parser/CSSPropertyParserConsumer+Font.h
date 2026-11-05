@@ -103,29 +103,10 @@ struct UnresolvedFont {
 // https://drafts.csswg.org/css-fonts-4/#font-prop
 WEBCORE_EXPORT std::optional<UnresolvedFont> parseUnresolvedFont(StringView, ScriptExecutionContext&, std::optional<CSSParserMode> parserModeOverride = std::nullopt);
 
-// MARK: 'font-style'
-// https://drafts.csswg.org/css-fonts-4/#font-style-prop
-RefPtr<CSSValue> consumeFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: 'font-family'
-// https://drafts.csswg.org/css-fonts-4/#font-family-prop
-RefPtr<CSSValue> consumeFontFamily(CSSParserTokenRange&, CSS::PropertyParserState&);
-// Sub-production of 'font-family': <family-name>
-// https://drafts.csswg.org/css-fonts-4/#family-name-syntax
-RefPtr<CSSValue> consumeFamilyName(CSSParserTokenRange&, CSS::PropertyParserState&);
 // Sub-production of 'font-family': <generic-family>
 // https://drafts.csswg.org/css-fonts-4/#generic-family-name-syntax
 NODELETE const AtomString& genericFontFamily(CSSValueID);
 NODELETE WebKitFontFamilyNames::FamilyNamesIndex genericFontFamilyIndex(CSSValueID);
-
-// MARK: 'font-size-adjust'
-// https://drafts.csswg.org/css-fonts-4/#font-size-adjust-prop
-RefPtr<CSSValue> consumeFontSizeAdjust(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: 'font-palette'
-// https://drafts.csswg.org/css-fonts-4/#propdef-font-palette
-std::optional<CSS::FontPalette> consumeFontPaletteUnresolved(CSSParserTokenRange&, CSS::PropertyParserState&);
-RefPtr<CSSValue> consumeFontPalette(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: - @font-face descriptor consumers
 
@@ -162,20 +143,14 @@ WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceLineGapOverride(StringView, ScriptE
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-style
 WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceFontStyle(StringView, ScriptExecutionContext&);
 RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
-std::optional<CSS::FontStyleRange> consumeUnresolvedFontFaceFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: @font-face 'font-feature-settings'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-feature-settings
 WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceFeatureSettings(StringView, ScriptExecutionContext&);
-// Sub-production of 'font-feature-settings': <feature-tag-value>
-// https://drafts.csswg.org/css-fonts-4/#feature-tag-value
-RefPtr<CSSValue> consumeFeatureTagValue(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: @font-face 'font-variation-settings'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-variation-settings
 #if ENABLE(VARIATION_FONTS)
-// Sub-production of 'font-variation-settings': <variation-tag-value>
-RefPtr<CSSValue> consumeVariationTagValue(CSSParserTokenRange&, CSS::PropertyParserState&);
 #endif
 
 // MARK: @font-face 'font-width'

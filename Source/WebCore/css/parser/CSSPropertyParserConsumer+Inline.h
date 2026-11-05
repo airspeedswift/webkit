@@ -38,10 +38,6 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
-// MARK: <'line-fit-edge'> consuming
-// https://drafts.csswg.org/css-inline-3/#propdef-line-fit-edge
-RefPtr<CSSValue> consumeLineFitEdge(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 // MARK: <'text-box-edge'> consuming
 // https://drafts.csswg.org/css-inline-3/#propdef-text-box-edge
 RefPtr<CSSValue> consumeTextBoxEdge(CSSParserTokenRange&, CSS::PropertyParserState&);

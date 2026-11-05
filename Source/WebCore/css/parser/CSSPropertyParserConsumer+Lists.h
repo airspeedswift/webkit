@@ -38,9 +38,5 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
-RefPtr<CSSValue> consumeCounterReset(CSSParserTokenRange&, CSS::PropertyParserState&);
-RefPtr<CSSValue> consumeCounterIncrement(CSSParserTokenRange&, CSS::PropertyParserState&);
-RefPtr<CSSValue> consumeCounterSet(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

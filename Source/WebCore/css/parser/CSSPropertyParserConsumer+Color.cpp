@@ -78,6 +78,7 @@
 #include "CSSImageSetValue.h"
 #include "CSSImageValue.h"
 #include "CSSKeywordValueInlines.h"
+#include "CSSMeshGradientValue.h"
 #include "CSSLightDarkImageValue.h"
 #include "CSSNamedImageValue.h"
 #include "CSSPaintImageValue.h"
@@ -237,6 +238,19 @@ uint8_t colorContextForSwift(const CSSPropertyConsumerSwiftValue& value)
         | (context.cssDynamicRangeLimitMixEnabled ? CSSColorSwiftDynamicRangeLimitMixEnabled : 0)
         | (context.cssConstrainedDynamicRangeLimitEnabled ? CSSColorSwiftConstrainedDynamicRangeLimitEnabled : 0)
         | (context.cssAxisRelativePositionKeywordsEnabled ? CSSColorSwiftAxisRelativePositionKeywordsEnabled : 0);
+}
+
+uint32_t consumerContextForSwift(const CSSPropertyConsumerSwiftValue& value)
+{
+    auto& context = propertyParserState(value).context;
+    return (context.gridLanesEnabled ? CSSConsumerSwiftGridLanesEnabled : 0)
+        | (context.cssRubyDisplayTypesEnabled ? CSSConsumerSwiftRubyDisplayTypesEnabled : 0)
+        | (context.springTimingFunctionEnabled ? CSSConsumerSwiftSpringTimingFunctionEnabled : 0)
+        | (context.cssSymbolsFunctionEnabled ? CSSConsumerSwiftSymbolsFunctionEnabled : 0)
+        | (context.cssCalcSizeFunctionEnabled ? CSSConsumerSwiftCalcSizeFunctionEnabled : 0)
+        | (context.legacyFontFaceAttributeMode ? CSSConsumerSwiftLegacyFontFaceAttributeMode : 0)
+        | (context.cssFontPaletteMixFunctionEnabled ? CSSConsumerSwiftFontPaletteMixFunctionEnabled : 0)
+        | (context.cssMeshGradientsEnabled ? CSSConsumerSwiftMeshGradientsEnabled : 0);
 }
 
 template<typename Descriptor, unsigned Index> static auto makeAbsoluteColorSwiftComponent(const CSSColorSwiftComponents& components)
@@ -463,6 +477,7 @@ void appendGradientStop(const CSSPropertyConsumerSwiftValue& value, const CSSCol
 {
     WTF::switchOn(gradientSwiftStops(value).stops,
         [](std::monostate) { RELEASE_ASSERT_NOT_REACHED(); },
+        [](auto&) { RELEASE_ASSERT_NOT_REACHED(); },
         [&](CSSGradientSwiftStops::Stops<CSS::GradientDeprecatedColorStop>& stops) {
             appendSwiftColor(value, color, channels, [&](auto&& stopColor) {
                 stops.constructAndAppend(CSS::Color { WTF::move(stopColor) }, makeColorSwiftComponent<CSS::GradientDeprecatedColorStopPosition>(positions.at(0), brigand::list<CSS::Number<>, CSS::Percentage<>> { }));
@@ -512,16 +527,119 @@ void CSSImageSwiftParts::appendColor(const CSSPropertyConsumerSwiftValue& value,
     positions.append(components.at(0));
 }
 
-template<typename Stops> CSS::GradientColorInterpolationMethod CSSImageSwiftParts::gradientColorInterpolationMethod(const Stops& stops) const
+void appendDropShadowFilter(const CSSPropertyConsumerSwiftValue& value, const CSSColorSwiftStopColor& color, const CSSColorSwiftComponents& channels, const CSSColorSwiftComponents& lengths)
 {
-    // Keyword colors and colors stored as 8-bit sRGB are legacy colors, which interpolate in sRGB by default.
-    bool legacy = std::all_of(stops.begin(), stops.end(), [](auto& stop) { return !stop.color || stop.color->isKeyword() || stop.color->absoluteColor().tryGetAsSRGBABytes(); });
+    Markable<CSS::Color> shadowColor;
+    if (color.kind != CSSColorSwiftNoColor)
+        appendSwiftColor(value, color, channels, [&](auto&& stopColor) { shadowColor = Markable<CSS::Color> { std::in_place, WTF::move(stopColor) }; });
+    swiftStopsAs<CSS::FilterValueList>(value).value.append(CSS::DropShadowFunction { .parameters = {
+        .color = WTF::move(shadowColor),
+        .location = { makeColorSwiftComponent<CSS::Length<>>(lengths.at(0)), makeColorSwiftComponent<CSS::Length<>>(lengths.at(1)) },
+        .stdDeviation = optionalSwiftComponent<CSS::Length<CSS::Nonnegative>>(lengths.at(2))
+    } });
+}
+
+// Keyword colors and colors stored as 8-bit sRGB are legacy colors, which interpolate in sRGB by default.
+static bool isLegacyGradientSwiftColor(const Markable<CSS::Color>& color)
+{
+    return !color || color->isKeyword() || color->absoluteColor().tryGetAsSRGBABytes();
+}
+
+// computeGradientColorInterpolationMethod: the parsed method, or the default one, sRGB if every color is `legacy`.
+static CSS::GradientColorInterpolationMethod gradientSwiftColorInterpolationMethod(const std::optional<CSS::ColorInterpolationMethod>& colorInterpolationMethod, bool legacy)
+{
     auto defaultMethod = legacy ? CSS::GradientColorInterpolationMethod::Default::SRGB : CSS::GradientColorInterpolationMethod::Default::OKLab;
     if (colorInterpolationMethod)
         return { *colorInterpolationMethod, defaultMethod };
     if (legacy)
         return { { ColorInterpolationMethod::SRGB { }, AlphaPremultiplication::Premultiplied }, defaultMethod };
     return { { ColorInterpolationMethod::OKLab { }, AlphaPremultiplication::Premultiplied }, defaultMethod };
+}
+
+template<typename Stops> CSS::GradientColorInterpolationMethod CSSImageSwiftParts::gradientColorInterpolationMethod(const Stops& stops) const
+{
+    bool legacy = std::all_of(stops.begin(), stops.end(), [](auto& stop) { return isLegacyGradientSwiftColor(stop.color); });
+    return gradientSwiftColorInterpolationMethod(colorInterpolationMethod, legacy);
+}
+
+// The control points ControlPoints, each made by `make`, until an absent component at `i`, which it skips; none without any.
+template<typename ControlPoints> static ControlPoints makeMeshGradientSwiftControlPoints(const Vector<CSSColorSwiftComponents::Component, 16>& p, size_t& i, const auto& make)
+{
+    using Edges = typename ControlPoints::value_type;
+    std::array<std::optional<typename Edges::value_type>, 4> controlPoints;
+    size_t count = 0;
+    while (p[i].type) {
+        RELEASE_ASSERT(count < controlPoints.size());
+        controlPoints[count++] = make();
+    }
+    ++i;
+    if (!count)
+        return std::nullopt;
+    return ControlPoints { CSSPropertyParserHelpers::completeQuadFromArray<Edges>(WTF::move(controlPoints)) };
+}
+
+// mesh-gradient(), as consumeMeshGradient makes it, from `colors` and `p` as makeImageValue describes them.
+static Ref<CSSValue> makeMeshGradientSwiftValue(Vector<Markable<CSS::Color>, 3>& colors, const Vector<CSSColorSwiftComponents::Component, 16>& p, const std::optional<CSS::ColorInterpolationMethod>& colorInterpolationMethod)
+{
+    using LengthPercentage = CSS::LengthPercentage<>;
+    // The background color's component.
+    size_t i = 1;
+    auto next = [&]() -> const CSSColorSwiftComponents::Component& { return p[i++]; };
+    auto position = [&] {
+        uint16_t layout = next().symbol;
+        auto components = makePositionSwiftComponents(p, i);
+        i += 4;
+        return makePositionSwift(components, layout);
+    };
+    // Braced initializers evaluate their elements in order, so each reads the components after the previous one.
+    auto pair = [&] { return CSS::CoordinatePair { makeColorSwiftComponent<LengthPercentage>(next()), makeColorSwiftComponent<LengthPercentage>(next()) }; };
+    auto relativeControlPoint = [&] {
+        auto offset = pair();
+        std::optional<CSS::Keyword::Origin> anchor;
+        if (next().type)
+            anchor = CSS::Keyword::Origin { };
+        return CSS::MeshGradientRelativeControlPoint { .offset = WTF::move(offset), .anchor = WTF::move(anchor) };
+    };
+
+    bool legacy = isLegacyGradientSwiftColor(colors[0]);
+    CSS::MeshGradientRows::Container rows;
+    CSS::MeshGradientRow::Container row;
+    for (size_t index = 1; index < colors.size(); ++index) {
+        uint16_t header = next().symbol;
+        if ((header & CSSMeshGradientSwiftBeginsRow) && !row.isEmpty())
+            rows.append(CSS::MeshGradientRow { std::exchange(row, { }) });
+        std::optional<CSS::MeshGradientPoint::Location> location;
+        switch (header & 3) {
+        case CSSMeshGradientSwiftAbsoluteLocation: {
+            auto at = position();
+            auto controlPoints = makeMeshGradientSwiftControlPoints<CSS::MeshGradientAbsolutePosition::ControlPoints>(p, i, position);
+            location = CSS::MeshGradientAbsolutePosition { .position = WTF::move(at), .controlPoints = WTF::move(controlPoints) };
+            break;
+        }
+        case CSSMeshGradientSwiftRelativeLocation: {
+            auto offset = pair();
+            auto controlPoints = makeMeshGradientSwiftControlPoints<CSS::MeshGradientRelativePosition::ControlPoints>(p, i, relativeControlPoint);
+            location = CSS::MeshGradientRelativePosition { .offset = WTF::move(offset), .controlPoints = WTF::move(controlPoints) };
+            break;
+        }
+        default:
+            RELEASE_ASSERT((header & 3) == CSSMeshGradientSwiftNoLocation);
+            break;
+        }
+        RELEASE_ASSERT(colors[index]);
+        legacy = legacy && isLegacyGradientSwiftColor(colors[index]);
+        row.append(CSS::MeshGradientPoint { .color = WTF::move(*colors[index]), .location = WTF::move(location) });
+    }
+    rows.append(CSS::MeshGradientRow { WTF::move(row) });
+    ASSERT(i == p.size());
+
+    return CSSMeshGradientValue::create({
+        .parameters = {
+            .colorInterpolationMethod = gradientSwiftColorInterpolationMethod(colorInterpolationMethod, legacy),
+            .backgroundColor = WTF::move(colors[0]),
+            .rows = { WTF::move(rows) },
+        }
+    });
 }
 
 // The gradient T: its line, or its size and shape, in `line`, and -webkit-gradient()'s points in `line` 0-1 and 2-3
@@ -600,6 +718,8 @@ Ref<CSSValue> makeImageValue(const CSSPropertyConsumerSwiftValue& value, uint16_
         return CSSLightDarkImageValue::create(WTF::move(parts.images[0]), WTF::move(parts.images[1]));
     case CSSValueID::ImageSet:
         return CSSImageSetValue::create(WTF::move(parts.images));
+    case CSSValueID::MeshGradient:
+        return makeMeshGradientSwiftValue(parts.colors, parts.positions, parts.colorInterpolationMethod);
     default:
         std::optional<CSS::Position> at;
         if (positionLayout != CSSImageSwiftNoPosition)
@@ -616,15 +736,6 @@ RefPtr<CSSValue> makeImageURLValue(const CSSPropertyConsumerSwiftValue& value, u
     if (!url)
         return nullptr;
     return CSSImageValue::create(WTF::move(*url));
-}
-
-RefPtr<CSSValue> makeFilterImageValue(const CSSPropertyConsumerSwiftValue& value, CSSValue& image, uint32_t start, uint32_t end)
-{
-    auto range = swiftTokenRange(value, start, end);
-    auto filter = CSSPropertyParserHelpers::consumeUnresolvedFilter(range, propertyParserState(value));
-    if (!filter || !range.atEnd())
-        return nullptr;
-    return CSSFilterImageValue::create(Ref { image }, WTF::move(*filter));
 }
 
 RefPtr<CSSValue> makeNamedImageValue(const CSSPropertyConsumerSwiftValue& value, uint16_t function, uint32_t name, uint32_t argumentsStart, uint32_t argumentsEnd)
@@ -712,16 +823,12 @@ uint32_t setBorderResult(const CSSPropertyConsumerSwiftValue& value, uint16_t co
     case Consumer::WebkitBoxReflect: {
         if (positions.isEmpty())
             return set(CSS::WebkitBoxReflect { CSS::Keyword::None { } });
+        // The mask, if any, follows the direction and the offset, laid out as makeMaskBorderSwift reads it.
         std::optional<CSS::WebkitBoxReflection::Mask> mask;
+        if (positions.size() > 2)
+            mask = makeMaskBorderSwift(parts, 2);
         size_t consumed = 0;
-        if (maskStart != std::numeric_limits<uint32_t>::max()) {
-            auto range = swiftTokenRange(value, maskStart, static_cast<uint32_t>(value.count()));
-            consumed = range.size();
-            mask = CSSPropertyParserHelpers::consumeUnresolvedMaskBorder(range, propertyParserState(value), CSSPropertyParserHelpers::MaskBorderSliceOverride::AlwaysFill);
-            if (!mask)
-                return std::numeric_limits<uint32_t>::max();
-            consumed -= range.size();
-        }
+        UNUSED_PARAM(maskStart);
         set(CSS::WebkitBoxReflect { CSS::WebkitBoxReflection {
             .direction = makeColorSwiftComponent<CSS::WebkitBoxReflection::Direction>(positions[0]),
             .offset = optionalSwiftComponent<CSS::WebkitBoxReflection::Offset>(positions[1]).value_or(CSS::WebkitBoxReflection::Offset { 0_css_px }),

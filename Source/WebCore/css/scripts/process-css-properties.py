@@ -28,6 +28,7 @@ import argparse
 import collections
 import enum
 import functools
+import io
 import itertools
 import json
 import os
@@ -5743,11 +5744,15 @@ class GenerateCSSPropertyParsing:
                 ]
             )
 
+            writer.write("#include \"CSSPropertyConsumerSwiftBuilders.h\"").newline()
+            writer = Writer(io.StringIO())
+
             with self.generation_context.namespace("WebCore", to=writer):
                 self.generation_context.generate_using_namespace_declarations(
                     to=writer,
                     namespaces=["CSSPropertyParserHelpers"]
                 )
+                forwarders_offset = writer.output.tell()
 
                 self._generate_css_property_parsing_cpp_property_parsing_functions(
                     to=writer
@@ -5776,6 +5781,27 @@ class GenerateCSSPropertyParsing:
                         parsing_collection=parsing_collection,
                         keyword_fast_path_eligible_property_consumers=keyword_fast_path_eligible_property_consumers
                     )
+
+            text = writer.output.getvalue()
+            output_file.write(text[:forwarders_offset])
+            self._generate_css_property_parsing_cpp_swift_forwarders(to=Writer(output_file), calls=text[forwarders_offset:])
+            output_file.write(text[forwarders_offset:])
+
+    # Defines, before their first call, the SWIFT_HAND_WRITTEN_CONSUMERS_4 forwarders that `calls` (the rest of the file) calls.
+    def _generate_css_property_parsing_cpp_swift_forwarders(self, *, to, calls):
+        with self.generation_context.namespace("CSSPropertyParserHelpers", to=to):
+            for name in sorted(SWIFT_HAND_WRITTEN_KEYWORD_CONSUMERS_4 + SWIFT_HAND_WRITTEN_CONSUMERS_4):
+                if not re.search(rf"\bconsume{name}\(", calls):
+                    continue
+                consumer = f"CSSPropertyConsumerSwiftConsumer::{name}"
+                if name in SWIFT_HAND_WRITTEN_KEYWORD_CONSUMERS_4:
+                    consumer = f"std::to_underlying({consumer})"
+                to.write(f"static RefPtr<CSSValue> consume{name}(CSSParserTokenRange& range, CSS::PropertyParserState& state)")
+                to.write(f"{{")
+                with to.indent():
+                    to.write(f"return consumePropertyWithSwift(range, state, {consumer});")
+                to.write(f"}}")
+                to.newline()
 
     # MARK: - Helper generator functions for CSSPropertyParsing.h
 
@@ -10472,6 +10498,9 @@ SWIFT_GENERATED_CONSUMERS_2 = [
     '<transition-behavior-value>', '<visual-box>',
 ]
 
+# More consumers forwarded to Swift, named as in SWIFT_GENERATED_CONSUMERS_2.
+SWIFT_GENERATED_CONSUMERS_4 = ['font-feature-settings', 'font-variation-settings', '@font-face/font-feature-settings']
+
 # Each list of consumers forwarded to Swift. With `keyword_values_by_id`, its Swift reads keywords as
 # SwiftConsumerGenerator describes; with `stateless_entry`, its consumers that take no state are called through
 # `consumeGeneratedStateless`. Exactly one list has a stateless entry.
@@ -10481,6 +10510,23 @@ SWIFT_CONSUMER_LISTS = [
         stateless_entry=False),
     SwiftConsumerList('SWIFT_GENERATED_CONSUMERS_2', SWIFT_GENERATED_CONSUMERS_2, keyword_values_by_id=True,
         stateless_entry=True),
+    SwiftConsumerList('SWIFT_GENERATED_CONSUMERS_4', SWIFT_GENERATED_CONSUMERS_4, keyword_values_by_id=True,
+        stateless_entry=False),
+]
+
+# The hand-written consumers that are Swift and that only generated consumers call, by the
+# `CSSPropertyConsumerSwiftConsumer` each forwards to. CSSPropertyParsing.cpp defines `consume<Name>` for each one it
+# calls. The keyword-only ones take the entry that makes neither a gradient nor a CSS:: value.
+SWIFT_HAND_WRITTEN_KEYWORD_CONSUMERS_4 = [
+    'AlignContent', 'AlignItems', 'AlignSelf', 'Display', 'JustifyContent', 'JustifyItems', 'JustifySelf', 'LineFitEdge',
+    'MarginTrim',
+]
+SWIFT_HAND_WRITTEN_CONSUMERS_4 = [
+    'AppleColorFilter', 'CalcSize', 'Clip', 'ClipPath', 'Content', 'CounterIncrement', 'CounterReset', 'CounterSet',
+    'CounterStyle', 'CounterStyleAdditiveSymbols', 'CounterStyleName', 'CounterStyleRange', 'CounterStyleSystem',
+    'FamilyName', 'Filter', 'FontFamily', 'FontPalette', 'FontSizeAdjust', 'FontStyle', 'GridAutoFlow',
+    'GridLine', 'GridTemplateAreas', 'KeyframesName', 'MaskBorderOutset', 'MaskBorderRepeat', 'MaskBorderSource',
+    'MaskBorderWidth', 'OffsetPath', 'OverflowClipMargin', 'Path', 'Quotes', 'ShapeOutside', 'TextShadow',
 ]
 
 # Override functions (`grammar-function` in CSSProperties.json) that are `PropertyParser` methods, and the function
@@ -10493,11 +10539,13 @@ SWIFT_OVERRIDE_FUNCTIONS = {
     'consumeSingleAnimationRangeEnd': ('singleAnimationRangeEnd', None),
 }
 
-# References to hand-written consumers (`consume<Name>`, with no grammar of their own) that are `PropertyParser`
-# methods, by reference name.
+# References to hand-written consumers (`consume<Name>`, with no grammar of their own) and builtins that are
+# `PropertyParser` methods, by reference name.
 SWIFT_REFERENCE_FUNCTIONS = {
     'single-background-size': 'singleBackgroundSize',
     'single-mask-size': 'singleMaskSize',
+    'feature-tag-value': 'featureTagValue',
+    'variation-tag-value': 'variationTagValue',
 }
 
 # The most arguments `PropertyParser.makeFunction` takes as separate values.
@@ -10693,7 +10741,7 @@ class SwiftConsumerGenerator:
                 raise SwiftGenerationUnsupported(f"override function '{term.override_function}'")
             self.reads_state = True
             return self._add(name, str(term), [f'{SWIFT_OVERRIDE_FUNCTIONS[term.override_function][0]}{self.calc_arguments}'])
-        if not term.is_builtin:
+        if not term.is_builtin or term.name.name in SWIFT_REFERENCE_FUNCTIONS:
             if term.name.name not in SWIFT_REFERENCE_FUNCTIONS:
                 raise SwiftGenerationUnsupported(f"reference '{term}'")
             self.reads_state = True
