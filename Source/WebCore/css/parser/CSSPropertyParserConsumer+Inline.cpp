@@ -32,10 +32,14 @@
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSValueKeywords.h"
 #include "CSSValuePair.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static RefPtr<CSSValue> consumeTextEdge(CSSParserTokenRange& range)
 {
     // <text-edge> = [ text | cap | ex | ideographic | ideographic-ink ]
@@ -82,6 +86,14 @@ RefPtr<CSSValue> consumeTextBoxEdge(CSSParserTokenRange& range, CSS::PropertyPar
         return consumeIdent(range);
     return consumeTextEdge(range);
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+RefPtr<CSSValue> consumeTextBoxEdge(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumePropertyWithSwift(range, state, std::to_underlying(CSSPropertyConsumerSwiftConsumer::TextBoxEdge));
+}
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

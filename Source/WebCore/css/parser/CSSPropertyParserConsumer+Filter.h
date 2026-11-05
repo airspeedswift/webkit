@@ -31,7 +31,9 @@
 namespace WebCore {
 
 namespace CSS {
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 struct AppleColorFilter;
+#endif
 struct Filter;
 struct PropertyParserState;
 }
@@ -51,17 +53,21 @@ namespace CSSPropertyParserHelpers {
 
 // https://drafts.fxtf.org/filter-effects/#FilterProperty
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: <'filter'> consuming (CSSValue)
 RefPtr<CSSValue> consumeFilter(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: <'-apple-color-filter'> consuming (CSSValue)
 RefPtr<CSSValue> consumeAppleColorFilter(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // MARK: <'filter'> consuming (unresolved)
 std::optional<CSS::Filter> consumeUnresolvedFilter(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: <'apple-color-filter'> consuming (unresolved)
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 std::optional<CSS::AppleColorFilter> consumeUnresolvedAppleColorFilter(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // MARK: <'filter'> parsing (raw)
 WEBCORE_EXPORT std::optional<Style::Filter> parseFilterValueListOrNoneRaw(StringView, const CSSParserContext&, const Document&, Style::ComputedStyle&);

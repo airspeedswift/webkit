@@ -40,6 +40,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 using DisplayOutsideInsideMap = EnumeratedArray<DisplayOutside, EnumeratedArray<DisplayInside, std::pair<CSSValueID, CSSValueID>>>;
 
 consteval DisplayOutsideInsideMap LEGACY_NODELETE makeDisplayOutsideInsideMap()
@@ -305,6 +306,7 @@ RefPtr<CSSValue> consumeDisplay(CSSParserTokenRange& range, CSS::PropertyParserS
         return nullptr;
     }
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

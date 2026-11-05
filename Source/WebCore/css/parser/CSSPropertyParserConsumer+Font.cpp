@@ -73,6 +73,12 @@
 #include "CSSFontStyleRangeValue.h"
 #include "CSSFontVariationValue.h"
 #endif
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#include <wtf/TZoneMallocInlines.h>
+#include <wtf/text/StringBuilder.h>
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
@@ -85,6 +91,7 @@ static CSSParserMode LEGACY_NODELETE parserMode(ScriptExecutionContext& context)
 
 // MARK: - 'font-width'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static std::optional<UnresolvedFontWidth> consumeFontWidthUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState&)
 {
     // <'font-width'> = normal | <percentage [0,∞]> | ultra-condensed | extra-condensed | condensed | semi-condensed | semi-expanded | expanded | extra-expanded | ultra-expanded
@@ -95,9 +102,11 @@ static std::optional<UnresolvedFontWidth> consumeFontWidthUnresolved(CSSParserTo
 
     return consumeIdentRaw<CSSValueID::UltraCondensed, CSSValueID::ExtraCondensed, CSSValueID::Condensed, CSSValueID::SemiCondensed, CSSValueID::Normal, CSSValueID::SemiExpanded, CSSValueID::Expanded, CSSValueID::ExtraExpanded, CSSValueID::UltraExpanded>(range);
 }
+#endif
 
 // MARK: - 'font-weight'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 #if !ENABLE(VARIATION_FONTS)
 static bool isIntegerAndDivisibleBy100(double value)
 {
@@ -154,9 +163,11 @@ static std::optional<UnresolvedFontWeight> consumeFontWeightUnresolved(CSSParser
         return { WTF::move(*fontWeightNumber) };
     return std::nullopt;
 }
+#endif
 
 // MARK: - 'font-style'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 #if ENABLE(VARIATION_FONTS)
 
 static std::optional<UnresolvedFontStyleObliqueAngle> consumeFontStyleAngleUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
@@ -188,7 +199,9 @@ static std::optional<UnresolvedFontStyle> consumeFontStyleUnresolved(CSSParserTo
 
     return { { *keyword } };
 }
+#endif
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeFontStyle(CSSParserTokenRange& range, [[maybe_unused]] CSS::PropertyParserState& state)
 {
     auto keyword = consumeIdentRaw<CSSValueID::Normal, CSSValueID::Italic, CSSValueID::Oblique>(range);
@@ -204,6 +217,17 @@ RefPtr<CSSValue> consumeFontStyle(CSSParserTokenRange& range, [[maybe_unused]] C
 
     return CSSKeywordValue::create(*keyword);
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#if !ENABLE(VARIATION_FONTS)
+#error "The Swift font consumers consume the grammar of ENABLE(VARIATION_FONTS)"
+#endif
+
+// The ranges of the oblique angle and the palette-mix() percentages Swift consumes, and the length of a tag.
+static_assert(std::same_as<CSSFontStyleWithAngleValue::ObliqueAngle, UnresolvedFontStyleObliqueAngle> && UnresolvedFontStyleObliqueAngle::range == CSS::Range { -90, 90 });
+static_assert(CSS::FontPaletteMixParameters::Component::Percentage::range == CSS::Range { 0, 100 } && std::tuple_size_v<FontTag> == 4);
+#endif
 
 // MARK: - 'font-family'
 
@@ -256,6 +280,7 @@ WebKitFontFamilyNames::FamilyNamesIndex genericFontFamilyIndex(CSSValueID ident)
     }
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static AtomString concatenateFamilyName(CSSParserTokenRange& range, bool allowNumericTokens = false)
 {
     StringBuilder builder;
@@ -289,7 +314,9 @@ static std::optional<CSSValueID> consumeGenericFamilyUnresolved(CSSParserTokenRa
 {
     return consumeIdentRaw<CSSValueID::Serif, CSSValueID::SansSerif, CSSValueID::Cursive, CSSValueID::Fantasy, CSSValueID::Monospace, CSSValueID::WebkitBody, CSSValueID::WebkitPictograph, CSSValueID::SystemUi, CSSValueID::Math>(range);
 }
+#endif
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static RefPtr<CSSValue> consumeGenericFamily(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     if (auto familyName = consumeGenericFamilyUnresolved(range)) {
@@ -300,7 +327,9 @@ static RefPtr<CSSValue> consumeGenericFamily(CSSParserTokenRange& range, CSS::Pr
     }
     return nullptr;
 }
+#endif
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static std::optional<UnresolvedFontFamily> consumeFontFamilyUnresolved(CSSParserTokenRange& range)
 {
     // <'font-family'> = [ <family-name> | <generic-family> ]#
@@ -319,7 +348,9 @@ static std::optional<UnresolvedFontFamily> consumeFontFamilyUnresolved(CSSParser
     } while (consumeCommaIncludingWhitespace(range));
     return list;
 }
+#endif
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeFamilyName(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // https://drafts.csswg.org/css-fonts-4/#family-name-syntax
@@ -341,9 +372,11 @@ RefPtr<CSSValue> consumeFontFamily(CSSParserTokenRange& range, CSS::PropertyPars
         return consumeFamilyName(range, state);
     });
 }
+#endif
 
 // MARK: - 'font-size'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static std::optional<UnresolvedFontSize> consumeFontSizeUnresolved(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <'font-size> = <absolute-size> | <relative-size> | <length-percentage [0,∞]> | math
@@ -458,6 +491,17 @@ static std::optional<UnresolvedFont> consumeUnresolvedFont(CSSParserTokenRange& 
         .family = WTF::move(*fontFamily),
     };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+// The range of the font-weight number and the angles of the @font-face font-style Swift consumes.
+static_assert(UnresolvedFontWeightNumber::range == CSS::Range { 1, 1000 } && std::same_as<CSS::FontStyleRange::Oblique::Angle, UnresolvedFontStyleObliqueAngle>);
+
+static std::optional<UnresolvedFont> consumeUnresolvedFont(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<UnresolvedFont>(range, state, CSSPropertyConsumerSwiftConsumer::UnresolvedFont);
+}
+#endif
 
 std::optional<UnresolvedFont> parseUnresolvedFont(StringView string, ScriptExecutionContext& context, std::optional<CSSParserMode> parserModeOverride)
 {
@@ -473,6 +517,7 @@ std::optional<UnresolvedFont> parseUnresolvedFont(StringView string, ScriptExecu
 
 // MARK: 'font-size-adjust'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeFontSizeAdjust(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     if (range.peek().id() == CSSValueID::None || range.peek().id() == CSSValueID::FromFont)
@@ -488,9 +533,11 @@ RefPtr<CSSValue> consumeFontSizeAdjust(CSSParserTokenRange& range, CSS::Property
 
     return CSSValuePair::create(metric.releaseNonNull(), value.releaseNonNull());
 }
+#endif
 
 // MARK: 'font-palette'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static std::optional<CSS::FontPaletteMixParameters::Component> consumeFontPaletteMixComponent(CSSParserTokenRange& args, CSS::PropertyParserState& state)
 {
     // <font-palette-mix-component> = <'font-palette'> && <percentage [0,100]>?
@@ -599,6 +646,7 @@ RefPtr<CSSValue> consumeFontPalette(CSSParserTokenRange& range, CSS::PropertyPar
         return CSSFontPaletteValue::create(WTF::move(*unresolved));
     return nullptr;
 }
+#endif
 
 // MARK: - @-rule descriptor consumers:
 
@@ -606,6 +654,7 @@ RefPtr<CSSValue> consumeFontPalette(CSSParserTokenRange& range, CSS::PropertyPar
 
 // MARK: @font-face 'src'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 Vector<FontTechnology> consumeFontTech(CSSParserTokenRange& range, CSS::PropertyParserState&, bool singleValue)
 {
     Vector<FontTechnology> technologies;
@@ -747,6 +796,24 @@ RefPtr<CSSValueList> consumeFontFaceSrc(CSSParserTokenRange& range, CSS::Propert
         return nullptr;
     return CSSValueList::createCommaSeparated(WTF::move(values));
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+Vector<FontTechnology> consumeFontTech(CSSParserTokenRange& range, CSS::PropertyParserState& state, bool singleValue)
+{
+    return consumeUnresolvedWithSwift<Vector<FontTechnology>>(range, state, CSSPropertyConsumerSwiftConsumer::FontTech, singleValue ? CSSPropertyConsumerSwiftFontSingleValue : 0).value_or(Vector<FontTechnology> { });
+}
+
+String consumeFontFormat(CSSParserTokenRange& range, CSS::PropertyParserState& state, bool rejectStringValues)
+{
+    return consumeUnresolvedWithSwift<String>(range, state, CSSPropertyConsumerSwiftConsumer::FontFormat, rejectStringValues ? CSSPropertyConsumerSwiftFontRejectStringValues : 0).value_or(nullString());
+}
+
+RefPtr<CSSValueList> consumeFontFaceSrc(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return downcast<CSSValueList>(consumePropertyWithSwift(range, state, CSSPropertyConsumerSwiftConsumer::FontFaceSrc));
+}
+#endif
 
 RefPtr<CSSValueList> parseFontFaceSrc(StringView string, ScriptExecutionContext& context)
 {
@@ -902,6 +969,7 @@ RefPtr<CSSValue> parseFontFaceFontStyle(StringView string, ScriptExecutionContex
     return parsedValue;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 #if ENABLE(VARIATION_FONTS)
 
 std::optional<CSS::FontStyleRange> consumeUnresolvedFontFaceFontStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
@@ -974,9 +1042,18 @@ RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange& range, CSS::Prope
 }
 
 #endif
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumePropertyWithSwift(range, state, CSSPropertyConsumerSwiftConsumer::FontFaceFontStyle);
+}
+#endif
 
 // MARK: @font-face 'font-feature-settings'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static std::optional<FontTag> LEGACY_NODELETE consumeFontOpenTypeTag(CSSParserTokenRange& range)
 {
     // <opentype-tag> = <string>
@@ -1029,6 +1106,7 @@ RefPtr<CSSValue> consumeFeatureTagValue(CSSParserTokenRange& range, CSS::Propert
 
     return CSSFontFeatureValue::create(WTF::move(*tag), WTF::move(*tagValue));
 }
+#endif
 
 RefPtr<CSSValue> parseFontFaceFeatureSettings(StringView string, ScriptExecutionContext& context)
 {
@@ -1056,6 +1134,7 @@ RefPtr<CSSValue> parseFontFaceFeatureSettings(StringView string, ScriptExecution
 
 #if ENABLE(VARIATION_FONTS)
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeVariationTagValue(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <variation-tag-value> = <opentype-tag> <number>
@@ -1071,6 +1150,7 @@ RefPtr<CSSValue> consumeVariationTagValue(CSSParserTokenRange& range, CSS::Prope
 
     return CSSFontVariationValue::create(WTF::move(*tag), tagValue.releaseNonNull());
 }
+#endif
 
 #endif
 
@@ -1126,6 +1206,7 @@ RefPtr<CSSValue> parseFontFaceFontWeight(StringView string, ScriptExecutionConte
 
 // MARK: @font-feature-values 'prelude family name list'
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 Vector<AtomString> consumeFontFeatureValuesPreludeFamilyNameList(CSSParserTokenRange& range, const CSSParserContext&)
 {
     // <prelude-family-name-list> = <family-name>#
@@ -1141,6 +1222,249 @@ Vector<AtomString> consumeFontFeatureValuesPreludeFamilyNameList(CSSParserTokenR
     } while (consumeCommaIncludingWhitespace(range));
     return result;
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+Vector<AtomString> consumeFontFeatureValuesPreludeFamilyNameList(CSSParserTokenRange& range, const CSSParserContext& context)
+{
+    CSS::PropertyParserState state { .context = context };
+    return consumeUnresolvedWithSwift<Vector<AtomString>>(range, state, CSSPropertyConsumerSwiftConsumer::FontFeatureValuesPrelude).value_or(Vector<AtomString> { });
+}
+#endif
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+bool isGenericFontFamilyForSwift(uint16_t id)
+{
+    return !CSSPropertyParserHelpers::genericFontFamily(static_cast<CSSValueID>(id)).isNull();
+}
+
+// The family name of the string token at `start`, or of the identifiers and numbers among the tokens [start, end),
+// joined by spaces.
+static AtomString familyNameForSwift(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end)
+{
+    auto range = swiftTokenRange(value, start, end);
+    if (range.peek().type() == StringToken)
+        return range.peek().value().toAtomString();
+    StringBuilder builder;
+    for (auto& token : range.span()) {
+        if (token.type() != IdentToken && token.type() != NumberToken)
+            continue;
+        if (!builder.isEmpty())
+            builder.append(' ');
+        builder.append(token.value());
+    }
+    return builder.toAtomString();
+}
+
+Ref<CSSValue> makeFontFamilyNameValue(const CSSPropertyConsumerSwiftValue& value, uint16_t keyword, uint32_t start, uint32_t end)
+{
+    auto& pool = propertyParserState(value).pool;
+    if (static_cast<CSSValueID>(keyword) != CSSValueID::Invalid)
+        return pool.createFontFamilyNameValue(nameLiteral(static_cast<CSSValueID>(keyword)));
+    return pool.createFontFamilyNameValue(familyNameForSwift(value, start, end));
+}
+
+bool isObliqueAngleForSwift(double value, uint8_t unit)
+{
+    auto angleUnit = CSS::UnitTraits<CSS::AngleUnit>::validate(static_cast<CSSUnitType>(unit));
+    RELEASE_ASSERT(angleUnit);
+    return CSSPropertyParserHelpers::AngleValidator::isValid(CSSPropertyParserHelpers::UnresolvedFontStyleObliqueAngle::Raw { *angleUnit, value }, { });
+}
+
+Ref<CSSValue> makeFontStyleWithAngleValue(const CSSColorSwiftComponents& angle)
+{
+    return CSSFontStyleWithAngleValue::create(makeColorSwiftComponent<CSSFontStyleWithAngleValue::ObliqueAngle>(angle.at(0)));
+}
+
+struct CSSFontPaletteSwiftStack {
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED(CSSFontPaletteSwiftStack);
+    struct Mix {
+        std::optional<CSS::ColorInterpolationMethod> colorInterpolationMethod;
+        CSS::FontPaletteMixParameters::Components components;
+    };
+    Vector<CSS::FontPalette, 1> palettes;
+    Vector<Mix> mixes;
+};
+
+WTF_MAKE_TZONE_ALLOCATED_IMPL(CSSFontPaletteSwiftStack);
+
+CSSFontPaletteSwiftParts::CSSFontPaletteSwiftParts(uint8_t)
+    : stack(makeUniqueRef<CSSFontPaletteSwiftStack>())
+{
+}
+
+CSSFontPaletteSwiftParts::CSSFontPaletteSwiftParts(CSSFontPaletteSwiftParts&&) = default;
+CSSFontPaletteSwiftParts::~CSSFontPaletteSwiftParts() = default;
+
+void CSSFontPaletteSwiftParts::appendKeyword(uint16_t keyword)
+{
+    switch (static_cast<CSSValueID>(keyword)) {
+    case CSSValueID::Normal:
+        stack->palettes.append(CSS::FontPalette { CSS::Keyword::Normal { } });
+        return;
+    case CSSValueID::Light:
+        stack->palettes.append(CSS::FontPalette { CSS::Keyword::Light { } });
+        return;
+    case CSSValueID::Dark:
+        stack->palettes.append(CSS::FontPalette { CSS::Keyword::Dark { } });
+        return;
+    default:
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+}
+
+void CSSFontPaletteSwiftParts::appendIdentifier(const CSSPropertyConsumerSwiftValue& value, uint32_t index)
+{
+    stack->palettes.append(CSS::FontPalette { CSS::CustomIdent { swiftTokenRange(value, index, index + 1).peek().value().toAtomString() } });
+}
+
+void CSSFontPaletteSwiftParts::beginMix()
+{
+    stack->mixes.append(CSSFontPaletteSwiftStack::Mix { });
+}
+
+void CSSFontPaletteSwiftParts::setColorInterpolationMethod(CSS::ColorInterpolationMethod&& method)
+{
+    stack->mixes.last().colorInterpolationMethod = WTF::move(method);
+}
+
+void CSSFontPaletteSwiftParts::endMixComponent(const CSSColorSwiftComponents& percentage)
+{
+    stack->mixes.last().components.value.append(CSS::FontPaletteMixParameters::Component {
+        .palette = stack->palettes.takeLast(),
+        .percentage = optionalSwiftComponent<CSS::FontPaletteMixParameters::Component::Percentage>(percentage.at(0)),
+    });
+}
+
+void CSSFontPaletteSwiftParts::endMix()
+{
+    auto mix = stack->mixes.takeLast();
+    stack->palettes.append(CSS::FontPalette { CSS::FontPaletteMixFunction {
+        CSS::FontPaletteMixFunctionValue {
+            .parameters = CSS::FontPaletteMixParameters {
+                .colorInterpolationMethod = mix.colorInterpolationMethod.value_or(CSS::defaultInterpolationMethodForPaletteMix),
+                .components = WTF::move(mix.components),
+            }
+        }
+    } });
+}
+
+Ref<CSSValue> makeFontPaletteValue(CSSFontPaletteSwiftParts&& parts)
+{
+    return CSSFontPaletteValue::create(parts.stack->palettes.takeLast());
+}
+
+static FontTag fontTagFromSwift(uint32_t tag)
+{
+    return { static_cast<char>(tag), static_cast<char>(tag >> 8), static_cast<char>(tag >> 16), static_cast<char>(tag >> 24) };
+}
+
+Ref<CSSValue> makeFontFeatureValue(const CSSPropertyConsumerSwiftValue& value, uint32_t tag, double integer, uint32_t calc)
+{
+    using Integer = CSS::Integer<CSS::Nonnegative>;
+    if (calc != std::numeric_limits<uint32_t>::max())
+        return CSSFontFeatureValue::create(fontTagFromSwift(tag), consumeSwiftCheckedCalc<Integer>(value, calc));
+    return CSSFontFeatureValue::create(fontTagFromSwift(tag), Integer { Integer::Raw { CSS::IntegerUnit::Integer, integer } });
+}
+
+Ref<CSSValue> makeFontVariationValue(uint32_t tag, CSSValue& number)
+{
+    return CSSFontVariationValue::create(fontTagFromSwift(tag), Ref { number });
+}
+
+CSSFontSwiftParts::~CSSFontSwiftParts() = default;
+
+bool CSSFontSwiftParts::appendTechnology(uint16_t id)
+{
+    auto technology = fromCSSValueID<FontTechnology>(static_cast<CSSValueID>(id));
+    if (technology == FontTechnology::Invalid)
+        return false;
+    technologies.append(technology);
+    return true;
+}
+
+void setUnresolvedFontResult(const CSSPropertyConsumerSwiftValue& value, const CSSColorSwiftComponents& slots, uint16_t variantCaps, uint16_t width, CSSFontSwiftParts&& parts)
+{
+    using namespace CSSPropertyParserHelpers;
+    auto keyword = [&](uint8_t slot) {
+        return slots.type(slot) ? static_cast<CSSValueID>(slots.at(slot).symbol) : CSSValueID::Normal;
+    };
+    auto isKeyword = [&](uint8_t slot) {
+        return slots.type(slot) == CSSColorSwiftChannelNone || !slots.type(slot);
+    };
+    UnresolvedFontFamily family;
+    for (auto& name : parts.families) {
+        if (static_cast<CSSValueID>(name.keyword) != CSSValueID::Invalid)
+            family.append({ static_cast<CSSValueID>(name.keyword) });
+        else
+            family.append({ familyNameForSwift(value, name.start, name.end) });
+    }
+    CSSPropertyConsumerSwiftUnresolvedResult::set(value, UnresolvedFont {
+        .style = isKeyword(0) ? UnresolvedFontStyle { keyword(0) } : UnresolvedFontStyle { makeColorSwiftComponent<UnresolvedFontStyleObliqueAngle>(slots.at(0)) },
+        .variantCaps = static_cast<CSSValueID>(variantCaps),
+        .weight = isKeyword(1) ? UnresolvedFontWeight { keyword(1) } : UnresolvedFontWeight { makeColorSwiftComponent<UnresolvedFontWeightNumber>(slots.at(1)) },
+        .width = static_cast<CSSValueID>(width),
+        .size = isKeyword(2) ? UnresolvedFontSize { keyword(2) } : UnresolvedFontSize { makeColorSwiftComponent<CSS::LengthPercentage<CSS::Nonnegative>>(slots.at(2)) },
+        .lineHeight = isKeyword(3) ? UnresolvedFontLineHeight { keyword(3) }
+            : slots.type(3) == CSSColorSwiftChannelNumber ? UnresolvedFontLineHeight { makeColorSwiftComponent<CSS::Number<CSS::Nonnegative>>(slots.at(3)) }
+            : UnresolvedFontLineHeight { makeColorSwiftComponent<CSS::LengthPercentage<CSS::Nonnegative>>(slots.at(3)) },
+        .family = WTF::move(family),
+    });
+}
+
+void setFontTechResult(const CSSPropertyConsumerSwiftValue& value, CSSFontSwiftParts&& parts)
+{
+    CSSPropertyConsumerSwiftUnresolvedResult::set(value, WTF::move(parts.technologies));
+}
+
+void setFontFormatResult(const CSSPropertyConsumerSwiftValue& value, uint32_t index)
+{
+    CSSPropertyConsumerSwiftUnresolvedResult::set(value, swiftTokenRange(value, index, index + 1).peek().value().toString());
+}
+
+RefPtr<CSSValue> makeFontFaceSrcResourceValue(const CSSPropertyConsumerSwiftValue& value, uint32_t urlStart, uint32_t urlEnd, uint32_t format, CSSFontSwiftParts&& parts)
+{
+    auto range = swiftTokenRange(value, urlStart, urlEnd);
+    auto location = CSSPropertyParserHelpers::consumeURLRaw(range, propertyParserState(value), { });
+    if (!location)
+        return nullptr;
+    auto formatString = format == std::numeric_limits<uint32_t>::max() ? String { } : swiftTokenRange(value, format, format + 1).peek().value().toString();
+    return CSSFontFaceSrcResourceValue::create(WTF::move(*location), WTF::move(formatString), WTF::move(parts.technologies));
+}
+
+Ref<CSSValue> makeFontFaceSrcLocalValue(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end)
+{
+    return CSSFontFaceSrcLocalValue::create(familyNameForSwift(value, start, end));
+}
+
+Ref<CSSValue> makeFontFaceFontStyleValue(uint16_t keyword, const CSSColorSwiftComponents& angles, uint8_t angleCount)
+{
+    using Oblique = CSS::FontStyleRange::Oblique;
+    switch (static_cast<CSSValueID>(keyword)) {
+    case CSSValueID::Normal:
+        return CSSFontStyleRangeValue::create(CSS::FontStyleRange { CSS::Keyword::Normal { } });
+    case CSSValueID::Italic:
+        return CSSFontStyleRangeValue::create(CSS::FontStyleRange { CSS::Keyword::Italic { } });
+    default:
+        break;
+    }
+    RELEASE_ASSERT(static_cast<CSSValueID>(keyword) == CSSValueID::Oblique && angleCount <= 2);
+    if (!angleCount)
+        return CSSFontStyleRangeValue::create(CSS::FontStyleRange { Oblique { std::nullopt } });
+    auto firstAngle = makeColorSwiftComponent<Oblique::Angle>(angles.at(0));
+    auto secondAngle = angleCount == 2 ? makeColorSwiftComponent<Oblique::Angle>(angles.at(1)) : firstAngle;
+    return CSSFontStyleRangeValue::create(CSS::FontStyleRange { Oblique { Oblique::Angles { WTF::move(firstAngle), WTF::move(secondAngle) } } });
+}
+
+void setFontFeatureValuesPreludeResult(const CSSPropertyConsumerSwiftValue& value, CSSFontSwiftParts&& parts)
+{
+    Vector<AtomString> names = parts.families.map([&](auto& name) {
+        return familyNameForSwift(value, name.start, name.end);
+    });
+    CSSPropertyConsumerSwiftUnresolvedResult::set(value, WTF::move(names));
+}
+#endif
+
 } // namespace WebCore

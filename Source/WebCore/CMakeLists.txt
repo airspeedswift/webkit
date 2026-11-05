@@ -3008,6 +3008,13 @@ if (WEBKIT_PLATFORM_FEATURE_DEFINES_FILE)
     set(_platform_defines_file_dep "${WEBKIT_PLATFORM_FEATURE_DEFINES_FILE}")
 endif ()
 
+# process-css-properties.py defines the forwarders of SWIFT_HAND_WRITTEN_CONSUMERS_4 when the setting is among its
+# defines, as Xcode's FEATURE_AND_PLATFORM_DEFINES has it.
+set(_css_properties_defines)
+if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4)
+    set(_css_properties_defines USE_SWIFT_CSS_PROPERTY_CONSUMERS_4)
+endif ()
+
 # Generate CSS property names
 add_custom_command(
     OUTPUT ${WebCore_DERIVED_SOURCES_DIR}/CSSProperties.json ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyInitialValuesGeneratedInlines.h ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyNames.h ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyNames.cpp ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyNames.gperf ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyParsing.h ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyParsing.cpp ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyParsingSwift.swift ${WebCore_DERIVED_SOURCES_DIR}/StyleBuilderGenerated.cpp ${WebCore_DERIVED_SOURCES_DIR}/StyleChangedAnimatablePropertiesGenerated.cpp ${WebCore_DERIVED_SOURCES_DIR}/StyleComputedStyleProperties.h ${WebCore_DERIVED_SOURCES_DIR}/StyleComputedStyleProperties.cpp ${WebCore_DERIVED_SOURCES_DIR}/StyleComputedStyleProperties+ConstructionInlines.h ${WebCore_DERIVED_SOURCES_DIR}/StyleComputedStyleProperties+GettersInlines.h ${WebCore_DERIVED_SOURCES_DIR}/StyleComputedStyleProperties+InitialInlines.h ${WebCore_DERIVED_SOURCES_DIR}/StyleComputedStyleProperties+SettersInlines.h ${WebCore_DERIVED_SOURCES_DIR}/StyleExtractorGenerated.cpp ${WebCore_DERIVED_SOURCES_DIR}/StyleInterpolationWrapperMap.h ${WebCore_DERIVED_SOURCES_DIR}/StyleInterpolationWrapperMap.cpp ${WebCore_DERIVED_SOURCES_DIR}/StylePropertyShorthandFunctions.h ${WebCore_DERIVED_SOURCES_DIR}/StylePropertyShorthandFunctions.cpp ${WebCore_DERIVED_SOURCES_DIR}/UsedStyleProperties.h ${WebCore_DERIVED_SOURCES_DIR}/UsedStyleProperties.cpp ${WebCore_DERIVED_SOURCES_DIR}/CSSStyleProperties+PropertyNames.idl
@@ -3015,7 +3022,7 @@ add_custom_command(
     DEPENDS ${WebCore_CSS_PROPERTY_NAMES} ${_platform_defines_file_dep}
     WORKING_DIRECTORY ${WebCore_DERIVED_SOURCES_DIR}
     COMMAND ${PERL_EXECUTABLE} -ne "print" ${WebCore_CSS_PROPERTY_NAMES} > ${WebCore_DERIVED_SOURCES_DIR}/CSSProperties.json
-    COMMAND ${PYTHON_EXECUTABLE} ${WEBCORE_DIR}/css/scripts/process-css-properties.py --defines "${FEATURE_DEFINES_WITH_SPACE_SEPARATOR} ${CSS_VALUE_PLATFORM_DEFINES}" ${_platform_defines_file_arg} --gperf-executable "${GPERF_EXECUTABLE}"
+    COMMAND ${PYTHON_EXECUTABLE} ${WEBCORE_DIR}/css/scripts/process-css-properties.py --defines "${FEATURE_DEFINES_WITH_SPACE_SEPARATOR} ${CSS_VALUE_PLATFORM_DEFINES} ${_css_properties_defines}" ${_platform_defines_file_arg} --gperf-executable "${GPERF_EXECUTABLE}"
     VERBATIM)
 list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyNames.cpp)
 list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyParsing.cpp)
@@ -3446,7 +3453,13 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/css/calc/StyleCalculationSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSParserFastPathsSwift.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwift.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftAlignment.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftEffects.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftFonts.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftGrid.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftShapes.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftProperties.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftSmall.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftValues.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
@@ -3543,6 +3556,9 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
     if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3)
         webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_PROPERTY_CONSUMERS_3" "-Xcc -DUSE_SWIFT_CSS_PROPERTY_CONSUMERS_3=1")
         list(APPEND _webcore_swift_core_submodules css/parser/CSSPropertyConsumerSwiftBuilders.h)
+    endif ()
+    if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4)
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_PROPERTY_CONSUMERS_4" "-Xcc -DUSE_SWIFT_CSS_PROPERTY_CONSUMERS_4=1")
     endif ()
     list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 

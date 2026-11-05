@@ -37,6 +37,9 @@
 #include "CSSValuePair.h"
 #include "RenderStyleConstants.h"
 #include "StyleKeyword+Mappings.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#endif
 
 #if ENABLE(SPATIAL_PORTAL)
 #include "CSSPinnedAnchorNameValue.h"
@@ -348,6 +351,7 @@ RefPtr<CSSValue> valueForPositionArea(CSSValueID dim1, CSSValueID dim2, ValueTyp
     return CSSValuePair::create(CSSKeywordValue::create(dim1), CSSKeywordValue::create(dim2));
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumePositionArea(CSSParserTokenRange& range, CSS::PropertyParserState&)
 {
     // <'position-area'> = none | <position-area>
@@ -370,6 +374,14 @@ RefPtr<CSSValue> consumePositionArea(CSSParserTokenRange& range, CSS::PropertyPa
 
     return valueForPositionArea(dim1, dim2, ValueType::Specified);
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+RefPtr<CSSValue> consumePositionArea(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumePropertyWithSwift(range, state, CSSPropertyConsumerSwiftConsumer::PositionArea);
+}
+#endif
 
 RefPtr<CSSValue> consumePinnedAnchorName(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
@@ -397,4 +409,14 @@ RefPtr<CSSValue> consumePinnedAnchorName(CSSParserTokenRange& range, CSS::Proper
 }
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+RefPtr<CSSValue> makePositionAreaValue(uint16_t first, uint32_t second)
+{
+    auto dim1 = static_cast<CSSValueID>(first);
+    if (second == std::numeric_limits<uint32_t>::max())
+        return CSSPropertyParserHelpers::getKeywordType(dim1) ? RefPtr { CSSKeywordValue::create(dim1) } : nullptr;
+    return CSSPropertyParserHelpers::valueForPositionArea(dim1, static_cast<CSSValueID>(second), CSSPropertyParserHelpers::ValueType::Specified);
+}
+#endif
 } // namespace WebCore

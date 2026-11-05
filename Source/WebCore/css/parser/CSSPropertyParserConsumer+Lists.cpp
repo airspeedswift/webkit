@@ -42,6 +42,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static RefPtr<CSSValue> consumeCounter(CSSParserTokenRange& range, CSS::PropertyParserState& state, int defaultValue)
 {
     if (range.peek().id() == CSSValueID::None)
@@ -85,6 +86,7 @@ RefPtr<CSSValue> consumeCounterSet(CSSParserTokenRange& range, CSS::PropertyPars
 
     return consumeCounter(range, state, 0);
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

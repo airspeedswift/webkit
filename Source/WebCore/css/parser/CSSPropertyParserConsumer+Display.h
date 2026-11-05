@@ -42,9 +42,11 @@ namespace CSSPropertyParserHelpers {
 enum class DisplayOutside : uint8_t { NoOutside, Block, Inline };
 enum class DisplayInside  : uint8_t { NoInside, Flow, FlowRoot, Table, Flex, Grid, GridLanes, Ruby };
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: <'display'> consuming
 // https://drafts.csswg.org/css-display/#propdef-display
 RefPtr<CSSValue> consumeDisplay(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

@@ -38,6 +38,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static RefPtr<CSSValue> LEGACY_NODELETE consumeAlignmentBaseline(CSSParserTokenRange& range, CSS::PropertyParserState&)
 {
     ASSERT(range.peek().id() == CSSValueID::Baseline);
@@ -468,6 +469,7 @@ RefPtr<CSSValue> consumeJustifyItems(CSSParserTokenRange& range, CSS::PropertyPa
         return nullptr;
     }
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

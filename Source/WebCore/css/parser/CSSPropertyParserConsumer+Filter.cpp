@@ -50,10 +50,16 @@
 #include "StyleBuilderState.h"
 #include "StyleFilter.h"
 #include <wtf/text/StringView.h>
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSFilterImageValue.h"
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 template<CSSValueID filterFunction> static decltype(auto) consumeNumberOrPercentFilterParameter(CSSParserTokenRange& args, CSS::PropertyParserState& state)
 {
     if constexpr (filterFunctionAllowsValuesGreaterThanOne<filterFunction>()) {
@@ -454,6 +460,12 @@ RefPtr<CSSValue> consumeAppleColorFilter(CSSParserTokenRange& range, CSS::Proper
         return CSSAppleColorFilterValue::create({ WTF::move(*property) });
     return nullptr;
 }
+#else
+std::optional<CSS::Filter> consumeUnresolvedFilter(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::Filter>(range, state, CSSPropertyConsumerSwiftConsumer::UnresolvedFilter);
+}
+#endif
 
 std::optional<Style::Filter> parseFilterValueListOrNoneRaw(StringView string, const CSSParserContext& context, const Document& document, Style::ComputedStyle& style)
 {
@@ -479,4 +491,79 @@ std::optional<Style::Filter> parseFilterValueListOrNoneRaw(StringView string, co
 }
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+// The ranges Swift's filter functions read their arguments in: grayscale(), invert(), opacity() and sepia() clamp
+// above 1 (100%) at parse time, brightness(), contrast() and saturate() do not.
+static_assert(!filterFunctionAllowsValuesGreaterThanOne<CSSValueID::Grayscale>() && !filterFunctionAllowsValuesGreaterThanOne<CSSValueID::Invert>() && !filterFunctionAllowsValuesGreaterThanOne<CSSValueID::Opacity>() && !filterFunctionAllowsValuesGreaterThanOne<CSSValueID::Sepia>() && filterFunctionAllowsValuesGreaterThanOne<CSSValueID::Brightness>() && filterFunctionAllowsValuesGreaterThanOne<CSSValueID::Contrast>() && filterFunctionAllowsValuesGreaterThanOne<CSSValueID::Saturate>());
+static_assert(CSS::Grayscale::Parameter::Number::range == CSS::ClosedUnitRangeClampUpper && CSS::Grayscale::Parameter::Percentage::range == CSS::ClosedPercentageRangeClampUpper && std::same_as<CSS::Invert::Parameter, CSS::Grayscale::Parameter> && std::same_as<CSS::Opacity::Parameter, CSS::Grayscale::Parameter> && std::same_as<CSS::Sepia::Parameter, CSS::Grayscale::Parameter>);
+static_assert(CSS::ClosedUnitRangeClampUpper == CSS::Range { 0, 1, CSS::RangeParseTimeBehavior::Default, CSS::RangeParseTimeBehavior::Clamp } && CSS::ClosedPercentageRangeClampUpper == CSS::Range { 0, 100, CSS::RangeParseTimeBehavior::Default, CSS::RangeParseTimeBehavior::Clamp });
+static_assert(CSS::Brightness::Parameter::Number::range == CSS::Nonnegative && CSS::Brightness::Parameter::Percentage::range == CSS::Nonnegative && std::same_as<CSS::Contrast::Parameter, CSS::Brightness::Parameter> && std::same_as<CSS::Saturate::Parameter, CSS::Brightness::Parameter> && CSS::Blur::Parameter::range == CSS::Nonnegative);
+
+// The filter function F of the argument `component`, or of no argument if it is absent.
+template<typename F> static F makeFilterSwiftFunction(const CSSColorSwiftComponents::Component& component)
+{
+    using Parameter = typename decltype(F::parameters)::Parameter;
+    if (!component.type)
+        return F { .parameters = { } };
+    if constexpr (requires { typename Parameter::Number; typename Parameter::Percentage; })
+        return F { .parameters = { makeColorSwiftComponent<Parameter>(component, brigand::list<typename Parameter::Number, typename Parameter::Percentage> { }) } };
+    else
+        return F { .parameters = { makeColorSwiftComponent<Parameter>(component) } };
+}
+
+void beginFilterValues(const CSSPropertyConsumerSwiftValue& value, bool apple)
+{
+    if (apple)
+        swiftStopsAs<CSS::AppleColorFilterValueList>(value).value.clear();
+    else
+        swiftStopsAs<CSS::FilterValueList>(value).value.clear();
+}
+
+void appendFilterFunction(const CSSPropertyConsumerSwiftValue& value, bool apple, uint16_t function, const CSSColorSwiftComponents& argument)
+{
+    auto id = static_cast<CSSValueID>(function);
+    auto& component = argument.at(0);
+    auto append = [&]<typename... Fs>(auto& list, brigand::list<Fs...>) {
+        ((Fs::name == id && (list.value.append(makeFilterSwiftFunction<Fs>(component)), true)) || ...);
+    };
+    if (!apple) {
+        append(swiftStopsAs<CSS::FilterValueList>(value), brigand::list<CSS::BlurFunction, CSS::BrightnessFunction, CSS::ContrastFunction, CSS::GrayscaleFunction, CSS::HueRotateFunction, CSS::InvertFunction, CSS::OpacityFunction, CSS::SaturateFunction, CSS::SepiaFunction> { });
+        return;
+    }
+    auto& list = swiftStopsAs<CSS::AppleColorFilterValueList>(value);
+    if (id == CSSValueID::AppleInvertLightness)
+        list.value.append(CSS::AppleInvertLightnessFunction { .parameters = { } });
+    else
+        append(list, brigand::list<CSS::BrightnessFunction, CSS::ContrastFunction, CSS::GrayscaleFunction, CSS::HueRotateFunction, CSS::InvertFunction, CSS::OpacityFunction, CSS::SaturateFunction, CSS::SepiaFunction> { });
+}
+
+bool appendFilterURL(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end)
+{
+    auto range = swiftTokenRange(value, start, end);
+    auto url = CSSPropertyParserHelpers::consumeURLRaw(range, propertyParserState(value), { });
+    if (!url)
+        return false;
+    swiftStopsAs<CSS::FilterValueList>(value).value.append(CSS::FilterReference { WTF::move(*url) });
+    return true;
+}
+
+RefPtr<CSSValue> makeFilterValue(const CSSPropertyConsumerSwiftValue& value, uint16_t consumer, CSSValue* image)
+{
+    using Consumer = CSSPropertyConsumerSwiftConsumer;
+    if (static_cast<Consumer>(consumer) == Consumer::AppleColorFilter) {
+        auto& appleColorFilters = swiftStopsAs<CSS::AppleColorFilterValueList>(value);
+        return CSSAppleColorFilterValue::create({ appleColorFilters.value.isEmpty() ? CSS::AppleColorFilter { CSS::Keyword::None { } } : CSS::AppleColorFilter { WTF::move(appleColorFilters) } });
+    }
+    auto& filters = swiftStopsAs<CSS::FilterValueList>(value);
+    auto filter = filters.value.isEmpty() ? CSS::Filter { CSS::Keyword::None { } } : CSS::Filter { WTF::move(filters) };
+    if (image)
+        return CSSFilterImageValue::create(Ref { *image }, WTF::move(filter));
+    if (static_cast<Consumer>(consumer) == Consumer::UnresolvedFilter) {
+        CSSPropertyConsumerSwiftUnresolvedResult::set(value, WTF::move(filter));
+        return nullptr;
+    }
+    return CSSFilterValue::create({ WTF::move(filter) });
+}
+#endif
 } // namespace WebCore

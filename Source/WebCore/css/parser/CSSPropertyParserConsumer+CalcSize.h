@@ -37,9 +37,11 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: <calc-size()> consuming
 // https://drafts.csswg.org/css-values-5/#calc-size
 RefPtr<CSSValue> consumeCalcSize(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

@@ -983,6 +983,20 @@ uint8_t colorContextForSwift(const CSSPropertyConsumerSwiftValue& value)
         | (context.cssAxisRelativePositionKeywordsEnabled ? CSSColorSwiftAxisRelativePositionKeywordsEnabled : 0);
 }
 
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+uint32_t consumerContextForSwift(const CSSPropertyConsumerSwiftValue& value)
+{
+    auto& context = propertyParserState(value).context;
+    return (context.gridLanesEnabled ? CSSConsumerSwiftGridLanesEnabled : 0)
+        | (context.cssRubyDisplayTypesEnabled ? CSSConsumerSwiftRubyDisplayTypesEnabled : 0)
+        | (context.springTimingFunctionEnabled ? CSSConsumerSwiftSpringTimingFunctionEnabled : 0)
+        | (context.cssSymbolsFunctionEnabled ? CSSConsumerSwiftSymbolsFunctionEnabled : 0)
+        | (context.cssCalcSizeFunctionEnabled ? CSSConsumerSwiftCalcSizeFunctionEnabled : 0)
+        | (context.legacyFontFaceAttributeMode ? CSSConsumerSwiftLegacyFontFaceAttributeMode : 0)
+        | (context.cssFontPaletteMixFunctionEnabled ? CSSConsumerSwiftFontPaletteMixFunctionEnabled : 0);
+}
+#endif
+
 template<typename Descriptor, unsigned Index> static auto makeAbsoluteColorSwiftComponent(const CSSColorSwiftComponents& components)
 {
     return makeColorSwiftComponent<CSS::AbsoluteColorComponent<Descriptor, Index>>(components.at(Index), GetCSSColorParseTypeWithCalcComponentTypeList<Descriptor, Index> { });
@@ -1207,6 +1221,9 @@ void appendGradientStop(const CSSPropertyConsumerSwiftValue& value, const CSSCol
 {
     WTF::switchOn(gradientSwiftStops(value).stops,
         [](std::monostate) { RELEASE_ASSERT_NOT_REACHED(); },
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+        [](auto&) { RELEASE_ASSERT_NOT_REACHED(); },
+#endif
         [&](CSSGradientSwiftStops::Stops<CSS::GradientDeprecatedColorStop>& stops) {
             appendSwiftColor(value, color, channels, [&](auto&& stopColor) {
                 stops.constructAndAppend(CSS::Color { WTF::move(stopColor) }, makeColorSwiftComponent<CSS::GradientDeprecatedColorStopPosition>(positions.at(0), brigand::list<CSS::Number<>, CSS::Percentage<>> { }));
@@ -1255,6 +1272,20 @@ void CSSImageSwiftParts::appendColor(const CSSPropertyConsumerSwiftValue& value,
         appendSwiftColor(value, color, channels, [&](auto&& stopColor) { colors.append(Markable<CSS::Color> { std::in_place, WTF::move(stopColor) }); });
     positions.append(components.at(0));
 }
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+void appendDropShadowFilter(const CSSPropertyConsumerSwiftValue& value, const CSSColorSwiftStopColor& color, const CSSColorSwiftComponents& channels, const CSSColorSwiftComponents& lengths)
+{
+    Markable<CSS::Color> shadowColor;
+    if (color.kind != CSSColorSwiftNoColor)
+        appendSwiftColor(value, color, channels, [&](auto&& stopColor) { shadowColor = Markable<CSS::Color> { std::in_place, WTF::move(stopColor) }; });
+    swiftStopsAs<CSS::FilterValueList>(value).value.append(CSS::DropShadowFunction { .parameters = {
+        .color = WTF::move(shadowColor),
+        .location = { makeColorSwiftComponent<CSS::Length<>>(lengths.at(0)), makeColorSwiftComponent<CSS::Length<>>(lengths.at(1)) },
+        .stdDeviation = optionalSwiftComponent<CSS::Length<CSS::Nonnegative>>(lengths.at(2))
+    } });
+}
+#endif
 
 template<typename Stops> CSS::GradientColorInterpolationMethod CSSImageSwiftParts::gradientColorInterpolationMethod(const Stops& stops) const
 {
@@ -1362,6 +1393,7 @@ RefPtr<CSSValue> makeImageURLValue(const CSSPropertyConsumerSwiftValue& value, u
     return CSSImageValue::create(WTF::move(*url));
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> makeFilterImageValue(const CSSPropertyConsumerSwiftValue& value, CSSValue& image, uint32_t start, uint32_t end)
 {
     auto range = swiftTokenRange(value, start, end);
@@ -1370,6 +1402,7 @@ RefPtr<CSSValue> makeFilterImageValue(const CSSPropertyConsumerSwiftValue& value
         return nullptr;
     return CSSFilterImageValue::create(Ref { image }, WTF::move(*filter));
 }
+#endif
 
 RefPtr<CSSValue> makeNamedImageValue(const CSSPropertyConsumerSwiftValue& value, uint16_t function, uint32_t name, uint32_t argumentsStart, uint32_t argumentsEnd)
 {
@@ -1456,6 +1489,7 @@ uint32_t setBorderResult(const CSSPropertyConsumerSwiftValue& value, uint16_t co
     case Consumer::WebkitBoxReflect: {
         if (positions.isEmpty())
             return set(CSS::WebkitBoxReflect { CSS::Keyword::None { } });
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
         std::optional<CSS::WebkitBoxReflection::Mask> mask;
         size_t consumed = 0;
         if (maskStart != std::numeric_limits<uint32_t>::max()) {
@@ -1466,6 +1500,14 @@ uint32_t setBorderResult(const CSSPropertyConsumerSwiftValue& value, uint16_t co
                 return std::numeric_limits<uint32_t>::max();
             consumed -= range.size();
         }
+#else
+        // The mask, if any, follows the direction and the offset, laid out as makeMaskBorderSwift reads it.
+        std::optional<CSS::WebkitBoxReflection::Mask> mask;
+        if (positions.size() > 2)
+            mask = makeMaskBorderSwift(parts, 2);
+        size_t consumed = 0;
+        UNUSED_PARAM(maskStart);
+#endif
         set(CSS::WebkitBoxReflect { CSS::WebkitBoxReflection {
             .direction = makeColorSwiftComponent<CSS::WebkitBoxReflection::Direction>(positions[0]),
             .offset = optionalSwiftComponent<CSS::WebkitBoxReflection::Offset>(positions[1]).value_or(CSS::WebkitBoxReflection::Offset { 0_css_px }),

@@ -38,9 +38,11 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: <'text-shadow'> consuming
 // https://drafts.csswg.org/css-text-decor-3/#propdef-text-shadow
 RefPtr<CSSValue> consumeTextShadow(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

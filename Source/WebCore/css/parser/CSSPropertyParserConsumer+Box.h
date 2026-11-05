@@ -38,9 +38,11 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: <'margin-trim'> consuming
 // https://drafts.csswg.org/css-box/#margin-trim
 RefPtr<CSSValue> consumeMarginTrim(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

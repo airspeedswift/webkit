@@ -28,6 +28,7 @@ import argparse
 import collections
 import enum
 import functools
+import io
 import itertools
 import json
 import os
@@ -3233,9 +3234,10 @@ class ParsingContext:
 # MARK: - Code Generation
 
 class GenerationContext:
-    def __init__(self, properties_and_descriptors, shared_grammar_rules, *, verbose, gperf_executable):
+    def __init__(self, properties_and_descriptors, shared_grammar_rules, *, conditionals, verbose, gperf_executable):
         self.properties_and_descriptors = properties_and_descriptors
         self.shared_grammar_rules = shared_grammar_rules
+        self.conditionals = conditionals
         self.verbose = verbose
         self.gperf_executable = gperf_executable
 
@@ -5576,7 +5578,7 @@ class GenerateCSSPropertyParsing:
             if isinstance(consumer, GeneratedSharedGrammarRuleConsumer):
                 by_name[shared_grammar_rule.name].append((consumer, f"consume{shared_grammar_rule.name_for_methods.id_without_prefix}", shared_grammar_rule.grammar.root_term, None))
         result = []
-        for consumer_list in SWIFT_CONSUMER_LISTS:
+        for consumer_list in self.swift_consumer_lists:
             list_name, define = consumer_list.name, consumer_list.define
             for name in consumer_list.consumers:
                 if len(by_name[name]) != 1:
@@ -5598,6 +5600,14 @@ class GenerateCSSPropertyParsing:
                 consumer.swift_define = define
                 result.append((consumer.swift_consumer_id, name, swift, define))
         return result
+
+    # The lists of consumers forwarded to Swift: SWIFT_CONSUMER_LISTS, and SWIFT_GENERATED_CONSUMERS_4 when its define
+    # is among the defines.
+    @property
+    def swift_consumer_lists(self):
+        if SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE in self.generation_context.conditionals:
+            return SWIFT_CONSUMER_LISTS + [SWIFT_CONSUMER_LIST_4]
+        return SWIFT_CONSUMER_LISTS
 
     def generate_css_property_parsing_swift(self):
         with open('CSSPropertyParsingSwift.swift', 'w') as output_file:
@@ -5626,7 +5636,7 @@ class GenerateCSSPropertyParsing:
                 writer.write(f"mutating func consumeGenerated(_ consumer: UInt16, _ calc: PropertyCalc) -> PropertyValue? {{")
                 with writer.indent():
                     writer.write(f"switch consumer {{")
-                    for list_index, consumer_list in enumerate(SWIFT_CONSUMER_LISTS):
+                    for list_index, consumer_list in enumerate(self.swift_consumer_lists):
                         define = consumer_list.define
                         if list_index:
                             writer.write(f"#if {define}")
@@ -5653,7 +5663,7 @@ class GenerateCSSPropertyParsing:
                 writer.write(f"}}")
                 writer.newline()
                 writer.write(f"#endif")
-                for list_index, consumer_list in enumerate(SWIFT_CONSUMER_LISTS):
+                for list_index, consumer_list in enumerate(self.swift_consumer_lists):
                     define = consumer_list.define
                     if list_index:
                         writer.write(f"#if {define}")
@@ -5766,11 +5776,17 @@ class GenerateCSSPropertyParsing:
                 ]
             )
 
+            forwarders = SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE in self.generation_context.conditionals
+            if forwarders:
+                writer.write_lines([f"#if {SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE}", "#include \"CSSPropertyConsumerSwiftBuilders.h\"", "#endif"]).newline()
+            writer = Writer(io.StringIO())
+
             with self.generation_context.namespace("WebCore", to=writer):
                 self.generation_context.generate_using_namespace_declarations(
                     to=writer,
                     namespaces=["CSSPropertyParserHelpers"]
                 )
+                forwarders_offset = writer.output.tell()
 
                 self._generate_css_property_parsing_cpp_property_parsing_functions(
                     to=writer
@@ -5799,6 +5815,31 @@ class GenerateCSSPropertyParsing:
                         parsing_collection=parsing_collection,
                         keyword_fast_path_eligible_property_consumers=keyword_fast_path_eligible_property_consumers
                     )
+
+            text = writer.output.getvalue()
+            output_file.write(text[:forwarders_offset])
+            if forwarders:
+                self._generate_css_property_parsing_cpp_swift_forwarders(to=Writer(output_file), calls=text[forwarders_offset:])
+            output_file.write(text[forwarders_offset:])
+
+    # Defines, before their first call, the SWIFT_HAND_WRITTEN_CONSUMERS_4 forwarders that `calls` (the rest of the file) calls.
+    def _generate_css_property_parsing_cpp_swift_forwarders(self, *, to, calls):
+        to.write(f"#if {SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE}")
+        with self.generation_context.namespace("CSSPropertyParserHelpers", to=to):
+            for name in sorted(SWIFT_HAND_WRITTEN_KEYWORD_CONSUMERS_4 + SWIFT_HAND_WRITTEN_CONSUMERS_4):
+                if not re.search(rf"\bconsume{name}\(", calls):
+                    continue
+                consumer = f"CSSPropertyConsumerSwiftConsumer::{name}"
+                if name in SWIFT_HAND_WRITTEN_KEYWORD_CONSUMERS_4:
+                    consumer = f"std::to_underlying({consumer})"
+                to.write(f"static RefPtr<CSSValue> consume{name}(CSSParserTokenRange& range, CSS::PropertyParserState& state)")
+                to.write(f"{{")
+                with to.indent():
+                    to.write(f"return consumePropertyWithSwift(range, state, {consumer});")
+                to.write(f"}}")
+                to.newline()
+        to.write(f"#endif")
+        to.newline()
 
     # MARK: - Helper generator functions for CSSPropertyParsing.h
 
@@ -10507,6 +10548,29 @@ SWIFT_CONSUMER_LISTS = [
         keyword_values_by_id=True, stateless_entry=True),
 ]
 
+# The hand-written consumers that are Swift with USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 and that only generated consumers
+# call, by the `CSSPropertyConsumerSwiftConsumer` each forwards to. When the setting is among the defines,
+# CSSPropertyParsing.cpp defines `consume<Name>` for each one it calls. The keyword-only ones take the entry that makes
+# neither a gradient nor a CSS:: value.
+SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE = 'USE_SWIFT_CSS_PROPERTY_CONSUMERS_4'
+SWIFT_HAND_WRITTEN_KEYWORD_CONSUMERS_4 = [
+    'AlignContent', 'AlignItems', 'AlignSelf', 'Display', 'JustifyContent', 'JustifyItems', 'JustifySelf', 'LineFitEdge',
+    'MarginTrim',
+]
+SWIFT_HAND_WRITTEN_CONSUMERS_4 = [
+    'AppleColorFilter', 'CalcSize', 'Clip', 'ClipPath', 'Content', 'CounterIncrement', 'CounterReset', 'CounterSet',
+    'CounterStyle', 'CounterStyleAdditiveSymbols', 'CounterStyleName', 'CounterStyleRange', 'CounterStyleSystem',
+    'FamilyName', 'Filter', 'FontFamily', 'FontPalette', 'FontSizeAdjust', 'FontStyle', 'GridAutoFlow',
+    'GridLine', 'GridTemplateAreas', 'KeyframesName', 'MaskBorderOutset', 'MaskBorderRepeat', 'MaskBorderSource',
+    'MaskBorderWidth', 'OffsetPath', 'OverflowClipMargin', 'Path', 'Quotes', 'ShapeOutside', 'TextShadow',
+]
+
+# The consumers forwarded to Swift with USE_SWIFT_CSS_PROPERTY_CONSUMERS_4, named as in SWIFT_GENERATED_CONSUMERS_2,
+# when the setting is among the defines.
+SWIFT_GENERATED_CONSUMERS_4 = ['font-feature-settings', 'font-variation-settings', '@font-face/font-feature-settings']
+SWIFT_CONSUMER_LIST_4 = SwiftConsumerList('SWIFT_GENERATED_CONSUMERS_4', SWIFT_GENERATED_CONSUMERS_4,
+    SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE, keyword_values_by_id=True, stateless_entry=False)
+
 # Override functions (`grammar-function` in CSSProperties.json) that are `PropertyParser` methods, and the function
 # name each consumes, if it consumes a function.
 SWIFT_OVERRIDE_FUNCTIONS = {
@@ -10517,11 +10581,13 @@ SWIFT_OVERRIDE_FUNCTIONS = {
     'consumeSingleAnimationRangeEnd': ('singleAnimationRangeEnd', None),
 }
 
-# References to hand-written consumers (`consume<Name>`, with no grammar of their own) that are `PropertyParser`
-# methods, by reference name.
+# References to hand-written consumers (`consume<Name>`, with no grammar of their own) and builtins that are
+# `PropertyParser` methods, by reference name.
 SWIFT_REFERENCE_FUNCTIONS = {
     'single-background-size': 'singleBackgroundSize',
     'single-mask-size': 'singleMaskSize',
+    'feature-tag-value': 'featureTagValue',
+    'variation-tag-value': 'variationTagValue',
 }
 
 # The most arguments `PropertyParser.makeFunction` takes as separate values.
@@ -10718,7 +10784,7 @@ class SwiftConsumerGenerator:
                 raise SwiftGenerationUnsupported(f"override function '{term.override_function}'")
             self.reads_state = True
             return self._add(name, str(term), [f'{SWIFT_OVERRIDE_FUNCTIONS[term.override_function][0]}{self.calc_arguments}'])
-        if not term.is_builtin:
+        if not term.is_builtin or term.name.name in SWIFT_REFERENCE_FUNCTIONS:
             if term.name.name not in SWIFT_REFERENCE_FUNCTIONS:
                 raise SwiftGenerationUnsupported(f"reference '{term}'")
             self.reads_state = True
@@ -12812,7 +12878,7 @@ def main():
                 print(str(property).rjust(40, " ") + "  " + str(property.codegen_properties.parser_grammar_unused.root_term))
                 print("           ".rjust(40, " ") + "  " + str(property.codegen_properties.parser_grammar_unused_reason))
 
-    generation_context = GenerationContext(parsing_context.parsed_properties_and_descriptors, parsing_context.parsed_shared_grammar_rules, verbose=args.verbose, gperf_executable=args.gperf_executable)
+    generation_context = GenerationContext(parsing_context.parsed_properties_and_descriptors, parsing_context.parsed_shared_grammar_rules, conditionals=parsing_context.conditionals, verbose=args.verbose, gperf_executable=args.gperf_executable)
 
     generators = [
         GenerateCSSPropertyInitialValues,

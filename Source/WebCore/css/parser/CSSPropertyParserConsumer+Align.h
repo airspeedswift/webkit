@@ -38,6 +38,7 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: <'align-content'>
 // https://drafts.csswg.org/css-align/#propdef-align-content
 RefPtr<CSSValue> consumeAlignContent(CSSParserTokenRange&, CSS::PropertyParserState&);
@@ -61,6 +62,7 @@ RefPtr<CSSValue> consumeAlignItems(CSSParserTokenRange&, CSS::PropertyParserStat
 // MARK: <'justify-items'>
 // https://drafts.csswg.org/css-align/#propdef-justify-items
 RefPtr<CSSValue> consumeJustifyItems(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

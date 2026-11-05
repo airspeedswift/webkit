@@ -47,6 +47,10 @@
 #include "CSSValuePair.h"
 #include "CSSValuePool.h"
 #include "StylePrimitiveNumericTypes+DeprecatedCSSValueConversion.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
@@ -58,6 +62,7 @@ bool isPredefinedCounterStyle(CSSValueID valueID)
     return valueID >= CSSValueID::Disc && valueID <= CSSValueID::EthiopicNumeric;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // <symbols-type> = cyclic | numeric | alphabetic | symbolic | fixed
 // https://drafts.csswg.org/css-counter-styles-3/#typedef-symbols-type
 static std::optional<CSS::SymbolsType> consumeUnresolvedSymbolsType(CSSParserTokenRange& range)
@@ -140,6 +145,7 @@ RefPtr<CSSValue> consumeCounterStyle(CSSParserTokenRange& range, CSS::PropertyPa
 
     return consumeCustomIdentExcluding(range, state, { CSSValueID::None });
 }
+#endif
 
 AtomString consumeCounterStyleNameInPrelude(CSSParserTokenRange& prelude, CSSParserMode mode)
 {
@@ -162,6 +168,7 @@ AtomString consumeCounterStyleNameInPrelude(CSSParserTokenRange& prelude, CSSPar
     return isPredefinedCounterStyle(nameToken.id()) ? name.convertToASCIILowercaseAtom() : name.toAtomString();
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeCounterStyleName(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <counter-style-name> is a <custom-ident> that is not an ASCII case-insensitive match for "none".
@@ -300,6 +307,81 @@ RefPtr<CSSValue> consumeCounterStyleAdditiveSymbols(CSSParserTokenRange& range, 
         return nullptr;
     return values;
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+Ref<CSSValue> makeCounterStyleNameValue(const CSSPropertyConsumerSwiftValue& value, uint32_t index)
+{
+    auto& token = swiftTokenRange(value, index, index + 1).peek();
+    if (CSSPropertyParserHelpers::isPredefinedCounterStyle(token.id()))
+        return CSSKeywordValue::create(token.id());
+    return CSSCustomIdentValue::create(CSS::CustomIdent { token.value().toAtomString() });
+}
+
+static std::optional<CSS::SymbolsFunction> makeSymbolsFunction(const CSSPropertyConsumerSwiftValue& value, uint32_t system, uint32_t start, uint32_t end)
+{
+    std::optional<CSS::SymbolsType> type;
+    if (system != std::numeric_limits<uint32_t>::max()) {
+        auto range = swiftTokenRange(value, system, system + 1);
+        type = CSSPropertyParserHelpers::consumeSpecificUnresolvedIdent<CSS::SymbolsType>(range);
+        if (!type)
+            return std::nullopt;
+        // `symbolic` is the default system, and is omitted from the serialization.
+        if (std::holds_alternative<CSS::Keyword::Symbolic>(*type))
+            type = std::nullopt;
+    }
+    Vector<CSS::String> symbols;
+    for (auto& token : swiftTokenRange(value, start, end).span()) {
+        if (token.type() == StringToken)
+            symbols.append(CSS::String { token.value().toString() });
+    }
+    return CSS::SymbolsFunction { type, WTF::move(symbols) };
+}
+
+RefPtr<CSSValue> makeSymbolsFunctionValue(const CSSPropertyConsumerSwiftValue& value, uint32_t system, uint32_t start, uint32_t end)
+{
+    if (auto function = makeSymbolsFunction(value, system, start, end))
+        return CSSSymbolsFunctionValue::create(WTF::move(*function));
+    return nullptr;
+}
+
+std::optional<CSS::CounterStyle> makeCounterStyleForSwift(const CSSPropertyConsumerSwiftValue& value, uint32_t style, uint32_t system, uint32_t start, uint32_t end)
+{
+    if (style == std::numeric_limits<uint32_t>::max())
+        return CSS::CounterStyle { CSS::Keyword { CSSValueID::Decimal } };
+    auto& token = swiftTokenRange(value, style, style + 1).peek();
+    if (token.type() == FunctionToken) {
+        if (auto function = makeSymbolsFunction(value, system, start, end))
+            return CSS::CounterStyle { WTF::move(*function) };
+        return std::nullopt;
+    }
+    if (CSSPropertyParserHelpers::isPredefinedCounterStyle(token.id()))
+        return CSS::CounterStyle { CSS::Keyword { token.id() } };
+    return CSS::CounterStyle { CSS::CustomIdent { token.value().toAtomString() } };
+}
+
+int counterStyleIntegerForSwift(CSSValue& integer, bool nonnegative)
+{
+    // Never empty: the conversion has no integer only for a unit that no integer consumer makes.
+    auto& primitive = downcast<CSSPrimitiveValue>(integer);
+    if (nonnegative) {
+        auto converted = Style::deprecatedToStyleFromCSSValue<Style::Integer<CSS::Nonnegative>>(primitive);
+        RELEASE_ASSERT(converted);
+        return converted->value;
+    }
+    auto converted = Style::deprecatedToStyleFromCSSValue<Style::Integer<>>(primitive);
+    RELEASE_ASSERT(converted);
+    return converted->value;
+}
+
+RefPtr<CSSValue> consumeCounterStyleSymbolForSwift(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end, uint32_t& next)
+{
+    auto range = swiftTokenRange(value, start, end);
+    auto symbol = CSSPropertyParsing::consumeSymbol(range, propertyParserState(value));
+    next = end - range.size();
+    return symbol;
+}
+#endif
 } // namespace WebCore

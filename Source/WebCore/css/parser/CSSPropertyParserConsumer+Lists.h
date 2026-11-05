@@ -38,9 +38,11 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeCounterReset(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeCounterIncrement(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeCounterSet(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

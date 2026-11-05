@@ -49,9 +49,11 @@ Vector<std::pair<CSSValueID, CSS::Percentage<>>> consumeKeyframeKeyList(CSSParse
 // https://drafts.csswg.org/css-animations-1/#typedef-keyframe-selector
 WEBCORE_EXPORT Vector<std::pair<CSSValueID, CSS::Percentage<>>> parseKeyframeKeyList(StringView, const CSSParserContext&);
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: <keyframes-name> consuming
 // https://drafts.csswg.org/css-animations/#typedef-keyframes-name
 RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

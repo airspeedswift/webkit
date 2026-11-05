@@ -38,6 +38,7 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 enum class BasicShapeParsingOptions : uint8_t {
     None                       = 0,
     RejectPathFunctionFillRule = 1 << 0,
@@ -48,11 +49,13 @@ enum class BasicShapeParsingOptions : uint8_t {
 // <basic-shape> = <circle()> | <ellipse() | <inset()> | <path()> | <polygon()> | <rect()> | <shape()> | <xywh()>
 // https://drafts.csswg.org/css-shapes/#typedef-basic-shape
 RefPtr<CSSValue> consumeBasicShape(CSSParserTokenRange&, CSS::PropertyParserState&, OptionSet<BasicShapeParsingOptions>);
+#endif
 
 // <basic-shape-rect> = <inset()> | <rect()> | <xywh()>
 // https://drafts.csswg.org/css-shapes-1/#typedef-basic-shape-rect
 RefPtr<CSSValue> consumeBasicShapeRect(CSSParserTokenRange&, CSS::PropertyParserState&);
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // <path()> = path( <'fill-rule'>? , <string> )
 // https://drafts.csswg.org/css-shapes/#funcdef-basic-shape-path
 RefPtr<CSSValue> consumePath(CSSParserTokenRange&, CSS::PropertyParserState&);
@@ -60,6 +63,7 @@ RefPtr<CSSValue> consumePath(CSSParserTokenRange&, CSS::PropertyParserState&);
 // <'shape-outside'> = none | [ <basic-shape> || <shape-box> ] | <image>
 // https://drafts.csswg.org/css-shapes/#propdef-shape-outside
 RefPtr<CSSValue> consumeShapeOutside(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 
 } // namespace CSSPropertyParserHelpers

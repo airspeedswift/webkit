@@ -46,17 +46,30 @@ namespace CSSPropertyParserHelpers {
 bool LEGACY_NODELETE isPredefinedCounterStyle(CSSValueID);
 
 // MARK: <counter-style> consumer
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 std::optional<CSS::CounterStyle> consumeUnresolvedCounterStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeCounterStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // MARK: @counter-style consumer
 AtomString consumeCounterStyleNameInPrelude(CSSParserTokenRange&, CSSParserMode = CSSParserMode::HTMLStandardMode);
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // MARK: @counter-style descriptor consumers
 RefPtr<CSSValue> consumeCounterStyleName(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeCounterStyleSystem(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeCounterStyleRange(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeCounterStyleAdditiveSymbols(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+struct CSSPropertyConsumerSwiftValue;
+
+// The counter style of a counter() or counters() Swift consumed: decimal if `style` is UINT32_MAX, else the identifier
+// or the symbols() at the token `style`, with the <symbols-type> at the token `system` (none for UINT32_MAX) and the
+// strings among the tokens [start, end); none if that is not a <symbols-type>.
+std::optional<CSS::CounterStyle> makeCounterStyleForSwift(const CSSPropertyConsumerSwiftValue&, uint32_t style, uint32_t system, uint32_t start, uint32_t end);
+#endif
 } // namespace WebCore

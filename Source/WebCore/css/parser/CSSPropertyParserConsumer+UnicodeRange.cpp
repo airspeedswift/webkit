@@ -34,10 +34,14 @@
 #include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringParsingBuffer.h>
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftTypes.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static bool LEGACY_NODELETE consumeOptionalDelimiter(CSSParserTokenRange& range, char16_t value)
 {
     if (!(range.peek().type() == DelimiterToken && range.peek().delimiter() == value))
@@ -160,6 +164,20 @@ RefPtr<CSSValue> consumeUnicodeRangeToken(CSSParserTokenRange& range)
     range = rangeCopy;
     return CSSUnicodeRangeValue::create(unicodeRange->start, unicodeRange->end);
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+// The largest code point of a unicode-range Swift consumes.
+static_assert(UCHAR_MAX_VALUE == 0x10FFFF);
+
+RefPtr<CSSValue> consumeUnicodeRangeToken(CSSParserTokenRange& range)
+{
+    auto unicodeRange = consumeUnicodeRangeWithSwift(range);
+    if (!unicodeRange.ok)
+        return nullptr;
+    return CSSUnicodeRangeValue::create(unicodeRange.start, unicodeRange.end);
+}
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

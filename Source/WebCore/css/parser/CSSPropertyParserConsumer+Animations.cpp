@@ -39,10 +39,15 @@
 #include "CSSPropertyParserConsumer+Timeline.h"
 #include "CSSPropertyParserState.h"
 #include "CSSStringValue.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 Vector<std::pair<CSSValueID, CSS::Percentage<>>> consumeKeyframeKeyList(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <keyframe-selector> = from | to | <percentage [0,100]> | <timeline-range-name> <percentage>
@@ -86,6 +91,18 @@ Vector<std::pair<CSSValueID, CSS::Percentage<>>> consumeKeyframeKeyList(CSSParse
             return { }; // Parser error
     }
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+// A <percentage> key without a timeline range name is a CSS::Percentage<CSS::ClosedPercentageRange>.
+static_assert(CSS::ClosedPercentageRange == CSS::Range { 0, 100 });
+
+Vector<std::pair<CSSValueID, CSS::Percentage<>>> consumeKeyframeKeyList(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    using KeyList = Vector<std::pair<CSSValueID, CSS::Percentage<>>>;
+    return consumeUnresolvedWithSwift<KeyList>(range, state, CSSPropertyConsumerSwiftConsumer::KeyframeKeyList).value_or(KeyList { });
+}
+#endif
 
 Vector<std::pair<CSSValueID, CSS::Percentage<>>> parseKeyframeKeyList(StringView string, const CSSParserContext& context)
 {
@@ -107,6 +124,7 @@ Vector<std::pair<CSSValueID, CSS::Percentage<>>> parseKeyframeKeyList(StringView
     return result;
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <keyframes-name> = <custom-ident> | <string>
@@ -126,6 +144,36 @@ RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange& range, CSS::PropertyP
 
     return consumeCustomIdent(range, state);
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+bool isTimelineRangeNameForSwift(uint16_t id)
+{
+    return CSSPropertyParserHelpers::isTimelineRangeName(static_cast<CSSValueID>(id));
+}
+
+void setKeyframeKeyListResult(const CSSPropertyConsumerSwiftValue& value, CSSImageSwiftParts&& parts)
+{
+    auto& positions = parts.positions;
+    Vector<std::pair<CSSValueID, CSS::Percentage<>>> result;
+    for (size_t i = 0; i < positions.size() / 2; ++i)
+        result.append({ static_cast<CSSValueID>(positions[2 * i].symbol), makeColorSwiftComponent<CSS::Percentage<>>(positions[2 * i + 1]) });
+    result.shrinkToFit();
+    CSSPropertyConsumerSwiftUnresolvedResult::set(value, WTF::move(result));
+}
+
+RefPtr<CSSValue> makeKeyframesNameValue(const CSSPropertyConsumerSwiftValue& value, uint32_t index)
+{
+    auto range = swiftTokenRange(value, index, index + 1);
+    auto& token = range.peek();
+    if (token.value().isEmpty())
+        return nullptr;
+    auto valueId = cssValueKeywordID(token.value());
+    if (isValidCustomIdentifier(valueId) && valueId != CSSValueID::None)
+        return CSSCustomIdentValue::create(CSS::CustomIdent { token.value().toAtomString() });
+    return CSSStringValue::create(CSS::String { token.value().toString() });
+}
+#endif
 } // namespace WebCore
