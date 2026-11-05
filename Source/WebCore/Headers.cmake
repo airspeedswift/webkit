@@ -2487,6 +2487,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/audio/PushPullFIFO.h
     platform/audio/RealtimeAudioThread.h
     platform/audio/SharedAudioDestination.h
+    platform/audio/WebAudioKernelTypes.h
 
     platform/encryptedmedia/CDMEncryptionScheme.h
     platform/encryptedmedia/CDMFactory.h

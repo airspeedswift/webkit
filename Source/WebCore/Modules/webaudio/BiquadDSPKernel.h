@@ -38,14 +38,23 @@ class BiquadProcessor;
 class BiquadDSPKernel final : public AudioDSPKernel {
     WTF_MAKE_TZONE_ALLOCATED(BiquadDSPKernel);
 public:
+#if USE_SWIFT_WEBAUDIO_KERNELS
+    explicit BiquadDSPKernel(BiquadProcessor*);
+    ~BiquadDSPKernel();
+#else
     explicit BiquadDSPKernel(BiquadProcessor* processor)
     : AudioDSPKernel(processor)
     {
     }
+#endif
     
     // AudioDSPKernel
     void process(std::span<const float> source, std::span<float> destination) final;
+#if USE_SWIFT_WEBAUDIO_KERNELS
+    void reset() override;
+#else
     void reset() override { m_biquad.reset(); }
+#endif
 
     // Get the magnitude and phase response of the filter at the given
     // set of frequencies (in Hz). The phase response is in radians.
@@ -59,7 +68,12 @@ public:
     bool NODELETE requiresTailProcessing() const final;
 
 private:
+#if USE_SWIFT_WEBAUDIO_KERNELS
+    struct SwiftState;
+    std::unique_ptr<SwiftState> m_swift;
+#else
     Biquad m_biquad;
+#endif
     BiquadProcessor* biquadProcessor() { return downcast<BiquadProcessor>(processor()); }
 
     // To prevent audio glitches when parameters are changed,
@@ -70,9 +84,11 @@ private:
     // if they are not dirty. (Used when computing the frequency
     // response.)
     void updateCoefficientsIfNecessary(size_t framesToProcess);
+#if !USE_SWIFT_WEBAUDIO_KERNELS
     void updateTailTime(size_t coefIndex);
 
     double m_tailTime { std::numeric_limits<double>::infinity() };
+#endif
 };
 
 } // namespace WebCore

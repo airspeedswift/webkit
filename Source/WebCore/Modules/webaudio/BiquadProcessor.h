@@ -38,7 +38,7 @@ namespace WebCore {
 
 // BiquadProcessor is an AudioDSPKernelProcessor which uses Biquad objects to implement several common filters.
 
-class BiquadProcessor final : public AudioDSPKernelProcessor {
+class WEBCORE_EXPORT BiquadProcessor final : public AudioDSPKernelProcessor {
     WTF_MAKE_TZONE_ALLOCATED(BiquadProcessor);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(BiquadProcessor);
 public:

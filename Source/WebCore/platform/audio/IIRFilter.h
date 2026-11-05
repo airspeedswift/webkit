@@ -25,15 +25,19 @@
 
 #pragma once
 
+#include "AudioDSPKernel.h"
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
 namespace WebCore {
 
 class IIRFilter {
+#if !USE_SWIFT_WEBAUDIO_KERNELS
     WTF_MAKE_TZONE_ALLOCATED(IIRFilter);
+#endif
 public:
     static constexpr size_t maxOrder { 20 };
+#if !USE_SWIFT_WEBAUDIO_KERNELS
     IIRFilter(const Vector<double>& feedforward, const Vector<double>& feedback);
 
     void reset();
@@ -72,6 +76,7 @@ private:
     // of these vectors in each IIRDSPKernel / IIRFilter.
     const Vector<double>& m_feedforward;
     const Vector<double>& m_feedback;
+#endif // !USE_SWIFT_WEBAUDIO_KERNELS
 };
 
 } // namespace WebCore

@@ -29,9 +29,61 @@
 #include "IIRDSPKernel.h"
 #include <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_WEBAUDIO_KERNELS
+#include "AudioUtilities.h"
+#include "IIRFilter.h"
+#include "WebCore-Swift.h"
+#endif
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(IIRDSPKernel);
+
+#if USE_SWIFT_WEBAUDIO_KERNELS
+
+// The Swift ring buffers have 32 entries and its tail time runs render quanta of 128 frames.
+static_assert(IIRFilter::maxOrder < 32);
+static_assert(AudioUtilities::renderQuantumSize == 128);
+
+struct IIRDSPKernel::SwiftState {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(SwiftState);
+public:
+    explicit SwiftState(IIRKernel&& kernel) : kernel(std::move(kernel)) { }
+    IIRKernel kernel;
+};
+
+IIRDSPKernel::IIRDSPKernel(IIRProcessor& processor)
+    : AudioDSPKernel(&processor)
+    , m_swift(makeUnique<SwiftState>(makeIIRKernel(processor.feedforward().span(), processor.feedback().span(), processor.sampleRate(), processor.isFilterStable())))
+{
+}
+
+IIRDSPKernel::~IIRDSPKernel() = default;
+
+void IIRDSPKernel::getFrequencyResponse(std::span<const float> frequencyHz, std::span<float> magResponse, std::span<float> phaseResponse)
+{
+    iirFrequencyResponse(m_swift->kernel, frequencyHz, magResponse, phaseResponse, nyquist());
+}
+
+void IIRDSPKernel::process(std::span<const float> source, std::span<float> destination)
+{
+    if (source.data() == destination.data())
+        iirProcessInPlace(m_swift->kernel, destination.first(source.size()));
+    else
+        iirProcess(m_swift->kernel, source, destination);
+}
+
+void IIRDSPKernel::reset()
+{
+    iirReset(m_swift->kernel);
+}
+
+double IIRDSPKernel::tailTime() const
+{
+    return iirTailTime(m_swift->kernel);
+}
+
+#else
 
 IIRDSPKernel::IIRDSPKernel(IIRProcessor& processor)
     : AudioDSPKernel(&processor)
@@ -61,6 +113,8 @@ void IIRDSPKernel::reset()
 {
     m_iirFilter.reset();
 }
+
+#endif // USE_SWIFT_WEBAUDIO_KERNELS
 
 bool IIRDSPKernel::requiresTailProcessing() const
 {

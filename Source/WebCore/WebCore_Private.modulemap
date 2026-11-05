@@ -4,6 +4,11 @@ framework module WebCore_Private [system] {
         export *
     }
 
+    explicit module WebAudioKernelTypes {
+        header "WebAudioKernelTypes.h"
+        export *
+    }
+
     module Core {
         // Workaround for rdar://173516139: PrivateHeaders includes a header
         // "WorkAround173516139.h" that the build system regenerates whenever
@@ -11,6 +16,8 @@ framework module WebCore_Private [system] {
         umbrella "PrivateHeaders"
 
         requires cplusplus
+
+        exclude header "WebAudioKernelTypes.h"
 
         // These headers are also present in WebKitLegacy's PrivateHeaders. When
         // <Foundation/NSGeometry.h> is unavailable (i.e. when building against a
