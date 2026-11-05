@@ -1852,6 +1852,14 @@ IGNORE_GCC_WARNINGS_END
     variant(const variant &) = default;
     variant(variant &&) = default;
 
+    // For Swift, which imports no SFINAE-constrained constructor template: a variant holding one alternative, of
+    // exactly an alternative's type (find_index_checked fails to compile for any other type). A named function, so
+    // C++ overload resolution never sees it.
+    template <typename Alternative>
+    static variant fromAlternative(const Alternative &alternative) {
+      return variant(in_place_index_t<detail::find_index_checked<Alternative, Ts...>::value>{}, alternative);
+    }
+
     template <
         typename Arg,
         typename Decayed = lib::decay_t<Arg>,
