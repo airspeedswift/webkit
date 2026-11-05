@@ -160,6 +160,13 @@ template<Range R, SingleValueUnitEnum U, typename V> struct PrimitiveNumericRaw<
     {
     }
 
+    // For Swift, which imports no constrained constructor template. The template's body for a double; C++ overload
+    // resolution still picks the template for every other argument type.
+    constexpr PrimitiveNumericRaw(double value)
+        : value { value }
+    {
+    }
+
     template<auto unitValue>
         requires std::same_as<decltype(unitValue), UnitType>
     constexpr PrimitiveNumericRaw(ValueLiteral<unitValue> literal)
