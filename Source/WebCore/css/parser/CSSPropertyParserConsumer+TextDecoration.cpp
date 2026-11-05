@@ -39,10 +39,15 @@
 #include "CSSTextShadowPropertyValue.h"
 #include "CSSValueList.h"
 #include "CSSValuePair.h"
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static std::optional<CSS::TextShadow> consumeSingleUnresolvedTextShadow(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <single-text-shadow> = [ <color>? && <length>{2,3} ]
@@ -139,6 +144,25 @@ RefPtr<CSSValue> consumeTextShadow(CSSParserTokenRange& range, CSS::PropertyPars
         return CSSTextShadowPropertyValue::create({ WTF::move(*property) });
     return nullptr;
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+Ref<CSSValue> makeTextShadowValue(const CSSPropertyConsumerSwiftValue&, CSSImageSwiftParts&& parts)
+{
+    if (parts.colors.isEmpty())
+        return CSSTextShadowPropertyValue::create({ CSS::TextShadowProperty { CSS::Keyword::None { } } });
+    auto& positions = parts.positions;
+    CSS::TextShadowProperty::List shadows;
+    for (size_t i = 0; i < parts.colors.size(); ++i) {
+        shadows.value.append(CSS::TextShadow {
+            .color = WTF::move(parts.colors[i]),
+            .location = { makeColorSwiftComponent<CSS::Length<>>(positions[4 * i + 1]), makeColorSwiftComponent<CSS::Length<>>(positions[4 * i + 2]) },
+            .blur = optionalSwiftComponent<CSS::Length<CSS::Nonnegative>>(positions[4 * i + 3]),
+        });
+    }
+    return CSSTextShadowPropertyValue::create({ CSS::TextShadowProperty { WTF::move(shadows) } });
+}
+#endif
 } // namespace WebCore

@@ -35,6 +35,10 @@
 #include <optional>
 #include <wtf/Brigand.h>
 
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyParserConsumer+MetaConsumer.h"
+#endif
+
 namespace WebCore {
 
 inline CSS::PropertyParserState& propertyParserState(const CSSPropertyConsumerSwiftValue& value)
@@ -153,6 +157,31 @@ template<typename Edges, typename Positions, typename... Ts> static Edges makeBo
         values[i] = makeColorSwiftComponent<typename Edges::value_type>(positions[offset + i], types);
     return CSSPropertyParserHelpers::completeQuadFromArray<Edges>(WTF::move(values));
 }
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+// The stops of the value being consumed as a T, an empty T replacing any other alternative.
+template<typename T> T& swiftStopsAs(const CSSPropertyConsumerSwiftValue& value)
+{
+    auto* stops = static_cast<const CSSPropertyConsumerSwiftValueState&>(value).gradientStops;
+    RELEASE_ASSERT(stops);
+    if (auto* alternative = std::get_if<T>(&stops->stops))
+        return *alternative;
+    return stops->stops.template emplace<T>();
+}
+
+// The mask-border whose parts are at `offset` of `parts`, laid out as setBorderResult's border-image (slice 0, its fill
+// 4, width 5, outset 9, rules 13, source 15), an absent part's first component absent.
+CSS::MaskBorder makeMaskBorderSwift(CSSImageSwiftParts&, size_t offset);
+
+// The calc() at `token` that Swift has checked is a T, as MetaConsumer<T> consumes it.
+template<typename T> T consumeSwiftCheckedCalc(const CSSPropertyConsumerSwiftValue& value, uint32_t token)
+{
+    auto range = swiftTokenRange(value, token, static_cast<uint32_t>(value.count()));
+    auto calc = CSSPropertyParserHelpers::MetaConsumer<T>::consume(range, propertyParserState(value));
+    RELEASE_ASSERT(calc);
+    return WTF::move(*calc);
+}
+#endif
 
 } // namespace WebCore
 

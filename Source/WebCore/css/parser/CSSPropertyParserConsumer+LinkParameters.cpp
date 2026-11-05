@@ -38,10 +38,15 @@
 #include "CSSValueKeywords.h"
 #include "CSSVariableData.h"
 #include <pal/text/TextEncoding.h>
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // <param()>    = param( <param-spec> , <declaration-value>? )
 // <param-spec> = color | accent-color | [ <dashed-ident> <css-type>? ]
 // https://drafts.csswg.org/css-link-params/#funcdef-param
@@ -97,6 +102,14 @@ std::optional<CSS::ParamFunction> consumeParamFunctionRaw(CSSParserTokenRange& r
 
     return CSS::ParamFunction { CSS::LinkParameter { WTF::move(*spec), CSS::DeclarationValue { CSSVariableData::create(arguments) } } };
 }
+#endif
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+std::optional<CSS::ParamFunction> consumeParamFunctionRaw(CSSParserTokenRange& range, CSS::PropertyParserState& state)
+{
+    return consumeUnresolvedWithSwift<CSS::ParamFunction>(range, state, CSSPropertyConsumerSwiftConsumer::ParamFunctionRaw);
+}
+#endif
 
 RefPtr<CSSValue> consumeParamFunction(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
@@ -129,4 +142,38 @@ Vector<CSS::ParamFunction> parseLinkParametersFromFragmentDirective(StringView f
 }
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+bool setParamFunctionResult(const CSSPropertyConsumerSwiftValue& value, uint16_t keyword, uint32_t name, uint32_t start, uint32_t end)
+{
+    auto& state = propertyParserState(value);
+    auto arguments = swiftTokenRange(value, start, end);
+    std::optional<CSS::ParamSpec> spec;
+    switch (static_cast<CSSValueID>(keyword)) {
+    case CSSValueID::Color:
+        spec = CSS::ParamSpec { CSS::Keyword::Color { } };
+        break;
+    case CSSValueID::AccentColor:
+        spec = CSS::ParamSpec { CSS::Keyword::AccentColor { } };
+        break;
+    default: {
+        auto ident = CSS::CustomIdent { swiftTokenRange(value, name, name + 1).peek().value().toAtomString() };
+        std::optional<CSS::TypeSpecifier> type;
+        if (!arguments.atEnd() && arguments.peek().type() != CommaToken) {
+            auto syntax = CSSCustomPropertySyntax::consumeType(arguments);
+            if (!syntax)
+                return false;
+            type = CSS::TypeSpecifier { WTF::move(*syntax) };
+        }
+        spec = CSS::ParamSpec { CSS::ParamSpec::Custom { WTF::move(ident), WTF::move(type) } };
+    }
+    }
+    if (!CSSPropertyParserHelpers::consumeCommaIncludingWhitespace(arguments))
+        return false;
+    if (CSSSubstitutionParser::containsSubstitutionFunctions(arguments, state.context))
+        return false;
+    CSSPropertyConsumerSwiftUnresolvedResult::set(value, CSS::ParamFunction { CSS::LinkParameter { WTF::move(*spec), CSS::DeclarationValue { CSSVariableData::create(arguments) } } });
+    return true;
+}
+#endif
 } // namespace WebCore

@@ -55,8 +55,10 @@ namespace CSSPropertyParserHelpers {
 
 // <'grid-template-areas'> = none | <string>+
 // https://drafts.csswg.org/css-grid/#propdef-grid-template-areas
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 std::optional<CSS::GridTemplateAreas> consumeUnresolvedGridTemplateAreas(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeGridTemplateAreas(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // <'grid-row-start'>/<'grid-column-start'>/<'grid-row-end'>/<'grid-column-end'> = <grid-line>
 // https://drafts.csswg.org/css-grid/#propdef-grid-row-start
@@ -64,25 +66,33 @@ RefPtr<CSSValue> consumeGridTemplateAreas(CSSParserTokenRange&, CSS::PropertyPar
 // https://drafts.csswg.org/css-grid/#propdef-grid-row-end
 // https://drafts.csswg.org/css-grid/#propdef-grid-column-end
 std::optional<CSS::GridLine> consumeUnresolvedGridLine(CSSParserTokenRange&, CSS::PropertyParserState&);
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeGridLine(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // <'grid-template-columns'/'grid-template-rows'> = none | <track-list> | <auto-track-list> | subgrid <line-name-list>?
 // https://drafts.csswg.org/css-grid/#propdef-grid-template-columns
 // https://drafts.csswg.org/css-grid/#propdef-grid-template-rows
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 std::optional<CSS::GridTemplateList> consumeUnresolvedGridTemplateList(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 RefPtr<CSSValue> consumeGridTemplateList(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // <'grid-auto-columns'>/<'grid-auto-rows'> = <track-size>+
 // https://drafts.csswg.org/css-grid/#propdef-grid-auto-columns
 // https://drafts.csswg.org/css-grid/#propdef-grid-auto-rows
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 std::optional<CSS::GridTrackSizes> consumeUnresolvedGridTrackSizes(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 RefPtr<CSSValue> consumeGridTrackSizes(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // <'grid-auto-flow'> = normal | [ [ row | column ] || dense ]
 // FIXME: `normal` is not specified in the link below. Figure out where `normal` comes from and add link.
 // https://drafts.csswg.org/css-grid/#propdef-grid-auto-flow
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 std::optional<CSS::GridAutoFlow> consumeUnresolvedGridAutoFlow(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeGridAutoFlow(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 
 // MARK: - Shorthand Parser Utilities

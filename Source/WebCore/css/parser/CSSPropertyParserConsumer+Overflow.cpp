@@ -37,6 +37,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeOverflowClipMargin(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     // <'overflow-clip-margin'> = <visual-box> || <length>
@@ -86,6 +87,7 @@ RefPtr<CSSValue> consumeOverflowClipMargin(CSSParserTokenRange& range, CSS::Prop
 
     return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

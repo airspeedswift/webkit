@@ -38,9 +38,11 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 // <'offset-path'> = none | <offset-path> || <coord-box>
 // https://drafts.fxtf.org/motion-1/#propdef-offset-path
 RefPtr<CSSValue> consumeOffsetPath(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

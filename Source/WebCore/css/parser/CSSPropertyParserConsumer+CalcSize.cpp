@@ -39,10 +39,15 @@
 #include "CSSUnits.h"
 #include "CSSValueKeywords.h"
 #include <wtf/UniqueRef.h>
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static bool LEGACY_NODELETE isValidBasisKeyword(CSSValueID keyword, CSSPropertyID property)
 {
     switch (keyword) {
@@ -105,6 +110,7 @@ static std::optional<CSS::CalcSizeBasis> consumeBasisKeyword(CSSParserTokenRange
         return { };
     }
 }
+#endif
 
 enum class SizeKeywordPolicy : bool { Forbid, Allow };
 
@@ -129,6 +135,7 @@ static std::optional<CSS::CalcSizeCalculation> consumeCalcSum(CSSParserTokenRang
     return CSSCalc::parseAndSimplifyCalcSum(args, state, parserOptions, simplificationOptions);
 }
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 static std::optional<CSS::CalcSizeFunction> consumeCalcSizeFunction(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 static std::optional<CSS::CalcSizeBasis> consumeCalcSizeBasis(CSSParserTokenRange& args, CSS::PropertyParserState& state)
@@ -199,6 +206,61 @@ RefPtr<CSSValue> consumeCalcSize(CSSParserTokenRange& range, CSS::PropertyParser
 
     return CSSCalcSizeValue::create(WTF::move(*calcSize));
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+uint16_t currentPropertyForSwift(const CSSPropertyConsumerSwiftValue& value)
+{
+    return std::to_underlying(propertyParserState(value).currentProperty);
+}
+
+CSSCalcSizeSwiftParts::~CSSCalcSizeSwiftParts() = default;
+
+bool consumeCalcSizeSumForSwift(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end, bool allowsSize, uint32_t& next)
+{
+    using namespace CSSPropertyParserHelpers;
+    auto range = swiftTokenRange(value, start, end);
+    auto tree = consumeCalcSum(range, propertyParserState(value), allowsSize ? SizeKeywordPolicy::Allow : SizeKeywordPolicy::Forbid);
+    next = end - range.size();
+    if (!tree)
+        return false;
+    swiftStopsAs<Vector<CSS::CalcSizeCalculation>>(value).append(WTF::move(*tree));
+    return true;
+}
+
+Ref<CSSValue> makeCalcSizeValue(const CSSPropertyConsumerSwiftValue& value, CSSCalcSizeSwiftParts&& parts)
+{
+    auto sums = WTF::move(swiftStopsAs<Vector<CSS::CalcSizeCalculation>>(value));
+    size_t sumIndex = 0;
+    auto nextSum = [&] -> CSS::CalcSizeCalculation { return WTF::move(sums[sumIndex++]); };
+    std::optional<CSS::CalcSizeFunction> function;
+    for (auto basisID : parts.bases) {
+        auto basis = [&] -> CSS::CalcSizeBasis {
+            switch (static_cast<CSSValueID>(basisID)) {
+            case CSSValueID::Invalid: return nextSum();
+            case CSSValueID::CalcSize: return makeUniqueRef<CSS::CalcSizeFunction>(WTF::move(*function));
+            case CSSValueID::Any: return CSS::Keyword::Any { };
+            case CSSValueID::Auto: return CSS::Keyword::Auto { };
+            case CSSValueID::Content: return CSS::Keyword::Content { };
+            case CSSValueID::MinContent: return CSS::Keyword::MinContent { };
+            case CSSValueID::WebkitMinContent: return CSS::Keyword::WebkitMinContent { };
+            case CSSValueID::MaxContent: return CSS::Keyword::MaxContent { };
+            case CSSValueID::WebkitMaxContent: return CSS::Keyword::WebkitMaxContent { };
+            case CSSValueID::FitContent: return CSS::Keyword::FitContent { };
+            case CSSValueID::WebkitFitContent: return CSS::Keyword::WebkitFitContent { };
+            case CSSValueID::Stretch: return CSS::Keyword::Stretch { };
+            case CSSValueID::WebkitFillAvailable: return CSS::Keyword::WebkitFillAvailable { };
+            case CSSValueID::Intrinsic: return CSS::Keyword::Intrinsic { };
+            case CSSValueID::MinIntrinsic: return CSS::Keyword::MinIntrinsic { };
+            default: RELEASE_ASSERT_NOT_REACHED();
+            }
+        }();
+        function = CSS::CalcSizeFunction { CSS::CalcSizeFunctionValue { .parameters = CSS::CalcSizeParameters { WTF::move(basis), nextSum() } } };
+    }
+    RELEASE_ASSERT(function && sumIndex == sums.size());
+    return CSSCalcSizeValue::create(WTF::move(*function));
+}
+#endif
 } // namespace WebCore

@@ -45,9 +45,15 @@
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
 #include <wtf/SortedArrayMap.h>
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#endif
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
+
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 
 static RefPtr<CSSValue> consumeRayFunction(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
@@ -191,6 +197,19 @@ RefPtr<CSSValue> consumeOffsetPath(CSSParserTokenRange& range, CSS::PropertyPars
 
     return CSSValueList::createSpaceSeparated(WTF::move(list));
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
+
+#if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+Ref<CSSValue> makeRayValue(const CSSColorSwiftComponents& ray, const CSSColorSwiftComponents& position, uint16_t positionLayout)
+{
+    return CSSRayValue::create(CSS::RayFunction { .parameters = CSS::Ray {
+        makeColorSwiftComponent<CSS::Angle<>>(ray.at(0)),
+        ray.at(1).type ? makeColorSwiftComponent<CSS::RaySize>(ray.at(1)) : CSS::RaySize { CSS::Keyword::ClosestSide { } },
+        ray.at(2).type ? std::optional { CSS::Keyword::Contain { } } : std::nullopt,
+        positionLayout == CSSImageSwiftNoPosition ? std::nullopt : std::optional { makePositionSwift(position, positionLayout) }
+    } });
+}
+#endif
 } // namespace WebCore

@@ -38,6 +38,7 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
+#if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeMarginTrim(CSSParserTokenRange& range, CSS::PropertyParserState&)
 {
     // <'margin-trim'> = none | block | [ block-start || block-end ]
@@ -63,6 +64,7 @@ RefPtr<CSSValue> consumeMarginTrim(CSSParserTokenRange& range, CSS::PropertyPars
 
     return CSSKeywordValue::create(CSSValueID::Block);
 }
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

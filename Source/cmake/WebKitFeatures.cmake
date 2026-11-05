@@ -622,6 +622,13 @@ macro(WEBKIT_OPTION_END)
         message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 needs WK_USE_SWIFT_CSS_FAST_PATHS: its hex colors are the fast path's")
     endif ()
     SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS_3 ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3})
+    # The counterpart of CommonBase.xcconfig's WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4: the consumers of fonts, grid,
+    # alignment, shapes, filters, easing and the small families are Swift.
+    option(WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 "Consume CSS fonts, grid, alignment, shapes, filters, easing and the remaining hand-written properties with WebCore's Swift" OFF)
+    if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 AND NOT WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3)
+        message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 needs WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3: its consumers are PropertyParser methods dispatched from CSSPropertyConsumerSwiftConsumer and use its builders")
+    endif ()
+    SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4})
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it
