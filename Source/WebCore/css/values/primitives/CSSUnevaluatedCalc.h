@@ -67,7 +67,8 @@ WEBCORE_EXPORT void unevaluatedCalcDeref(CSSCalc::Value*);
 // will be evaluated to, allowing the processing of calc in generic code.
 
 // Non-generic base type to allow code sharing and out-of-line definitions.
-class UnevaluatedCalcBase {
+// ~Sendable: CSSCalc::Value's refcount is not atomic. A derived class does not inherit it, so UnevaluatedCalc repeats it.
+class __attribute__((swift_attr("~Sendable"))) UnevaluatedCalcBase {
 public:
     WEBCORE_EXPORT UnevaluatedCalcBase(CSSCalc::Value&);
     UnevaluatedCalcBase(Ref<CSSCalc::Value>&&);
@@ -126,7 +127,7 @@ private:
     Ref<CSSCalc::Value> m_calc;
 };
 
-template<NumericRaw RawType> struct UnevaluatedCalc : UnevaluatedCalcBase {
+template<NumericRaw RawType> struct __attribute__((swift_attr("~Sendable"))) UnevaluatedCalc : UnevaluatedCalcBase {
     using UnevaluatedCalcBase::UnevaluatedCalcBase;
     using UnevaluatedCalcBase::operator=;
 

@@ -218,7 +218,8 @@ template<Numeric N, SpecificKeyword... Ks> struct PrimitiveDataIndex {
 // MARK: - Payload
 
 // FIXME: calc is ref'd and deref'd manually by PrimitiveData based on its index. Store it in a smart pointer instead.
-union PrimitiveDataPayload {
+// ~Sendable: calc's refcount is not atomic, and Swift infers Sendable for a union holding a pointer.
+union __attribute__((swift_attr("~Sendable"))) PrimitiveDataPayload {
     double number;
     SUPPRESS_UNCOUNTED_MEMBER CSSCalc::Value* calc;
 
@@ -237,7 +238,7 @@ union PrimitiveDataPayload {
 
 // MARK: - PrimitiveData
 
-template<Numeric N, SpecificKeyword... Ks> struct PrimitiveData {
+template<Numeric N, SpecificKeyword... Ks> struct __attribute__((swift_attr("~Sendable"))) PrimitiveData {
     using Index = PrimitiveDataIndex<N, Ks...>;
     using Payload = PrimitiveDataPayload;
 
