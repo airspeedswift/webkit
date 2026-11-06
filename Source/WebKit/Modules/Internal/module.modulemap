@@ -543,6 +543,12 @@ module WebKit_Internal [system] {
         export *
     }
 
+    module ScrollingAccelerationCurve {
+        requires cplusplus20
+        header "../../Shared/ScrollingAccelerationCurve.h"
+        export *
+    }
+
     module SecurityFlags {
         requires cplusplus20
         header "SecurityFlagsForSwift.h"
