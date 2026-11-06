@@ -28,10 +28,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <WebCore/Exception.h>
 #include <wtf/CrossThreadCopier.h>
+#include <wtf/SwiftBridging.h>
 
 namespace WebCore {
 
-template<typename T> class ExceptionOr {
+// ~Sendable: the value is often a Ref, whose count is not atomic. The release functions are unsafe in Swift:
+// they move the value out, so a second call, or releaseException() on a value, reads a moved-from or
+// inactive member, which only debug builds assert against.
+template<typename T> class __attribute__((swift_attr("~Sendable"))) ExceptionOr {
 public:
     using ReturnType = T;
 
@@ -44,9 +48,9 @@ public:
 
     bool hasException() const;
     const Exception& exception() const LIFETIME_BOUND;
-    Exception releaseException();
+    SWIFT_UNSAFE Exception releaseException();
     const ReturnType& returnValue() const LIFETIME_BOUND;
-    ReturnType releaseReturnValue();
+    SWIFT_UNSAFE ReturnType releaseReturnValue();
     
 private:
     std::expected<ReturnType, Exception> m_value;
@@ -55,7 +59,7 @@ private:
 #endif
 };
 
-template<typename T> class ExceptionOr<T&> {
+template<typename T> class __attribute__((swift_attr("~Sendable"))) ExceptionOr<T&> {
 public:
     using ReturnType = T&;
     using ReturnReferenceType = T;
@@ -65,15 +69,15 @@ public:
 
     bool hasException() const;
     const Exception& exception() const LIFETIME_BOUND;
-    Exception releaseException();
+    SWIFT_UNSAFE Exception releaseException();
     const ReturnReferenceType& returnValue() const LIFETIME_BOUND;
-    ReturnReferenceType& releaseReturnValue();
+    SWIFT_UNSAFE ReturnReferenceType& releaseReturnValue();
     
 private:
     ExceptionOr<ReturnReferenceType*> m_value;
 };
 
-template<> class ExceptionOr<void> {
+template<> class __attribute__((swift_attr("~Sendable"))) ExceptionOr<void> {
 public:
     using ReturnType = void;
 
@@ -82,7 +86,7 @@ public:
 
     bool hasException() const;
     const Exception& exception() const LIFETIME_BOUND;
-    Exception releaseException();
+    SWIFT_UNSAFE Exception releaseException();
 
 private:
     std::expected<void, Exception> m_value;
