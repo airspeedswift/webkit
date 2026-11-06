@@ -35,7 +35,7 @@ class CSSNumericArray;
 class CSSMathMin final : public CSSMathValue {
     WTF_MAKE_TZONE_ALLOCATED(CSSMathMin);
 public:
-    static ExceptionOr<Ref<CSSMathMin>> create(FixedVector<CSSNumberish>&&);
+    WEBCORE_EXPORT static ExceptionOr<Ref<CSSMathMin>> create(FixedVector<CSSNumberish>&&);
     static ExceptionOr<Ref<CSSMathMin>> create(Vector<Ref<CSSNumericValue>>&&);
     const CSSNumericArray& LEGACY_NODELETE values() const;
 

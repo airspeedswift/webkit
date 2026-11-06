@@ -1080,6 +1080,16 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/typedom/CSSNumericValue.h
     css/typedom/CSSOMKeywordValue.h
     css/typedom/CSSStyleValue.h
+    css/typedom/CSSUnitValue.h
+    css/typedom/numeric/CSSMathClamp.h
+    css/typedom/numeric/CSSMathInvert.h
+    css/typedom/numeric/CSSMathMax.h
+    css/typedom/numeric/CSSMathMin.h
+    css/typedom/numeric/CSSMathOperator.h
+    css/typedom/numeric/CSSMathProduct.h
+    css/typedom/numeric/CSSMathSum.h
+    css/typedom/numeric/CSSMathValue.h
+    css/typedom/numeric/CSSNumericArray.h
     css/typedom/numeric/CSSNumericBaseType.h
     css/typedom/numeric/CSSNumericType.h
 

@@ -1008,15 +1008,16 @@
 		2ACB4D2B26DC4ACE00BEB753 /* CSSNumericFactory.h in Headers */ = {isa = PBXBuildFile; fileRef = 2ACB4D2726DC4AB200BEB753 /* CSSNumericFactory.h */; };
 		2AE6B3D33C13DE3929FC2021 /* CanvasDrawImageSizing.h in Headers */ = {isa = PBXBuildFile; fileRef = 3BD120F885B67FA75D46CBE1 /* CanvasDrawImageSizing.h */; };
 		2AEB4FE42E0D393D00CC7134 /* LocaleToScriptMapping.h in Headers */ = {isa = PBXBuildFile; fileRef = 7633A72413D8B33A008501B6 /* LocaleToScriptMapping.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		2AEF6FD326E7ECA500326D02 /* CSSMathInvert.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC626E716EE00326D02 /* CSSMathInvert.h */; };
-		2AEF6FD426E7ECAA00326D02 /* CSSMathMax.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FBD26E716EE00326D02 /* CSSMathMax.h */; };
-		2AEF6FD526E7ECAE00326D02 /* CSSMathMin.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FCA26E716EE00326D02 /* CSSMathMin.h */; };
+		2AEF6FD326E7ECA500326D02 /* CSSMathInvert.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC626E716EE00326D02 /* CSSMathInvert.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		2AEF6FD426E7ECAA00326D02 /* CSSMathMax.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FBD26E716EE00326D02 /* CSSMathMax.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		2AEF6FD526E7ECAE00326D02 /* CSSMathMin.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FCA26E716EE00326D02 /* CSSMathMin.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		2AEF6FD626E7ECB400326D02 /* CSSMathNegate.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FD226E7EC9B00326D02 /* CSSMathNegate.h */; };
-		2AEF6FD726E7ECB800326D02 /* CSSMathOperator.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC526E716EE00326D02 /* CSSMathOperator.h */; };
-		2AEF6FD826E7ECBC00326D02 /* CSSMathProduct.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC226E716EE00326D02 /* CSSMathProduct.h */; };
-		2AEF6FD926E7ECC000326D02 /* CSSMathSum.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC126E716EE00326D02 /* CSSMathSum.h */; };
-		2AEF6FDA26E7ECC300326D02 /* CSSMathValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC726E716EE00326D02 /* CSSMathValue.h */; };
-		2AEF6FDB26E7ECC700326D02 /* CSSNumericArray.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FBF26E716EE00326D02 /* CSSNumericArray.h */; };
+		2AEF6FD726E7ECB800326D02 /* CSSMathOperator.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC526E716EE00326D02 /* CSSMathOperator.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		2AEF6FD826E7ECBC00326D02 /* CSSMathProduct.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC226E716EE00326D02 /* CSSMathProduct.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		35020588DE454B73AA94465A /* CSSMathClamp.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C3690B728AAE25000BA6B12 /* CSSMathClamp.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		2AEF6FD926E7ECC000326D02 /* CSSMathSum.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC126E716EE00326D02 /* CSSMathSum.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		2AEF6FDA26E7ECC300326D02 /* CSSMathValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FC726E716EE00326D02 /* CSSMathValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		2AEF6FDB26E7ECC700326D02 /* CSSNumericArray.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FBF26E716EE00326D02 /* CSSNumericArray.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		2AEF6FDC26E7ECCC00326D02 /* CSSNumericBaseType.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FCF26E71F2E00326D02 /* CSSNumericBaseType.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		2AEF6FDD26E7ECCF00326D02 /* CSSNumericType.h in Headers */ = {isa = PBXBuildFile; fileRef = 2AEF6FCE26E71F2D00326D02 /* CSSNumericType.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		2B1A35462EBF5FBC00F83EA2 /* SQLiteMemoryIDBBackingStore.h in Headers */ = {isa = PBXBuildFile; fileRef = 2B1A35452EBF5FBC00F83EA2 /* SQLiteMemoryIDBBackingStore.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2033,7 +2034,7 @@
 		4BAFD0D62192146B00C0AB64 /* CSSStyleValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BAFD0D52192146B00C0AB64 /* CSSStyleValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		4BAFD0D921921EA000C0AB64 /* CSSUnparsedValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BAFD0D821921EA000C0AB64 /* CSSUnparsedValue.h */; };
 		4BAFD0E0219220AB00C0AB64 /* CSSNumericValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BAFD0DF219220AB00C0AB64 /* CSSNumericValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		4BAFD0E1219242A000C0AB64 /* CSSUnitValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BAFD0DD2192209200C0AB64 /* CSSUnitValue.h */; };
+		4BAFD0E1219242A000C0AB64 /* CSSUnitValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BAFD0DD2192209200C0AB64 /* CSSUnitValue.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		4BD781BF21C1965F00D9703E /* StylePropertyMap.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BD781BE21C1965F00D9703E /* StylePropertyMap.h */; };
 		4BDA3FFE2151B6F500FD6604 /* DOMCSSCustomPropertyDescriptor.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BDA3FF82151B6F200FD6604 /* DOMCSSCustomPropertyDescriptor.h */; };
 		4BDA3FFF2151B6F500FD6604 /* DOMCSSRegisterCustomProperty.h in Headers */ = {isa = PBXBuildFile; fileRef = 4BDA3FF92151B6F300FD6604 /* DOMCSSRegisterCustomProperty.h */; };
@@ -45373,6 +45374,7 @@
 				BC4AFE0C2F416475F7CB5AB7 /* CSSMaskBorderSlice.h in Headers */,
 				BCCBDBE98D53A79FCACA14BC /* CSSMaskBorderSource.h in Headers */,
 				BC0CAD790C2947CE86D6BC69 /* CSSMaskBorderWidth.h in Headers */,
+				35020588DE454B73AA94465A /* CSSMathClamp.h in Headers */,
 				2AEF6FD326E7ECA500326D02 /* CSSMathInvert.h in Headers */,
 				2AEF6FD426E7ECAA00326D02 /* CSSMathMax.h in Headers */,
 				2AEF6FD526E7ECAE00326D02 /* CSSMathMin.h in Headers */,

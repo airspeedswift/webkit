@@ -36,7 +36,7 @@ class CSSNumericArray;
 class CSSMathSum final : public CSSMathValue {
     WTF_MAKE_TZONE_ALLOCATED(CSSMathSum);
 public:
-    static ExceptionOr<Ref<CSSMathSum>> create(FixedVector<CSSNumberish>);
+    WEBCORE_EXPORT static ExceptionOr<Ref<CSSMathSum>> create(FixedVector<CSSNumberish>);
     static ExceptionOr<Ref<CSSMathSum>> create(Vector<Ref<CSSNumericValue>>);
     const CSSNumericArray& values() const { return m_values.get(); }
 

@@ -60,7 +60,7 @@ class CSSNumericValue : public CSSStyleValue {
     WTF_MAKE_TZONE_ALLOCATED(CSSNumericValue);
 public:
     ExceptionOr<Ref<CSSNumericValue>> add(FixedVector<CSSNumberish>&&);
-    ExceptionOr<Ref<CSSNumericValue>> sub(FixedVector<CSSNumberish>&&);
+    WEBCORE_EXPORT ExceptionOr<Ref<CSSNumericValue>> sub(FixedVector<CSSNumberish>&&);
     ExceptionOr<Ref<CSSNumericValue>> mul(FixedVector<CSSNumberish>&&);
     ExceptionOr<Ref<CSSNumericValue>> div(FixedVector<CSSNumberish>&&);
     ExceptionOr<Ref<CSSNumericValue>> min(FixedVector<CSSNumberish>&&);

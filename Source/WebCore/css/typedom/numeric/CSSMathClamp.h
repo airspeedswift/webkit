@@ -32,7 +32,7 @@ namespace WebCore {
 class CSSMathClamp final : public CSSMathValue {
     WTF_MAKE_TZONE_ALLOCATED(CSSMathClamp);
 public:
-    static ExceptionOr<Ref<CSSMathClamp>> create(CSSNumberish&&, CSSNumberish&&, CSSNumberish&&);
+    WEBCORE_EXPORT static ExceptionOr<Ref<CSSMathClamp>> create(CSSNumberish&&, CSSNumberish&&, CSSNumberish&&);
     const CSSNumericValue& lower() const { return m_lower.get(); }
     const CSSNumericValue& value() const { return m_value.get(); }
     const CSSNumericValue& upper() const { return m_upper.get(); }
