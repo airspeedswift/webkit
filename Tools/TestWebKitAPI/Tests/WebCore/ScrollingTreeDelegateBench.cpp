@@ -110,6 +110,11 @@ TEST(ScrollingTreeDelegateBench, DisplayRefresh)
     runScrollingTreeShape(displayRefreshShape, "DisplayRefresh", 2600, 0x599dab7d2ae56305ull);
 }
 
+TEST(ScrollingTreeDelegateBench, Latching)
+{
+    runScrollingTreeShape(latchingShape, "Latching", 1400, 0x6e4281951d5d5a23ull);
+}
+
 } // namespace TestWebKitAPI
 
 #endif // PLATFORM(MAC)
