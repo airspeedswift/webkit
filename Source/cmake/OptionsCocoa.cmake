@@ -220,6 +220,12 @@ set(WEBKIT_PLATFORM_FEATURE_DEFINES_FILE "${CMAKE_BINARY_DIR}/DerivedSources/pla
 
 SET_AND_EXPOSE_TO_BUILD(USE_LIBWEBRTC TRUE)
 
+# As WebCore.xcconfig's WK_USE_SWIFT_SCROLLING_TREE: off by default, macOS only.
+option(WK_USE_SWIFT_SCROLLING_TREE "Use the Swift scrolling tree wheel handling and momentum (macOS)" OFF)
+if (WK_USE_SWIFT_SCROLLING_TREE AND NOT WEBKIT_SDK_IS_IOS_FAMILY)
+    set(USE_SWIFT_SCROLLING_TREE ON)
+endif ()
+
 set(ENABLE_WEBKIT_LEGACY ON)
 set(ENABLE_WEBKIT ON)
 

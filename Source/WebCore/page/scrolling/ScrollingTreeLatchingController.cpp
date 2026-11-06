@@ -33,9 +33,62 @@
 #include "PlatformWheelEvent.h"
 #include "ScrollingThread.h"
 #include "ScrollingTree.h"
+#if USE_SWIFT_SCROLLING_TREE
+#include "WebCore-Swift.h"
+#endif
 
 namespace WebCore {
 
+#if USE_SWIFT_SCROLLING_TREE
+// The latched node, the processing steps of the current gesture, the time of the latched node's last interaction
+// and the gesture state live in Swift (ScrollingTreeLatchingController.swift), under its own lock.
+ScrollingTreeLatchingController::ScrollingTreeLatchingController()
+    : m_state(makeUniqueWithoutFastMallocCheck<ScrollingTreeWheelState>(ScrollingTreeWheelState::init()))
+{
+    static_assert(sizeof(ScrollingTreeLatchingController) == sizeof(StateLayout));
+    static_assert(alignof(ScrollingTreeLatchingController) == alignof(StateLayout));
+}
+
+ScrollingTreeLatchingController::~ScrollingTreeLatchingController() = default;
+
+ScrollingTreeWheelState& ScrollingTreeLatchingController::wheelState() const
+{
+    return *m_state;
+}
+
+void ScrollingTreeLatchingController::receivedWheelEvent(const PlatformWheelEvent& wheelEvent, OptionSet<WheelEventProcessingSteps> processingSteps, bool allowLatching)
+{
+    m_state->receivedWheelEvent(wheelEvent.isGestureStart(), processingSteps.toRaw(), allowLatching);
+}
+
+std::optional<ScrollingTreeLatchingController::ScrollingNodeAndProcessingSteps> ScrollingTreeLatchingController::latchingDataForEvent(const PlatformWheelEvent& wheelEvent, bool allowLatching) const
+{
+    ScrollingNodeID nodeID { WTF::HashTableDeletedValue };
+    uint8_t processingSteps = 0;
+    if (!m_state->latchingDataForEvent(wheelEvent.useLatchedEventElement(), wheelEvent.isGestureStart(), allowLatching, nodeID, processingSteps))
+        return std::nullopt;
+    return ScrollingNodeAndProcessingSteps { nodeID, OptionSet<WheelEventProcessingSteps>::fromRaw(processingSteps) };
+}
+
+std::optional<ScrollingNodeID> ScrollingTreeLatchingController::latchedNodeID() const
+{
+    ScrollingNodeID nodeID { WTF::HashTableDeletedValue };
+    uint8_t processingSteps = 0;
+    if (!m_state->latchedNodeAndSteps(nodeID, processingSteps))
+        return std::nullopt;
+    return nodeID;
+}
+
+void ScrollingTreeLatchingController::nodeWasRemoved(ScrollingNodeID nodeID)
+{
+    m_state->nodeWasRemoved(nodeID);
+}
+
+void ScrollingTreeLatchingController::clearLatchedNode()
+{
+    m_state->clearLatchedNode();
+}
+#else
 // See also ScrollLatchingController.cpp
 static const Seconds scrollingTreeResetLatchedStateTimeout { 100_ms };
 
@@ -149,6 +202,8 @@ bool ScrollingTreeLatchingController::latchedNodeHasRecentInteraction() const
     auto secondsSinceLastInteraction = MonotonicTime::now() - m_lastLatchedNodeInterationTime;
     return secondsSinceLastInteraction < scrollingTreeResetLatchedStateTimeout;
 }
+
+#endif // USE_SWIFT_SCROLLING_TREE
 
 } // namespace WebCore
 

@@ -208,6 +208,10 @@ protected:
     // all, m_totalContentsSizeForRubberBand should be equivalent to m_totalContentsSize.
     const FloatSize& totalContentsSizeForRubberBand() const LIFETIME_BOUND { return m_totalContentsSizeForRubberBand; }
 
+#if USE_SWIFT_SCROLLING_TREE
+    // Public for the tree's wheel event handling in Swift (ScrollingTreeLatchingController.swift).
+public:
+#endif
     bool horizontalOverscrollBehaviorPreventsPropagation() const { return m_scrollableAreaParameters.horizontalOverscrollBehavior != OverscrollBehavior::Auto; }
     bool verticalOverscrollBehaviorPreventsPropagation() const { return m_scrollableAreaParameters.verticalOverscrollBehavior != OverscrollBehavior::Auto; }
 
@@ -215,7 +219,12 @@ protected:
     bool overscrollBehaviorAllowsVerticalRubberBand() const { return m_scrollableAreaParameters.verticalOverscrollBehavior != OverscrollBehavior::None; }
 
     PlatformWheelEvent LEGACY_NODELETE eventForPropagation(const PlatformWheelEvent&) const;
+#if !USE_SWIFT_SCROLLING_TREE
     ScrollPropagationInfo LEGACY_NODELETE computeScrollPropagation(const FloatSize&) const;
+#endif
+#if USE_SWIFT_SCROLLING_TREE
+protected:
+#endif
     bool overscrollBehaviorAllowsRubberBand() const { return m_scrollableAreaParameters.horizontalOverscrollBehavior != OverscrollBehavior::None ||  m_scrollableAreaParameters.verticalOverscrollBehavior != OverscrollBehavior::None; }
 
     bool shouldRubberBand(const PlatformWheelEvent&, EventTargeting) const;
@@ -257,5 +266,21 @@ private:
 } // namespace WebCore
 
 SPECIALIZE_TYPE_TRAITS_SCROLLING_NODE(ScrollingTreeScrollingNode, isScrollingNode())
+
+#if USE_SWIFT_SCROLLING_TREE
+namespace WebCore {
+// For Swift, which cannot cast between C++ classes: the node as a scrolling node, or null.
+inline RefPtr<ScrollingTreeScrollingNode> asScrollingTreeScrollingNode(ScrollingTreeNode& node) { return dynamicDowncast<ScrollingTreeScrollingNode>(node); }
+// For Swift: offers the event to the tree's node with the ID if it is a scrolling node, and returns whether it is.
+inline bool handleWheelEventOnScrollingNodeForID(const ScrollingTreeLockedAccess& locked, ScrollingNodeID nodeID, const PlatformWheelEvent& wheelEvent, WheelEventHandlingResult& result)
+{
+    RefPtr node = dynamicDowncast<ScrollingTreeScrollingNode>(locked.nodeForID(nodeID));
+    if (!node)
+        return false;
+    result = locked.handleWheelEvent(*node, wheelEvent, EventTargeting::Propagate);
+    return true;
+}
+}
+#endif
 
 #endif // ENABLE(ASYNC_SCROLLING)

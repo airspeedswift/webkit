@@ -41,6 +41,9 @@ namespace WebKit {
 class WebPage;
 class RemoteScrollingCoordinatorTransaction;
 class RemoteScrollingUIState;
+#if USE_SWIFT_SCROLLING_TREE
+class RemoteScrollingCoordinatorPendingScrollRequests;
+#endif
 
 class RemoteScrollingCoordinator final : public WebCore::AsyncScrollingCoordinator, public IPC::MessageReceiver {
     WTF_MAKE_TZONE_ALLOCATED(RemoteScrollingCoordinator);
@@ -112,11 +115,16 @@ private:
     HashSet<WebCore::ScrollingNodeID> m_nodesWithActiveScrollSnap;
     HashSet<WebCore::ScrollingNodeID> m_nodesWithActiveUserScrolls;
 
+#if USE_SWIFT_SCROLLING_TREE
+    // Read and written on the main thread.
+    const std::unique_ptr<RemoteScrollingCoordinatorPendingScrollRequests> m_scrollRequestsPendingResponse;
+#else
     struct PendingScrollResponseInfo {
         Markable<WebCore::ScrollRequestIdentifier> identifier;
         bool pendingScrollEnd { false };
     };
     HashMap<WebCore::ScrollingNodeID, PendingScrollResponseInfo> m_scrollRequestsPendingResponse;
+#endif
 
     NodeAndGestureState m_currentWheelGestureInfo;
 

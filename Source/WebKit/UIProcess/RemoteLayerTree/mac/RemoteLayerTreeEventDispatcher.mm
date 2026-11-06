@@ -53,6 +53,10 @@
 #import "RemoteMonotonicTimeline.h"
 #endif
 
+#if USE_SWIFT_SCROLLING_TREE
+#import "WebKit-Swift.h"
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -117,6 +121,10 @@ RemoteLayerTreeEventDispatcher::RemoteLayerTreeEventDispatcher(RemoteScrollingCo
         if (RefPtr protectedThis = weakThis)
             protectedThis->wheelEventHysteresisUpdated(state);
     }, wheelEventHysteresisDuration)
+#if USE_SWIFT_SCROLLING_TREE
+    , m_signpostState(makeUniqueWithoutFastMallocCheck<RemoteLayerTreeEventDispatcherSignpostState>(RemoteLayerTreeEventDispatcherSignpostState::init()))
+    , m_synchronizationState(makeUniqueWithoutFastMallocCheck<RemoteLayerTreeEventDispatcherState>(RemoteLayerTreeEventDispatcherState::init()))
+#endif
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER)
     , m_momentumEventDispatcher(WTF::makeUnique<MomentumEventDispatcher>(*this))
 #endif
@@ -514,6 +522,15 @@ void RemoteLayerTreeEventDispatcher::didRefreshDisplay(PlatformDisplayID display
     {
         Locker locker { m_scrollingTreeLock };
 
+#if USE_SWIFT_SCROLLING_TREE
+        auto now = MonotonicTime::now();
+        scrollingTree->displayDidRefresh(displayID);
+
+        auto action = remoteEventDispatcherDisplayDidRefresh(*m_synchronizationState, now.secondsSinceEpoch().value());
+        needsUpdateLayerPositionsAndAnimations = action.needsUpdateLayerPositionsAndAnimations();
+        if (action.schedulesRenderingUpdateDetection())
+            scheduleDelayedRenderingUpdateDetectionTimer(Seconds { action.renderingUpdateDetectionDelay() });
+#else
         auto now = MonotonicTime::now();
         m_lastDisplayDidRefreshTime = now;
 
@@ -533,6 +550,7 @@ void RemoteLayerTreeEventDispatcher::didRefreshDisplay(PlatformDisplayID display
         case SynchronizationState::Desynchronized:
             break;
         }
+#endif
     }
 
     if (needsUpdateLayerPositionsAndAnimations)
@@ -585,6 +603,19 @@ void RemoteLayerTreeEventDispatcher::waitForRenderingUpdateCompletionOrTimeout()
 
     auto currentTime = MonotonicTime::now();
     RefPtr scrollingTree = m_scrollingTree;
+#if USE_SWIFT_SCROLLING_TREE
+    auto timeout = remoteEventDispatcherRenderingUpdateTimeout(*m_synchronizationState, currentTime.secondsSinceEpoch().value(), scrollingTree->frameDuration().value(), scrollingTree->maxAllowableRenderingUpdateDurationForSynchronization().value());
+    auto timeoutTime = MonotonicTime::fromRawSeconds(timeout.timeoutTime());
+    if (timeout.wasClamped()) {
+        RELEASE_LOG_ERROR(DisplayLink, "%p - [webPageID=%" PRIu64 "] RemoteLayerTreeEventDispatcher::waitForRenderingUpdateCompletionOrTimeout - bad timeout %.2fms into the future (frame duration %.2fms)", this, m_pageIdentifier.toUInt64(),
+            (MonotonicTime::fromRawSeconds(timeout.unclampedTimeoutTime()) - currentTime).milliseconds(), scrollingTree->frameDuration().milliseconds());
+    }
+
+    bool becameIdle = m_stateCondition.waitUntil(m_scrollingTreeLock, timeoutTime, [&] {
+        assertIsHeld(m_scrollingTreeLock);
+        return remoteEventDispatcherIsIdle(*m_synchronizationState);
+    });
+#else
     auto estimatedNextDisplayRefreshTime = std::max(m_lastDisplayDidRefreshTime + scrollingTree->frameDuration(), currentTime);
     auto timeoutTime = std::min(currentTime + scrollingTree->maxAllowableRenderingUpdateDurationForSynchronization(), estimatedNextDisplayRefreshTime);
 
@@ -600,11 +631,16 @@ void RemoteLayerTreeEventDispatcher::waitForRenderingUpdateCompletionOrTimeout()
         assertIsHeld(m_scrollingTreeLock);
         return m_state == SynchronizationState::Idle;
     });
+#endif
 
     ASSERT(m_scrollingTreeLock.isLocked());
 
     if (!becameIdle) {
+#if USE_SWIFT_SCROLLING_TREE
+        remoteEventDispatcherRenderingUpdateWaitTimedOut(*m_synchronizationState);
+#else
         m_state = SynchronizationState::Desynchronized;
+#endif
         // At this point we know the main thread is taking too long in the rendering update,
         // so we give up trying to sync with the main thread and update layers here on the scrolling thread.
         // Dispatch to allow for the scrolling thread to handle any outstanding wheel events before we commit layers.
@@ -657,10 +693,15 @@ void RemoteLayerTreeEventDispatcher::mainThreadDisplayDidRefresh(PlatformDisplay
 
     {
         Locker locker { m_scrollingTreeLock };
+#if USE_SWIFT_SCROLLING_TREE
+        if (!remoteEventDispatcherMainThreadWillStartRenderingUpdate(*m_synchronizationState))
+            return;
+#else
         // The state can be Desynchronized if CommitDelayState is Delayed, since we skip sending DisplayDidRefresh to the web process.
         // There's no point trying to synchronize in that case.
         if (m_state == SynchronizationState::Desynchronized)
             return;
+#endif
     }
 
     tracePoint(ScrollingThreadRenderUpdateSyncStart);
@@ -675,7 +716,11 @@ void RemoteLayerTreeEventDispatcher::mainThreadDisplayDidRefresh(PlatformDisplay
     semaphore.wait();
 
     Locker locker { m_scrollingTreeLock };
+#if USE_SWIFT_SCROLLING_TREE
+    remoteEventDispatcherMainThreadDidStartRenderingUpdate(*m_synchronizationState);
+#else
     m_state = SynchronizationState::InRenderingUpdate;
+#endif
 }
 
 void RemoteLayerTreeEventDispatcher::renderingUpdateComplete()
@@ -691,10 +736,15 @@ void RemoteLayerTreeEventDispatcher::renderingUpdateComplete()
 
     Locker locker { m_scrollingTreeLock };
 
+#if USE_SWIFT_SCROLLING_TREE
+    if (remoteEventDispatcherRenderingUpdateComplete(*m_synchronizationState))
+        m_stateCondition.notifyOne();
+#else
     if (m_state == SynchronizationState::InRenderingUpdate)
         m_stateCondition.notifyOne();
 
     m_state = SynchronizationState::Idle;
+#endif
 }
 
 #if ENABLE(THREADED_ANIMATIONS)
@@ -842,35 +892,55 @@ void RemoteLayerTreeEventDispatcher::windowScreenDidChange(PlatformDisplayID dis
 
 void RemoteLayerTreeEventDispatcher::startFingerDownSignpostInterval()
 {
+#if USE_SWIFT_SCROLLING_TREE
+    if (remoteEventDispatcherStartFingerDownInterval(*m_signpostState))
+        WTFBeginSignpostAlways(nullptr, ScrollingPerformanceTestFingerDownInterval, "isAnimation=YES;");
+#else
     if (!m_fingerDownIntervalIsActive) {
         WTFBeginSignpostAlways(nullptr, ScrollingPerformanceTestFingerDownInterval, "isAnimation=YES;");
         m_fingerDownIntervalIsActive = true;
     }
+#endif
 }
 
 void RemoteLayerTreeEventDispatcher::endFingerDownSignpostInterval()
 {
+#if USE_SWIFT_SCROLLING_TREE
+    if (remoteEventDispatcherEndFingerDownInterval(*m_signpostState))
+        WTFEndSignpostAlways(nullptr, ScrollingPerformanceTestFingerDownInterval, "isAnimation=YES;");
+#else
     if (m_fingerDownIntervalIsActive) {
         WTFEndSignpostAlways(nullptr, ScrollingPerformanceTestFingerDownInterval, "isAnimation=YES;");
         m_fingerDownIntervalIsActive = false;
     }
+#endif
 }
 
 void RemoteLayerTreeEventDispatcher::startMomentumSignpostInterval()
 {
+#if USE_SWIFT_SCROLLING_TREE
+    if (remoteEventDispatcherStartMomentumInterval(*m_signpostState))
+        WTFBeginSignpostAlways(nullptr, ScrollingPerformanceTestMomentumInterval, "isAnimation=YES;");
+#else
     if (!m_momentumIntervalIsActive) {
         WTFBeginSignpostAlways(nullptr, ScrollingPerformanceTestMomentumInterval, "isAnimation=YES;");
         m_momentumIntervalIsActive = true;
         m_momentumIntervalHasSeenNonZeroDeltaEvent = false;
     }
+#endif
 }
 
 void RemoteLayerTreeEventDispatcher::endMomentumSignpostInterval()
 {
+#if USE_SWIFT_SCROLLING_TREE
+    if (remoteEventDispatcherEndMomentumInterval(*m_signpostState))
+        WTFEndSignpostAlways(nullptr, ScrollingPerformanceTestMomentumInterval, "isAnimation=YES;");
+#else
     if (m_momentumIntervalIsActive) {
         WTFEndSignpostAlways(nullptr, ScrollingPerformanceTestMomentumInterval, "isAnimation=YES;");
         m_momentumIntervalIsActive = false;
     }
+#endif
 }
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER)
@@ -883,6 +953,10 @@ void RemoteLayerTreeEventDispatcher::handleSyntheticWheelEvent(PageIdentifier pa
         if (event.momentumPhase() == WebWheelEvent::Phase::Began)
             startMomentumSignpostInterval();
 
+#if USE_SWIFT_SCROLLING_TREE
+        if (remoteEventDispatcherSyntheticEventEndsMomentumInterval(*m_signpostState, event.delta().height(), event.momentumPhase() == WebWheelEvent::Phase::Ended))
+            endMomentumSignpostInterval();
+#else
         bool eventHasNonZeroDelta = std::abs(event.delta().height()) > 0;
         if (eventHasNonZeroDelta)
             m_momentumIntervalHasSeenNonZeroDeltaEvent = true;
@@ -890,6 +964,7 @@ void RemoteLayerTreeEventDispatcher::handleSyntheticWheelEvent(PageIdentifier pa
         // FIXME: <rdar://184036413> Momentum intervals should only start with non-zero deltas.
         if (m_momentumIntervalIsActive && ((!eventHasNonZeroDelta && m_momentumIntervalHasSeenNonZeroDeltaEvent) || event.momentumPhase() == WebWheelEvent::Phase::Ended))
             endMomentumSignpostInterval();
+#endif
     }
 
     auto platformWheelEvent = platform(event);

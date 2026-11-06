@@ -32,11 +32,19 @@
 #include <wtf/Markable.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/OptionSet.h>
+#if USE_SWIFT_SCROLLING_TREE
+#include <array>
+#include <cstddef>
+#include <memory>
+#endif
 
 namespace WebCore {
 
 class PlatformWheelEvent;
 enum class WheelEventProcessingSteps : uint8_t;
+#if USE_SWIFT_SCROLLING_TREE
+class ScrollingTreeWheelState;
+#endif
 
 class ScrollingTreeLatchingController {
 public:
@@ -46,25 +54,49 @@ public:
     };
 
     ScrollingTreeLatchingController();
+#if USE_SWIFT_SCROLLING_TREE
+    ~ScrollingTreeLatchingController();
+    ScrollingTreeLatchingController(const ScrollingTreeLatchingController&) = delete;
+    ScrollingTreeLatchingController& operator=(const ScrollingTreeLatchingController&) = delete;
+
+    // The latching and gesture state, and the tree's wheel event handling (ScrollingTreeLatchingController.swift).
+    ScrollingTreeWheelState& wheelState() const LIFETIME_BOUND;
+#endif
 
     void receivedWheelEvent(const PlatformWheelEvent&, OptionSet<WheelEventProcessingSteps>, bool allowLatching);
 
     std::optional<ScrollingNodeAndProcessingSteps> latchingDataForEvent(const PlatformWheelEvent&, bool allowLatching) const;
+#if !USE_SWIFT_SCROLLING_TREE
     void nodeDidHandleEvent(ScrollingNodeID, OptionSet<WheelEventProcessingSteps>, const PlatformWheelEvent&, bool allowLatching);
+#endif
 
     std::optional<ScrollingNodeID> LEGACY_NODELETE latchedNodeID() const;
+#if !USE_SWIFT_SCROLLING_TREE
     std::optional<ScrollingNodeAndProcessingSteps> LEGACY_NODELETE latchedNodeAndSteps() const;
+#endif
 
     void LEGACY_NODELETE nodeWasRemoved(ScrollingNodeID);
     void LEGACY_NODELETE clearLatchedNode();
 
 private:
+#if !USE_SWIFT_SCROLLING_TREE
     bool latchedNodeHasRecentInteraction() const WTF_REQUIRES_LOCK(m_latchedNodeLock);
 
     mutable Lock m_latchedNodeLock;
     std::optional<ScrollingNodeAndProcessingSteps> m_latchedNodeAndSteps WTF_GUARDED_BY_LOCK(m_latchedNodeLock);
     std::optional<OptionSet<WheelEventProcessingSteps>> m_processingStepsForCurrentGesture WTF_GUARDED_BY_LOCK(m_latchedNodeLock);
     MonotonicTime m_lastLatchedNodeInterationTime WTF_GUARDED_BY_LOCK(m_latchedNodeLock);
+#else
+    // Keeps the size and alignment of the members above, as ScrollingTree's layout does (ScrollingTree.h).
+    struct StateLayout {
+        Lock latchedNodeLock;
+        std::optional<ScrollingNodeAndProcessingSteps> latchedNodeAndSteps;
+        std::optional<OptionSet<WheelEventProcessingSteps>> processingStepsForCurrentGesture;
+        MonotonicTime lastLatchedNodeInterationTime;
+    };
+    alignas(StateLayout) const std::unique_ptr<ScrollingTreeWheelState> m_state;
+    [[maybe_unused]] std::array<std::byte, sizeof(StateLayout) - sizeof(m_state)> m_unusedStateStorage { };
+#endif
 };
 
 }

@@ -36,17 +36,35 @@
 #include <wtf/SystemTracing.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_SCROLLING_TREE
+#include "WebKit-Swift.h"
+#endif
+
 namespace WebKit {
 
+#if !USE_SWIFT_SCROLLING_TREE
 static constexpr Seconds deltaHistoryMaximumAge = 500_ms;
 static constexpr Seconds deltaHistoryMaximumInterval = 150_ms;
 static constexpr WebCore::FramesPerSecond idealCurveFrameRate = 60;
 static constexpr Seconds idealCurveFrameInterval = 1_s / idealCurveFrameRate;
+#endif
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MomentumEventDispatcher);
 
+#if USE_SWIFT_SCROLLING_TREE
+// MomentumEventDispatcher.swift copies these values.
+static_assert(std::to_underlying(WebEventPhase::Began) == 1);
+static_assert(std::to_underlying(WebEventPhase::Changed) == 3);
+static_assert(std::to_underlying(WebEventPhase::Ended) == 4);
+static_assert(std::to_underlying(WebWheelEventMomentumEndType::Interrupted) == 1);
+static_assert(std::to_underlying(WebWheelEventMomentumEndType::Natural) == 2);
+#endif
+
 MomentumEventDispatcher::MomentumEventDispatcher(Client& client)
     : m_client(client)
+#if USE_SWIFT_SCROLLING_TREE
+    , m_state(makeUniqueWithoutFastMallocCheck<MomentumEventDispatcherState>(MomentumEventDispatcherState::init()))
+#endif
 {
 }
 
@@ -55,6 +73,55 @@ std::unique_ptr<MomentumEventDispatcher> MomentumEventDispatcher::create(Client&
     return makeUnique<MomentumEventDispatcher>(client);
 }
 
+#if USE_SWIFT_SCROLLING_TREE
+MomentumEventDispatcher::~MomentumEventDispatcher()
+{
+    performActions(momentumStopDisplayLink(*m_state));
+}
+
+bool MomentumEventDispatcher::handleWheelEvent(WebCore::PageIdentifier pageIdentifier, const WebWheelEvent& event, WebCore::RectEdges<WebCore::RubberBandingBehavior> rubberBandableEdges)
+{
+    m_lastRubberBandableEdges = rubberBandableEdges;
+    m_lastIncomingEvent = &event;
+
+    auto rawPlatformDelta = event.rawPlatformDelta().value_or(WebCore::FloatSize { });
+    auto actions = momentumHandleWheelEvent(*m_state, pageIdentifier.toUInt64(), std::to_underlying(event.phase()), std::to_underlying(event.momentumPhase()), std::to_underlying(event.momentumEndType()), event.isMomentumEvent(),
+        !!event.rawPlatformDelta(), rawPlatformDelta.width(), rawPlatformDelta.height(), event.ioHIDEventTimestamp().secondsSinceEpoch().value(), event.inputSource() == WebEventInputSource::Automation,
+        event.momentumFastScrollMultiplier(), event.delta().width(), event.delta().height(), event.directionInvertedFromDevice(), WebCore::scrollingEffectsClockNow().secondsSinceEpoch().value());
+    performActions(actions, pageIdentifier, &event);
+    return actions.ignoresEvent();
+}
+
+void MomentumEventDispatcher::performActions(const MomentumActions& actions, std::optional<WebCore::PageIdentifier> beginningPage, const WebWheelEvent* beginningEvent)
+{
+    bool endsGesture = actions.endsGesture();
+    if (endsGesture) {
+        dispatchSyntheticMomentumEvent(WebWheelEvent::Phase::Ended, { }, static_cast<WebWheelEvent::MomentumEndType>(actions.endType()));
+        m_client->didEndSyntheticMomentumScrolling();
+    }
+    if (actions.stopsDisplayLink())
+        m_client->stopDisplayDidRefreshCallbacks(actions.stopDisplayID());
+    if (endsGesture) {
+        m_currentGesture = { };
+        tracePoint(SyntheticMomentumEnd);
+    }
+
+    bool beginsGesture = actions.beginsGesture();
+    if (beginsGesture) {
+        tracePoint(SyntheticMomentumStart);
+        m_currentGesture.active = true;
+        m_currentGesture.pageIdentifier = beginningPage;
+        m_currentGesture.initiatingEvent = beginningEvent;
+    }
+    if (actions.startsDisplayLink())
+        m_client->startDisplayDidRefreshCallbacks(actions.startDisplayID());
+    if (beginsGesture)
+        dispatchSyntheticMomentumEvent(WebWheelEvent::Phase::Began, beginningEvent->delta());
+
+    if (actions.dispatchesChangedEvent())
+        dispatchSyntheticMomentumEvent(WebWheelEvent::Phase::Changed, { actions.changedDeltaWidth(), actions.changedDeltaHeight() });
+}
+#else
 MomentumEventDispatcher::~MomentumEventDispatcher()
 {
     stopDisplayLink();
@@ -153,6 +220,7 @@ bool MomentumEventDispatcher::handleWheelEvent(WebCore::PageIdentifier pageIdent
 
     return shouldIgnoreIncomingPlatformEvent;
 }
+#endif
 
 static float appKitScrollMultiplierForEvent(const WebWheelEvent& event)
 {
@@ -210,6 +278,27 @@ void MomentumEventDispatcher::dispatchSyntheticMomentumEvent(WebWheelEvent::Phas
 #endif
 }
 
+#if USE_SWIFT_SCROLLING_TREE
+void MomentumEventDispatcher::setScrollingAccelerationCurve(WebCore::PageIdentifier pageIdentifier, std::optional<ScrollingAccelerationCurve>&& curve)
+{
+    if (!curve) {
+        momentumClearScrollingAccelerationCurve(*m_state, pageIdentifier.toUInt64());
+        return;
+    }
+    momentumSetScrollingAccelerationCurve(*m_state, pageIdentifier.toUInt64(), curve->gainLinear(), curve->gainParabolic(), curve->gainCubic(), curve->gainQuartic(),
+        curve->tangentSpeedLinear(), curve->tangentSpeedParabolicRoot(), curve->resolution(), curve->frameRate());
+}
+
+void MomentumEventDispatcher::pageScreenDidChange(WebCore::PageIdentifier pageID, WebCore::PlatformDisplayID displayID, std::optional<unsigned> nominalFramesPerSecond)
+{
+    performActions(momentumPageScreenDidChange(*m_state, pageID.toUInt64(), displayID, nominalFramesPerSecond.value_or(WebCore::FullSpeedFramesPerSecond)));
+}
+
+void MomentumEventDispatcher::displayDidRefresh(WebCore::PlatformDisplayID displayID)
+{
+    performActions(momentumDisplayDidRefresh(*m_state, displayID, WebCore::scrollingEffectsClockNow().secondsSinceEpoch().value()));
+}
+#else
 void MomentumEventDispatcher::didStartMomentumPhase(WebCore::PageIdentifier pageIdentifier, const WebWheelEvent& event)
 {
     auto displayProperties = this->displayProperties(pageIdentifier);
@@ -673,6 +762,8 @@ std::pair<WebCore::FloatSize, WebCore::FloatSize> MomentumEventDispatcher::compu
 
     return { currentUnacceleratedDelta, currentUnacceleratedDelta };
 }
+
+#endif
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)
 

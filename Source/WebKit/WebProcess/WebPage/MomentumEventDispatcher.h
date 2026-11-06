@@ -51,6 +51,11 @@ enum class RubberBandingBehavior : uint8_t;
 
 namespace WebKit {
 
+#if USE_SWIFT_SCROLLING_TREE
+class MomentumActions;
+class MomentumEventDispatcherState;
+#endif
+
 class MomentumEventDispatcher {
     WTF_MAKE_NONCOPYABLE(MomentumEventDispatcher);
     WTF_MAKE_TZONE_ALLOCATED(MomentumEventDispatcher);
@@ -94,6 +99,7 @@ public:
 #endif
 
 private:
+#if !USE_SWIFT_SCROLLING_TREE
     void didStartMomentumPhase(WebCore::PageIdentifier, const WebWheelEvent&);
     void didEndMomentumPhase(WebWheelEvent::MomentumEndType);
 
@@ -109,9 +115,11 @@ private:
         WebCore::FramesPerSecond nominalFrameRate;
     };
     std::optional<DisplayProperties> LEGACY_NODELETE displayProperties(WebCore::PageIdentifier) const;
+#endif
 
     void dispatchSyntheticMomentumEvent(WebWheelEvent::Phase, WebCore::FloatSize delta, WebWheelEvent::MomentumEndType = WebWheelEvent::MomentumEndType::Unknown);
 
+#if !USE_SWIFT_SCROLLING_TREE
     void buildOffsetTableWithInitialDelta(WebCore::FloatSize);
     void equalizeTailGaps();
 
@@ -157,8 +165,10 @@ private:
     HistoricalDeltas m_deltaHistoryY;
 
     Markable<MonotonicTime> m_lastScrollTimestamp;
+#endif
     RefPtr<const WebWheelEvent> m_lastIncomingEvent;
     WebCore::RectEdges<WebCore::RubberBandingBehavior> m_lastRubberBandableEdges;
+#if !USE_SWIFT_SCROLLING_TREE
     bool m_isInOverriddenPlatformMomentumGesture { false };
 
     enum class MomentumCurve : uint8_t { Default, Simple };
@@ -194,7 +204,20 @@ private:
 
     mutable Lock m_accelerationCurvesLock;
     HashMap<WebCore::PageIdentifier, std::optional<ScrollingAccelerationCurve>> m_accelerationCurves WTF_GUARDED_BY_LOCK(m_accelerationCurvesLock);
+#else
+    void performActions(const MomentumActions&, std::optional<WebCore::PageIdentifier> beginningPage = std::nullopt, const WebWheelEvent* beginningEvent = nullptr);
+
+    // The gesture's page and initiating event, which the synthetic events are built from.
+    struct {
+        bool active { false };
+        Markable<WebCore::PageIdentifier> pageIdentifier;
+        RefPtr<const WebWheelEvent> initiatingEvent;
+    } m_currentGesture;
+#endif
     const CheckedRef<Client> m_client;
+#if USE_SWIFT_SCROLLING_TREE
+    const std::unique_ptr<MomentumEventDispatcherState> m_state;
+#endif
 };
 
 } // namespace WebKit

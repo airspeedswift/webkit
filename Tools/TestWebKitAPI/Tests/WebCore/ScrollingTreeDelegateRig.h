@@ -232,13 +232,17 @@ inline KeyboardScroll keyboardScroll(ScrollDirection direction, ScrollGranularit
 // MARK: - Threads
 
 // Wheel events and display refreshes reach the tree on the scrolling thread, and the timers its nodes' delegates
-// create run on that thread's run loop, so a session runs there. Runs the function there and waits for it.
+// create run on that thread's run loop, so a session runs there. Runs the function there and waits for it and for
+// the tasks it queued there: a session's end queues its nodes' snap timer destructions and its tree's release (see
+// ~Session), and the thread runs its tasks in order, so the signal goes in a task queued after them.
 inline void onScrollingThread(Function<void()>&& function)
 {
     BinarySemaphore done;
     ScrollingThread::dispatch([&] {
         function();
-        done.signal();
+        ScrollingThread::dispatch([&] {
+            done.signal();
+        });
     });
     done.wait();
 }
@@ -318,6 +322,8 @@ public:
     // As ThreadedScrollingTree::displayDidRefreshOnScrollingThread() services animations.
     void displayDidRefreshAt(MonotonicTime now)
     {
+        // As there, a Ref to the tree is taken before its lock.
+        Ref protectedThis { *this };
         Locker locker { m_treeLock };
         serviceScrollAnimations(now);
     }
@@ -461,13 +467,21 @@ public:
 
     ~Session()
     {
-        // Removing the nodes stops their timers.
+        // Removing the nodes does not stop their timers: each node's delegate hands its snap timer to
+        // ScrollingThread::dispatch for destruction still armed (ThreadedScrollingTreeScrollingNodeDelegate::
+        // destroyTimer), and a timer that comes due before its destruction runs, locking its node's tree. So the
+        // tree is released by a task queued after those destructions, which onScrollingThread() waits for.
         m_stateTree = makeUnique<ScrollingStateTree>();
         commit();
         setScrollingEffectsClockForTesting(nullptr);
+        ScrollingThread::dispatch([tree = WTF::move(m_tree)] { });
     }
 
     RigScrollingTree& tree() { return m_tree.get(); }
+
+    // A session starts with latching off; a shape that measures latching starts again on a new tree, which allows
+    // latching, before it adds any nodes.
+    void enableLatching() { m_tree = RigScrollingTree::create(m_digest); }
     uint64_t entries() const { return m_entries; }
     size_t nodeCount() const { return m_nodes.size(); }
 
@@ -1039,6 +1053,43 @@ inline void displayRefreshShape(Session& session)
                 session.requestKeyboardScroll(index, KeyboardScrollAction::StopWithAnimation);
         }
         session.commit();
+        session.framesUntilIdle();
+    }
+}
+
+// Latching, which every other shape turns off: gestures that begin over a nested overflow scroller and keep
+// going after it reaches its end, with the pointer moving over its parent and the root mid-gesture, so the latched
+// node, not the node under the pointer, takes the rest of the gesture. Each gesture is short, so the latching
+// controller's real-time timeout (scrollingTreeResetLatchedStateTimeout) does not expire inside one.
+inline void latchingShape(Session& session)
+{
+    session.enableLatching();
+    session.addRoot(mainFrameSetup({ 0, 4000 }));
+    session.addOverflow(overflowSetup({ 0, 0 }, 1));
+    session.addOverflow(overflowSetup({ 0, 0 }, 2), 1);
+    session.addOverflow(overflowSetup({ 0, 200 }, 3));
+    session.commit();
+    Lcg random(14);
+    using Phase = PlatformWheelEventPhase;
+    for (unsigned i = 0; i < 40; ++i) {
+        unsigned start = random.range(0, 3);
+        float sign = random.chance(50) ? -1 : 1;
+        unsigned count = random.range(10, 30);
+        unsigned moveAt = random.range(2, count - 1);
+        unsigned moveTo = random.range(0, 3);
+        session.wheel(start, { Phase::MayBegin, Phase::None, { } }, 0.05);
+        for (unsigned event = 0; event < count; ++event) {
+            // Large deltas, so the starting scroller reaches its end and the gesture continues past it.
+            FloatSize delta { i % 5 ? 0 : random.between(-4, 4), sign * random.between(20, 120) };
+            session.wheel(event < moveAt ? start : moveTo, { event ? Phase::Changed : Phase::Began, Phase::None, delta });
+        }
+        session.wheel(moveTo, { Phase::Ended, Phase::None, { } });
+        if (i % 3) {
+            unsigned momentumCount = random.range(5, 20);
+            for (unsigned event = 0; event < momentumCount; ++event)
+                session.wheel(random.range(0, 3), { Phase::None, event ? Phase::Changed : Phase::Began, { 0, sign * random.between(5, 60) } });
+            session.wheel(moveTo, { Phase::None, Phase::Ended, { } });
+        }
         session.framesUntilIdle();
     }
 }

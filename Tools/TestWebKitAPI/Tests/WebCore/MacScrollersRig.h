@@ -178,6 +178,8 @@ public:
     // As ThreadedScrollingTree::displayDidRefreshOnScrollingThread() services animations.
     virtual void displayDidRefreshAt(MonotonicTime now)
     {
+        // As there, a Ref to the tree is taken before its lock.
+        Ref protectedThis { *this };
         Locker locker { m_treeLock };
         serviceScrollAnimations(now);
     }

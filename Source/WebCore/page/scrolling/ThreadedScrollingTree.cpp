@@ -43,6 +43,10 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 #include <wtf/threads/BinarySemaphore.h>
+#if USE_SWIFT_SCROLLING_TREE
+#include "WebCore-Swift.h"
+#include <wtf/Scope.h>
+#endif
 
 namespace WebCore {
 
@@ -72,6 +76,10 @@ bool ThreadedScrollingTree::handleWheelEventAfterMainThread(const PlatformWheelE
 
     LOG_WITH_STREAM(Scrolling, stream << "ThreadedScrollingTree::handleWheelEventAfterMainThread " << wheelEvent << " node " << targetNodeID << " gestureState " << gestureState);
 
+#if USE_SWIFT_SCROLLING_TREE
+    // handleWheelEventWithNode() hands Swift a ScrollingTreeLockedAccess.
+    Ref protectedThis { *this };
+#endif
     Locker locker { m_treeLock };
 
     bool allowLatching = false;
@@ -81,7 +89,14 @@ bool ThreadedScrollingTree::handleWheelEventAfterMainThread(const PlatformWheelE
         processingSteps = { WheelEventProcessingSteps::AsyncScrolling, WheelEventProcessingSteps::NonBlockingDOMEventDispatch };
     }
 
+#if USE_SWIFT_SCROLLING_TREE
+    bool previousAllowLatching = m_allowLatching.exchange(allowLatching);
+    auto restoreAllowLatching = makeScopeExit([&] {
+        m_allowLatching = previousAllowLatching;
+    });
+#else
     SetForScope disallowLatchingScope(m_allowLatching, allowLatching);
+#endif
     RefPtr<ScrollingTreeNode> targetNode = nodeForID(targetNodeID);
     auto result = handleWheelEventWithNode(wheelEvent, processingSteps, targetNode.get(), EventTargeting::NodeOnly);
     return result.wasHandled;
@@ -200,6 +215,20 @@ bool ThreadedScrollingTree::scrollingTreeNodeRequestsKeyboardScroll(ScrollingNod
     return true;
 }
 
+#if USE_SWIFT_SCROLLING_TREE
+void ThreadedScrollingTree::propagateSynchronousScrollingReasons(const HashSet<ScrollingNodeID>& synchronousScrollingNodes)
+{
+    m_hasNodesWithSynchronousScrollingReasons = !synchronousScrollingNodes.isEmpty();
+
+    // ScrollingTree::commitTreeStateInternal() calls this inside commitTreeState(), which holds a Ref to the tree
+    // taken before the tree's lock.
+    ScrollingTreeLockedAccess locked { *this, ScrollingTreeAccessMode::Commit };
+    for (auto nodeID : synchronousScrollingNodes) {
+        if (RefPtr node = locked.nodeForID(nodeID))
+            propagateSynchronousScrollingReasonsToAncestors(locked, node.get());
+    }
+}
+#else
 void ThreadedScrollingTree::propagateSynchronousScrollingReasons(const HashSet<ScrollingNodeID>& synchronousScrollingNodes)
 {
     auto propagateStateToAncestors = [&](ScrollingTreeNode& node) {
@@ -233,6 +262,7 @@ void ThreadedScrollingTree::propagateSynchronousScrollingReasons(const HashSet<S
             propagateStateToAncestors(*node);
     }
 }
+#endif
 
 bool ThreadedScrollingTree::canUpdateLayersOnScrollingThread() const
 {

@@ -35,6 +35,8 @@
 
 namespace WebCore {
 
+#if !USE_SWIFT_SCROLLING_TREE
+
 ScrollingTreeGestureState::ScrollingTreeGestureState(ScrollingTree& scrollingTree)
     : m_scrollingTree(scrollingTree)
 {
@@ -112,6 +114,8 @@ void ScrollingTreeGestureState::clearAllNodes()
     m_mayBeginNodeID = std::nullopt;
     m_activeNodeID = std::nullopt;
 }
+
+#endif // !USE_SWIFT_SCROLLING_TREE
 
 };
 
