@@ -73,6 +73,10 @@ class RemoteLayerTreeDrawingAreaProxyMac;
 class RemoteLayerTreeNode;
 class RemoteScrollingTree;
 class RemoteLayerTreeEventDispatcherDisplayLinkClient;
+#if USE_SWIFT_SCROLLING_TREE
+class RemoteLayerTreeEventDispatcherSignpostState;
+class RemoteLayerTreeEventDispatcherState;
+#endif
 class WebProcessPool;
 
 // This class exists to act as a threadsafe DisplayLink::Client client, allowing RemoteScrollingCoordinatorProxyMac to
@@ -193,10 +197,17 @@ private:
     std::optional<DisplayLinkObserverID> m_displayRefreshObserverID;
     PAL::HysteresisActivity m_wheelEventActivityHysteresis;
 
+#if USE_SWIFT_SCROLLING_TREE
+    const std::unique_ptr<RemoteLayerTreeEventDispatcherSignpostState> m_signpostState;
+#else
     std::atomic<bool> m_fingerDownIntervalIsActive = false;
     std::atomic<bool> m_momentumIntervalIsActive = false;
     std::atomic<bool> m_momentumIntervalHasSeenNonZeroDeltaEvent = false;
+#endif
 
+#if USE_SWIFT_SCROLLING_TREE
+    const std::unique_ptr<RemoteLayerTreeEventDispatcherState> m_synchronizationState WTF_POINTEE_GUARDED_BY_LOCK(m_scrollingTreeLock);
+#else
     enum class SynchronizationState : uint8_t {
         Idle,
         WaitingForRenderingUpdate,
@@ -205,9 +216,12 @@ private:
     };
 
     SynchronizationState m_state WTF_GUARDED_BY_LOCK(m_scrollingTreeLock) { SynchronizationState::Idle };
+#endif
     Condition m_stateCondition;
 
+#if !USE_SWIFT_SCROLLING_TREE
     MonotonicTime m_lastDisplayDidRefreshTime WTF_GUARDED_BY_LOCK(m_scrollingTreeLock);
+#endif
 
     std::unique_ptr<RunLoop::Timer> m_delayedRenderingUpdateDetectionTimer;
 

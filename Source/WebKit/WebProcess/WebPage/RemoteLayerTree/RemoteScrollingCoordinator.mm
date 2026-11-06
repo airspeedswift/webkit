@@ -53,6 +53,10 @@
 #import <wtf/Scope.h>
 #import <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_SCROLLING_TREE
+#import "WebKit-Swift.h"
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -62,6 +66,9 @@ RemoteScrollingCoordinator::RemoteScrollingCoordinator(WebPage* page)
     : AsyncScrollingCoordinator(protect(page->corePage()))
     , m_webPage(page)
     , m_pageIdentifier(page->identifier())
+#if USE_SWIFT_SCROLLING_TREE
+    , m_scrollRequestsPendingResponse(makeUniqueWithoutFastMallocCheck<RemoteScrollingCoordinatorPendingScrollRequests>(RemoteScrollingCoordinatorPendingScrollRequests::init()))
+#endif
 {
     WebProcess::singleton().addMessageReceiver(Messages::RemoteScrollingCoordinator::messageReceiverName(), m_pageIdentifier, *this);
 }
@@ -125,8 +132,12 @@ RemoteScrollingCoordinatorTransaction RemoteScrollingCoordinator::buildTransacti
 void RemoteScrollingCoordinator::willSendScrollPositionRequest(ScrollingNodeID nodeID, RequestedScrollData& request)
 {
     request.identifier = ScrollRequestIdentifier::generate();
+#if USE_SWIFT_SCROLLING_TREE
+    remoteScrollingCoordinatorWillSendScrollPositionRequest(*m_scrollRequestsPendingResponse, nodeID.processIdentifier().toUInt64(), nodeID.object().toUInt64(), request.identifier->toUInt64());
+#else
     // This may clobber an older one, but that's OK.
     m_scrollRequestsPendingResponse.set(nodeID, PendingScrollResponseInfo { *request.identifier, false });
+#endif
 }
 
 /*
@@ -202,6 +213,19 @@ void RemoteScrollingCoordinator::scrollUpdateForNode(ScrollUpdate&& update, Comp
         completionHandler();
     });
 
+#if USE_SWIFT_SCROLLING_TREE
+    auto* responseData = std::get_if<ScrollRequestResponseData>(&update.data);
+    ASSERT(!responseData || responseData->responseIdentifier);
+    auto responseIdentifier = responseData && responseData->responseIdentifier ? responseData->responseIdentifier->toUInt64() : 0;
+    auto action = remoteScrollingCoordinatorScrollUpdate(*m_scrollRequestsPendingResponse, update.nodeID.processIdentifier().toUInt64(), update.nodeID.object().toUInt64(), !!responseData, responseIdentifier,
+        update.shouldFireScrollEnd == ShouldFireScrollEnd::Yes, responseData && responseData->requestType == ScrollRequestType::PositionUpdate && !responseData->wasDiscarded);
+    if (action.appliesPositionUpdate()) {
+        update.shouldFireScrollEnd = action.firesScrollEnd() ? ShouldFireScrollEnd::Yes : ShouldFireScrollEnd::No;
+        update.data = ScrollUpdateData { .updateType = ScrollUpdateType::PositionUpdate, .updateLayerPositionAction = ScrollingLayerPositionAction::Set };
+    }
+    if (action.appliesUpdate())
+        applyScrollUpdate(WTF::move(update), ScrollType::User, ViewportRectStability::Stable);
+#else
     auto pendingResponseIt = m_scrollRequestsPendingResponse.find(update.nodeID);
     bool havePendingStateForNode = pendingResponseIt != m_scrollRequestsPendingResponse.end();
 
@@ -256,6 +280,7 @@ void RemoteScrollingCoordinator::scrollUpdateForNode(ScrollUpdate&& update, Comp
     }
 
     applyScrollUpdate(WTF::move(update), ScrollType::User, ViewportRectStability::Stable);
+#endif
 }
 
 void RemoteScrollingCoordinator::currentSnapPointIndicesChangedForNode(ScrollingNodeID nodeID, std::optional<unsigned> horizontal, std::optional<unsigned> vertical)

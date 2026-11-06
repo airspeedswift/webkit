@@ -49,6 +49,10 @@
 #include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#if USE_SWIFT_SCROLLING_TREE
+#include "WebKit-Swift.h"
+#endif
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -245,6 +249,9 @@ void RemoteScrollingCoordinatorProxy::adjustMainFrameDelegatedScrollPosition(Scr
         }
 
         if (auto rootNodeID = rootScrollingNodeID()) {
+#if USE_SWIFT_SCROLLING_TREE
+            auto shouldFireScrollEnd = remoteScrollRequestFiresScrollEnd(std::to_underlying(request.requestType)) ? ShouldFireScrollEnd::Yes : ShouldFireScrollEnd::No;
+#else
             auto shouldFireScrollEnd = ShouldFireScrollEnd::No;
 
             switch (request.requestType) {
@@ -258,6 +265,7 @@ void RemoteScrollingCoordinatorProxy::adjustMainFrameDelegatedScrollPosition(Scr
             case ScrollRequestType::CancelAnimatedScroll:
                 break;
             }
+#endif
 
             m_scrollingTree->didHandleScrollRequestForNode(*rootNodeID, request.requestType, scrollPosition, shouldFireScrollEnd, *request.identifier);
         }

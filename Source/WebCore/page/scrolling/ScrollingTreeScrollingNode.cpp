@@ -41,6 +41,9 @@
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
+#if USE_SWIFT_SCROLLING_TREE
+#include "WebCore-Swift.h"
+#endif
 
 namespace WebCore {
 
@@ -158,6 +161,11 @@ bool ScrollingTreeScrollingNode::isLatchedNode() const
 
 bool ScrollingTreeScrollingNode::shouldRubberBandOnSide(BoxSide side, RectEdges<bool> pinnedEdges) const
 {
+#if USE_SWIFT_SCROLLING_TREE
+    return pinnedEdges[side] && scrollingNodeShouldRubberBandOnSide(side, isRootNode(), scrollingTree()->clientAllowsMainFrameRubberBandingOnSide(side),
+        overscrollBehaviorAllowsHorizontalRubberBand(), overscrollBehaviorAllowsVerticalRubberBand(), canHaveHorizontalScrollbar(), canHaveVerticalScrollbar(),
+        allowsHorizontalScrolling(), allowsVerticalScrolling(), horizontalOverscrollBehaviorPreventsPropagation(), verticalOverscrollBehaviorPreventsPropagation());
+#else
     if (!pinnedEdges[side])
         return false;
 
@@ -204,6 +212,7 @@ bool ScrollingTreeScrollingNode::shouldRubberBandOnSide(BoxSide side, RectEdges<
         return horizontalOverscrollBehaviorPreventsPropagation();
     }
     return true;
+#endif
 }
 
 bool ScrollingTreeScrollingNode::shouldRubberBand(const PlatformWheelEvent& wheelEvent, EventTargeting eventTargeting) const
@@ -284,6 +293,10 @@ bool ScrollingTreeScrollingNode::eventCanScrollContents(const PlatformWheelEvent
         return true;
 #endif
 
+#if USE_SWIFT_SCROLLING_TREE
+    return !wheelEvent.delta().isZero() && scrollingNodeEventCanScrollContents(wheelEvent.delta(), allowsHorizontalScrolling(), allowsVerticalScrolling(),
+        currentScrollPosition(), minimumScrollPosition(), maximumScrollPosition());
+#else
     if (wheelEvent.delta().isZero())
         return false;
 
@@ -298,10 +311,15 @@ bool ScrollingTreeScrollingNode::eventCanScrollContents(const PlatformWheelEvent
     auto oldScrollPosition = currentScrollPosition();
     auto newScrollPosition = (oldScrollPosition - wheelDelta).constrainedBetween(minimumScrollPosition(), maximumScrollPosition());
     return newScrollPosition != oldScrollPosition;
+#endif
 }
 
 RectEdges<bool> ScrollingTreeScrollingNode::edgePinnedState() const
 {
+#if USE_SWIFT_SCROLLING_TREE
+    auto pinnedEdges = scrollingNodeEdgePinnedState(currentScrollPosition(), minimumScrollPosition(), maximumScrollPosition(), allowsHorizontalScrolling(), allowsVerticalScrolling());
+    return { !!(pinnedEdges & 1), !!(pinnedEdges & 2), !!(pinnedEdges & 4), !!(pinnedEdges & 8) };
+#else
     auto scrollPosition = currentScrollPosition();
     auto minScrollPosition = minimumScrollPosition();
     auto maxScrollPosition = maximumScrollPosition();
@@ -316,6 +334,7 @@ RectEdges<bool> ScrollingTreeScrollingNode::edgePinnedState() const
         verticallyUnscrollable || scrollPosition.y() >= maxScrollPosition.y(),
         horizontallyUnscrollable || scrollPosition.x() <= minScrollPosition.x()
     };
+#endif
 }
 
 bool ScrollingTreeScrollingNode::isUserScrollInProgress() const
@@ -633,6 +652,7 @@ PlatformWheelEvent ScrollingTreeScrollingNode::eventForPropagation(const Platfor
     return wheelEvent;
 }
 
+#if !USE_SWIFT_SCROLLING_TREE
 ScrollPropagationInfo ScrollingTreeScrollingNode::computeScrollPropagation(const FloatSize& delta) const
 {
     ScrollPropagationInfo propagation;
@@ -654,6 +674,7 @@ ScrollPropagationInfo ScrollingTreeScrollingNode::computeScrollPropagation(const
     }
     return propagation;
 }
+#endif
 
 void ScrollingTreeScrollingNode::scrollbarVisibilityDidChange(ScrollbarOrientation orientation, bool isVisible)
 {

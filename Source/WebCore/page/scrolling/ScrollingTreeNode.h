@@ -90,6 +90,11 @@ public:
     const Vector<Ref<ScrollingTreeNode>>& children() const LIFETIME_BOUND { return m_children; }
 
     SWIFT_UNSAFE void appendChild(Ref<ScrollingTreeNode>&&);
+#if USE_SWIFT_SCROLLING_TREE
+    SWIFT_UNSAFE ALWAYS_INLINE void appendChild(ScrollingTreeNode& child) { appendChild(Ref { child }); }
+    // setParent() for Swift, which cannot pass a RefPtr&&. Called by the tree's commit, under the tree's lock.
+    SWIFT_UNSAFE void setParentNode(ScrollingTreeNode* parent) { m_parent = parent; }
+#endif
     SWIFT_UNSAFE void removeChild(ScrollingTreeNode&);
     SWIFT_UNSAFE void removeAllChildren();
 

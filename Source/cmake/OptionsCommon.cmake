@@ -354,6 +354,9 @@ elseif (NOT ENABLE_ASSERTS)
     WEBKIT_PREPEND_GLOBAL_COMPILER_FLAGS(-DASSERT_ENABLED=0)
 endif ()
 
+# The Swift scrolling tree is off unless the port turns it on (OptionsCocoa.cmake).
+SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_SCROLLING_TREE OFF)
+
 if (NOT APPLE)
     # Check whether features.h header exists.
     # Including glibc's one defines __GLIBC__, that is used in Platform.h
