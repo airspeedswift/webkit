@@ -3679,6 +3679,13 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
             message(FATAL_ERROR "No swiftCore.lib in ${_swift_sdk_lib_dir}; is SDKROOT set?")
         endif ()
         target_link_directories(WebCore PRIVATE "${_swift_sdk_lib_dir}")
+        # The Swift driver links swiftrt.obj into every image it links; the C++ linker does not. Without it the
+        # runtime never registers WebCore.dll's Swift metadata sections, so a conformance lookup (generic metadata
+        # built at run time, a protocol cast) cannot find any conformance WebCore declares.
+        if (NOT EXISTS "${_swift_sdk_lib_dir}/swiftrt.obj")
+            message(FATAL_ERROR "No swiftrt.obj in ${_swift_sdk_lib_dir}")
+        endif ()
+        target_link_options(WebCore PRIVATE "${_swift_sdk_lib_dir}/swiftrt.obj")
     endif ()
 endif ()
 
