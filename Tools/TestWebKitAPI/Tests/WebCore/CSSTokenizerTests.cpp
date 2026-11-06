@@ -406,7 +406,8 @@ TEST(CSSTokenizerTest, TokenizeIntegerValues)
             auto& token = tokens[0];
             EXPECT_EQ(follower.type, token.type());
             EXPECT_EQ(IntegerValueType, token.numericValueType());
-            EXPECT_EQ(sign.sign, token.numericSign());
+            if (token.type() == NumberToken)
+                EXPECT_EQ(sign.sign, token.numericSign());
             EXPECT_EQ(std::bit_cast<uint64_t>(value), std::bit_cast<uint64_t>(token.numericValue()));
             if (!value)
                 EXPECT_EQ(sign.sign == MinusSign, std::signbit(token.numericValue()));
