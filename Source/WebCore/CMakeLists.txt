@@ -3561,6 +3561,8 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_PROPERTY_CONSUMERS_4" "-Xcc -DUSE_SWIFT_CSS_PROPERTY_CONSUMERS_4=1")
         # A registered custom property's syntax, which the consumers' Swift reads (a private header in Xcode).
         list(APPEND _webcore_swift_core_submodules css/parser/CSSCustomPropertySyntax.h)
+        # The position values and the CSS::Position they hold, which the consumers' Swift builds.
+        list(APPEND _webcore_swift_core_submodules css/CSSPositionValue.h css/values/primitives/CSSPosition.h)
     endif ()
     list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 

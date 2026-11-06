@@ -31,14 +31,14 @@ namespace CSS {
 
 // MARK: Two Component Types
 
-struct TwoComponentPositionHorizontal {
+struct __attribute__((swift_attr("~Sendable"))) TwoComponentPositionHorizontal {
     Variant<Keyword::Left, Keyword::Right, Keyword::Center, Keyword::XStart, Keyword::XEnd, LengthPercentage<>> offset;
 
     bool operator==(const TwoComponentPositionHorizontal&) const = default;
 };
 DEFINE_TYPE_WRAPPER_GET(TwoComponentPositionHorizontal, offset);
 
-struct TwoComponentPositionVertical {
+struct __attribute__((swift_attr("~Sendable"))) TwoComponentPositionVertical {
     Variant<Keyword::Top, Keyword::Bottom, Keyword::Center, Keyword::YStart, Keyword::YEnd, LengthPercentage<>> offset;
 
     bool operator==(const TwoComponentPositionVertical&) const = default;
@@ -47,14 +47,14 @@ DEFINE_TYPE_WRAPPER_GET(TwoComponentPositionVertical, offset);
 
 // MARK: Three Component Types
 
-struct ThreeComponentPositionHorizontal {
+struct __attribute__((swift_attr("~Sendable"))) ThreeComponentPositionHorizontal {
     Variant<Keyword::Left, Keyword::Right, Keyword::Center, Keyword::XStart, Keyword::XEnd> offset;
 
     bool operator==(const ThreeComponentPositionHorizontal&) const = default;
 };
 DEFINE_TYPE_WRAPPER_GET(ThreeComponentPositionHorizontal, offset);
 
-struct ThreeComponentPositionVertical {
+struct __attribute__((swift_attr("~Sendable"))) ThreeComponentPositionVertical {
     Variant<Keyword::Top, Keyword::Bottom, Keyword::Center, Keyword::YStart, Keyword::YEnd> offset;
 
     bool operator==(const ThreeComponentPositionVertical&) const = default;
@@ -62,14 +62,14 @@ struct ThreeComponentPositionVertical {
 DEFINE_TYPE_WRAPPER_GET(ThreeComponentPositionVertical, offset);
 
 // MARK: Four Component Types
-struct FourComponentPositionHorizontal {
+struct __attribute__((swift_attr("~Sendable"))) FourComponentPositionHorizontal {
     SpaceSeparatedTuple<Variant<Keyword::Left, Keyword::Right, Keyword::XStart, Keyword::XEnd>, LengthPercentage<>> offset;
 
     bool operator==(const FourComponentPositionHorizontal&) const = default;
 };
 DEFINE_TYPE_WRAPPER_GET(FourComponentPositionHorizontal, offset);
 
-struct FourComponentPositionVertical {
+struct __attribute__((swift_attr("~Sendable"))) FourComponentPositionVertical {
     SpaceSeparatedTuple<Variant<Keyword::Top, Keyword::Bottom, Keyword::YStart, Keyword::YEnd>, LengthPercentage<>> offset;
 
     bool operator==(const FourComponentPositionVertical&) const = default;
@@ -83,7 +83,7 @@ using ThreeComponentPositionHorizontalVerticalLengthSecond = SpaceSeparatedTuple
 
 using FourComponentPositionHorizontalVertical              = SpaceSeparatedTuple<FourComponentPositionHorizontal, FourComponentPositionVertical>;
 
-struct Position {
+struct __attribute__((swift_attr("~Sendable"))) Position {
     using Kind = Variant<
         TwoComponentPositionHorizontalVertical,
         ThreeComponentPositionHorizontalVerticalLengthFirst,
@@ -116,7 +116,7 @@ struct Position {
 };
 DEFINE_TYPE_WRAPPER_GET(Position, value);
 
-struct PositionX {
+struct __attribute__((swift_attr("~Sendable"))) PositionX {
     using Kind = Variant<
         TwoComponentPositionHorizontal,
         FourComponentPositionHorizontal
@@ -147,7 +147,7 @@ struct PositionX {
 };
 DEFINE_TYPE_WRAPPER_GET(PositionX, value);
 
-struct PositionY {
+struct __attribute__((swift_attr("~Sendable"))) PositionY {
     using Kind = Variant<
         TwoComponentPositionVertical,
         FourComponentPositionVertical

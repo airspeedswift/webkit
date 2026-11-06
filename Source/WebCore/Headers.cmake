@@ -991,6 +991,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/CSSNamespacePrefixMap.h
     css/CSSPageDescriptors.h
     css/CSSPageRule.h
+    css/CSSPositionValue.h
     css/CSSPrimitiveValue.h
     css/CSSProperty.h
     css/CSSPropertyInitialValues.h
