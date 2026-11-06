@@ -43,6 +43,8 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 #include <wtf/threads/BinarySemaphore.h>
+#include "WebCore-Swift.h"
+#include <wtf/Scope.h>
 
 namespace WebCore {
 
@@ -72,6 +74,8 @@ bool ThreadedScrollingTree::handleWheelEventAfterMainThread(const PlatformWheelE
 
     LOG_WITH_STREAM(Scrolling, stream << "ThreadedScrollingTree::handleWheelEventAfterMainThread " << wheelEvent << " node " << targetNodeID << " gestureState " << gestureState);
 
+    // handleWheelEventWithNode() hands Swift a ScrollingTreeLockedAccess.
+    Ref protectedThis { *this };
     Locker locker { m_treeLock };
 
     bool allowLatching = false;
@@ -81,7 +85,10 @@ bool ThreadedScrollingTree::handleWheelEventAfterMainThread(const PlatformWheelE
         processingSteps = { WheelEventProcessingSteps::AsyncScrolling, WheelEventProcessingSteps::NonBlockingDOMEventDispatch };
     }
 
-    SetForScope disallowLatchingScope(m_allowLatching, allowLatching);
+    bool previousAllowLatching = m_allowLatching.exchange(allowLatching);
+    auto restoreAllowLatching = makeScopeExit([&] {
+        m_allowLatching = previousAllowLatching;
+    });
     RefPtr<ScrollingTreeNode> targetNode = nodeForID(targetNodeID);
     auto result = handleWheelEventWithNode(wheelEvent, processingSteps, targetNode.get(), EventTargeting::NodeOnly);
     return result.wasHandled;
@@ -202,35 +209,14 @@ bool ThreadedScrollingTree::scrollingTreeNodeRequestsKeyboardScroll(ScrollingNod
 
 void ThreadedScrollingTree::propagateSynchronousScrollingReasons(const HashSet<ScrollingNodeID>& synchronousScrollingNodes)
 {
-    auto propagateStateToAncestors = [&](ScrollingTreeNode& node) {
-        ASSERT(is<ScrollingTreeScrollingNode>(node) && !downcast<ScrollingTreeScrollingNode>(node).synchronousScrollingReasons().isEmpty());
-
-        if (is<ScrollingTreeFrameScrollingNode>(node))
-            return;
-
-        auto currNode = node.parent();
-
-        while (currNode) {
-            if (RefPtr scrollingNode = dynamicDowncast<ScrollingTreeScrollingNode>(currNode))
-                scrollingNode->addSynchronousScrollingReason(SynchronousScrollingReason::DescendantScrollersHaveSynchronousScrolling);
-
-            if (RefPtr proxyNode = dynamicDowncast<ScrollingTreeOverflowScrollProxyNode>(currNode)) {
-                currNode = nodeForID(proxyNode->overflowScrollingNodeID());
-                continue;
-            }
-
-            if (is<ScrollingTreeFrameScrollingNode>(currNode))
-                break;
-
-            currNode = currNode->parent();
-        }
-    };
-
     m_hasNodesWithSynchronousScrollingReasons = !synchronousScrollingNodes.isEmpty();
 
+    // ScrollingTree::commitTreeStateInternal() calls this inside commitTreeState(), which holds a Ref to the tree
+    // taken before the tree's lock.
+    ScrollingTreeLockedAccess locked { *this, ScrollingTreeAccessMode::Commit };
     for (auto nodeID : synchronousScrollingNodes) {
-        if (RefPtr node = nodeForID(nodeID))
-            propagateStateToAncestors(*node);
+        if (RefPtr node = locked.nodeForID(nodeID))
+            propagateSynchronousScrollingReasonsToAncestors(locked, node.get());
     }
 }
 

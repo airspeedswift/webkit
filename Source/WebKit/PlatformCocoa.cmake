@@ -173,6 +173,10 @@ list(APPEND WebKit_SOURCES
     ${WEBKIT_DIR}/UIProcess/PhoneNumberPossession/Cocoa/MockPhoneNumberPossessionManager.swift
     ${WEBKIT_DIR}/UIProcess/PhoneNumberPossession/Cocoa/PhoneNumberPossessionController.swift
     ${WEBKIT_DIR}/UIProcess/PhoneNumberPossession/Cocoa/PhoneNumberPossessionManaging.swift
+    ${WEBKIT_DIR}/UIProcess/RemoteLayerTree/RemoteScrollingCoordinatorProxy.swift
+    ${WEBKIT_DIR}/UIProcess/RemoteLayerTree/mac/RemoteLayerTreeEventDispatcher.swift
+    ${WEBKIT_DIR}/WebProcess/WebPage/MomentumEventDispatcher.swift
+    ${WEBKIT_DIR}/WebProcess/WebPage/RemoteLayerTree/RemoteScrollingCoordinator.swift
 
     UIProcess/PDF/WKPDFPageNumberIndicator.mm
     ${WEBKIT_DIR}/UIProcess/API/Cocoa/_WKTextExtraction.swift

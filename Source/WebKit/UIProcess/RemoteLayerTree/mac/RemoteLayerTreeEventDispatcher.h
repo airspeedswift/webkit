@@ -73,6 +73,8 @@ class RemoteLayerTreeDrawingAreaProxyMac;
 class RemoteLayerTreeNode;
 class RemoteScrollingTree;
 class RemoteLayerTreeEventDispatcherDisplayLinkClient;
+class RemoteLayerTreeEventDispatcherSignpostState;
+class RemoteLayerTreeEventDispatcherState;
 class WebProcessPool;
 
 // This class exists to act as a threadsafe DisplayLink::Client client, allowing RemoteScrollingCoordinatorProxyMac to
@@ -194,22 +196,10 @@ private:
     std::optional<DisplayLinkObserverID> m_displayRefreshObserverID;
     PAL::HysteresisActivity m_wheelEventActivityHysteresis;
 
-    std::atomic<bool> m_fingerDownIntervalIsActive = false;
-    std::atomic<bool> m_momentumIntervalIsActive = false;
-    std::atomic<bool> m_momentumIntervalHasSeenNonZeroDeltaEvent = false;
+    const std::unique_ptr<RemoteLayerTreeEventDispatcherSignpostState> m_signpostState;
 
-    enum class SynchronizationState : uint8_t {
-        Idle,
-        WaitingForRenderingUpdate,
-        InRenderingUpdate,
-        Desynchronized,
-    };
-
-    SynchronizationState m_state WTF_GUARDED_BY_LOCK(m_scrollingTreeLock) { SynchronizationState::Idle };
+    const std::unique_ptr<RemoteLayerTreeEventDispatcherState> m_synchronizationState WTF_POINTEE_GUARDED_BY_LOCK(m_scrollingTreeLock);
     Condition m_stateCondition;
-
-    MonotonicTime m_lastDisplayDidRefreshTime WTF_GUARDED_BY_LOCK(m_scrollingTreeLock);
-    bool m_needsMainThreadFlush WTF_GUARDED_BY_LOCK(m_scrollingTreeLock) { false };
 
     std::unique_ptr<RunLoop::Timer> m_delayedRenderingUpdateDetectionTimer;
 

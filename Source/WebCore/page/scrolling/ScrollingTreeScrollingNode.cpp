@@ -41,6 +41,7 @@
 #include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
+#include "WebCore-Swift.h"
 
 namespace WebCore {
 
@@ -158,52 +159,9 @@ bool ScrollingTreeScrollingNode::isLatchedNode() const
 
 bool ScrollingTreeScrollingNode::shouldRubberBandOnSide(BoxSide side, RectEdges<bool> pinnedEdges) const
 {
-    if (!pinnedEdges[side])
-        return false;
-
-    auto mainFrameRubberBandingBehavior = scrollingTree()->clientAllowsMainFrameRubberBandingOnSide(side);
-
-    if (isRootNode() && mainFrameRubberBandingBehavior == RubberBandingBehavior::Never)
-        return false;
-
-    switch (side) {
-    case BoxSide::Top:
-    case BoxSide::Bottom:
-        if (!overscrollBehaviorAllowsVerticalRubberBand())
-            return false;
-
-        // The root allows rubberbanding if it doesn't have enough content, but only if a scrollbar is allowed.
-        if (isRootNode() && canHaveVerticalScrollbar()) {
-            if (!allowsVerticalScrolling() && mainFrameRubberBandingBehavior == RubberBandingBehavior::BasedOnSize)
-                return false;
-
-            return true;
-        }
-
-        if (!allowsVerticalScrolling())
-            return false;
-
-        return verticalOverscrollBehaviorPreventsPropagation();
-
-    case BoxSide::Left:
-    case BoxSide::Right:
-        if (!overscrollBehaviorAllowsHorizontalRubberBand())
-            return false;
-
-        // The root allows rubberbanding if it doesn't have enough content, but only if a scrollbar is allowed.
-        if (isRootNode() && canHaveHorizontalScrollbar()) {
-            if (!allowsHorizontalScrolling() && mainFrameRubberBandingBehavior == RubberBandingBehavior::BasedOnSize)
-                return false;
-
-            return true;
-        }
-
-        if (!allowsHorizontalScrolling())
-            return false;
-
-        return horizontalOverscrollBehaviorPreventsPropagation();
-    }
-    return true;
+    return pinnedEdges[side] && scrollingNodeShouldRubberBandOnSide(side, isRootNode(), scrollingTree()->clientAllowsMainFrameRubberBandingOnSide(side),
+        overscrollBehaviorAllowsHorizontalRubberBand(), overscrollBehaviorAllowsVerticalRubberBand(), canHaveHorizontalScrollbar(), canHaveVerticalScrollbar(),
+        allowsHorizontalScrolling(), allowsVerticalScrolling(), horizontalOverscrollBehaviorPreventsPropagation(), verticalOverscrollBehaviorPreventsPropagation());
 }
 
 bool ScrollingTreeScrollingNode::shouldRubberBand(const PlatformWheelEvent& wheelEvent, EventTargeting eventTargeting) const
@@ -284,38 +242,14 @@ bool ScrollingTreeScrollingNode::eventCanScrollContents(const PlatformWheelEvent
         return true;
 #endif
 
-    if (wheelEvent.delta().isZero())
-        return false;
-
-    auto wheelDelta = wheelEvent.delta();
-
-    if (!m_scrollableAreaParameters.allowsHorizontalScrolling)
-        wheelDelta.setWidth(0);
-
-    if (!m_scrollableAreaParameters.allowsVerticalScrolling)
-        wheelDelta.setHeight(0);
-
-    auto oldScrollPosition = currentScrollPosition();
-    auto newScrollPosition = (oldScrollPosition - wheelDelta).constrainedBetween(minimumScrollPosition(), maximumScrollPosition());
-    return newScrollPosition != oldScrollPosition;
+    return !wheelEvent.delta().isZero() && scrollingNodeEventCanScrollContents(wheelEvent.delta(), allowsHorizontalScrolling(), allowsVerticalScrolling(),
+        currentScrollPosition(), minimumScrollPosition(), maximumScrollPosition());
 }
 
 RectEdges<bool> ScrollingTreeScrollingNode::edgePinnedState() const
 {
-    auto scrollPosition = currentScrollPosition();
-    auto minScrollPosition = minimumScrollPosition();
-    auto maxScrollPosition = maximumScrollPosition();
-
-    bool horizontallyUnscrollable = !allowsHorizontalScrolling();
-    bool verticallyUnscrollable = !allowsVerticalScrolling();
-
-    // Top, right, bottom, left.
-    return {
-        verticallyUnscrollable || scrollPosition.y() <= minScrollPosition.y(),
-        horizontallyUnscrollable || scrollPosition.x() >= maxScrollPosition.x(),
-        verticallyUnscrollable || scrollPosition.y() >= maxScrollPosition.y(),
-        horizontallyUnscrollable || scrollPosition.x() <= minScrollPosition.x()
-    };
+    auto pinnedEdges = scrollingNodeEdgePinnedState(currentScrollPosition(), minimumScrollPosition(), maximumScrollPosition(), allowsHorizontalScrolling(), allowsVerticalScrolling());
+    return { !!(pinnedEdges & 1), !!(pinnedEdges & 2), !!(pinnedEdges & 4), !!(pinnedEdges & 8) };
 }
 
 bool ScrollingTreeScrollingNode::isUserScrollInProgress() const
@@ -636,28 +570,6 @@ PlatformWheelEvent ScrollingTreeScrollingNode::eventForPropagation(const Platfor
         return wheelEvent.copyWithDeltaAndVelocity(filteredDelta, wheelEvent.scrollingVelocity());
     }
     return wheelEvent;
-}
-
-ScrollPropagationInfo ScrollingTreeScrollingNode::computeScrollPropagation(const FloatSize& delta) const
-{
-    ScrollPropagationInfo propagation;
-    if (!horizontalOverscrollBehaviorPreventsPropagation() && !verticalOverscrollBehaviorPreventsPropagation())
-        return propagation;
-    
-    // History swipe case
-    if (horizontalOverscrollBehaviorPreventsPropagation() && !delta.height() && delta.width()) {
-        propagation.shouldBlockScrollPropagation = true;
-        propagation.isHandled = false;
-        return propagation;
-    }
-
-    if ((horizontalOverscrollBehaviorPreventsPropagation() && verticalOverscrollBehaviorPreventsPropagation())
-        || (horizontalOverscrollBehaviorPreventsPropagation() && !delta.height())
-        || (verticalOverscrollBehaviorPreventsPropagation() && !delta.width())) {
-        propagation.shouldBlockScrollPropagation = true;
-        propagation.isHandled = true;
-    }
-    return propagation;
 }
 
 void ScrollingTreeScrollingNode::scrollbarVisibilityDidChange(ScrollbarOrientation orientation, bool isVisible)

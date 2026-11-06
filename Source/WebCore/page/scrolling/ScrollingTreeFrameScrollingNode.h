@@ -128,4 +128,11 @@ private:
 
 SPECIALIZE_TYPE_TRAITS_SCROLLING_NODE(ScrollingTreeFrameScrollingNode, isFrameScrollingNode())
 
+namespace WebCore {
+// For Swift, which cannot convert a C++ class to its base: the frame scrolling node as a scrolling node.
+inline RefPtr<ScrollingTreeScrollingNode> asScrollingTreeScrollingNode(ScrollingTreeFrameScrollingNode& node) { return &node; }
+// For Swift, which cannot cast between C++ classes: the node as a frame scrolling node, or null.
+inline RefPtr<ScrollingTreeFrameScrollingNode> asScrollingTreeFrameScrollingNode(ScrollingTreeNode& node) { return dynamicDowncast<ScrollingTreeFrameScrollingNode>(node); }
+}
+
 #endif // ENABLE(ASYNC_SCROLLING)

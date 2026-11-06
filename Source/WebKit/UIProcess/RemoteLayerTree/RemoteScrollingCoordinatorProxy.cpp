@@ -49,6 +49,8 @@
 #include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#include "WebKit-Swift.h"
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -245,19 +247,7 @@ void RemoteScrollingCoordinatorProxy::adjustMainFrameDelegatedScrollPosition(Scr
         }
 
         if (auto rootNodeID = rootScrollingNodeID()) {
-            auto shouldFireScrollEnd = ShouldFireScrollEnd::No;
-
-            switch (request.requestType) {
-            case ScrollRequestType::PositionUpdate:
-            case ScrollRequestType::DeltaUpdate:
-            case ScrollRequestType::ImplicitDeltaUpdate:
-                shouldFireScrollEnd = ShouldFireScrollEnd::Yes;
-                break;
-            case ScrollRequestType::AnimatedPositionUpdate:
-            case ScrollRequestType::AnimatedDeltaUpdate:
-            case ScrollRequestType::CancelAnimatedScroll:
-                break;
-            }
+            auto shouldFireScrollEnd = remoteScrollRequestFiresScrollEnd(std::to_underlying(request.requestType)) ? ShouldFireScrollEnd::Yes : ShouldFireScrollEnd::No;
 
             m_scrollingTree->didHandleScrollRequestForNode(*rootNodeID, request.requestType, scrollPosition, shouldFireScrollEnd, *request.identifier);
         }

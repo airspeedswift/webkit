@@ -60,4 +60,9 @@ protected:
 
 SPECIALIZE_TYPE_TRAITS_SCROLLING_NODE(ScrollingTreeOverflowScrollProxyNode, isOverflowScrollProxyNode())
 
+namespace WebCore {
+// For Swift, which cannot cast between C++ classes: the node as an overflow scroll proxy node, or null.
+inline RefPtr<ScrollingTreeOverflowScrollProxyNode> asScrollingTreeOverflowScrollProxyNode(ScrollingTreeNode& node) { return dynamicDowncast<ScrollingTreeOverflowScrollProxyNode>(node); }
+}
+
 #endif // ENABLE(ASYNC_SCROLLING)

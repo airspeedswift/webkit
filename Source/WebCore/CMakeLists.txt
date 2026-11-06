@@ -3397,6 +3397,10 @@ endif ()
 if (SWIFT_REQUIRED AND APPLE)
     # FIXME: Remove SwiftStub.swift once WebCore has real Swift sources.
     target_sources(WebCore PRIVATE ${WEBCORE_DIR}/SwiftStub.swift)
+    target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/page/scrolling/ScrollingTree.swift
+        ${WEBCORE_DIR}/page/scrolling/ScrollingTreeLatchingController.swift
+    )
 
     # The Swift port of ImageDecoderCG, as in WebCore.xcodeproj.
     target_sources(WebCore PRIVATE

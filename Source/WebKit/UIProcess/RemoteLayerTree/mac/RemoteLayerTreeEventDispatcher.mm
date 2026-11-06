@@ -53,6 +53,8 @@
 #import "RemoteMonotonicTimeline.h"
 #endif
 
+#import "WebKit-Swift.h"
+
 namespace WebKit {
 using namespace WebCore;
 
@@ -117,6 +119,8 @@ RemoteLayerTreeEventDispatcher::RemoteLayerTreeEventDispatcher(RemoteScrollingCo
         if (RefPtr protectedThis = weakThis)
             protectedThis->wheelEventHysteresisUpdated(state);
     }, wheelEventHysteresisDuration)
+    , m_signpostState(makeUniqueWithoutFastMallocCheck<RemoteLayerTreeEventDispatcherSignpostState>(RemoteLayerTreeEventDispatcherSignpostState::init()))
+    , m_synchronizationState(makeUniqueWithoutFastMallocCheck<RemoteLayerTreeEventDispatcherState>(RemoteLayerTreeEventDispatcherState::init()))
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER)
     , m_momentumEventDispatcher(WTF::makeUnique<MomentumEventDispatcher>(*this))
 #endif
@@ -515,24 +519,12 @@ void RemoteLayerTreeEventDispatcher::didRefreshDisplay(PlatformDisplayID display
         Locker locker { m_scrollingTreeLock };
 
         auto now = MonotonicTime::now();
-        m_lastDisplayDidRefreshTime = now;
-
         scrollingTree->displayDidRefresh(displayID);
 
-        needsUpdateLayerPositionsAndAnimations = m_state != SynchronizationState::Idle;
-
-        switch (m_state) {
-        case SynchronizationState::Idle: {
-            m_state = SynchronizationState::WaitingForRenderingUpdate;
-            constexpr auto maxStartRenderingUpdateDelay = 1_ms;
-            scheduleDelayedRenderingUpdateDetectionTimer(maxStartRenderingUpdateDelay);
-            break;
-        }
-        case SynchronizationState::WaitingForRenderingUpdate:
-        case SynchronizationState::InRenderingUpdate:
-        case SynchronizationState::Desynchronized:
-            break;
-        }
+        auto action = remoteEventDispatcherDisplayDidRefresh(*m_synchronizationState, now.secondsSinceEpoch().value());
+        needsUpdateLayerPositionsAndAnimations = action.needsUpdateLayerPositionsAndAnimations();
+        if (action.schedulesRenderingUpdateDetection())
+            scheduleDelayedRenderingUpdateDetectionTimer(Seconds { action.renderingUpdateDetectionDelay() });
     }
 
     if (needsUpdateLayerPositionsAndAnimations)
@@ -580,33 +572,28 @@ void RemoteLayerTreeEventDispatcher::waitForRenderingUpdateCompletionOrTimeout()
     ASSERT(ScrollingThread::isCurrentThread());
     ASSERT(m_scrollingTreeLock.isLocked());
 
-    m_needsMainThreadFlush = m_delayedRenderingUpdateDetectionTimer && m_delayedRenderingUpdateDetectionTimer->isActive();
+    remoteEventDispatcherWillWaitForRenderingUpdate(*m_synchronizationState, m_delayedRenderingUpdateDetectionTimer && m_delayedRenderingUpdateDetectionTimer->isActive());
     if (m_delayedRenderingUpdateDetectionTimer)
         m_delayedRenderingUpdateDetectionTimer->stop();
 
     auto currentTime = MonotonicTime::now();
     RefPtr scrollingTree = m_scrollingTree;
-    auto estimatedNextDisplayRefreshTime = std::max(m_lastDisplayDidRefreshTime + scrollingTree->frameDuration(), currentTime);
-    auto timeoutTime = std::min(currentTime + scrollingTree->maxAllowableRenderingUpdateDurationForSynchronization(), estimatedNextDisplayRefreshTime);
-
-    constexpr auto maximumTimeoutDelay = 32_ms;
-    auto maximumTimeoutTime = currentTime + maximumTimeoutDelay;
-    if (timeoutTime > maximumTimeoutTime) {
+    auto timeout = remoteEventDispatcherRenderingUpdateTimeout(*m_synchronizationState, currentTime.secondsSinceEpoch().value(), scrollingTree->frameDuration().value(), scrollingTree->maxAllowableRenderingUpdateDurationForSynchronization().value());
+    auto timeoutTime = MonotonicTime::fromRawSeconds(timeout.timeoutTime());
+    if (timeout.wasClamped()) {
         RELEASE_LOG_ERROR(DisplayLink, "%p - [webPageID=%" PRIu64 "] RemoteLayerTreeEventDispatcher::waitForRenderingUpdateCompletionOrTimeout - bad timeout %.2fms into the future (frame duration %.2fms)", this, m_pageIdentifier.toUInt64(),
-            (timeoutTime - currentTime).milliseconds(), scrollingTree->frameDuration().milliseconds());
-        timeoutTime = maximumTimeoutTime;
+            (MonotonicTime::fromRawSeconds(timeout.unclampedTimeoutTime()) - currentTime).milliseconds(), scrollingTree->frameDuration().milliseconds());
     }
 
     bool becameIdle = m_stateCondition.waitUntil(m_scrollingTreeLock, timeoutTime, [&] {
         assertIsHeld(m_scrollingTreeLock);
-        return m_state == SynchronizationState::Idle;
+        return remoteEventDispatcherIsIdle(*m_synchronizationState);
     });
 
     ASSERT(m_scrollingTreeLock.isLocked());
 
     if (!becameIdle) {
-        m_state = SynchronizationState::Desynchronized;
-        m_needsMainThreadFlush = false;
+        remoteEventDispatcherRenderingUpdateWaitTimedOut(*m_synchronizationState);
         // At this point we know the main thread is taking too long in the rendering update,
         // so we give up trying to sync with the main thread and update layers here on the scrolling thread.
         // Dispatch to allow for the scrolling thread to handle any outstanding wheel events before we commit layers.
@@ -659,9 +646,7 @@ void RemoteLayerTreeEventDispatcher::mainThreadDisplayDidRefresh(PlatformDisplay
 
     {
         Locker locker { m_scrollingTreeLock };
-        // The state can be Desynchronized if CommitDelayState is Delayed, since we skip sending DisplayDidRefresh to the web process.
-        // There's no point trying to synchronize in that case.
-        if (m_state == SynchronizationState::Desynchronized)
+        if (!remoteEventDispatcherMainThreadWillStartRenderingUpdate(*m_synchronizationState))
             return;
     }
 
@@ -677,7 +662,7 @@ void RemoteLayerTreeEventDispatcher::mainThreadDisplayDidRefresh(PlatformDisplay
     semaphore.wait();
 
     Locker locker { m_scrollingTreeLock };
-    m_state = SynchronizationState::InRenderingUpdate;
+    remoteEventDispatcherMainThreadDidStartRenderingUpdate(*m_synchronizationState);
 }
 
 void RemoteLayerTreeEventDispatcher::renderingUpdateComplete()
@@ -694,13 +679,8 @@ void RemoteLayerTreeEventDispatcher::renderingUpdateComplete()
 
     Locker locker { m_scrollingTreeLock };
 
-    if (m_state == SynchronizationState::InRenderingUpdate)
+    if (remoteEventDispatcherRenderingUpdateComplete(*m_synchronizationState, appliedAnimatedValues))
         m_stateCondition.notifyOne();
-
-    if (appliedAnimatedValues)
-        m_needsMainThreadFlush = true;
-
-    m_state = SynchronizationState::Idle;
 }
 
 void RemoteLayerTreeEventDispatcher::flushMainThreadTransactionIfNeeded()
@@ -709,7 +689,7 @@ void RemoteLayerTreeEventDispatcher::flushMainThreadTransactionIfNeeded()
 
     {
         Locker locker { m_scrollingTreeLock };
-        if (!std::exchange(m_needsMainThreadFlush, false))
+        if (!remoteEventDispatcherTakeNeedsMainThreadFlush(*m_synchronizationState))
             return;
     }
 
@@ -866,35 +846,26 @@ void RemoteLayerTreeEventDispatcher::windowScreenDidChange(PlatformDisplayID dis
 
 void RemoteLayerTreeEventDispatcher::startFingerDownSignpostInterval()
 {
-    if (!m_fingerDownIntervalIsActive) {
+    if (remoteEventDispatcherStartFingerDownInterval(*m_signpostState))
         WTFBeginSignpostAlways(nullptr, ScrollingPerformanceTestFingerDownInterval, "isAnimation=YES;");
-        m_fingerDownIntervalIsActive = true;
-    }
 }
 
 void RemoteLayerTreeEventDispatcher::endFingerDownSignpostInterval()
 {
-    if (m_fingerDownIntervalIsActive) {
+    if (remoteEventDispatcherEndFingerDownInterval(*m_signpostState))
         WTFEndSignpostAlways(nullptr, ScrollingPerformanceTestFingerDownInterval, "isAnimation=YES;");
-        m_fingerDownIntervalIsActive = false;
-    }
 }
 
 void RemoteLayerTreeEventDispatcher::startMomentumSignpostInterval()
 {
-    if (!m_momentumIntervalIsActive) {
+    if (remoteEventDispatcherStartMomentumInterval(*m_signpostState))
         WTFBeginSignpostAlways(nullptr, ScrollingPerformanceTestMomentumInterval, "isAnimation=YES;");
-        m_momentumIntervalIsActive = true;
-        m_momentumIntervalHasSeenNonZeroDeltaEvent = false;
-    }
 }
 
 void RemoteLayerTreeEventDispatcher::endMomentumSignpostInterval()
 {
-    if (m_momentumIntervalIsActive) {
+    if (remoteEventDispatcherEndMomentumInterval(*m_signpostState))
         WTFEndSignpostAlways(nullptr, ScrollingPerformanceTestMomentumInterval, "isAnimation=YES;");
-        m_momentumIntervalIsActive = false;
-    }
 }
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER)
@@ -907,12 +878,7 @@ void RemoteLayerTreeEventDispatcher::handleSyntheticWheelEvent(PageIdentifier pa
         if (event.momentumPhase() == WebWheelEvent::Phase::Began)
             startMomentumSignpostInterval();
 
-        bool eventHasNonZeroDelta = std::abs(event.delta().height()) > 0;
-        if (eventHasNonZeroDelta)
-            m_momentumIntervalHasSeenNonZeroDeltaEvent = true;
-
-        // FIXME: <rdar://184036413> Momentum intervals should only start with non-zero deltas.
-        if (m_momentumIntervalIsActive && ((!eventHasNonZeroDelta && m_momentumIntervalHasSeenNonZeroDeltaEvent) || event.momentumPhase() == WebWheelEvent::Phase::Ended))
+        if (remoteEventDispatcherSyntheticEventEndsMomentumInterval(*m_signpostState, event.delta().height(), event.momentumPhase() == WebWheelEvent::Phase::Ended))
             endMomentumSignpostInterval();
     }
 

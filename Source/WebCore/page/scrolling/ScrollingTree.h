@@ -39,7 +39,6 @@
 #include <WebCore/RubberbandingState.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/ScrollingCoordinatorTypes.h>
-#include <WebCore/ScrollingTreeGestureState.h>
 #include <WebCore/ScrollingTreeLatchingController.h>
 #include <WebCore/WheelEventTestMonitor.h>
 #include <wtf/ForbidHeapAllocation.h>
@@ -50,6 +49,9 @@
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/ThreadSafeWeakHashSet.h>
 #include <wtf/TypeCasts.h>
+#include <array>
+#include <wtf/Markable.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 
 namespace WebCore {
 
@@ -360,7 +362,6 @@ protected:
     mutable Lock m_treeLock; // Protects the scrolling tree.
 
 private:
-    bool updateTreeFromStateNodeRecursive(const ScrollingStateNode*, struct CommitTreeState&) WTF_REQUIRES_LOCK(m_treeLock);
     virtual void propagateSynchronousScrollingReasons(const HashSet<ScrollingNodeID>&) WTF_REQUIRES_LOCK(m_treeLock) { }
 
     void applyLayerPositionsRecursive(ScrollingTreeNode&) WTF_REQUIRES_LOCK(m_treeLock);
@@ -387,7 +388,15 @@ private:
     HashMap<FrameIdentifier, HashSet<ScrollingNodeID>> m_nodeMapPerFrame WTF_GUARDED_BY_LOCK(m_frameIDMapLock);
 
     ScrollingTreeLatchingController m_latchingController;
-    ScrollingTreeGestureState m_gestureState;
+    // The gesture state is kept with the latching state (ScrollingTreeLatchingController.swift). This storage keeps
+    // ScrollingTree's layout the same with either setting, so a TestWebKitAPI build can run against a WebCore built with
+    // the other. It mirrors ScrollingTreeGestureState's private members (ScrollingTreeGestureState.h): keep the two in step.
+    struct GestureStateLayout {
+        ThreadSafeWeakRef<ScrollingTree> scrollingTree;
+        Markable<ScrollingNodeID> mayBeginNodeID;
+        Markable<ScrollingNodeID> activeNodeID;
+    };
+    [[maybe_unused]] alignas(GestureStateLayout) std::array<std::byte, sizeof(GestureStateLayout)> m_gestureStateStorage { };
 
     RelatedNodesMap m_overflowRelatedNodesMap;
 
@@ -432,7 +441,9 @@ private:
     HashMap<LayerHostingContextIdentifier, Ref<ScrollingTreeFrameHostingNode>> m_hostedSubtrees;
 
 protected:
-    bool m_allowLatching { true };
+    // Read on the event handling thread while the scrolling thread changes it.
+    std::atomic<bool> m_allowLatching { true };
+    static_assert(sizeof(std::atomic<bool>) == sizeof(bool) && alignof(std::atomic<bool>) == alignof(bool));
 
 private:
     bool m_hasLockedAccess WTF_GUARDED_BY_LOCK(m_treeLock) { false }; // Whether a ScrollingTreeLockedAccess for this tree exists.
@@ -523,6 +534,30 @@ private:
 
     const Ref<ScrollingTree> m_tree;
     const ScrollingTreeAccessMode m_mode;
+};
+
+// What ScrollingTree::commitTreeState() records while Swift updates the tree from the state tree: the nodes it
+// visits, the nodes it orphans, the hosted subtrees it can now commit. Only the commit constructs one, on its stack,
+// and hands it to Swift for one call. It cannot be copied, moved or put on the heap.
+class SWIFT_NONCOPYABLE __attribute__((swift_attr("~Sendable"))) ScrollingTreeCommitState {
+    WTF_MAKE_NONCOPYABLE(ScrollingTreeCommitState);
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    // Swift imports a noncopyable class only if it has a move constructor, so one is declared; it traps.
+    [[noreturn]] ScrollingTreeCommitState(ScrollingTreeCommitState&&);
+    ScrollingTreeCommitState& operator=(ScrollingTreeCommitState&&) = delete;
+    ~ScrollingTreeCommitState();
+
+    void didVisitNode(ScrollingNodeID);
+    // Makes node's children orphans, which are kept alive until the commit ends, and removes them from node.
+    void orphanChildren(ScrollingTreeNode&);
+    // After node and its children are committed: records node if it is a scrolling node with synchronous scrolling
+    // reasons; if it is a frame hosting node with hosted subtrees waiting for it, takes them to commit after this one;
+    // and adds it to the hosting node's hosted children when this commits a hosted subtree.
+    void didCommitNode(ScrollingTreeNode&);
+
+protected:
+    ScrollingTreeCommitState() = default;
 };
 
 class ScrollingTreeWheelEventTestMonitorCompletionDeferrer {

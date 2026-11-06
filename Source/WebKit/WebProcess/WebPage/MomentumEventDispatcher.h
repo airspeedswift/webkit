@@ -51,6 +51,9 @@ enum class RubberBandingBehavior : uint8_t;
 
 namespace WebKit {
 
+class MomentumActions;
+class MomentumEventDispatcherState;
+
 class MomentumEventDispatcher {
     WTF_MAKE_NONCOPYABLE(MomentumEventDispatcher);
     WTF_MAKE_TZONE_ALLOCATED(MomentumEventDispatcher);
@@ -94,107 +97,21 @@ public:
 #endif
 
 private:
-    void didStartMomentumPhase(WebCore::PageIdentifier, const WebWheelEvent&);
-    void didEndMomentumPhase(WebWheelEvent::MomentumEndType);
-
-    bool eventShouldStartSyntheticMomentumPhase(WebCore::PageIdentifier, const WebWheelEvent&) const;
-
-    std::optional<ScrollingAccelerationCurve> scrollingAccelerationCurveForPage(WebCore::PageIdentifier) const;
-
-    void startDisplayLink();
-    void stopDisplayLink();
-
-    struct DisplayProperties {
-        WebCore::PlatformDisplayID displayID;
-        WebCore::FramesPerSecond nominalFrameRate;
-    };
-    NODELETE std::optional<DisplayProperties> displayProperties(WebCore::PageIdentifier) const;
 
     void dispatchSyntheticMomentumEvent(WebWheelEvent::Phase, WebCore::FloatSize delta, WebWheelEvent::MomentumEndType = WebWheelEvent::MomentumEndType::Unknown);
 
-    void buildOffsetTableWithInitialDelta(WebCore::FloatSize);
-    void equalizeTailGaps();
-
-    // Once consumed, this delta *must* be dispatched in an event.
-    std::optional<WebCore::FloatSize> consumeDeltaForCurrentTime();
-
-    WebCore::FloatSize offsetAtTime(Seconds);
-    std::pair<WebCore::FloatSize, WebCore::FloatSize> computeNextDelta(WebCore::FloatSize currentUnacceleratedDelta);
-    std::pair<WebCore::FloatSize, WebCore::FloatSize> computeNextDeltaSimple(WebCore::FloatSize currentUnacceleratedDelta);
-
-    void didReceiveScrollEventWithInterval(WebCore::FloatSize, Seconds);
-    void didReceiveScrollEvent(const WebWheelEvent&);
-
-#if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)
-    WebCore::FloatSize m_lastActivePhaseDelta;
-
-    struct LogEntry {
-        MonotonicTime time;
-
-        float totalGeneratedOffset { 0 };
-        float totalEventOffset { 0 };
-
-        struct Phases {
-            WebWheelEvent::Phase event { WebWheelEvent::Phase::None };
-            WebWheelEvent::Phase momentum { WebWheelEvent::Phase::None };
-        };
-        Phases generatedPhases;
-        Phases eventPhases;
-    };
-    LogEntry m_currentLogState;
-    Vector<LogEntry> m_log;
-
-    void pushLogEntry(LogEntry::Phases /*generatedPhases*/, LogEntry::Phases /*eventPhases*/);
-#endif
-
-    struct Delta {
-        float rawPlatformDelta;
-        Seconds frameInterval;
-    };
-    static constexpr unsigned deltaHistoryQueueSize = 9;
-    typedef Deque<Delta, deltaHistoryQueueSize> HistoricalDeltas;
-    HistoricalDeltas m_deltaHistoryX;
-    HistoricalDeltas m_deltaHistoryY;
-
-    Markable<MonotonicTime> m_lastScrollTimestamp;
     RefPtr<const WebWheelEvent> m_lastIncomingEvent;
     WebCore::RectEdges<WebCore::RubberBandingBehavior> m_lastRubberBandableEdges;
-    bool m_isInOverriddenPlatformMomentumGesture { false };
+    void performActions(const MomentumActions&, std::optional<WebCore::PageIdentifier> beginningPage = std::nullopt, const WebWheelEvent* beginningEvent = nullptr);
 
-    enum class MomentumCurve : uint8_t { Default, Simple };
+    // The gesture's page and initiating event, which the synthetic events are built from.
     struct {
         bool active { false };
-        MomentumCurve momentumCurve { MomentumCurve::Default };
-
         Markable<WebCore::PageIdentifier> pageIdentifier;
-        std::optional<ScrollingAccelerationCurve> accelerationCurve;
         RefPtr<const WebWheelEvent> initiatingEvent;
-
-        WebCore::FloatSize currentOffset;
-        MonotonicTime startTime;
-
-        Vector<WebCore::FloatSize> offsetTable; // Always at 60Hz intervals.
-        Vector<WebCore::FloatSize> tailDeltaTable; // Always at event dispatch intervals.
-        Seconds tailStartDelay;
-        unsigned currentTailDeltaIndex { 0 };
-
-        WebCore::FramesPerSecond displayNominalFrameRate { 0 };
-
-#if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)
-        WebCore::FloatSize accumulatedEventOffset;
-        bool didLogInitialQueueState { false };
-#endif
-
-#if ENABLE(MOMENTUM_EVENT_DISPATCHER_PREMATURE_ROUNDING)
-        WebCore::FloatSize carryOffset;
-#endif
     } m_currentGesture;
-
-    HashMap<WebCore::PageIdentifier, DisplayProperties> m_displayProperties;
-
-    mutable Lock m_accelerationCurvesLock;
-    HashMap<WebCore::PageIdentifier, std::optional<ScrollingAccelerationCurve>> m_accelerationCurves WTF_GUARDED_BY_LOCK(m_accelerationCurvesLock);
     const CheckedRef<Client> m_client;
+    const std::unique_ptr<MomentumEventDispatcherState> m_state;
 };
 
 } // namespace WebKit

@@ -341,6 +341,12 @@ inline std::optional<ScrollingNodeID> ScrollingStateNode::parentNodeID() const
     return parent->scrollingNodeID();
 }
 
+// For Swift: node's child at index, or null when index is past its last child.
+inline ScrollingStateNode* scrollingStateChildAtIndex(const ScrollingStateNode& node, size_t index)
+{
+    return index < node.children().size() ? node.children()[index].ptr() : nullptr;
+}
+
 } // namespace WebCore
 
 #define SPECIALIZE_TYPE_TRAITS_SCROLLING_STATE_NODE(ToValueTypeName, predicate) \

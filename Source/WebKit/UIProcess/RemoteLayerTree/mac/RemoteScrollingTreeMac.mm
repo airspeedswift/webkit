@@ -49,6 +49,7 @@
 #import <wtf/SetForScope.h>
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/text/TextStream.h>
+#import <wtf/Scope.h>
 
 namespace WebKit {
 
@@ -386,6 +387,8 @@ WheelEventHandlingResult RemoteScrollingTreeMac::handleWheelEventAfterDefaultHan
     if (!targetNodeID)
         return WheelEventHandlingResult::unhandled();
 
+    // handleWheelEventWithNode() hands Swift a ScrollingTreeLockedAccess.
+    Ref protectedThis { *this };
     Locker locker { m_treeLock };
 
     bool allowLatching = false;
@@ -395,7 +398,10 @@ WheelEventHandlingResult RemoteScrollingTreeMac::handleWheelEventAfterDefaultHan
         processingSteps = { WheelEventProcessingSteps::AsyncScrolling, WheelEventProcessingSteps::NonBlockingDOMEventDispatch };
     }
 
-    SetForScope disallowLatchingScope(m_allowLatching, allowLatching);
+    bool previousAllowLatching = m_allowLatching.exchange(allowLatching);
+    auto restoreAllowLatching = makeScopeExit([&] {
+        m_allowLatching = previousAllowLatching;
+    });
     RefPtr<ScrollingTreeNode> targetNode = nodeForID(*targetNodeID);
     return handleWheelEventWithNode(wheelEvent, processingSteps, targetNode.get(), EventTargeting::NodeOnly);
 }
