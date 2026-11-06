@@ -30,6 +30,10 @@
 
 #include "config.h"
 
+#if !defined(AUDIO_DSP_BENCH_WITHOUT_FILTER_CLASSES)
+#define AUDIO_DSP_BENCH_WITHOUT_FILTER_CLASSES 0
+#endif
+
 #include <WebCore/AudioBus.h>
 #include <WebCore/AudioChannel.h>
 #include <WebCore/Biquad.h>
@@ -122,6 +126,8 @@ static double wallClock()
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return static_cast<double>(ts.tv_sec) + static_cast<double>(ts.tv_nsec) * 1e-9;
 }
+
+#if !AUDIO_DSP_BENCH_WITHOUT_FILTER_CLASSES
 
 // ---------------------------------------------------------------------------
 // BiquadLowpass
@@ -331,6 +337,8 @@ TEST(AudioDSPBench, IIRFilter4)
         EXPECT_EQ(crc.result(), crc.result());
     }
 }
+
+#endif // !AUDIO_DSP_BENCH_WITHOUT_FILTER_CLASSES
 
 // ---------------------------------------------------------------------------
 // DynamicsCompress

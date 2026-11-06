@@ -42,6 +42,8 @@
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#if !USE_SWIFT_WEBAUDIO_KERNELS
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(IIRFilter);
@@ -245,6 +247,8 @@ double IIRFilter::tailTime(double sampleRate, bool isFilterStable)
 } // namespace WebCore
 
 
+#endif // !USE_SWIFT_WEBAUDIO_KERNELS
+
 #endif // !USE_SWIFT_AUDIO_DSP
 
 #if USE_SWIFT_AUDIO_DSP
@@ -252,6 +256,8 @@ double IIRFilter::tailTime(double sampleRate, bool isFilterStable)
 #include "AudioDSPBoundaryTypes.h"
 #include "IIRFilter.h"
 #include <wtf/TZoneMallocInlines.h>
+
+#if !USE_SWIFT_WEBAUDIO_KERNELS
 
 namespace WebCore {
 
@@ -298,6 +304,8 @@ double IIRFilter::tailTime(double sampleRate, bool isFilterStable)
 }
 
 } // namespace WebCore
+#endif // !USE_SWIFT_WEBAUDIO_KERNELS
+
 #endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

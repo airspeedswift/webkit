@@ -40,7 +40,7 @@ class OfflineAudioContext final : public BaseAudioContext {
     WTF_MAKE_TZONE_ALLOCATED(OfflineAudioContext);
 public:
     static ExceptionOr<Ref<OfflineAudioContext>> create(ScriptExecutionContext&, const OfflineAudioContextOptions&);
-    static ExceptionOr<Ref<OfflineAudioContext>> create(ScriptExecutionContext&, unsigned numberOfChannels, unsigned length, float sampleRate);
+    WEBCORE_EXPORT static ExceptionOr<Ref<OfflineAudioContext>> create(ScriptExecutionContext&, unsigned numberOfChannels, unsigned length, float sampleRate);
     void startRendering(Ref<DeferredPromise>&&);
     void suspendRendering(double suspendTime, Ref<DeferredPromise>&&);
     void resumeRendering(Ref<DeferredPromise>&&);

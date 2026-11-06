@@ -43,4 +43,6 @@
 
 #include "platform/audio/AudioDSPBoundaryTypes.h"
 
+#include "BiquadFilterType.h"
+#include "WebAudioKernelTypes.h"
 #include "WebCoreSwift-Generated.h"

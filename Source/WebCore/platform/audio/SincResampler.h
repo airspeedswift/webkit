@@ -29,6 +29,10 @@
 #ifndef SincResampler_h
 #define SincResampler_h
 
+#if !defined(USE_SWIFT_AUDIO_DSP)
+#define USE_SWIFT_AUDIO_DSP 0
+#endif
+
 #include "AudioArray.h"
 #include "AudioSourceProvider.h"
 #include <span>

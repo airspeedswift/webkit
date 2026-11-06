@@ -46,6 +46,8 @@
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 
+#if !USE_SWIFT_WEBAUDIO_KERNELS
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(Biquad);
@@ -907,6 +909,8 @@ double Biquad::tailFrame(size_t coefIndex, double maxFrame)
 } // namespace WebCore
 
 
+#endif // !USE_SWIFT_WEBAUDIO_KERNELS
+
 #endif // !USE_SWIFT_AUDIO_DSP
 
 #if USE_SWIFT_AUDIO_DSP
@@ -917,6 +921,8 @@ double Biquad::tailFrame(size_t coefIndex, double maxFrame)
 #include <numbers>
 #include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
+
+#if !USE_SWIFT_WEBAUDIO_KERNELS
 
 namespace WebCore {
 
@@ -1134,6 +1140,8 @@ double Biquad::tailFrame(size_t coefIndex, double maxFrame)
 }
 
 } // namespace WebCore
+#endif // !USE_SWIFT_WEBAUDIO_KERNELS
+
 #endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

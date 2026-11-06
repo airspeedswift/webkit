@@ -3267,7 +3267,32 @@ list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/NodeName.cpp)
 GENERATE_DOM_NAME_ENUM(Namespace)
 list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/Namespace.cpp)
 
+# Whether the audio kernels are the Swift implementation. The same default as the Xcode setting of the same name.
+option(WK_USE_SWIFT_WEBAUDIO_KERNELS "Use the Swift implementation of the Web Audio filter and delay kernels" OFF)
+set(WebCore_WEBAUDIO_KERNELS_SWIFT_SOURCES
+    Modules/webaudio/BiquadKernel.swift
+    Modules/webaudio/DelayKernel.swift
+    Modules/webaudio/IIRKernel.swift
+)
+set(WebCore_WEBAUDIO_KERNELS_INTEROP_SOURCES
+    Modules/webaudio/BiquadDSPKernel.cpp
+    Modules/webaudio/DelayDSPKernel.cpp
+    Modules/webaudio/IIRDSPKernel.cpp
+)
+if (WK_USE_SWIFT_WEBAUDIO_KERNELS)
+    if (NOT (SWIFT_REQUIRED AND APPLE))
+        message(FATAL_ERROR "WK_USE_SWIFT_WEBAUDIO_KERNELS needs Swift on Apple platforms (it uses Accelerate).")
+    endif ()
+    foreach (_f IN LISTS WebCore_WEBAUDIO_KERNELS_INTEROP_SOURCES)
+        cmake_path(GET _f FILENAME _fn)
+        list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|[/\\\\])${_fn}( |$)")
+    endforeach ()
+endif ()
+
 WEBKIT_COMPUTE_SOURCES(WebCore)
+if (WK_USE_SWIFT_WEBAUDIO_KERNELS)
+    list(REMOVE_ITEM WebCore_SOURCES ${WebCore_WEBAUDIO_KERNELS_INTEROP_SOURCES})
+endif ()
 
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreJSBindings
     PREFIX WebCoreJSBindingsPrefix.h
@@ -3338,6 +3363,12 @@ if (NOT USE_HEADER_MAPS)
     endif ()
 endif ()
 
+if (WK_USE_SWIFT_WEBAUDIO_KERNELS)
+    target_compile_definitions(WebCore PRIVATE USE_SWIFT_WEBAUDIO_KERNELS=1)
+else ()
+    target_compile_definitions(WebCore PRIVATE USE_SWIFT_WEBAUDIO_KERNELS=0)
+endif ()
+
 if (SWIFT_REQUIRED AND APPLE)
     # FIXME: Remove SwiftStub.swift once WebCore has real Swift sources.
     target_sources(WebCore PRIVATE ${WEBCORE_DIR}/SwiftStub.swift)
@@ -3350,6 +3381,12 @@ if (SWIFT_REQUIRED AND APPLE)
 
     # C++ sources that include WebCoreSwift-Generated.h.
     set(WebCore_SWIFT_INTEROP_SOURCES SwiftStubInterop.cpp)
+
+    if (WK_USE_SWIFT_WEBAUDIO_KERNELS)
+        target_sources(WebCore PRIVATE ${WebCore_WEBAUDIO_KERNELS_SWIFT_SOURCES})
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_WEBAUDIO_KERNELS -Xcc -DUSE_SWIFT_WEBAUDIO_KERNELS=1")
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${WebCore_WEBAUDIO_KERNELS_INTEROP_SOURCES})
+    endif ()
 
     WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(WebCore WebCore
         "${WebCore_PRIVATE_HEADERS_DIR}"
