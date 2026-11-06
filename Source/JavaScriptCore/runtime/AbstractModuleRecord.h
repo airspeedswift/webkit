@@ -318,9 +318,10 @@ private:
     typedef UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, Resolution, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>> Resolutions;
     Resolutions m_resolutionCache;
 
-    static_assert(sizeof(Resolutions) == sizeof(void*) && alignof(Resolutions) == alignof(void*));
+    static_assert(sizeof(Resolutions) == sizeof(UncheckedKeyHashMap<void*, void*>) && alignof(Resolutions) == alignof(UncheckedKeyHashMap<void*, void*>));
 #else
-    void* m_resolutionCache;
+    // A hash map's layout does not depend on its key and value types; debug builds add iterator checking to it.
+    alignas(UncheckedKeyHashMap<void*, void*>) unsigned char m_resolutionCache[sizeof(UncheckedKeyHashMap<void*, void*>)];
 #endif
 
 protected:
@@ -329,9 +330,9 @@ protected:
 #if !defined(__swift__)
     ModuleMap<LoadedModuleRequest> m_loadedModules;
 
-    static_assert(sizeof(ModuleMap<LoadedModuleRequest>) == sizeof(void*) && alignof(ModuleMap<LoadedModuleRequest>) == alignof(void*));
+    static_assert(sizeof(ModuleMap<LoadedModuleRequest>) == sizeof(UncheckedKeyHashMap<void*, void*>) && alignof(ModuleMap<LoadedModuleRequest>) == alignof(UncheckedKeyHashMap<void*, void*>));
 #else
-    void* m_loadedModules;
+    alignas(UncheckedKeyHashMap<void*, void*>) unsigned char m_loadedModules[sizeof(UncheckedKeyHashMap<void*, void*>)];
 #endif
 
     Vector<WriteBarrier<AbstractModuleRecord>> m_asyncParentModules;
