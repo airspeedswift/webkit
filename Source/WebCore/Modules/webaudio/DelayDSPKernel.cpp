@@ -35,7 +35,7 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 #if !USE(ACCELERATE)
 #error "The Swift delay k-rate interpolation is the Accelerate implementation."
 #endif
@@ -53,7 +53,7 @@ static size_t bufferLengthForDelay(double maxDelayTime, double sampleRate)
     return AudioUtilities::renderQuantumSize + AudioUtilities::timeToSampleFrame(maxDelayTime, sampleRate, AudioUtilities::SampleFrameRounding::Up);
 }
 
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
 // Returns (a - b) if a is greater than b, 0 otherwise.
 template<typename T> static inline size_t NODELETE positiveSubtract(T a, T b)
 {
@@ -228,8 +228,13 @@ static_assert(AudioUtilities::renderQuantumSize == 128);
 struct DelayDSPKernel::SwiftState {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(SwiftState);
 public:
-    explicit SwiftState(DelayKernel&& kernel) : kernel(std::move(kernel)) { }
+    SwiftState(DelayKernel&& kernel, size_t bufferLength)
+        : kernel(WTF::move(kernel))
+        , hasBuffer(bufferLength)
+    {
+    }
     DelayKernel kernel;
+    bool hasBuffer;
 };
 
 DelayDSPKernel::DelayDSPKernel(DelayProcessor* processor)
@@ -244,13 +249,14 @@ DelayDSPKernel::DelayDSPKernel(DelayProcessor* processor)
         if (maxDelayTime >= 0 && !std::isnan(maxDelayTime))
             bufferLength = bufferLengthForDelay(maxDelayTime, processor->sampleRate());
     }
-    m_swift = makeUnique<SwiftState>(makeDelayKernel(bufferLength, maxDelayTime, processor ? processor->sampleRate() : 0));
+    m_swift = makeUnique<SwiftState>(makeDelayKernel(bufferLength, maxDelayTime, processor ? processor->sampleRate() : 0), bufferLength);
 }
 
 DelayDSPKernel::DelayDSPKernel(double maxDelayTime, float sampleRate)
     : AudioDSPKernel(sampleRate)
-    , m_swift(makeUnique<SwiftState>(makeDelayKernel(!(maxDelayTime <= 0.0) ? bufferLengthForDelay(maxDelayTime, sampleRate) : 0, maxDelayTime, sampleRate)))
 {
+    size_t bufferLength = !(maxDelayTime <= 0.0) ? bufferLengthForDelay(maxDelayTime, sampleRate) : 0;
+    m_swift = makeUnique<SwiftState>(makeDelayKernel(bufferLength, maxDelayTime, sampleRate), bufferLength);
     ASSERT(maxDelayTime > 0.0);
 }
 
@@ -258,8 +264,9 @@ DelayDSPKernel::~DelayDSPKernel() = default;
 
 void DelayDSPKernel::process(std::span<const float> source, std::span<float> destination)
 {
+    ASSERT(m_swift->hasBuffer);
     ASSERT(source.data() && destination.data());
-    if (!source.data() || !destination.data()) [[unlikely]]
+    if (!m_swift->hasBuffer || !source.data() || !destination.data()) [[unlikely]]
         return;
 
     // In place, the buffer is passed once.
@@ -285,7 +292,7 @@ void DelayDSPKernel::process(std::span<const float> source, std::span<float> des
         delayProcessKRate(m_swift->kernel, source, destination, delayTime, destinationAlignment);
 }
 
-#endif // USE_SWIFT_WEBAUDIO_KERNELS
+#endif // USE_SWIFT_AUDIO_DSP
 
 void DelayDSPKernel::processOnlyAudioParams(size_t framesToProcess)
 {
@@ -298,7 +305,7 @@ void DelayDSPKernel::processOnlyAudioParams(size_t framesToProcess)
     delayProcessor()->delayTime().calculateSampleAccurateValues(std::span { values }.first(framesToProcess));
 }
 
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
 void DelayDSPKernel::reset()
 {
     m_buffer.zero();

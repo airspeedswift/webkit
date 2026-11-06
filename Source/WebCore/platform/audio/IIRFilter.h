@@ -32,13 +32,13 @@
 
 namespace WebCore {
 
-class WEBCORE_EXPORT IIRFilter {
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+class IIRFilter {
+#if !USE_SWIFT_AUDIO_DSP
     WTF_MAKE_TZONE_ALLOCATED(IIRFilter);
 #endif
 public:
     static constexpr size_t maxOrder { 20 };
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
     IIRFilter(const Vector<double>& feedforward, const Vector<double>& feedback);
 
     void reset();
@@ -77,7 +77,7 @@ private:
     // of these vectors in each IIRDSPKernel / IIRFilter.
     const Vector<double>& m_feedforward;
     const Vector<double>& m_feedback;
-#endif // !USE_SWIFT_WEBAUDIO_KERNELS
+#endif // !USE_SWIFT_AUDIO_DSP
 };
 
 } // namespace WebCore

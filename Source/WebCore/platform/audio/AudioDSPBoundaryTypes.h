@@ -29,15 +29,11 @@
 // Swift imports this module as WebCore_Private.AudioDSPBoundaryTypes.
 // Each alias names a std::span instantiation Swift cannot spell directly.
 
-#include <WebCore/PlatformExportMacros.h>
 #include <span>
 
 using AudioDSPSpanFloat       = std::span<float>;
 using AudioDSPSpanConstFloat  = std::span<const float>;
 using AudioDSPSpanDouble      = std::span<double>;
 using AudioDSPSpanConstDouble = std::span<const double>;
-
-#if defined(USE_SWIFT_AUDIO_DSP) && USE_SWIFT_AUDIO_DSP
-// Helper exposed for gate-on SincResampler kernel initialization.
-WEBCORE_EXPORT void sincResamplerInitKernel(double scaleFactor, std::span<float> kernelStorage);
-#endif
+using AudioDSPSpanInt         = std::span<int>;
+using AudioDSPSpanConstInt    = std::span<const int>;

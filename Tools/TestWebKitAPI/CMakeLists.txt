@@ -260,6 +260,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/AnimationFrameRate.cpp
         Tests/WebCore/ApduTest.cpp
         Tests/WebCore/ApplicationManifestParser.cpp
+        Tests/WebCore/AudioDSPBench.cpp
         Tests/WebCore/AudioDSPKernelBench.cpp
         Tests/WebCore/AudioSampleFormat.cpp
         Tests/WebCore/BezierUtilitiesTests.cpp

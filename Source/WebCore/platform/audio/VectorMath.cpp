@@ -30,10 +30,13 @@
 #endif
 #if ENABLE(WEB_AUDIO)
 
-#if !USE_SWIFT_AUDIO_DSP
 
 #include "AudioUtilities.h"
 #include "VectorMath.h"
+
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#endif
 
 #if USE(ACCELERATE)
 #include <Accelerate/Accelerate.h>
@@ -61,28 +64,44 @@ namespace VectorMath {
 
 void multiplyByScalar(std::span<const float> inputVector, float scalar, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyByScalar(inputVector, scalar, outputVector);
+#else
     RELEASE_ASSERT(outputVector.size() >= inputVector.size());
     vDSP_vsmul(inputVector.data(), 1, &scalar, outputVector.data(), 1, inputVector.size());
+#endif
 }
 
 void substract(std::span<const float> inputVector1, std::span<const float> inputVector2, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmSubstract(inputVector1, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     vDSP_vsub(inputVector1.data(), 1, inputVector2.data(), 1, outputVector.data(), 1, inputVector1.size());
+#endif
 }
 
 void addScalar(std::span<const float> inputVector, float scalar, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddScalar(inputVector, scalar, outputVector);
+#else
     RELEASE_ASSERT(outputVector.size() >= inputVector.size());
     vDSP_vsadd(inputVector.data(), 1, &scalar, outputVector.data(), 1, inputVector.size());
+#endif
 }
 
 void multiply(std::span<const float> inputVector1, std::span<const float> inputVector2, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiply(inputVector1, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     vDSP_vmul(inputVector1.data(), 1, inputVector2.data(), 1, outputVector.data(), 1, inputVector1.size());
+#endif
 }
 
 void interpolate(std::span<const float> inputVector1, std::span<float> inputVector2, float interpolationFactor, std::span<float> outputVector)
@@ -94,6 +113,9 @@ void interpolate(std::span<const float> inputVector1, std::span<float> inputVect
 
 void multiplyComplex(std::span<const float> realVector1, std::span<const float> imagVector1, std::span<const float> realVector2, std::span<const float> imagVector2, std::span<float> realOutputVector, std::span<float> imagOutputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyComplex(realVector1, imagVector1, realVector2, imagVector2, realOutputVector, imagOutputVector);
+#else
     RELEASE_ASSERT(realVector1.size() == imagVector1.size());
     RELEASE_ASSERT(realVector1.size() == realVector2.size());
     RELEASE_ASSERT(imagVector1.size() == imagVector1.size());
@@ -110,33 +132,50 @@ void multiplyComplex(std::span<const float> realVector1, std::span<const float> 
     dest.realp = realOutputVector.data();
     dest.imagp = imagOutputVector.data();
     vDSP_zvmul(&sc1, 1, &sc2, 1, &dest, 1, realVector1.size(), 1);
+#endif
 }
 
 void multiplyByScalarThenAddToOutput(std::span<const float> inputVector, float scalar, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyByScalarThenAddToOutput(inputVector, scalar, outputVector);
+#else
     RELEASE_ASSERT(outputVector.size() >= inputVector.size());
     vDSP_vsma(inputVector.data(), 1, &scalar, outputVector.data(), 1, outputVector.data(), 1, inputVector.size());
+#endif
 }
 
 void multiplyByScalarThenAddToVector(std::span<const float> inputVector1, float scalar, std::span<const float> inputVector2, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyByScalarThenAddToVector(inputVector1, scalar, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     vDSP_vsma(inputVector1.data(), 1, &scalar, inputVector2.data(), 1, outputVector.data(), 1, inputVector1.size());
+#endif
 }
 
 void addVectorsThenMultiplyByScalar(std::span<const float> inputVector1, std::span<const float> inputVector2, float scalar, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddVectorsThenMultiplyByScalar(inputVector1, inputVector2, scalar, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     vDSP_vasm(inputVector1.data(), 1, inputVector2.data(), 1, &scalar, outputVector.data(), 1, inputVector1.size());
+#endif
 }
 
 float maximumMagnitude(std::span<const float> inputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    return vmMaximumMagnitude(inputVector);
+#else
     float maximumValue = 0;
     vDSP_maxmgv(inputVector.data(), 1, &maximumValue, inputVector.size());
     return maximumValue;
+#endif
 }
 
 float sumOfSquares(std::span<const float> inputVector)
@@ -148,8 +187,12 @@ float sumOfSquares(std::span<const float> inputVector)
 
 void clamp(std::span<const float> inputVector, float minimum, float maximum, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmClamp(inputVector, minimum, maximum, outputVector);
+#else
     RELEASE_ASSERT(outputVector.size() >= inputVector.size());
     vDSP_vclip(const_cast<float*>(inputVector.data()), 1, &minimum, &maximum, outputVector.data(), 1, inputVector.size());
+#endif
 }
 
 void linearToDecibels(std::span<const float> inputVector, std::span<float> outputVector)
@@ -161,23 +204,35 @@ void linearToDecibels(std::span<const float> inputVector, std::span<float> outpu
 
 void add(std::span<const int> inputVector1, std::span<const int> inputVector2, std::span<int> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddInt(inputVector1, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     vDSP_vaddi(inputVector1.data(), 1, inputVector2.data(), 1, outputVector.data(), 1, inputVector1.size());
+#endif
 }
 
 void add(std::span<const float> inputVector1, std::span<const float> inputVector2, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddFloat(inputVector1, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     vDSP_vadd(inputVector1.data(), 1, inputVector2.data(), 1, outputVector.data(), 1, inputVector1.size());
+#endif
 }
 
 void add(std::span<const double> inputVector1, std::span<const double> inputVector2, std::span<double> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddDouble(inputVector1, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     vDSP_vaddD(inputVector1.data(), 1, inputVector2.data(), 1, outputVector.data(), 1, inputVector1.size());
+#endif
 }
 
 float dotProduct(std::span<const float> inputVector1, std::span<const float> inputVector2)
@@ -190,11 +245,15 @@ float dotProduct(std::span<const float> inputVector1, std::span<const float> inp
 
 void filterBiquad(std::span<const double> source, std::span<const double, 5> coefficients, std::span<double> destination, size_t framesToProcess)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmFilterBiquad(source, coefficients, destination, framesToProcess);
+#else
     // vDSP_deq22D reads source[0 .. framesToProcess + 1] and reads/writes destination[0 .. framesToProcess + 1]
     // (two elements of filter history plus framesToProcess samples).
     RELEASE_ASSERT(source.size() >= framesToProcess + 2);
     RELEASE_ASSERT(destination.size() >= framesToProcess + 2);
     vDSP_deq22D(source.data(), 1, coefficients.data(), destination.data(), 1, framesToProcess);
+#endif
 }
 
 void convolve(std::span<const float> signal, std::span<const float> filter, std::span<float> output)
@@ -219,12 +278,19 @@ static inline bool is16ByteAligned(const float* vector)
 
 void multiplyByScalarThenAddToVector(std::span<const float> inputVector1, float scalar, std::span<const float> inputVector2, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyByScalarThenAddToVector(inputVector1, scalar, inputVector2, outputVector);
+#else
     multiplyByScalar(inputVector1, scalar, outputVector);
     add(outputVector, inputVector2, outputVector);
+#endif
 }
 
 void multiplyByScalarThenAddToOutput(std::span<const float> inputSpan, float scalar, std::span<float> outputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyByScalarThenAddToOutput(inputSpan, scalar, outputSpan);
+#else
     RELEASE_ASSERT(outputSpan.size() >= inputSpan.size());
     auto* inputVector = inputSpan.data();
     auto* outputVector = outputSpan.data();
@@ -290,10 +356,14 @@ void multiplyByScalarThenAddToOutput(std::span<const float> inputSpan, float sca
         ++inputVector;
         ++outputVector;
     }
+#endif
 }
 
 void multiplyByScalar(std::span<const float> inputSpan, float scalar, std::span<float> outputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyByScalar(inputSpan, scalar, outputSpan);
+#else
     RELEASE_ASSERT(outputSpan.size() >= inputSpan.size());
     auto* inputVector = inputSpan.data();
     auto* outputVector = outputSpan.data();
@@ -356,10 +426,14 @@ void multiplyByScalar(std::span<const float> inputSpan, float scalar, std::span<
         ++inputVector;
         ++outputVector;
     }
+#endif
 }
 
 void addScalar(std::span<const float> inputSpan, float scalar, std::span<float> outputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddScalar(inputSpan, scalar, outputSpan);
+#else
     RELEASE_ASSERT(outputSpan.size() >= inputSpan.size());
     auto* inputVector = inputSpan.data();
     auto* outputVector = outputSpan.data();
@@ -423,10 +497,14 @@ void addScalar(std::span<const float> inputSpan, float scalar, std::span<float> 
         ++inputVector;
         ++outputVector;
     }
+#endif
 }
 
 void add(std::span<const float> inputSpan1, std::span<const float> inputSpan2, std::span<float> outputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddFloat(inputSpan1, inputSpan2, outputSpan);
+#else
     RELEASE_ASSERT(inputSpan1.size() == inputSpan2.size());
     RELEASE_ASSERT(outputSpan.size() >= inputSpan1.size());
     auto* inputVector1 = inputSpan1.data();
@@ -526,10 +604,14 @@ void add(std::span<const float> inputSpan1, std::span<const float> inputSpan2, s
         ++inputVector2;
         ++outputVector;
     }
+#endif
 }
 
 void substract(std::span<const float> inputSpan1, std::span<const float> inputSpan2, std::span<float> outputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmSubstract(inputSpan1, inputSpan2, outputSpan);
+#else
     RELEASE_ASSERT(inputSpan1.size() == inputSpan2.size());
     RELEASE_ASSERT(outputSpan.size() >= inputSpan1.size());
     auto* inputVector1 = inputSpan1.data();
@@ -627,6 +709,7 @@ void substract(std::span<const float> inputSpan1, std::span<const float> inputSp
         ++inputVector2;
         ++outputVector;
     }
+#endif
 }
 
 void interpolate(std::span<const float> inputVector1, std::span<float> inputVector2, float interpolationFactor, std::span<float> outputVector)
@@ -644,6 +727,9 @@ void interpolate(std::span<const float> inputVector1, std::span<float> inputVect
 
 void multiply(std::span<const float> inputSpan1, std::span<const float> inputSpan2, std::span<float> outputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiply(inputSpan1, inputSpan2, outputSpan);
+#else
     RELEASE_ASSERT(inputSpan1.size() == inputSpan2.size());
     RELEASE_ASSERT(outputSpan.size() >= inputSpan1.size());
     auto* inputVector1 = inputSpan1.data();
@@ -714,10 +800,14 @@ void multiply(std::span<const float> inputSpan1, std::span<const float> inputSpa
         ++inputVector2;
         ++outputVector;
     }
+#endif
 }
 
 void multiplyComplex(std::span<const float> realSpan1, std::span<const float> imagSpan1, std::span<const float> realSpan2, std::span<const float> imagSpan2, std::span<float> realOutputSpan, std::span<float> imagOutputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmMultiplyComplex(realSpan1, imagSpan1, realSpan2, imagSpan2, realOutputSpan, imagOutputSpan);
+#else
     RELEASE_ASSERT(realSpan1.size() == imagSpan1.size());
     RELEASE_ASSERT(realSpan1.size() == realSpan2.size());
     RELEASE_ASSERT(imagSpan1.size() == imagSpan1.size());
@@ -775,6 +865,7 @@ void multiplyComplex(std::span<const float> realSpan1, std::span<const float> im
         realOutputVector[i] = realVector1[i] * realVector2[i] - imagVector1[i] * imagVector2[i];
         imagOutputVector[i] = realVector1[i] * imagVector2[i] + imagVector1[i] * realVector2[i];
     }
+#endif
 }
 
 float sumOfSquares(std::span<const float> inputSpan)
@@ -840,6 +931,9 @@ float sumOfSquares(std::span<const float> inputSpan)
 
 float maximumMagnitude(std::span<const float> inputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    return vmMaximumMagnitude(inputSpan);
+#else
     auto* inputVector = inputSpan.data();
     size_t n = inputSpan.size();
     float max = 0;
@@ -901,10 +995,14 @@ float maximumMagnitude(std::span<const float> inputSpan)
     }
 
     return max;
+#endif
 }
 
 void clamp(std::span<const float> inputSpan, float minimum, float maximum, std::span<float> outputSpan)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmClamp(inputSpan, minimum, maximum, outputSpan);
+#else
     RELEASE_ASSERT(outputSpan.size() >= inputSpan.size());
     auto* inputVector = inputSpan.data();
     auto* outputVector = outputSpan.data();
@@ -930,6 +1028,7 @@ void clamp(std::span<const float> inputSpan, float minimum, float maximum, std::
         ++inputVector;
         ++outputVector;
     }
+#endif
 }
 
 void linearToDecibels(std::span<const float> inputVector, std::span<float> outputVector)
@@ -941,26 +1040,38 @@ void linearToDecibels(std::span<const float> inputVector, std::span<float> outpu
 
 void addVectorsThenMultiplyByScalar(std::span<const float> inputVector1, std::span<const float> inputVector2, float scalar, std::span<float> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddVectorsThenMultiplyByScalar(inputVector1, inputVector2, scalar, outputVector);
+#else
     add(inputVector1, inputVector2, outputVector);
     multiplyByScalar(outputVector.first(inputVector1.size()), scalar, outputVector);
+#endif
 }
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 void add(std::span<const int> inputVector1, std::span<const int> inputVector2, std::span<int> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddInt(inputVector1, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     for (size_t i = 0; i < inputVector1.size(); ++i)
         outputVector[i] = inputVector1[i] + inputVector2[i];
+#endif
 }
 
 void add(std::span<const double> inputVector1, std::span<const double> inputVector2, std::span<double> outputVector)
 {
+#if USE_SWIFT_AUDIO_DSP
+    vmAddDouble(inputVector1, inputVector2, outputVector);
+#else
     RELEASE_ASSERT(inputVector1.size() == inputVector2.size());
     RELEASE_ASSERT(outputVector.size() >= inputVector1.size());
     for (size_t i = 0; i < inputVector1.size(); ++i)
         outputVector[i] = inputVector1[i] + inputVector2[i];
+#endif
 }
 
 float dotProduct(std::span<const float> inputVector1, std::span<const float> inputVector2)
@@ -1256,84 +1367,5 @@ void convolve(std::span<const float> signal, std::span<const float> filter, std:
 } // namespace WebCore
 
 
-#endif // !USE_SWIFT_AUDIO_DSP
-
-#if USE_SWIFT_AUDIO_DSP
-#include "WebCore-Swift.h"
-#include "AudioDSPBoundaryTypes.h"
-#include "VectorMath.h"
-
-namespace WebCore {
-namespace VectorMath {
-
-void multiplyByScalarThenAddToOutput(std::span<const float> input, float scalar, std::span<float> output)
-{ vmMultiplyByScalarThenAddToOutput(input, scalar, output); }
-
-void multiplyByScalarThenAddToVector(std::span<const float> in1, float scalar, std::span<const float> in2, std::span<float> out)
-{ vmMultiplyByScalarThenAddToVector(in1, scalar, in2, out); }
-
-void addVectorsThenMultiplyByScalar(std::span<const float> in1, std::span<const float> in2, float scalar, std::span<float> out)
-{ vmAddVectorsThenMultiplyByScalar(in1, in2, scalar, out); }
-
-void multiplyByScalar(std::span<const float> in, float scalar, std::span<float> out)
-{ vmMultiplyByScalar(in, scalar, out); }
-
-void addScalar(std::span<const float> in, float scalar, std::span<float> out)
-{ vmAddScalar(in, scalar, out); }
-
-void substract(std::span<const float> in1, std::span<const float> in2, std::span<float> out)
-{ vmSubstract(in1, in2, out); }
-
-void add(std::span<const int>, std::span<const int>, std::span<int>) { }
-
-void add(std::span<const float> in1, std::span<const float> in2, std::span<float> out)
-{ vmAddFloat(in1, in2, out); }
-
-void add(std::span<const double> in1, std::span<const double> in2, std::span<double> out)
-{ vmAddDouble(in1, in2, out); }
-
-void multiply(std::span<const float> in1, std::span<const float> in2, std::span<float> out)
-{
-    // Boundary contract: output must not alias either input (vDSP_vmul requirement).
-    ASSERT(out.data() != in1.data() && out.data() != in2.data());
-    vmMultiply(in1, in2, out);
-}
-
-float dotProduct(std::span<const float> in1, std::span<const float> in2)
-{ return vmDotProduct(in1, in2); }
-
-float maximumMagnitude(std::span<const float> in)
-{ return vmMaximumMagnitude(in); }
-
-float sumOfSquares(std::span<const float> in)
-{ return vmSumOfSquares(in); }
-
-void multiplyComplex(std::span<const float> r1, std::span<const float> i1, std::span<const float> r2, std::span<const float> i2, std::span<float> rOut, std::span<float> iOut)
-{ vmMultiplyComplex(r1, i1, r2, i2, rOut, iOut); }
-
-void clamp(std::span<const float> in, float mn, float mx, std::span<float> out)
-{ vmClamp(in, mn, mx, out); }
-
-void linearToDecibels(std::span<const float> in, std::span<float> out)
-{ vmLinearToDecibels(in, out); }
-
-void interpolate(std::span<const float> in1, std::span<float> in2, float factor, std::span<float> out)
-{ vmInterpolate(in1, in2, factor, out); }
-
-#if USE(ACCELERATE)
-void filterBiquad(std::span<const double> src, std::span<const double, 5> coef, std::span<double> dst, size_t n)
-{ vmFilterBiquad(src, std::span<const double>(coef.data(), coef.size()), dst, static_cast<int>(n)); }
-#endif
-
-void convolve(std::span<const float> signal, std::span<const float> filter, std::span<float> out)
-{
-    // Boundary contract: output must not alias signal or filter.
-    ASSERT(out.data() != signal.data() && out.data() != filter.data());
-    vmConvolve(signal, filter, out);
-}
-
-} // namespace VectorMath
-} // namespace WebCore
-#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

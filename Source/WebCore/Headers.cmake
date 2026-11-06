@@ -2466,6 +2466,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/audio/AudioArray.h
     platform/audio/AudioBus.h
     platform/audio/AudioChannel.h
+    platform/audio/AudioDSPBoundaryTypes.h
     platform/audio/AudioDestination.h
     platform/audio/AudioDestinationResampler.h
     platform/audio/AudioHardwareListener.h
@@ -2487,7 +2488,6 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/audio/PushPullFIFO.h
     platform/audio/RealtimeAudioThread.h
     platform/audio/SharedAudioDestination.h
-    platform/audio/WebAudioKernelTypes.h
 
     platform/encryptedmedia/CDMEncryptionScheme.h
     platform/encryptedmedia/CDMFactory.h

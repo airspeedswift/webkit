@@ -29,9 +29,11 @@
 #endif
 #if ENABLE(WEB_AUDIO)
 
-#if !USE_SWIFT_AUDIO_DSP
-
 #include "EqualPowerPanner.h"
+
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#endif
 
 #include "AudioBus.h"
 #include "AudioUtilities.h"
@@ -100,6 +102,9 @@ void EqualPowerPanner::pan(double azimuth, double /*elevation*/, const AudioBus&
     auto sourceR = numberOfInputChannels > 1 ? inputBus.channel(1)->span().first(framesToProcess) : sourceL;
     auto destinationL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan();
     auto destinationR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan();
+#if USE_SWIFT_AUDIO_DSP
+    eppPan(azimuth, numberOfInputChannels, sourceL, sourceR, destinationL, destinationR, static_cast<int32_t>(framesToProcess));
+#else
 
     // Clamp azimuth to allowed range of -180 -> +180.
     azimuth = std::max(-180.0, azimuth);
@@ -143,6 +148,7 @@ void EqualPowerPanner::pan(double azimuth, double /*elevation*/, const AudioBus&
             VectorMath::multiplyByScalarThenAddToVector(sourceL, desiredGainR, sourceR, destinationR);
         }
     }
+#endif
 }
 
 void EqualPowerPanner::panWithSampleAccurateValues(std::span<double> azimuth, std::span<double>, const AudioBus& inputBus, AudioBus& outputBus, size_t framesToProcess)
@@ -160,6 +166,9 @@ void EqualPowerPanner::panWithSampleAccurateValues(std::span<double> azimuth, st
     auto sourceR = numberOfInputChannels > 1 ? inputBus.channel(1)->span() : sourceL;
     auto destinationL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan();
     auto destinationR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan();
+#if USE_SWIFT_AUDIO_DSP
+    eppPanSampleAccurate(azimuth, numberOfInputChannels, sourceL, sourceR, destinationL, destinationR, static_cast<int32_t>(framesToProcess));
+#else
 
     int n = framesToProcess;
 
@@ -192,52 +201,9 @@ void EqualPowerPanner::panWithSampleAccurateValues(std::span<double> azimuth, st
             }
         }
     }
+#endif
 }
 
 } // namespace WebCore
-
-
-#endif // !USE_SWIFT_AUDIO_DSP
-
-#if USE_SWIFT_AUDIO_DSP
-#include "WebCore-Swift.h"
-#include "AudioDSPBoundaryTypes.h"
-#include "AudioBus.h"
-#include "EqualPowerPanner.h"
-
-namespace WebCore {
-
-EqualPowerPanner::EqualPowerPanner()
-    : Panner(PanningModelType::Equalpower)
-{
-}
-
-void EqualPowerPanner::calculateDesiredGain(double& gainL, double& gainR, double azimuth, unsigned)
-{
-    gainL = gainR = 1.0 / std::sqrt(2.0); (void)azimuth;
-}
-
-void EqualPowerPanner::pan(double azimuth, double /*elevation*/, const AudioBus& inputBus, AudioBus& outputBus, size_t framesToProcess)
-{
-    unsigned nInputCh = inputBus.numberOfChannels();
-    auto srcL = nInputCh > 0 ? inputBus.channel(0)->span().first(framesToProcess) : std::span<const float> {};
-    auto srcR = nInputCh > 1 ? inputBus.channel(1)->span().first(framesToProcess) : srcL;
-    auto dstL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan().first(framesToProcess);
-    auto dstR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan().first(framesToProcess);
-    eppPan(azimuth, nInputCh, srcL, srcR, dstL, dstR, static_cast<int32_t>(framesToProcess));
-}
-
-void EqualPowerPanner::panWithSampleAccurateValues(std::span<double> azimuth, std::span<double> /*elevation*/, const AudioBus& inputBus, AudioBus& outputBus, size_t framesToProcess)
-{
-    unsigned nInputCh = inputBus.numberOfChannels();
-    auto srcL = nInputCh > 0 ? inputBus.channel(0)->span() : std::span<const float> {};
-    auto srcR = nInputCh > 1 ? inputBus.channel(1)->span() : srcL;
-    auto dstL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan();
-    auto dstR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan();
-    eppPanSampleAccurate(azimuth, nInputCh, srcL, srcR, dstL, dstR, static_cast<int32_t>(framesToProcess));
-}
-
-} // namespace WebCore
-#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

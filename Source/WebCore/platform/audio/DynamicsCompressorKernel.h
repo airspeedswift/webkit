@@ -29,8 +29,15 @@
 #ifndef DynamicsCompressorKernel_h
 #define DynamicsCompressorKernel_h
 
+#if !defined(USE_SWIFT_AUDIO_DSP)
+#define USE_SWIFT_AUDIO_DSP 0
+#endif
+
 #include "AudioArray.h"
 #include <memory>
+#if USE_SWIFT_AUDIO_DSP
+#include <WebCore/PlatformExportMacros.h>
+#endif
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
@@ -40,6 +47,9 @@ class DynamicsCompressorKernel final {
     WTF_MAKE_TZONE_ALLOCATED(DynamicsCompressorKernel);
 public:
     explicit DynamicsCompressorKernel(float sampleRate, unsigned numberOfChannels);
+#if USE_SWIFT_AUDIO_DSP
+    WEBCORE_EXPORT ~DynamicsCompressorKernel();
+#endif
 
     void setNumberOfChannels(unsigned);
 
@@ -64,7 +74,11 @@ public:
 
     void reset();
 
+#if USE_SWIFT_AUDIO_DSP
+    unsigned latencyFrames() const;
+#else
     unsigned latencyFrames() const { return m_lastPreDelayFrames; }
+#endif
 
     float sampleRate() const { return m_sampleRate; }
 
@@ -76,6 +90,11 @@ protected:
     static constexpr float uninitializedValue = -1;
     float m_sampleRate;
 
+#if USE_SWIFT_AUDIO_DSP
+    struct SwiftState;
+    std::unique_ptr<SwiftState> m_swift;
+    float m_meteringGain { 1 };
+#else
     float m_detectorAverage;
     float m_compressorGain;
 
@@ -124,6 +143,7 @@ protected:
 
     // Internal parameter for the knee portion of the curve.
     float m_K { uninitializedValue };
+#endif // USE_SWIFT_AUDIO_DSP
 };
 
 } // namespace WebCore

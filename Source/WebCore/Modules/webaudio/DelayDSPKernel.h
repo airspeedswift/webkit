@@ -38,7 +38,7 @@ class DelayDSPKernel final : public AudioDSPKernel {
 public:
     explicit DelayDSPKernel(DelayProcessor*);
     DelayDSPKernel(double maxDelayTime, float sampleRate);
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
     ~DelayDSPKernel();
 #endif
     
@@ -46,7 +46,7 @@ public:
     void processOnlyAudioParams(size_t framesToProcess) final;
     void reset() override;
     
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
     double maxDelayTime() const { return m_maxDelayTime; }
 #endif
     
@@ -57,7 +57,7 @@ public:
     bool NODELETE requiresTailProcessing() const final;
 
 private:
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
     void processARate(std::span<const float> source, std::span<float> destination);
     void processKRate(std::span<const float> source, std::span<float> destination);
 

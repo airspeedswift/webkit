@@ -28,12 +28,7 @@
 
 #include "config.h"
 
-#if !defined(USE_SWIFT_AUDIO_DSP)
-#define USE_SWIFT_AUDIO_DSP 0
-#endif
 #if ENABLE(WEB_AUDIO)
-
-#if !USE_SWIFT_AUDIO_DSP
 
 #include "DirectConvolver.h"
 
@@ -89,42 +84,5 @@ void DirectConvolver::reset()
 }
 
 } // namespace WebCore
-
-
-#endif // !USE_SWIFT_AUDIO_DSP
-
-#if USE_SWIFT_AUDIO_DSP
-#include "WebCore-Swift.h"
-#include "AudioDSPBoundaryTypes.h"
-#include "DirectConvolver.h"
-#include <wtf/TZoneMallocInlines.h>
-
-namespace WebCore {
-
-WTF_MAKE_TZONE_ALLOCATED_IMPL(DirectConvolver);
-
-DirectConvolver::DirectConvolver(size_t inputBlockSize)
-    : m_inputBlockSize(inputBlockSize)
-    , m_buffer(inputBlockSize * 2)
-{
-}
-
-void DirectConvolver::process(AudioFloatArray* convolutionKernel, std::span<const float> source, std::span<float> destination)
-{
-    if (!convolutionKernel || source.size() != m_inputBlockSize)
-        return;
-    // Boundary contract: source and destination must not overlap.
-    ASSERT(source.data() != destination.data());
-    // Extract kernel span and delegate to Swift VectorMath convolve.
-    directConvolverProcess(source, convolutionKernel->span(), m_buffer.span(), destination, static_cast<int>(m_inputBlockSize));
-}
-
-void DirectConvolver::reset()
-{
-    directConvolverReset(m_buffer.span());
-}
-
-} // namespace WebCore
-#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

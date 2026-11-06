@@ -27,47 +27,14 @@
 
 #if ENABLE(WEB_AUDIO)
 
-#include <WebCore/AudioBus.h>
-#include <WebCore/AudioChannel.h>
-#include <WebCore/AudioParam.h>
-#include <WebCore/AudioProcessor.h>
-#include <WebCore/BiquadFilterType.h>
-#include <WebCore/BiquadProcessor.h>
-#include <WebCore/CommonAtomStrings.h>
-#include <WebCore/DelayProcessor.h>
-#include <WebCore/DocumentInlines.h>
-#include <WebCore/HTMLBodyElement.h>
-#include <WebCore/HTMLHtmlElement.h>
-#include <WebCore/IIRProcessor.h>
-#include <WebCore/OfflineAudioContext.h>
-#include <WebCore/ProcessWarming.h>
-#include <WebCore/Settings.h>
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <algorithm>
-#include <bit>
-#include <wtf/CurrentThread.h>
-#include <wtf/Function.h>
-#include <wtf/NeverDestroyed.h>
-#include <wtf/Vector.h>
-
-// The benchmark drives the processors only through AudioProcessor's virtual interface and the processors' own
-// constructors, so it does not depend on the layout of the kernels they create.
-// Processors are heap-allocated: they use checked pointers, whose Debug assertion needs the class operator delete.
+#include "AudioDSPBenchSupport.h"
 
 namespace TestWebKitAPI {
 
 using namespace WebCore;
 
-static constexpr unsigned quantumSize = 128;
-static constexpr unsigned quantaPerPass = 341; // about one second at 44.1 kHz.
-static constexpr float sampleRate = 44100;
-static constexpr double automationEnd = 10; // seconds; the ramps below never finish within a benchmark.
 
-// Checksums of the output bits, recorded with USE_SWIFT_WEBAUDIO_KERNELS off. They depend on the results of libm and
+// Checksums of the output bits, recorded with USE_SWIFT_AUDIO_DSP off. They depend on the results of libm and
 // Accelerate, so they are checked only on ARM64 Cocoa platforms, which they were recorded on.
 static constexpr uint64_t expectedBiquadProcessorLowpass = 0x96e34d460d21d145ULL;
 static constexpr uint64_t expectedBiquadProcessorInPlace = 0x7e9482fe69969d9bULL;
@@ -102,143 +69,6 @@ static constexpr unsigned iterationsDelayKRateInteger = 54000;
 static constexpr unsigned iterationsDelayARate = 7100;
 static constexpr unsigned iterationsDelayWrap = 24000;
 static constexpr unsigned iterationsKernelInit = 790;
-
-static bool runFullBenchmark()
-{
-    const char* value = getenv("WEBKIT_RUN_BENCHMARKS");
-    return value && *value && *value != '0';
-}
-
-// FNV-1a over the bits of what one pass produced.
-class Digest {
-public:
-    void add(float value) { add(static_cast<uint64_t>(std::bit_cast<uint32_t>(value))); }
-    void add(double value) { add(std::bit_cast<uint64_t>(value)); }
-    void add(uint64_t value) { m_hash = (m_hash ^ value) * prime; }
-    uint64_t checksum() const { return m_hash; }
-
-private:
-    static constexpr uint64_t prime = 0x100000001b3ULL;
-    uint64_t m_hash { 0xcbf29ce484222325ULL };
-};
-
-static Ref<Document> createDocument()
-{
-    ProcessWarming::initializeNames();
-
-    auto settings = Settings::create(nullptr);
-    auto document = Document::create(settings.get(), aboutBlankURL());
-    auto documentElement = HTMLHtmlElement::create(document);
-    document->appendChild(documentElement);
-    auto body = HTMLBodyElement::create(document);
-    documentElement->appendChild(body);
-    return document;
-}
-
-// An offline context on the test thread, which stands in for the audio thread: AudioParam only produces
-// sample-accurate values there.
-struct Context {
-    Context()
-        : document(createDocument())
-        , context(OfflineAudioContext::create(document, 2, quantumSize, sampleRate).releaseReturnValue())
-    {
-        context->setAudioThread(currentThreadID());
-    }
-
-    Ref<Document> document;
-    Ref<OfflineAudioContext> context;
-};
-
-// Deterministic input: a sine plus a little noise, different per channel.
-static Vector<float> makeInput(unsigned channel, size_t frames)
-{
-    Vector<float> input(frames);
-    uint32_t state = 12345 + channel * 7919;
-    for (size_t i = 0; i < frames; ++i) {
-        state = state * 1664525 + 1013904223;
-        float noise = (static_cast<float>(state >> 8) / 16777216.0f - 0.5f) * 0.2f;
-        input[i] = 0.4f * std::sin(static_cast<float>(i) * (0.03f + 0.01f * channel)) + noise;
-    }
-    return input;
-}
-
-static void reportOrCheck(const char* shape, [[maybe_unused]] uint64_t expected, const Digest& digest, double seconds, size_t bytes)
-{
-    if (!runFullBenchmark()) {
-#if CPU(ARM64) && PLATFORM(COCOA)
-        EXPECT_EQ(expected, digest.checksum()) << shape;
-#endif
-        return;
-    }
-    double ms = seconds * 1000;
-    double mbPerSecond = seconds > 0 ? bytes / seconds / 1e6 : 0;
-    printf("%s: %.2f ms %.1f MB/s checksum=%016llx\n", shape, ms, mbPerSecond, static_cast<unsigned long long>(digest.checksum()));
-    fflush(stdout);
-}
-
-struct ProcessorRun {
-    unsigned channels { 1 };
-    unsigned quanta { quantaPerPass };
-    bool inPlace { false };
-    // Called before each quantum of every pass.
-    Function<void(unsigned quantum)> beforeQuantum;
-    // Called after each pass with its digest, if it is the checksummed pass.
-    Function<void(Digest&)> afterPass;
-};
-
-// One pass over the input through `processor`. State persists between passes only through what reset() keeps.
-static void runPass(AudioProcessor& processor, AudioBus& source, AudioBus& destination, const Vector<Vector<float>>& input, ProcessorRun& run, Digest* digest)
-{
-    processor.reset();
-    for (unsigned q = 0; q < run.quanta; ++q) {
-        if (run.beforeQuantum)
-            run.beforeQuantum(q);
-        for (unsigned c = 0; c < run.channels; ++c) {
-            auto channel = source.channel(c)->mutableSpan();
-            for (unsigned i = 0; i < quantumSize; ++i)
-                channel[i] = input[c][q * quantumSize + i];
-        }
-        AudioBus& out = run.inPlace ? source : destination;
-        processor.process(source, out, quantumSize);
-        if (digest) {
-            for (unsigned c = 0; c < run.channels; ++c) {
-                for (float sample : out.channel(c)->span())
-                    digest->add(sample);
-            }
-        }
-    }
-    if (digest && run.afterPass)
-        run.afterPass(*digest);
-}
-
-static void benchProcessor(const char* shape, AudioProcessor& processor, ProcessorRun run, unsigned iterations, uint64_t expected)
-{
-    Vector<Vector<float>> input;
-    for (unsigned c = 0; c < run.channels; ++c)
-        input.append(makeInput(c, static_cast<size_t>(run.quanta) * quantumSize));
-    Ref source = AudioBus::create(run.channels, quantumSize);
-    Ref destination = AudioBus::create(run.channels, quantumSize);
-
-    Digest digest;
-    runPass(processor, source, destination, input, run, &digest);
-
-    double seconds = 0;
-    size_t bytes = 0;
-    if (runFullBenchmark()) {
-        auto start = std::chrono::steady_clock::now();
-        for (unsigned i = 0; i < iterations; ++i)
-            runPass(processor, source, destination, input, run, nullptr);
-        seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
-        bytes = static_cast<size_t>(iterations) * run.channels * run.quanta * quantumSize * sizeof(float);
-    }
-    reportOrCheck(shape, expected, digest, seconds, bytes);
-}
-
-static void setParameterRamp(AudioParam& parameter, float from, float to)
-{
-    parameter.setValueAtTime(from, 0);
-    parameter.linearRampToValueAtTime(to, automationEnd);
-}
 
 // ---- Biquad ----
 

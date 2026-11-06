@@ -1,9 +1,32 @@
-// Swift port of DelayDSPKernel.cpp's circular buffer and interpolation.
+// Copyright (C) 2026 Apple Inc. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY APPLE INC. AND ITS CONTRIBUTORS ``AS IS''
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS
+// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+// Implements DelayDSPKernel.cpp's circular buffer and interpolation.
 // The AudioParam traffic (which path, the sample-accurate delay times, the final value) stays in DelayDSPKernel.cpp.
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 
-public import WebCore_Private.WebAudioKernelTypes
+public import WebCore_Private.AudioDSPBoundaryTypes
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.NativeCallee
 internal import JavaScriptCore_Private.Cxx.Snippet
@@ -43,7 +66,7 @@ private func copyFloats(
     _ count: Int
 ) {
     if count <= 0 { return }
-    var destinationRange = destination._mutatingExtracting(destinationOffset..<destinationOffset &+ count)
+    var destinationRange = destination.extracting(destinationOffset..<destinationOffset &+ count)
     let sourceRange = source.extracting(sourceOffset..<sourceOffset &+ count)
     for i in 0..<count {
         destinationRange[i] = sourceRange[i]
@@ -54,6 +77,7 @@ private func copyFloats(
 // circular buffer. DelayDSPKernel.cpp checks it with a static_assert.
 private let delayRenderQuantumSize = 128
 
+/// The state of a delay line.
 @_expose(Cxx)
 public struct DelayKernel {
     // The circular buffer of `length` frames, followed by a copy of its first delayRenderQuantumSize frames:
@@ -142,6 +166,11 @@ public struct DelayKernel {
         let sampleRate = Double(self.sampleRate)
         let bufferLengthValue = Double(bufferLength)
         let bufferSpan = buffer.span.extracting(0..<bufferLength)
+        // The C++ checks delayTimes[i] and destination[i] for every i < count, so a short span traps there too.
+        precondition(delayTimes.count >= count)
+        precondition(destination.count >= count)
+        // writeIndex is less than bufferLength, so incrementing it with a wrap at the end is the C++'s `% bufferLength`.
+        var writeIndex = self.writeIndex
         for i in 0..<count {
             var delayTime = Double(delayTimes[i])
             if delayTime.isNaN {
@@ -161,16 +190,18 @@ public struct DelayKernel {
             // Linearly interpolate in-between delay times.
             let readIndex1 = webAudioSizeFromDouble(readPosition)
             // The C++ wraps here for a saturated readIndex1. This read of sample1 then traps, since readIndex1 is out of
-            // range.
-            let readIndex2 = (readIndex1 &+ 1) % bufferLength
+            // range. For a readIndex1 in range, the next index is readIndex1 + 1 or 0 at the end.
+            let next = readIndex1 &+ 1
+            let readIndex2 = next == bufferLength ? 0 : next
             let interpolationFactor = Float(readPosition - Double(readIndex1))
 
-            writeIndex = (writeIndex &+ 1) % bufferLength
+            writeIndex = writeIndex &+ 1 == bufferLength ? 0 : writeIndex &+ 1
 
             let sample1 = bufferSpan[readIndex1]
             let sample2 = bufferSpan[readIndex2]
             destination[i] = sample1.addingContractedProduct(interpolationFactor, sample2 - sample1)
         }
+        self.writeIndex = writeIndex
     }
 
     // `destinationAlignment` is the destination's offset from a 16-byte boundary, in floats. The C++ passes the destination
@@ -249,7 +280,7 @@ public struct DelayKernel {
         // readIndex1 is below the buffer length and count is at most the guard size, so the sums do not overflow.
         let first = buffer.span.extracting(readIndex1..<readIndex1 &+ count)
         let second = buffer.span.extracting(readIndex2..<readIndex2 &+ count)
-        var result = destination._mutatingExtracting(0..<count)
+        var result = destination.extracting(0..<count)
         let complement = 1 - interpolationFactor
         let phase = destinationAlignment & 3
         let head = min((4 - phase) & 3, count)
@@ -266,6 +297,7 @@ public struct DelayKernel {
     }
 }
 
+/// Creates a delay kernel with a buffer of `bufferLength` frames.
 @_expose(Cxx)
 public func makeDelayKernel(_ bufferLength: Int, _ maxDelayTime: Double, _ sampleRate: Float) -> DelayKernel {
     DelayKernel(bufferLength: bufferLength, maxDelayTime: maxDelayTime, sampleRate: sampleRate)
@@ -280,8 +312,8 @@ public func makeDelayKernel(_ bufferLength: Int, _ maxDelayTime: Double, _ sampl
 @_expose(Cxx)
 public func delayProcessKRate(
     _ kernel: inout DelayKernel,
-    _ source: FloatSpan,
-    _ destination: MutableFloatSpan,
+    _ source: AudioDSPSpanConstFloat,
+    _ destination: AudioDSPSpanFloat,
     _ delayTime: Double,
     _ destinationAlignment: Int
 ) {
@@ -298,7 +330,7 @@ public func delayProcessKRate(
 @_expose(Cxx)
 public func delayProcessKRateInPlace(
     _ kernel: inout DelayKernel,
-    _ buffer: MutableFloatSpan,
+    _ buffer: AudioDSPSpanFloat,
     _ delayTime: Double,
     _ destinationAlignment: Int
 ) {
@@ -312,7 +344,12 @@ public func delayProcessKRateInPlace(
 /// writes them meanwhile, and `destination` overlaps neither `source` nor `delayTimes`. Floats have no invalid bit
 /// patterns. FIXME: rdar://186723514 (receiving a std::span safely).
 @_expose(Cxx)
-public func delayProcessARate(_ kernel: inout DelayKernel, _ source: FloatSpan, _ destination: MutableFloatSpan, _ delayTimes: FloatSpan) {
+public func delayProcessARate(
+    _ kernel: inout DelayKernel,
+    _ source: AudioDSPSpanConstFloat,
+    _ destination: AudioDSPSpanFloat,
+    _ delayTimes: AudioDSPSpanConstFloat
+) {
     let sourceSpan = unsafe Span<Float>(_unsafeCxxSpan: source)
     var destinationSpan = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
     let delayTimesSpan = unsafe Span<Float>(_unsafeCxxSpan: delayTimes)
@@ -325,20 +362,22 @@ public func delayProcessARate(_ kernel: inout DelayKernel, _ source: FloatSpan, 
 /// them meanwhile, and they do not overlap. Floats have no invalid bit patterns. FIXME: rdar://186723514 (receiving a
 /// std::span safely).
 @_expose(Cxx)
-public func delayProcessARateInPlace(_ kernel: inout DelayKernel, _ buffer: MutableFloatSpan, _ delayTimes: FloatSpan) {
+public func delayProcessARateInPlace(_ kernel: inout DelayKernel, _ buffer: AudioDSPSpanFloat, _ delayTimes: AudioDSPSpanConstFloat) {
     var bufferSpan = unsafe MutableSpan<Float>(_unsafeCxxSpan: buffer)
     let delayTimesSpan = unsafe Span<Float>(_unsafeCxxSpan: delayTimes)
     kernel.processARateInPlace(&bufferSpan, delayTimesSpan)
 }
 
+/// Clears the delay line.
 @_expose(Cxx)
 public func delayReset(_ kernel: inout DelayKernel) {
     kernel.reset()
 }
 
+/// The tail time in seconds.
 @_expose(Cxx)
 public func delayTailTime(_ kernel: borrowing DelayKernel) -> Double {
     kernel.tailTime
 }
 
-#endif // USE_SWIFT_WEBAUDIO_KERNELS
+#endif // USE_SWIFT_AUDIO_DSP

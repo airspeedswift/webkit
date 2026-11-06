@@ -1,13 +1,36 @@
-// Swift port of Biquad.cpp and the coefficient, process and tail-time logic of BiquadDSPKernel.cpp. Every statement
+// Copyright (C) 2026 Apple Inc. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY APPLE INC. AND ITS CONTRIBUTORS ``AS IS''
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS
+// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+// Implements Biquad.cpp and the coefficient, process and tail-time logic of BiquadDSPKernel.cpp. Every statement
 // keeps the C++'s evaluation order and precision, and contracts the multiply-adds as the C++ compiler does
 // (see addingContractedProduct).
 //
 // Accelerate path only (BiquadDSPKernel.cpp requires USE(ACCELERATE) with the Swift kernels on): the constant-coefficient
 // filter computes each output as vDSP_deq22D does, in double precision with a fused multiply-add chain in its order.
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 
-public import WebCore_Private.WebAudioKernelTypes
+public import WebCore_Private.AudioDSPBoundaryTypes
 internal import WebCore_Private.Core.BiquadFilterType
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.NativeCallee
@@ -981,7 +1004,7 @@ public func makeBiquadKernel(_ sampleRate: Float) -> BiquadKernel {
 ///
 /// FIXME: rdar://186723514 (receive a std::span safely).
 @_expose(Cxx)
-public func biquadProcess(_ k: inout BiquadKernel, _ source: FloatSpan, _ destination: MutableFloatSpan) {
+public func biquadProcess(_ k: inout BiquadKernel, _ source: AudioDSPSpanConstFloat, _ destination: AudioDSPSpanFloat) {
     let source = unsafe Span<Float>(_unsafeCxxSpan: source)
     var destination = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
     k.process(source, &destination)
@@ -995,13 +1018,15 @@ public func biquadProcess(_ k: inout BiquadKernel, _ source: FloatSpan, _ destin
 ///
 /// FIXME: rdar://186723514 (receive a std::span safely).
 @_expose(Cxx)
-public func biquadProcessInPlace(_ k: inout BiquadKernel, _ buffer: MutableFloatSpan) {
+public func biquadProcessInPlace(_ k: inout BiquadKernel, _ buffer: AudioDSPSpanFloat) {
     var buffer = unsafe MutableSpan<Float>(_unsafeCxxSpan: buffer)
     k.processInPlace(&buffer, buffer.count)
 }
 
 /// Computes the coefficients for the first `frames` frames from the four parameter arrays, and the tail time from the
-/// last of them: BiquadDSPKernel::updateCoefficients. When `detectConstant` is set, `frames` is the length of the
+/// last of them: BiquadDSPKernel::updateCoefficients.
+///
+/// When `detectConstant` is set, `frames` is the length of the
 /// arrays, and one set of coefficients is computed instead if every array holds one value.
 ///
 /// - `cutoff`, `q`, `gain`, `detune`: arrays of the C++ caller (stack arrays of the kernel's gather, or single
@@ -1014,10 +1039,10 @@ public func biquadUpdateCoefficients(
     _ k: inout BiquadKernel,
     _ frames: Int,
     _ type: WebCore.BiquadFilterType,
-    _ cutoff: FloatSpan,
-    _ q: FloatSpan,
-    _ gain: FloatSpan,
-    _ detune: FloatSpan,
+    _ cutoff: AudioDSPSpanConstFloat,
+    _ q: AudioDSPSpanConstFloat,
+    _ gain: AudioDSPSpanConstFloat,
+    _ detune: AudioDSPSpanConstFloat,
     _ detectConstant: Bool
 ) {
     let cutoff = unsafe Span<Float>(_unsafeCxxSpan: cutoff)
@@ -1056,9 +1081,9 @@ public func biquadTailTime(_ k: borrowing BiquadKernel) -> Double {
 @_expose(Cxx)
 public func biquadFrequencyResponse(
     _ k: borrowing BiquadKernel,
-    _ frequencyHz: FloatSpan,
-    _ magResponse: MutableFloatSpan,
-    _ phaseResponse: MutableFloatSpan
+    _ frequencyHz: AudioDSPSpanConstFloat,
+    _ magResponse: AudioDSPSpanFloat,
+    _ phaseResponse: AudioDSPSpanFloat
 ) {
     let frequencyHz = unsafe Span<Float>(_unsafeCxxSpan: frequencyHz)
     var magResponse = unsafe MutableSpan<Float>(_unsafeCxxSpan: magResponse)

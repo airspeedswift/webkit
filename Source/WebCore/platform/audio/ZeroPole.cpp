@@ -33,9 +33,11 @@
 #endif
 #if ENABLE(WEB_AUDIO)
 
-#if !USE_SWIFT_AUDIO_DSP
-
 #include "ZeroPole.h"
+
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#endif
 
 #include "DenormalDisabler.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -46,6 +48,9 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(ZeroPole);
 
 void ZeroPole::process(std::span<const float> source, std::span<float> destination, unsigned framesToProcess)
 {
+#if USE_SWIFT_AUDIO_DSP
+    zeroPoleProcess(source.first(framesToProcess), destination.first(framesToProcess), framesToProcess, m_zero, m_pole, m_lastX, m_lastY, m_lastX, m_lastY);
+#else
     float zero = m_zero;
     float pole = m_pole;
 
@@ -75,29 +80,9 @@ void ZeroPole::process(std::span<const float> source, std::span<float> destinati
     // slow down the inner loop above.
     m_lastX = DenormalDisabler::flushDenormalFloatToZero(lastX);
     m_lastY = DenormalDisabler::flushDenormalFloatToZero(lastY);
+#endif
 }
 
 } // namespace WebCore
-
-
-#endif // !USE_SWIFT_AUDIO_DSP
-
-#if USE_SWIFT_AUDIO_DSP
-#include "WebCore-Swift.h"
-#include "ZeroPole.h"
-#include <wtf/TZoneMallocInlines.h>
-
-namespace WebCore {
-
-WTF_MAKE_TZONE_ALLOCATED_IMPL(ZeroPole);
-
-void ZeroPole::process(std::span<const float> source, std::span<float> destination, unsigned framesToProcess)
-{
-    zeroPoleProcess(source.first(framesToProcess), destination.first(framesToProcess),
-        framesToProcess, m_zero, m_pole, m_lastX, m_lastY, m_lastX, m_lastY);
-}
-
-} // namespace WebCore
-#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

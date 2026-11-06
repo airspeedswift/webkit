@@ -1,12 +1,35 @@
-// Swift port of IIRFilter.cpp and the state and maths of IIRDSPKernel.cpp.
+// Copyright (C) 2026 Apple Inc. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY APPLE INC. AND ITS CONTRIBUTORS ``AS IS''
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS
+// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+// POSSIBILITY OF SUCH DAMAGE.
+
+// Implements IIRFilter.cpp and the state and maths of IIRDSPKernel.cpp.
 // Statements keep the C++'s evaluation order and precision, and contract the multiply-adds as the C++ compiler does
 // (see addingContractedProduct).
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 
 import Accelerate
 import Darwin
-public import WebCore_Private.WebAudioKernelTypes
+public import WebCore_Private.AudioDSPBoundaryTypes
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.NativeCallee
 internal import JavaScriptCore_Private.Cxx.Snippet
@@ -196,6 +219,7 @@ private func copyOf(_ span: Span<Double>) -> [Double] {
     span.indices.map { span[$0] }
 }
 
+/// The state of an IIR filter for one channel.
 @_expose(Cxx)
 public struct IIRKernel {
     // The old input and output values, as doubles to minimise roundoff. yBuffer[bufferIndex] is the most recent output.
@@ -207,10 +231,11 @@ public struct IIRKernel {
     private let feedback: [Double]
     private(set) var tailTime = 0.0
 
-    init(feedforward: Span<Double>, feedback: Span<Double>, sampleRate: Float, isFilterStable: Bool) {
+    init(feedforward: Span<Double>, feedback: Span<Double>, sampleRate: Float, isFilterStable: Bool, knownTailTime: Double) {
         self.feedforward = copyOf(feedforward)
         self.feedback = copyOf(feedback)
-        tailTime = computeTailTime(sampleRate: Double(sampleRate), isFilterStable: isFilterStable)
+        // NaN: not known.
+        tailTime = knownTailTime.isNaN ? computeTailTime(sampleRate: Double(sampleRate), isFilterStable: isFilterStable) : knownTailTime
     }
 
     @inline(always)
@@ -365,11 +390,24 @@ public struct IIRKernel {
 /// `feedforward` and `feedback` are the processor's coefficient vectors; each is copied during the call. The caller
 /// owns their storage, which stays allocated at its length, and unwritten by anything else, for the call. Their
 /// elements are doubles, with no invalid bit patterns. FIXME: rdar://186723514 (receiving a std::span safely).
+/// `knownTailTime` is the tail time of another kernel built from the same arguments, or NaN to compute it.
 @_expose(Cxx)
-public func makeIIRKernel(_ feedforward: DoubleSpan, _ feedback: DoubleSpan, _ sampleRate: Float, _ isFilterStable: Bool) -> IIRKernel {
+public func makeIIRKernel(
+    _ feedforward: AudioDSPSpanConstDouble,
+    _ feedback: AudioDSPSpanConstDouble,
+    _ sampleRate: Float,
+    _ isFilterStable: Bool,
+    _ knownTailTime: Double
+) -> IIRKernel {
     let feedforwardSpan = unsafe Span<Double>(_unsafeCxxSpan: feedforward)
     let feedbackSpan = unsafe Span<Double>(_unsafeCxxSpan: feedback)
-    return IIRKernel(feedforward: feedforwardSpan, feedback: feedbackSpan, sampleRate: sampleRate, isFilterStable: isFilterStable)
+    return IIRKernel(
+        feedforward: feedforwardSpan,
+        feedback: feedbackSpan,
+        sampleRate: sampleRate,
+        isFilterStable: isFilterStable,
+        knownTailTime: knownTailTime
+    )
 }
 
 /// Filters `source` into `destination`, frame by frame, where they are different buffers.
@@ -378,7 +416,7 @@ public func makeIIRKernel(_ feedforward: DoubleSpan, _ feedback: DoubleSpan, _ s
 /// them meanwhile, and `source` and `destination` do not overlap. Floats have no invalid bit patterns.
 /// FIXME: rdar://186723514 (receiving a std::span safely).
 @_expose(Cxx)
-public func iirProcess(_ kernel: inout IIRKernel, _ source: FloatSpan, _ destination: MutableFloatSpan) {
+public func iirProcess(_ kernel: inout IIRKernel, _ source: AudioDSPSpanConstFloat, _ destination: AudioDSPSpanFloat) {
     let sourceSpan = unsafe Span<Float>(_unsafeCxxSpan: source)
     var destinationSpan = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
     // The filter works in place, so the input goes to the destination first.
@@ -393,16 +431,18 @@ public func iirProcess(_ kernel: inout IIRKernel, _ source: FloatSpan, _ destina
 /// The caller owns the buffer, which stays allocated at its length for the call, and nothing else reads or writes it
 /// meanwhile. Floats have no invalid bit patterns. FIXME: rdar://186723514 (receiving a std::span safely).
 @_expose(Cxx)
-public func iirProcessInPlace(_ kernel: inout IIRKernel, _ buffer: MutableFloatSpan) {
+public func iirProcessInPlace(_ kernel: inout IIRKernel, _ buffer: AudioDSPSpanFloat) {
     var bufferSpan = unsafe MutableSpan<Float>(_unsafeCxxSpan: buffer)
     kernel.process(&bufferSpan, bufferSpan.count)
 }
 
+/// Clears the filter state.
 @_expose(Cxx)
 public func iirReset(_ kernel: inout IIRKernel) {
     kernel.reset()
 }
 
+/// The tail time in seconds.
 @_expose(Cxx)
 public func iirTailTime(_ kernel: borrowing IIRKernel) -> Double {
     kernel.tailTime
@@ -416,9 +456,9 @@ public func iirTailTime(_ kernel: borrowing IIRKernel) -> Double {
 @_expose(Cxx)
 public func iirFrequencyResponse(
     _ kernel: borrowing IIRKernel,
-    _ frequencyHz: FloatSpan,
-    _ magResponse: MutableFloatSpan,
-    _ phaseResponse: MutableFloatSpan,
+    _ frequencyHz: AudioDSPSpanConstFloat,
+    _ magResponse: AudioDSPSpanFloat,
+    _ phaseResponse: AudioDSPSpanFloat,
     _ nyquist: Double
 ) {
     let frequencySpan = unsafe Span<Float>(_unsafeCxxSpan: frequencyHz)
@@ -427,4 +467,4 @@ public func iirFrequencyResponse(
     kernel.frequencyResponse(frequencySpan, &magSpan, &phaseSpan, nyquist)
 }
 
-#endif // USE_SWIFT_WEBAUDIO_KERNELS
+#endif // USE_SWIFT_AUDIO_DSP

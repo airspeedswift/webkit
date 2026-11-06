@@ -314,7 +314,7 @@
 		F94B12816CDF409E961D0FD8 /* BiquadKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C866D09E4FA478AAB4E93F7 /* BiquadKernel.swift */; };
 		B2C50D07CBEE493CA220BDC0 /* IIRKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014A5CD4E47141A3AEF4AD90 /* IIRKernel.swift */; };
 		996FDBF81B4945BC960000E5 /* DelayKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCDF91DC38D480488EE4F32 /* DelayKernel.swift */; };
-		0DA429AB01144EEFBDD0869B /* WebAudioKernelTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = B275DFE1CF4647429476A4C5 /* WebAudioKernelTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		C0DEA11CE5D0480488EE4F02 /* CompressorKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DEA11CE5D0480488EE4F01 /* CompressorKernel.swift */; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
 		5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000007 /* SIMDHighBitMask.swift */; };
@@ -24091,7 +24091,7 @@
 		6C866D09E4FA478AAB4E93F7 /* BiquadKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BiquadKernel.swift; sourceTree = "<group>"; };
 		014A5CD4E47141A3AEF4AD90 /* IIRKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IIRKernel.swift; sourceTree = "<group>"; };
 		BCCDF91DC38D480488EE4F32 /* DelayKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DelayKernel.swift; sourceTree = "<group>"; };
-		B275DFE1CF4647429476A4C5 /* WebAudioKernelTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebAudioKernelTypes.h; sourceTree = "<group>"; };
+		C0DEA11CE5D0480488EE4F01 /* CompressorKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompressorKernel.swift; sourceTree = "<group>"; };
 		FD315FDB12B0267600C1A359 /* BiquadDSPKernel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BiquadDSPKernel.h; sourceTree = "<group>"; };
 		FD315FDC12B0267600C1A359 /* BiquadProcessor.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BiquadProcessor.cpp; sourceTree = "<group>"; };
 		FD315FDD12B0267600C1A359 /* BiquadProcessor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BiquadProcessor.h; sourceTree = "<group>"; };
@@ -44184,6 +44184,7 @@
 				6C866D09E4FA478AAB4E93F7 /* BiquadKernel.swift */,
 				014A5CD4E47141A3AEF4AD90 /* IIRKernel.swift */,
 				BCCDF91DC38D480488EE4F32 /* DelayKernel.swift */,
+				C0DEA11CE5D0480488EE4F01 /* CompressorKernel.swift */,
 				FD315FDB12B0267600C1A359 /* BiquadDSPKernel.h */,
 				FDC54F011399B0DA008D9117 /* BiquadFilterNode.cpp */,
 				FDC54F021399B0DA008D9117 /* BiquadFilterNode.h */,
@@ -44389,7 +44390,6 @@
 				FD31606912B026F700C1A359 /* HRTFKernel.h */,
 				FD31606A12B026F700C1A359 /* HRTFPanner.cpp */,
 				FD31606B12B026F700C1A359 /* HRTFPanner.h */,
-				B275DFE1CF4647429476A4C5 /* WebAudioKernelTypes.h */,
 				839BE6D424F58755004DF50F /* IIRFilter.cpp */,
 				839BE6D224F58755004DF50F /* IIRFilter.h */,
 				07FDA6B32E16CA53008482F8 /* MediaSessionManagerInterface.cpp */,
@@ -44831,7 +44831,6 @@
 				484E29CA10A14D4FA8B254CE /* AudioDSPBoundaryTypes.h in Headers */,
 				FD31608012B026F700C1A359 /* AudioDSPKernel.h in Headers */,
 				FD31608212B026F700C1A359 /* AudioDSPKernelProcessor.h in Headers */,
-				0DA429AB01144EEFBDD0869B /* WebAudioKernelTypes.h in Headers */,
 				5CE40F64DF8D457695087B59 /* AudioEncodedData.h in Headers */,
 				07257B5E2E506D8E00AD0DF1 /* AudioEncoder.h in Headers */,
 				07257B602E5072E600AD0DF1 /* AudioEncoderActiveConfiguration.h in Headers */,
@@ -51743,6 +51742,7 @@
 				F94B12816CDF409E961D0FD8 /* BiquadKernel.swift in Sources */,
 				B2C50D07CBEE493CA220BDC0 /* IIRKernel.swift in Sources */,
 				996FDBF81B4945BC960000E5 /* DelayKernel.swift in Sources */,
+				C0DEA11CE5D0480488EE4F02 /* CompressorKernel.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,
 				5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */,

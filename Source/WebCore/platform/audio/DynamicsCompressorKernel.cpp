@@ -33,26 +33,36 @@
 #endif
 #if ENABLE(WEB_AUDIO)
 
-#if !USE_SWIFT_AUDIO_DSP
-
 #include "DynamicsCompressorKernel.h"
 
+#if !USE_SWIFT_AUDIO_DSP
 #include "AudioUtilities.h"
 #include "DenormalDisabler.h"
 #include <algorithm>
 #include <numbers>
 #include <wtf/MathExtras.h>
+#else
+#include "WebCore-Swift.h"
+#endif
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(DynamicsCompressorKernel);
 
+#if !USE_SWIFT_AUDIO_DSP
 using namespace AudioUtilities;
+#endif
 
 // Metering hits peaks instantly, but releases this fast (in seconds).
 constexpr float meteringReleaseTimeConstant = 0.325f;
 
+#if USE_SWIFT_AUDIO_DSP
+// CompressorKernel.swift repeats this value.
+static_assert(meteringReleaseTimeConstant == 0.325f);
+#endif
+
+#if !USE_SWIFT_AUDIO_DSP
 DynamicsCompressorKernel::DynamicsCompressorKernel(float sampleRate, unsigned numberOfChannels)
     : m_sampleRate(sampleRate)
 {
@@ -465,6 +475,48 @@ void DynamicsCompressorKernel::reset()
     m_maxAttackCompressionDiffDb = -1; // uninitialized state
 }
 
+#else
+
+struct DynamicsCompressorKernel::SwiftState {
+    WTF_MAKE_TZONE_ALLOCATED_INLINE(SwiftState);
+public:
+    CompressorKernel kernel;
+};
+
+DynamicsCompressorKernel::DynamicsCompressorKernel(float sampleRate, unsigned numberOfChannels)
+    : m_sampleRate(sampleRate)
+    , m_swift(makeUnique<SwiftState>(makeCompressorKernel(sampleRate, numberOfChannels)))
+{
+}
+
+DynamicsCompressorKernel::~DynamicsCompressorKernel() = default;
+
+void DynamicsCompressorKernel::setNumberOfChannels(unsigned numberOfChannels)
+{
+    compressorSetNumberOfChannels(m_swift->kernel, numberOfChannels);
+}
+
+void DynamicsCompressorKernel::process(std::span<const std::span<const float>> sourceChannels, std::span<std::span<float>> destinationChannels, unsigned framesToProcess,
+    float dbThreshold, float dbKnee, float ratio, float attackTime, float releaseTime, float preDelayTime, float dbPostGain, float effectBlend,
+    float releaseZone1, float releaseZone2, float releaseZone3, float releaseZone4)
+{
+    m_meteringGain = compressorProcess(m_swift->kernel, sourceChannels[0], sourceChannels[1], destinationChannels[0], destinationChannels[1], framesToProcess,
+        dbThreshold, dbKnee, ratio, attackTime, releaseTime, preDelayTime, dbPostGain, effectBlend, releaseZone1, releaseZone2, releaseZone3, releaseZone4);
+}
+
+void DynamicsCompressorKernel::reset()
+{
+    compressorReset(m_swift->kernel);
+    m_meteringGain = 1;
+}
+
+unsigned DynamicsCompressorKernel::latencyFrames() const
+{
+    return compressorLatencyFrames(m_swift->kernel);
+}
+
+#endif // USE_SWIFT_AUDIO_DSP
+
 double DynamicsCompressorKernel::tailTime() const
 {
     // The reduction value of the compressor is computed from the gain using an exponential filter
@@ -476,281 +528,5 @@ double DynamicsCompressorKernel::tailTime() const
 }
 
 } // namespace WebCore
-
-
-#endif // !USE_SWIFT_AUDIO_DSP
-
-#if USE_SWIFT_AUDIO_DSP
-#include "WebCore-Swift.h"
-#include "AudioUtilities.h"
-#include "DenormalDisabler.h"
-#include "DynamicsCompressorKernel.h"
-#include <algorithm>
-#include <numbers>
-#include <wtf/MathExtras.h>
-#include <wtf/TZoneMallocInlines.h>
-
-namespace WebCore {
-
-WTF_MAKE_TZONE_ALLOCATED_IMPL(DynamicsCompressorKernel);
-
-constexpr float meteringReleaseTimeConstantSwift = 0.325f;
-
-DynamicsCompressorKernel::DynamicsCompressorKernel(float sampleRate, unsigned numberOfChannels)
-    : m_sampleRate(sampleRate)
-    , m_detectorAverage(0)
-    , m_compressorGain(1)
-    , m_meteringGain(1)
-    , m_maxAttackCompressionDiffDb(uninitializedValue)
-{
-    setNumberOfChannels(numberOfChannels);
-    reset();
-    m_meteringReleaseK = static_cast<float>(AudioUtilities::discreteTimeConstantForSampleRate(meteringReleaseTimeConstantSwift, sampleRate));
-}
-
-void DynamicsCompressorKernel::setNumberOfChannels(unsigned n)
-{
-    if (m_preDelayBuffers.size() == n)
-        return;
-    m_preDelayBuffers = Vector<std::unique_ptr<AudioFloatArray>>(n, [](size_t) {
-        return makeUnique<AudioFloatArray>(MaxPreDelayFrames);
-    });
-}
-
-void DynamicsCompressorKernel::setPreDelayTime(float preDelayTime)
-{
-    unsigned preDelayFrames = preDelayTime * sampleRate();
-    if (preDelayFrames > MaxPreDelayFrames - 1)
-        preDelayFrames = MaxPreDelayFrames - 1;
-    if (m_lastPreDelayFrames != preDelayFrames) {
-        m_lastPreDelayFrames = preDelayFrames;
-        for (unsigned i = 0; i < m_preDelayBuffers.size(); ++i)
-            m_preDelayBuffers[i]->zero();
-        m_preDelayReadIndex = 0;
-        m_preDelayWriteIndex = preDelayFrames;
-    }
-}
-
-float DynamicsCompressorKernel::kneeCurve(float x, float k)
-{
-    if (x < m_linearThreshold)
-        return x;
-    return m_linearThreshold + (1 - expf(-k * (x - m_linearThreshold))) / k;
-}
-
-float DynamicsCompressorKernel::saturate(float x, float k)
-{
-    if (x < m_kneeThreshold)
-        return kneeCurve(x, k);
-    float xDb = AudioUtilities::linearToDecibels(x);
-    float yDb = m_ykneeThresholdDb + m_slope * (xDb - m_kneeThresholdDb);
-    return AudioUtilities::decibelsToLinear(yDb);
-}
-
-float DynamicsCompressorKernel::slopeAt(float x, float k)
-{
-    if (x < m_linearThreshold)
-        return 1;
-    float x2 = x * 1.001f;
-    float xDb = AudioUtilities::linearToDecibels(x);
-    float x2Db = AudioUtilities::linearToDecibels(x2);
-    float yDb = AudioUtilities::linearToDecibels(kneeCurve(x, k));
-    float y2Db = AudioUtilities::linearToDecibels(kneeCurve(x2, k));
-    return (y2Db - yDb) / (x2Db - xDb);
-}
-
-float DynamicsCompressorKernel::kAtSlope(float desiredSlope)
-{
-    float xDb = m_dbThreshold + m_dbKnee;
-    float x = AudioUtilities::decibelsToLinear(xDb);
-    float minK = 0.1f, maxK = 10000.f, k = 5.f;
-    for (int i = 0; i < 15; ++i) {
-        float slope = slopeAt(x, k);
-        if (slope < desiredSlope)
-            maxK = k;
-        else
-            minK = k;
-        k = sqrtf(minK * maxK);
-    }
-    return k;
-}
-
-float DynamicsCompressorKernel::updateStaticCurveParameters(float dbThreshold, float dbKnee, float ratio)
-{
-    if (dbThreshold != m_dbThreshold || dbKnee != m_dbKnee || ratio != m_ratio) {
-        m_dbThreshold = dbThreshold;
-        m_linearThreshold = AudioUtilities::decibelsToLinear(dbThreshold);
-        m_dbKnee = dbKnee;
-        m_ratio = ratio;
-        m_slope = 1 / m_ratio;
-        float k = kAtSlope(1 / m_ratio);
-        m_kneeThresholdDb = dbThreshold + dbKnee;
-        m_kneeThreshold = AudioUtilities::decibelsToLinear(m_kneeThresholdDb);
-        m_ykneeThresholdDb = AudioUtilities::linearToDecibels(kneeCurve(m_kneeThreshold, k));
-        m_K = k;
-    }
-    return m_K;
-}
-
-void DynamicsCompressorKernel::process(
-    std::span<const std::span<const float>> sourceChannels,
-    std::span<std::span<float>> destinationChannels,
-    unsigned framesToProcess,
-    float dbThreshold, float dbKnee, float ratio,
-    float attackTime, float releaseTime, float preDelayTime,
-    float dbPostGain, float effectBlend,
-    float releaseZone1, float releaseZone2, float releaseZone3, float releaseZone4)
-{
-    using namespace AudioUtilities;
-    ASSERT(m_preDelayBuffers.size() == sourceChannels.size());
-
-    float sr = sampleRate();
-    float dryMix = 1 - effectBlend;
-    float wetMix = effectBlend;
-    float k = updateStaticCurveParameters(dbThreshold, dbKnee, ratio);
-
-    float fullRangeGain = saturate(1, k);
-    float fullRangeMakeupGain = powf(1 / fullRangeGain, 0.6f);
-    float masterLinearGain = decibelsToLinear(dbPostGain) * fullRangeMakeupGain;
-
-    attackTime = std::max(0.001f, attackTime);
-    float attackFrames = attackTime * sr;
-    float releaseFrames = sr * releaseTime;
-    float satReleaseTime = 0.0025f;
-    float satReleaseFrames = satReleaseTime * sr;
-
-    float y1 = releaseFrames * releaseZone1;
-    float y2 = releaseFrames * releaseZone2;
-    float y3 = releaseFrames * releaseZone3;
-    float y4 = releaseFrames * releaseZone4;
-    float kA = 0.9999999999999998f*y1 + 1.8432219684323923e-16f*y2 - 1.9373394351676423e-16f*y3 + 8.824516011816245e-18f*y4;
-    float kB = -1.5788320352845888f*y1 + 2.3305837032074286f*y2 - 0.9141194204840429f*y3 + 0.1623677525612032f*y4;
-    float kC = 0.5334142869106424f*y1 - 1.272736789213631f*y2 + 0.9258856042207512f*y3 - 0.18656310191776226f*y4;
-    float kD = 0.08783463138207234f*y1 - 0.1694162967925622f*y2 + 0.08588057951595272f*y3 - 0.00429891410546283f*y4;
-    float kE = -0.042416883008123074f*y1 + 0.1115693827987602f*y2 - 0.09764676325265872f*y3 + 0.028494263462021576f*y4;
-
-    setPreDelayTime(preDelayTime);
-
-    const int nDivisionFrames = 32;
-    const int nDivisions = framesToProcess / nDivisionFrames;
-    unsigned frameIndex = 0;
-
-    for (int i = 0; i < nDivisions; ++i) {
-        if (std::isnan(m_detectorAverage)) m_detectorAverage = 1;
-        if (std::isinf(m_detectorAverage)) m_detectorAverage = 1;
-
-        float desiredGain = m_detectorAverage;
-        float scaledDesiredGain = asinf(desiredGain) / (0.5f * std::numbers::pi_v<float>);
-
-        float envelopeRate;
-        bool isReleasing = scaledDesiredGain > m_compressorGain;
-        float compressionDiffDb = linearToDecibels(m_compressorGain / scaledDesiredGain);
-
-        if (isReleasing) {
-            m_maxAttackCompressionDiffDb = -1;
-            if (std::isnan(compressionDiffDb)) compressionDiffDb = -1;
-            if (std::isinf(compressionDiffDb)) compressionDiffDb = -1;
-            float x = compressionDiffDb;
-            x = std::max(-12.0f, x);
-            x = std::min(0.0f, x);
-            x = 0.25f * (x + 12);
-            float x2 = x * x, x3 = x2 * x, x4 = x2 * x2;
-            float rf = kA + kB * x + kC * x2 + kD * x3 + kE * x4;
-            float dbPerFrame = 5.0f / rf;
-            envelopeRate = decibelsToLinear(dbPerFrame);
-        } else {
-            if (std::isnan(compressionDiffDb)) compressionDiffDb = 1;
-            if (std::isinf(compressionDiffDb)) compressionDiffDb = 1;
-            if (m_maxAttackCompressionDiffDb == -1 || m_maxAttackCompressionDiffDb < compressionDiffDb)
-                m_maxAttackCompressionDiffDb = compressionDiffDb;
-            float effAttenDiffDb = std::max(0.5f, m_maxAttackCompressionDiffDb);
-            float x = 0.25f / effAttenDiffDb;
-            envelopeRate = 1 - powf(x, 1 / attackFrames);
-        }
-
-        {
-            int preDelayReadIndex = m_preDelayReadIndex;
-            int preDelayWriteIndex = m_preDelayWriteIndex;
-            float detectorAverage = m_detectorAverage;
-            float compressorGain = m_compressorGain;
-
-            int loopFrames = nDivisionFrames;
-            while (loopFrames--) {
-                float compressorInput = 0;
-                for (unsigned ch = 0; ch < sourceChannels.size(); ++ch) {
-                    auto delayBuffer = m_preDelayBuffers[ch]->span();
-                    float undelayed = sourceChannels[ch][frameIndex];
-                    delayBuffer[preDelayWriteIndex] = undelayed;
-                    float absUndelayed = undelayed > 0 ? undelayed : -undelayed;
-                    if (compressorInput < absUndelayed)
-                        compressorInput = absUndelayed;
-                }
-                float absInput = compressorInput > 0 ? compressorInput : -compressorInput;
-                float shapedInput = saturate(absInput, k);
-                float attenuation = absInput <= 0.0001f ? 1 : shapedInput / absInput;
-                float attenuationDb = -linearToDecibels(attenuation);
-                attenuationDb = std::max(2.0f, attenuationDb);
-                float dbPerFrame = attenuationDb / satReleaseFrames;
-                float satReleaseRate = decibelsToLinear(dbPerFrame) - 1;
-                bool isRel = (attenuation > detectorAverage);
-                float rate = isRel ? satReleaseRate : 1;
-                detectorAverage += (attenuation - detectorAverage) * rate;
-                detectorAverage = std::min(1.0f, detectorAverage);
-                if (std::isnan(detectorAverage)) detectorAverage = 1;
-                if (std::isinf(detectorAverage)) detectorAverage = 1;
-
-                if (envelopeRate < 1)
-                    compressorGain += (scaledDesiredGain - compressorGain) * envelopeRate;
-                else {
-                    compressorGain *= envelopeRate;
-                    compressorGain = std::min(1.0f, compressorGain);
-                }
-
-                float postWarpCompressorGain = sinf(0.5f * std::numbers::pi_v<float> * compressorGain);
-                float totalGain = dryMix + wetMix * masterLinearGain * postWarpCompressorGain;
-
-                float dbRealGain = 20 * log10f(postWarpCompressorGain);
-                if (dbRealGain < m_meteringGain)
-                    m_meteringGain = dbRealGain;
-                else
-                    m_meteringGain += (dbRealGain - m_meteringGain) * m_meteringReleaseK;
-
-                for (unsigned ch = 0; ch < destinationChannels.size(); ++ch) {
-                    auto delayBuffer = m_preDelayBuffers[ch]->span();
-                    destinationChannels[ch][frameIndex] = delayBuffer[preDelayReadIndex] * totalGain;
-                }
-
-                frameIndex++;
-                preDelayReadIndex = (preDelayReadIndex + 1) & MaxPreDelayFramesMask;
-                preDelayWriteIndex = (preDelayWriteIndex + 1) & MaxPreDelayFramesMask;
-            }
-
-            m_preDelayReadIndex = preDelayReadIndex;
-            m_preDelayWriteIndex = preDelayWriteIndex;
-            m_detectorAverage = DenormalDisabler::flushDenormalFloatToZero(detectorAverage);
-            m_compressorGain = DenormalDisabler::flushDenormalFloatToZero(compressorGain);
-        }
-    }
-}
-
-void DynamicsCompressorKernel::reset()
-{
-    m_detectorAverage = 0;
-    m_compressorGain = 1;
-    m_meteringGain = 1;
-    for (unsigned i = 0; i < m_preDelayBuffers.size(); ++i)
-        m_preDelayBuffers[i]->zero();
-    m_preDelayReadIndex = 0;
-    m_preDelayWriteIndex = DefaultPreDelayFrames;
-    m_maxAttackCompressionDiffDb = -1;
-}
-
-double DynamicsCompressorKernel::tailTime() const
-{
-    return 5 * meteringReleaseTimeConstantSwift;
-}
-
-} // namespace WebCore
-#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

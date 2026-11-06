@@ -25,7 +25,7 @@
 
 #if USE_SWIFT_AUDIO_DSP
 
-// Pull in JSC operator definitions before WebCore's C++ operators become visible (r02 trap).
+// These imports make the operators JavaScriptCore declares visible before WebCore's C++ operators are.
 internal import JavaScriptCore_Private.Cxx.Snippet
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.WasmInstanceAnchor
@@ -35,1109 +35,709 @@ internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
 internal import wtf.Core.Stopwatch
 
 internal import WebCore_Private.AudioDSPBoundaryTypes
-import Accelerate
+import Darwin
 
-// MARK: - VectorMath
-//
-// Each @_expose(Cxx) entry point receives C++ std::span parameters.
-// U1 conversion: the caller (C++ WebAudio nodes or VectorMath C++ wrappers) owns
-// the underlying storage for the duration of the call; nothing else reads or writes
-// the buffers concurrently; float/double have no invalid bit patterns.
-// FIXME: rdar://186723514 tracks making these conversions safe.
+// Every entry point below receives C++ std::span parameters. The caller owns each buffer, which stays allocated at its
+// length for the call, and nothing else reads or writes the buffers meanwhile, so each converted span is used only
+// inside its entry. Floats, doubles and Int32 have no invalid bit patterns. Where an entry has an output, its inputs
+// are the output or do not overlap it, and its outputs do not overlap each other.
+// FIXME: rdar://186723514 (receiving a std::span safely).
 
-/// out[i] += in[i] * scalar  (vDSP_vsma with output as addend)
+// A NaN result carries the payload of one of its operands, and which one depends on the order the instruction takes
+// them in. The compiler may swap the operands of a plain add or multiply, so those are written as fused multiply-adds
+// with the operand order the library's results show: x + y is fma(x, 1, y), and x * y is fma(x, y, -0), exact for every
+// non-NaN value.
+private let negativeZero: Float = -0.0
+
+// Each operation computes what the vDSP call it replaces returns, bit for bit, on arm64: a correctly rounded
+// element-wise operation, or a fused multiply-add where the library fuses. Apple does not document the fusing: it was
+// found by comparing the library's output with this arithmetic for every count, alignment and special value tried.
+// The reductions (dot product, sum of squares, convolution) and the library's approximations (decibels,
+// interpolation) are not here, because their results depend on the order the library sums in: they stay in C++.
+// The size checks are the C++'s RELEASE_ASSERTs; the loops' own bounds checks cover what the C++ leaves unchecked.
+
+// The element-wise callers pass an output that is also an input (add(a, b, a), scaling a buffer in place), as the
+// library allows. Such an input is read through the output span, so that no Span and MutableSpan are read and written
+// over the same memory in one loop. Any other input is disjoint from the output.
+@inline(always)
+private func isOutput<T: BitwiseCopyable>(_ input: Span<T>, _ output: borrowing MutableSpan<T>) -> Bool {
+    output.span.extracting(first: input.count).isIdentical(to: input)
+}
+
+@inline(always)
+private func mapElements<T: BitwiseCopyable>(
+    _ input: Span<T>,
+    _ output: inout MutableSpan<T>,
+    _ transform: (T) -> T
+) {
+    let n = input.count
+    precondition(output.count >= n)
+    if isOutput(input, output) {
+        for i in 0..<n { output[i] = transform(output[i]) }
+    } else {
+        for i in 0..<n { output[i] = transform(input[i]) }
+    }
+}
+
+@inline(always)
+private func combineElements<T: BitwiseCopyable>(
+    _ input1: Span<T>,
+    _ input2: Span<T>,
+    _ output: inout MutableSpan<T>,
+    _ combine: (T, T) -> T
+) {
+    let n = input1.count
+    precondition(input2.count == n)
+    precondition(output.count >= n)
+    let in1IsOutput = isOutput(input1, output)
+    let in2IsOutput = isOutput(input2, output)
+    if in1IsOutput && in2IsOutput {
+        for i in 0..<n { output[i] = combine(output[i], output[i]) }
+    } else if in1IsOutput {
+        for i in 0..<n { output[i] = combine(output[i], input2[i]) }
+    } else if in2IsOutput {
+        for i in 0..<n { output[i] = combine(input1[i], output[i]) }
+    } else {
+        for i in 0..<n { output[i] = combine(input1[i], input2[i]) }
+    }
+}
+
+/// out[i] += in[i] * scalar.
 @_expose(Cxx)
 internal func vmMultiplyByScalarThenAddToOutput(
-    _ input: AudioDSPSpanConstFloat, _ scalar: Float, _ output: AudioDSPSpanFloat
+    _ input: AudioDSPSpanConstFloat,
+    _ scalar: Float,
+    _ output: AudioDSPSpanFloat
 ) {
-    // FIXME: rdar://186723514
-    let inSpan  = unsafe Span<Float>(_unsafeCxxSpan: input)
-    var outSpan = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = inSpan.count
-    guard n > 0 else { return }
-    var s = scalar
-    inSpan.withUnsafeBufferPointer { inp in
-        outSpan.withUnsafeMutableBufferPointer { outp in
-            unsafe vDSP_vsma(inp.baseAddress!, 1, &s,
-                      outp.baseAddress!, 1,
-                      outp.baseAddress!, 1, vDSP_Length(n))
-        }
+    let input = unsafe Span<Float>(_unsafeCxxSpan: input)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    let n = input.count
+    precondition(output.count >= n)
+    if isOutput(input, output) {
+        for i in 0..<n { output[i] = output[i].addingProduct(output[i], scalar) }
+    } else {
+        for i in 0..<n { output[i] = output[i].addingProduct(input[i], scalar) }
     }
 }
 
-/// out[i] = in1[i] * scalar + in2[i]
+/// out[i] = in1[i] * scalar + in2[i].
 @_expose(Cxx)
 internal func vmMultiplyByScalarThenAddToVector(
-    _ input1: AudioDSPSpanConstFloat, _ scalar: Float,
-    _ input2: AudioDSPSpanConstFloat, _ output: AudioDSPSpanFloat
+    _ input1: AudioDSPSpanConstFloat,
+    _ scalar: Float,
+    _ input2: AudioDSPSpanConstFloat,
+    _ output: AudioDSPSpanFloat
 ) {
-    let s1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
-    let s2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = s1.count
-    guard n > 0 else { return }
-    var sc = scalar
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeBufferPointer { p2 in
-            so.withUnsafeMutableBufferPointer { op in
-                unsafe vDSP_vsma(p1.baseAddress!, 1, &sc,
-                          p2.baseAddress!, 1,
-                          op.baseAddress!, 1, vDSP_Length(n))
-            }
-        }
-    }
+    let input1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
+    let input2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    combineElements(input1, input2, &output) { $1.addingProduct($0, scalar) }
 }
 
-/// out[i] = (in1[i] + in2[i]) * scalar
+/// out[i] = (in1[i] + in2[i]) * scalar.
 @_expose(Cxx)
 internal func vmAddVectorsThenMultiplyByScalar(
-    _ input1: AudioDSPSpanConstFloat, _ input2: AudioDSPSpanConstFloat,
-    _ scalar: Float, _ output: AudioDSPSpanFloat
+    _ input1: AudioDSPSpanConstFloat,
+    _ input2: AudioDSPSpanConstFloat,
+    _ scalar: Float,
+    _ output: AudioDSPSpanFloat
 ) {
-    let s1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
-    let s2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = s1.count
-    guard n > 0 else { return }
-    var sc = scalar
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeBufferPointer { p2 in
-            so.withUnsafeMutableBufferPointer { op in
-                unsafe vDSP_vasm(p1.baseAddress!, 1, p2.baseAddress!, 1, &sc,
-                          op.baseAddress!, 1, vDSP_Length(n))
-            }
-        }
-    }
+    let input1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
+    let input2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    combineElements(input1, input2, &output) { negativeZero.addingProduct($0.addingProduct($1, 1), scalar) }
 }
 
+/// out[i] = in[i] * scalar.
 @_expose(Cxx)
 internal func vmMultiplyByScalar(
-    _ input: AudioDSPSpanConstFloat, _ scalar: Float, _ output: AudioDSPSpanFloat
+    _ input: AudioDSPSpanConstFloat,
+    _ scalar: Float,
+    _ output: AudioDSPSpanFloat
 ) {
-    let si = unsafe Span<Float>(_unsafeCxxSpan: input)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = si.count
-    guard n > 0 else { return }
-    var sc = scalar
-    si.withUnsafeBufferPointer { p in
-        so.withUnsafeMutableBufferPointer { op in
-            unsafe vDSP_vsmul(p.baseAddress!, 1, &sc, op.baseAddress!, 1, vDSP_Length(n))
-        }
-    }
+    let input = unsafe Span<Float>(_unsafeCxxSpan: input)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    mapElements(input, &output) { negativeZero.addingProduct($0, scalar) }
 }
 
+/// out[i] = in[i] + scalar.
 @_expose(Cxx)
 internal func vmAddScalar(
-    _ input: AudioDSPSpanConstFloat, _ scalar: Float, _ output: AudioDSPSpanFloat
+    _ input: AudioDSPSpanConstFloat,
+    _ scalar: Float,
+    _ output: AudioDSPSpanFloat
 ) {
-    let si = unsafe Span<Float>(_unsafeCxxSpan: input)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = si.count
-    guard n > 0 else { return }
-    var sc = scalar
-    si.withUnsafeBufferPointer { p in
-        so.withUnsafeMutableBufferPointer { op in
-            unsafe vDSP_vsadd(p.baseAddress!, 1, &sc, op.baseAddress!, 1, vDSP_Length(n))
-        }
-    }
+    let input = unsafe Span<Float>(_unsafeCxxSpan: input)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    mapElements(input, &output) { $0.addingProduct(scalar, 1) }
 }
 
-/// "substract" — preserves C++ typo (R10).
+/// out[i] = in2[i] - in1[i], as vDSP_vsub, which VectorMath::substract calls.
 @_expose(Cxx)
 internal func vmSubstract(
-    _ input1: AudioDSPSpanConstFloat, _ input2: AudioDSPSpanConstFloat, _ output: AudioDSPSpanFloat
+    _ input1: AudioDSPSpanConstFloat,
+    _ input2: AudioDSPSpanConstFloat,
+    _ output: AudioDSPSpanFloat
 ) {
-    let s1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
-    let s2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = s1.count
-    guard n > 0 else { return }
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeBufferPointer { p2 in
-            so.withUnsafeMutableBufferPointer { op in
-                unsafe vDSP_vsub(p1.baseAddress!, 1, p2.baseAddress!, 1, op.baseAddress!, 1, vDSP_Length(n))
-            }
-        }
-    }
+    let input1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
+    let input2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    combineElements(input1, input2, &output) { $1 - $0 }
 }
 
+/// out[i] = in1[i] + in2[i].
 @_expose(Cxx)
 internal func vmAddFloat(
-    _ input1: AudioDSPSpanConstFloat, _ input2: AudioDSPSpanConstFloat, _ output: AudioDSPSpanFloat
+    _ input1: AudioDSPSpanConstFloat,
+    _ input2: AudioDSPSpanConstFloat,
+    _ output: AudioDSPSpanFloat
 ) {
-    let s1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
-    let s2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = s1.count
-    guard n > 0 else { return }
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeBufferPointer { p2 in
-            so.withUnsafeMutableBufferPointer { op in
-                unsafe vDSP_vadd(p1.baseAddress!, 1, p2.baseAddress!, 1, op.baseAddress!, 1, vDSP_Length(n))
-            }
-        }
-    }
+    let input1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
+    let input2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    combineElements(input1, input2, &output) { $1.addingProduct($0, 1) }
 }
 
+/// out[i] = in1[i] + in2[i].
 @_expose(Cxx)
 internal func vmAddDouble(
-    _ input1: AudioDSPSpanConstDouble, _ input2: AudioDSPSpanConstDouble, _ output: AudioDSPSpanDouble
+    _ input1: AudioDSPSpanConstDouble,
+    _ input2: AudioDSPSpanConstDouble,
+    _ output: AudioDSPSpanDouble
 ) {
-    let s1 = unsafe Span<Double>(_unsafeCxxSpan: input1)
-    let s2 = unsafe Span<Double>(_unsafeCxxSpan: input2)
-    var so = unsafe MutableSpan<Double>(_unsafeCxxSpan: output)
-    let n = s1.count
-    guard n > 0 else { return }
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeBufferPointer { p2 in
-            so.withUnsafeMutableBufferPointer { op in
-                unsafe vDSP_vaddD(p1.baseAddress!, 1, p2.baseAddress!, 1, op.baseAddress!, 1, vDSP_Length(n))
-            }
-        }
-    }
+    let input1 = unsafe Span<Double>(_unsafeCxxSpan: input1)
+    let input2 = unsafe Span<Double>(_unsafeCxxSpan: input2)
+    var output = unsafe MutableSpan<Double>(_unsafeCxxSpan: output)
+    combineElements(input1, input2, &output) { $0.addingProduct($1, 1) }
 }
 
+/// out[i] = in1[i] * in2[i].
 @_expose(Cxx)
 internal func vmMultiply(
-    _ input1: AudioDSPSpanConstFloat, _ input2: AudioDSPSpanConstFloat, _ output: AudioDSPSpanFloat
+    _ input1: AudioDSPSpanConstFloat,
+    _ input2: AudioDSPSpanConstFloat,
+    _ output: AudioDSPSpanFloat
 ) {
-    let s1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
-    let s2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = s1.count
-    guard n > 0 else { return }
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeBufferPointer { p2 in
-            so.withUnsafeMutableBufferPointer { op in
-                unsafe vDSP_vmul(p1.baseAddress!, 1, p2.baseAddress!, 1, op.baseAddress!, 1, vDSP_Length(n))
-            }
-        }
-    }
+    let input1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
+    let input2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    combineElements(input1, input2, &output) { negativeZero.addingProduct($1, $0) }
 }
 
-@_expose(Cxx)
-internal func vmDotProduct(_ input1: AudioDSPSpanConstFloat, _ input2: AudioDSPSpanConstFloat) -> Float {
-    let s1 = unsafe Span<Float>(_unsafeCxxSpan: input1)
-    let s2 = unsafe Span<Float>(_unsafeCxxSpan: input2)
-    let n = s1.count
-    guard n > 0 else { return 0 }
-    var result: Float = 0
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeBufferPointer { p2 in
-            unsafe vDSP_dotpr(p1.baseAddress!, 1, p2.baseAddress!, 1, &result, vDSP_Length(n))
-        }
-    }
-    return result
-}
-
+/// The largest magnitude in the input, as vDSP_maxmgv.
+///
+/// A NaN input gives the default NaN, not the library's payload.
 @_expose(Cxx)
 internal func vmMaximumMagnitude(_ input: AudioDSPSpanConstFloat) -> Float {
-    let si = unsafe Span<Float>(_unsafeCxxSpan: input)
-    let n = si.count
-    guard n > 0 else { return 0 }
-    var result: Float = 0
-    si.withUnsafeBufferPointer { p in
-        unsafe vDSP_maxmgv(p.baseAddress!, 1, &result, vDSP_Length(n))
+    let input = unsafe Span<Float>(_unsafeCxxSpan: input)
+    var maximum: Float = 0
+    var sawNaN = false
+    for i in 0..<input.count {
+        let magnitude = input[i].magnitude
+        maximum = magnitude > maximum ? magnitude : maximum
+        sawNaN = sawNaN || magnitude.isNaN
     }
-    return result
+    return sawNaN ? Float.nan : maximum
 }
 
-@_expose(Cxx)
-internal func vmSumOfSquares(_ input: AudioDSPSpanConstFloat) -> Float {
-    let si = unsafe Span<Float>(_unsafeCxxSpan: input)
-    let n = si.count
-    guard n > 0 else { return 0 }
-    var result: Float = 0
-    // vDSP_svesq takes a non-const pointer; the C++ implementation const_casts similarly.
-    si.withUnsafeBufferPointer { p in
-        // Working around vDSP_svesq's non-const signature.
-        var buf = unsafe Array<Float>(p)
-        unsafe vDSP_svesq(&buf, 1, &result, vDSP_Length(n))
-    }
-    return result
-}
-
+/// (realOut, imagOut) = (real1, imag1) * (real2, imag2).
+///
+/// The C++ compares the first imaginary span's size with itself, so a short second one is read out of bounds. Here it
+/// traps.
 @_expose(Cxx)
 internal func vmMultiplyComplex(
-    _ real1: AudioDSPSpanConstFloat, _ imag1: AudioDSPSpanConstFloat,
-    _ real2: AudioDSPSpanConstFloat, _ imag2: AudioDSPSpanConstFloat,
-    _ realOut: AudioDSPSpanFloat, _ imagOut: AudioDSPSpanFloat
+    _ real1: AudioDSPSpanConstFloat,
+    _ imag1: AudioDSPSpanConstFloat,
+    _ real2: AudioDSPSpanConstFloat,
+    _ imag2: AudioDSPSpanConstFloat,
+    _ realOut: AudioDSPSpanFloat,
+    _ imagOut: AudioDSPSpanFloat
 ) {
-    let sr1 = unsafe Span<Float>(_unsafeCxxSpan: real1)
-    let si1 = unsafe Span<Float>(_unsafeCxxSpan: imag1)
-    let sr2 = unsafe Span<Float>(_unsafeCxxSpan: real2)
-    let si2 = unsafe Span<Float>(_unsafeCxxSpan: imag2)
-    var sro = unsafe MutableSpan<Float>(_unsafeCxxSpan: realOut)
-    var sio = unsafe MutableSpan<Float>(_unsafeCxxSpan: imagOut)
-    let n = sr1.count
-    guard n > 0 else { return }
-    _ = sr1.withUnsafeBufferPointer { pr1 in
-        _ = si1.withUnsafeBufferPointer { pi1 in
-            _ = sr2.withUnsafeBufferPointer { pr2 in
-                _ = si2.withUnsafeBufferPointer { pi2 in
-                    _ = sro.withUnsafeMutableBufferPointer { pro in
-                        _ = sio.withUnsafeMutableBufferPointer { pio in
-                            var sc1 = unsafe DSPSplitComplex(
-                                realp: unsafe UnsafeMutablePointer(mutating: pr1.baseAddress!),
-                                imagp: unsafe UnsafeMutablePointer(mutating: pi1.baseAddress!))
-                            var sc2 = unsafe DSPSplitComplex(
-                                realp: unsafe UnsafeMutablePointer(mutating: pr2.baseAddress!),
-                                imagp: unsafe UnsafeMutablePointer(mutating: pi2.baseAddress!))
-                            var dest = unsafe DSPSplitComplex(
-                                realp: unsafe pro.baseAddress!, imagp: unsafe pio.baseAddress!)
-                            unsafe vDSP_zvmul(&sc1, 1, &sc2, 1, &dest, 1, vDSP_Length(n), 1)
-                        }
-                    }
-                }
-            }
+    let real1 = unsafe Span<Float>(_unsafeCxxSpan: real1)
+    let imag1 = unsafe Span<Float>(_unsafeCxxSpan: imag1)
+    let real2 = unsafe Span<Float>(_unsafeCxxSpan: real2)
+    let imag2 = unsafe Span<Float>(_unsafeCxxSpan: imag2)
+    var realOut = unsafe MutableSpan<Float>(_unsafeCxxSpan: realOut)
+    var imagOut = unsafe MutableSpan<Float>(_unsafeCxxSpan: imagOut)
+    let n = real1.count
+    precondition(imag1.count == n)
+    precondition(real2.count == n)
+    precondition(imag2.count >= n)
+    precondition(realOut.count >= n)
+    precondition(imagOut.count >= n)
+    let a1 = isOutput(real1, realOut)
+    let b1 = isOutput(imag1, imagOut)
+    let c1 = isOutput(real2, realOut)
+    let d1 = isOutput(imag2.extracting(first: n), imagOut)
+    // Both results are computed before either is stored, so the outputs may be the first operand.
+    if !a1 && !b1 && !c1 && !d1 {
+        for i in 0..<n {
+            let a = real1[i]
+            let b = imag1[i]
+            let c = real2[i]
+            let d = imag2[i]
+            let re = (a * c).addingProduct(-b, d)
+            let im = (a * d).addingProduct(b, c)
+            realOut[i] = re
+            imagOut[i] = im
+        }
+    } else if a1 && b1 && !c1 && !d1 {
+        for i in 0..<n {
+            let a = realOut[i]
+            let b = imagOut[i]
+            let c = real2[i]
+            let d = imag2[i]
+            let re = (a * c).addingProduct(-b, d)
+            let im = (a * d).addingProduct(b, c)
+            realOut[i] = re
+            imagOut[i] = im
+        }
+    } else {
+        for i in 0..<n {
+            let a = a1 ? realOut[i] : real1[i]
+            let b = b1 ? imagOut[i] : imag1[i]
+            let c = c1 ? realOut[i] : real2[i]
+            let d = d1 ? imagOut[i] : imag2[i]
+            let re = (a * c).addingProduct(-b, d)
+            let im = (a * d).addingProduct(b, c)
+            realOut[i] = re
+            imagOut[i] = im
         }
     }
 }
 
+/// out[i] = min(max(in[i], minimum), maximum).
 @_expose(Cxx)
 internal func vmClamp(
-    _ input: AudioDSPSpanConstFloat, _ minimum: Float, _ maximum: Float, _ output: AudioDSPSpanFloat
+    _ input: AudioDSPSpanConstFloat,
+    _ minimum: Float,
+    _ maximum: Float,
+    _ output: AudioDSPSpanFloat
 ) {
-    let si = unsafe Span<Float>(_unsafeCxxSpan: input)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = si.count
-    guard n > 0 else { return }
-    // vDSP_vclip takes non-const input.
-    si.withUnsafeBufferPointer { p in
-        so.withUnsafeMutableBufferPointer { op in
-            var lo = minimum, hi = maximum
-            var buf = unsafe Array<Float>(p)
-            unsafe vDSP_vclip(&buf, 1, &lo, &hi, op.baseAddress!, 1, vDSP_Length(n))
-        }
+    let input = unsafe Span<Float>(_unsafeCxxSpan: input)
+    var output = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
+    let n = input.count
+    precondition(output.count >= n)
+    if isOutput(input, output) {
+        clampBlocks(input, true, minimum, maximum, &output)
+    } else {
+        clampBlocks(input, false, minimum, maximum, &output)
     }
 }
 
-@_expose(Cxx)
-internal func vmLinearToDecibels(_ input: AudioDSPSpanConstFloat, _ output: AudioDSPSpanFloat) {
-    let si = unsafe Span<Float>(_unsafeCxxSpan: input)
-    var so = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = si.count
-    guard n > 0 else { return }
-    var ref: Float = 1
-    si.withUnsafeBufferPointer { p in
-        so.withUnsafeMutableBufferPointer { op in
-            unsafe vDSP_vdbcon(p.baseAddress!, 1, &ref, op.baseAddress!, 1, vDSP_Length(n), 1)
-        }
-    }
+/// Clamps one element as vDSP_vclip does: NaN propagates from x or either bound, and on a tie between zeros of opposite
+/// sign the maximum is +0 and the minimum is -0.
+@inline(always)
+private func clampExact(_ x: Float, _ minimum: Float, _ maximum: Float) -> Float {
+    var lowered = x < minimum ? minimum : x
+    if x == minimum && x.sign == .minus { lowered = minimum }
+    if minimum.isNaN { lowered = minimum }
+    var clipped = lowered > maximum ? maximum : lowered
+    if lowered == maximum && lowered.sign == .plus { clipped = maximum }
+    if maximum.isNaN { clipped = maximum }
+    return clipped
 }
 
-@_expose(Cxx)
-internal func vmInterpolate(
-    _ input1: AudioDSPSpanConstFloat, _ input2: AudioDSPSpanFloat,
-    _ factor: Float, _ output: AudioDSPSpanFloat
+/// The smallest magnitude, as bits, among the plain-comparison results for the 16 elements at i.
+@inline(always)
+private func smallestMagnitude(_ source: Span<Float>, _ i: Int, _ minimum: Float, _ maximum: Float) -> UInt32 {
+    let block = source.extracting(i..<i + 16)
+    precondition(block.count == 16)
+    var smallest: UInt32 = .max
+    for j in 0..<16 {
+        let x = block[j]
+        let lowered = x < minimum ? minimum : x
+        smallest = min(smallest, (lowered > maximum ? maximum : lowered).bitPattern & 0x7fff_ffff)
+    }
+    return smallest
+}
+
+/// Clamps `input` into `output`, element by element, as clampExact does for every input.
+///
+/// When neither bound is NaN or -0, one pass of `x <= minimum` then `> maximum` is exact: a zero of either sign takes a
+/// zero minimum. Otherwise a tie between zeros of different signs gives a zero result, so a block of 16 takes the
+/// plain comparisons when none of its results is zero, and clampExact when one is. The zero test is a minimum over
+/// the magnitude bits, which vectorises where an early-exit OR does not.
+@inline(always)
+private func clampBlocks(
+    _ input: Span<Float>,
+    _ inPlace: Bool,
+    _ minimum: Float,
+    _ maximum: Float,
+    _ output: inout MutableSpan<Float>
 ) {
-    let s1  = unsafe Span<Float>(_unsafeCxxSpan: input1)
-    var s2  = unsafe MutableSpan<Float>(_unsafeCxxSpan: input2)
-    var so  = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let n = s1.count
-    guard n > 0 else { return }
-    var f = factor
-    s1.withUnsafeBufferPointer { p1 in
-        s2.withUnsafeMutableBufferPointer { p2 in
-            so.withUnsafeMutableBufferPointer { op in
-                unsafe vDSP_vintb(p1.baseAddress!, 1, p2.baseAddress!, 1, &f, op.baseAddress!, 1, vDSP_Length(n))
+    let n = input.count
+    var i = 0
+    if !minimum.isNaN && !maximum.isNaN && !(minimum == 0 && minimum.sign == .minus) && !(maximum == 0 && maximum.sign == .minus) {
+        precondition(output.count >= n)
+        if inPlace {
+            for j in 0..<n {
+                let x = output[j]
+                let lowered = x <= minimum ? minimum : x
+                output[j] = lowered > maximum ? maximum : lowered
+            }
+        } else {
+            for j in 0..<n {
+                let x = input[j]
+                let lowered = x <= minimum ? minimum : x
+                output[j] = lowered > maximum ? maximum : lowered
             }
         }
+        return
+    }
+    if !minimum.isNaN && !maximum.isNaN {
+        while i + 16 <= n {
+            let smallest = inPlace ? smallestMagnitude(output.span, i, minimum, maximum) : smallestMagnitude(input, i, minimum, maximum)
+            if smallest != 0 {
+                precondition(output.count >= i + 16)
+                if inPlace {
+                    for j in 0..<16 {
+                        let x = output[i + j]
+                        let lowered = x < minimum ? minimum : x
+                        output[i + j] = lowered > maximum ? maximum : lowered
+                    }
+                } else {
+                    let block = input.extracting(i..<i + 16)
+                    precondition(block.count == 16)
+                    for j in 0..<16 {
+                        let x = block[j]
+                        let lowered = x < minimum ? minimum : x
+                        output[i + j] = lowered > maximum ? maximum : lowered
+                    }
+                }
+            } else {
+                precondition(output.count >= i + 16)
+                if inPlace {
+                    for j in 0..<16 { output[i + j] = clampExact(output[i + j], minimum, maximum) }
+                } else {
+                    let block = input.extracting(i..<i + 16)
+                    precondition(block.count == 16)
+                    for j in 0..<16 { output[i + j] = clampExact(block[j], minimum, maximum) }
+                }
+            }
+            i += 16
+        }
+    }
+    while i < n {
+        let x = inPlace ? output[i] : input[i]
+        let lowered = x < minimum ? minimum : x
+        let result = lowered > maximum ? maximum : lowered
+        let comparisonFormIsExact = !minimum.isNaN && !maximum.isNaN && result != 0
+        output[i] = comparisonFormIsExact ? result : clampExact(x, minimum, maximum)
+        i += 1
     }
 }
 
-/// filterBiquad: vDSP_deq22D; source and destination each start with 2 history samples.
+/// The two-pole two-zero filter of vDSP_deq22D. The source and destination each start with two history samples.
 @_expose(Cxx)
 internal func vmFilterBiquad(
-    _ source: AudioDSPSpanConstDouble, _ coef: AudioDSPSpanConstDouble,
-    _ destination: AudioDSPSpanDouble, _ framesToProcess: Int32
+    _ source: AudioDSPSpanConstDouble,
+    _ coef: AudioDSPSpanConstDouble,
+    _ destination: AudioDSPSpanDouble,
+    _ framesToProcess: Int
 ) {
-    let frames = Int(framesToProcess)
+    let frames = framesToProcess
+    let source = unsafe Span<Double>(_unsafeCxxSpan: source)
+    let coef = unsafe Span<Double>(_unsafeCxxSpan: coef)
+    var destination = unsafe MutableSpan<Double>(_unsafeCxxSpan: destination)
+    precondition(frames >= 0)
+    precondition(source.count >= frames + 2)
+    precondition(destination.count >= frames + 2)
+    precondition(coef.count >= 5)
     guard frames > 0 else { return }
-    let ssrc  = unsafe Span<Double>(_unsafeCxxSpan: source)
-    let scoef = unsafe Span<Double>(_unsafeCxxSpan: coef)
-    var sdst  = unsafe MutableSpan<Double>(_unsafeCxxSpan: destination)
-    ssrc.withUnsafeBufferPointer { psrc in
-        scoef.withUnsafeBufferPointer { pcoef in
-            sdst.withUnsafeMutableBufferPointer { pdst in
-                unsafe vDSP_deq22D(psrc.baseAddress!, 1, pcoef.baseAddress!, pdst.baseAddress!, 1, vDSP_Length(frames))
-            }
-        }
+    let b0 = coef[0]
+    let b1 = coef[1]
+    let b2 = coef[2]
+    let a1 = coef[3]
+    let a2 = coef[4]
+    var x2 = source[0]
+    var x1 = source[1]
+    var y2 = destination[0]
+    var y1 = destination[1]
+    for i in 0..<frames {
+        let x = source[i + 2]
+        // The order and the fusing of vDSP_deq22D, found as for the element-wise operations above.
+        var sum = (b1 * x1).addingProduct(b2, x2)
+        sum = sum.addingProduct(b0, x)
+        sum = sum.addingProduct(-a1, y1)
+        sum = sum.addingProduct(-a2, y2)
+        destination[i + 2] = sum
+        x2 = x1
+        x1 = x
+        y2 = y1
+        y1 = sum
     }
 }
 
-/// convolve: output[n] = sum(signal[n+k] * filter[filter.size()-1-k])
+/// out[i] = in1[i] + in2[i], wrapping as vDSP_vaddi does.
 @_expose(Cxx)
-internal func vmConvolve(
-    _ signal: AudioDSPSpanConstFloat, _ filter: AudioDSPSpanConstFloat, _ output: AudioDSPSpanFloat
+internal func vmAddInt(
+    _ input1: AudioDSPSpanConstInt,
+    _ input2: AudioDSPSpanConstInt,
+    _ output: AudioDSPSpanInt
 ) {
-    let ssig = unsafe Span<Float>(_unsafeCxxSpan: signal)
-    let sfil = unsafe Span<Float>(_unsafeCxxSpan: filter)
-    var sout = unsafe MutableSpan<Float>(_unsafeCxxSpan: output)
-    let outN = sout.count
-    let filN = sfil.count
-    guard outN > 0, filN > 0 else { return }
-    ssig.withUnsafeBufferPointer { psig in
-        sfil.withUnsafeBufferPointer { pfil in
-            sout.withUnsafeMutableBufferPointer { pout in
-                // Read filter backwards from its last element.
-                let filterLast = unsafe (pfil.baseAddress! + (filN - 1))
-                unsafe vDSP_conv(psig.baseAddress!, 1, filterLast, -1,
-                          pout.baseAddress!, 1, vDSP_Length(outN), vDSP_Length(filN))
-            }
-        }
-    }
+    let input1 = unsafe Span<Int32>(_unsafeCxxSpan: input1)
+    let input2 = unsafe Span<Int32>(_unsafeCxxSpan: input2)
+    var output = unsafe MutableSpan<Int32>(_unsafeCxxSpan: output)
+    combineElements(input1, input2, &output) { $0 &+ $1 }
 }
-
-// MARK: - Biquad
-//
-// The C++ Biquad class holds coefficient arrays and per-call filter history.
-// The shim in Biquad.cpp passes:
-//   - scalars b0..a2: the [0]-th entry (block path uses a single coefficient set)
-//   - spans b0Buf..a2Buf: the coefficient arrays (sample-accurate path uses [k]-th entry per frame)
-//   - scalars x1, x2, y1, y2: the history read in
-//   - inout x1, x2, y1, y2: the history written out
-//
-// The caller (Biquad::process in Biquad.cpp) owns all storage for the call;
-// nothing else writes it; Double has no invalid bit patterns.
-// FIXME: rdar://186723514
-
-private let kBiquadBufferSize = 512  // matches Biquad.cpp kBufferSize
-
-@_expose(Cxx)
-internal func biquadProcess(
-    _ source: AudioDSPSpanConstFloat, _ destination: AudioDSPSpanFloat,
-    _ b0: Double, _ b1: Double, _ b2: Double, _ a1: Double, _ a2: Double,
-    _ x1In: Double, _ x2In: Double, _ y1In: Double, _ y2In: Double,
-    _ hasSampleAccurateValues: Bool,
-    _ b0Buf: AudioDSPSpanConstDouble, _ b1Buf: AudioDSPSpanConstDouble,
-    _ b2Buf: AudioDSPSpanConstDouble, _ a1Buf: AudioDSPSpanConstDouble,
-    _ a2Buf: AudioDSPSpanConstDouble,
-    _ outX1: inout Double, _ outX2: inout Double,
-    _ outY1: inout Double, _ outY2: inout Double
-) {
-    let ssrc = unsafe Span<Float>(_unsafeCxxSpan: source)
-    var sdst = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
-    let n = ssrc.count
-    guard n > 0 else { return }
-
-    if hasSampleAccurateValues {
-        // Per-sample DF1 using per-frame coefficient arrays.
-        // Copy C++ spans into local Swift arrays.
-        let sb0 = unsafe Span<Double>(_unsafeCxxSpan: b0Buf)
-        let sb1 = unsafe Span<Double>(_unsafeCxxSpan: b1Buf)
-        let sb2 = unsafe Span<Double>(_unsafeCxxSpan: b2Buf)
-        let sa1 = unsafe Span<Double>(_unsafeCxxSpan: a1Buf)
-        let sa2 = unsafe Span<Double>(_unsafeCxxSpan: a2Buf)
-        let b0arr: [Double] = sb0.withUnsafeBufferPointer { buf in unsafe Array(buf) }
-        let b1arr: [Double] = sb1.withUnsafeBufferPointer { buf in unsafe Array(buf) }
-        let b2arr: [Double] = sb2.withUnsafeBufferPointer { buf in unsafe Array(buf) }
-        let a1arr: [Double] = sa1.withUnsafeBufferPointer { buf in unsafe Array(buf) }
-        let a2arr: [Double] = sa2.withUnsafeBufferPointer { buf in unsafe Array(buf) }
-        var lx1 = x1In, lx2 = x2In, ly1 = y1In, ly2 = y2In
-        _ = ssrc.withUnsafeBufferPointer { psrc in
-            _ = sdst.withUnsafeMutableBufferPointer { pdst in
-                for k in 0 ..< n {
-                    let x = Double(unsafe psrc[k])
-                    let y: Double = b0arr[k] * x + b1arr[k] * lx1 + b2arr[k] * lx2 - a1arr[k] * ly1 - a2arr[k] * ly2
-                    let yFloat = Float(y)
-                    unsafe pdst[k] = yFloat
-                    lx2 = lx1; lx1 = x; ly2 = ly1; ly1 = Double(yFloat)
-                }
-            }
-        }
-        outX1 = flushDenormal(lx1); outX2 = flushDenormal(lx2)
-        outY1 = flushDenormal(ly1); outY2 = flushDenormal(ly2)
-    } else {
-        // Block path: vDSP_deq22D via double-precision input/output buffers.
-        // Each buffer holds [history0, history1, frame0, frame1, ...].
-        var inputBuf  = [Double](repeating: 0, count: kBiquadBufferSize + 2)
-        var outputBuf = [Double](repeating: 0, count: kBiquadBufferSize + 2)
-        let coeff: [Double] = [b0, b1, b2, a1, a2]
-        inputBuf[0] = x2In; inputBuf[1] = x1In
-        outputBuf[0] = y2In; outputBuf[1] = y1In
-        var lastY1Float: Float = Float(y1In)
-        var lastY2Float: Float = Float(y2In)
-        ssrc.withUnsafeBufferPointer { psrc in
-            sdst.withUnsafeMutableBufferPointer { pdst in
-                var remaining = n, srcOff = 0, dstOff = 0
-                while remaining > 0 {
-                    let chunk = min(remaining, kBiquadBufferSize)
-                    for i in 0 ..< chunk { inputBuf[i + 2] = Double(unsafe psrc[srcOff + i]) }
-                    unsafe vDSP_deq22D(inputBuf, 1, coeff, &outputBuf, 1, vDSP_Length(chunk))
-                    for i in 0 ..< chunk { unsafe pdst[dstOff + i] = Float(outputBuf[i + 2]) }
-                    // Save last two float outputs for history (C++ saves float-quantized history).
-                    if chunk >= 2 {
-                        lastY2Float = Float(outputBuf[chunk])
-                        lastY1Float = Float(outputBuf[chunk + 1])
-                    } else if chunk == 1 {
-                        lastY2Float = lastY1Float
-                        lastY1Float = Float(outputBuf[3])
-                    }
-                    inputBuf[0] = inputBuf[chunk]; inputBuf[1] = inputBuf[chunk + 1]
-                    outputBuf[0] = outputBuf[chunk]; outputBuf[1] = outputBuf[chunk + 1]
-                    srcOff += chunk; dstOff += chunk; remaining -= chunk
-                }
-            }
-        }
-        // X history from input buffer (double precision).
-        // Y history from float-quantized destination (matching C++ Biquad::process behaviour, R10).
-        outX2 = inputBuf[0];  outX1 = inputBuf[1]
-        outY1 = Double(lastY1Float); outY2 = Double(lastY2Float)
-    }
-}
-
-@_expose(Cxx)
-internal func biquadReset(
-    _ outX1: inout Double, _ outX2: inout Double,
-    _ outY1: inout Double, _ outY2: inout Double
-) {
-    outX1 = 0; outX2 = 0; outY1 = 0; outY2 = 0
-}
-
-@_expose(Cxx)
-internal func biquadSetNormalizedCoefficients(
-    _ index: Int32,
-    _ b0: Double, _ b1: Double, _ b2: Double, _ a1: Double, _ a2: Double,
-    _ b0Buf: AudioDSPSpanDouble, _ b1Buf: AudioDSPSpanDouble, _ b2Buf: AudioDSPSpanDouble,
-    _ a1Buf: AudioDSPSpanDouble, _ a2Buf: AudioDSPSpanDouble
-) {
-    let i = Int(index)
-    // Direct write through MutableSpan subscript.
-    var s0 = unsafe MutableSpan<Double>(_unsafeCxxSpan: b0Buf)
-    var s1 = unsafe MutableSpan<Double>(_unsafeCxxSpan: b1Buf)
-    var s2 = unsafe MutableSpan<Double>(_unsafeCxxSpan: b2Buf)
-    var s3 = unsafe MutableSpan<Double>(_unsafeCxxSpan: a1Buf)
-    var s4 = unsafe MutableSpan<Double>(_unsafeCxxSpan: a2Buf)
-    s0[i] = b0
-    s1[i] = b1
-    s2[i] = b2
-    s3[i] = a1
-    s4[i] = a2
-}
-
-@_expose(Cxx)
-internal func biquadGetFrequencyResponse(
-    _ freqHz: AudioDSPSpanConstFloat, _ magResponse: AudioDSPSpanFloat,
-    _ phaseResponse: AudioDSPSpanFloat, _ nyquist: Double,
-    _ b0Buf: AudioDSPSpanConstDouble, _ b1Buf: AudioDSPSpanConstDouble,
-    _ b2Buf: AudioDSPSpanConstDouble, _ a1Buf: AudioDSPSpanConstDouble,
-    _ a2Buf: AudioDSPSpanConstDouble
-) {
-    let sfq  = unsafe Span<Float>(_unsafeCxxSpan: freqHz)
-    var smag = unsafe MutableSpan<Float>(_unsafeCxxSpan: magResponse)
-    var sph  = unsafe MutableSpan<Float>(_unsafeCxxSpan: phaseResponse)
-    let count = sfq.count
-    guard count > 0 else { return }
-    let sb0 = unsafe Span<Double>(_unsafeCxxSpan: b0Buf)
-    let sb1 = unsafe Span<Double>(_unsafeCxxSpan: b1Buf)
-    let sb2 = unsafe Span<Double>(_unsafeCxxSpan: b2Buf)
-    let sa1 = unsafe Span<Double>(_unsafeCxxSpan: a1Buf)
-    let sa2 = unsafe Span<Double>(_unsafeCxxSpan: a2Buf)
-    sfq.withUnsafeBufferPointer { pfq in
-        smag.withUnsafeMutableBufferPointer { pmag in
-            sph.withUnsafeMutableBufferPointer { pph in
-                sb0.withUnsafeBufferPointer { pb0 in
-                sb1.withUnsafeBufferPointer { pb1 in
-                sb2.withUnsafeBufferPointer { pb2 in
-                sa1.withUnsafeBufferPointer { pa1 in
-                sa2.withUnsafeBufferPointer { pa2 in
-                    let b0 = unsafe pb0[0], b1 = unsafe pb1[0], b2 = unsafe pb2[0]
-                    let a1 = unsafe pa1[0], a2 = unsafe pa2[0]
-                    for k in 0 ..< count {
-                        // C++: float frequency = static_cast<float>(frequencyHz[k] / nyquist); — float truncation.
-                        let freqF = Float(Double(unsafe pfq[k]) / nyquist)
-                        if freqF < 0 || freqF > 1 { unsafe pmag[k] = .nan; unsafe pph[k] = .nan; continue }
-                        let omega = -Double.pi * Double(freqF)
-                        let zr = cos(omega), zi = sin(omega)
-                        let nr = b0 + b1 * zr + b2 * (zr * zr - zi * zi)
-                        let ni = b1 * zi + b2 * (2 * zr * zi)
-                        let dr = 1 + a1 * zr + a2 * (zr * zr - zi * zi)
-                        let di = a1 * zi + a2 * (2 * zr * zi)
-                        let denom = dr * dr + di * di
-                        let respR = (nr * dr + ni * di) / denom
-                        let respI = (ni * dr - nr * di) / denom
-                        // C++ computes biquadMagnitude before sqrt, replicating NaN on 0/0 (R10).
-                        let biquadMagnitude = (nr * nr + ni * ni) / (dr * dr + di * di)
-                        unsafe pmag[k] = Float(biquadMagnitude.squareRoot())
-                        unsafe pph[k]  = Float(atan2(respI, respR))
-                    }
-                }}}}}
-            }
-        }
-    }
-}
-
-@_expose(Cxx)
-internal func biquadTailFrame(
-    _ coefIndex: Int32, _ maxFrame: Double,
-    _ b0Buf: AudioDSPSpanConstDouble, _ b1Buf: AudioDSPSpanConstDouble,
-    _ b2Buf: AudioDSPSpanConstDouble, _ a1Buf: AudioDSPSpanConstDouble,
-    _ a2Buf: AudioDSPSpanConstDouble
-) -> Double {
-    let idx = Int(coefIndex)
-    let sb0 = unsafe Span<Double>(_unsafeCxxSpan: b0Buf)
-    let sb1 = unsafe Span<Double>(_unsafeCxxSpan: b1Buf)
-    let sb2 = unsafe Span<Double>(_unsafeCxxSpan: b2Buf)
-    let sa1 = unsafe Span<Double>(_unsafeCxxSpan: a1Buf)
-    let sa2 = unsafe Span<Double>(_unsafeCxxSpan: a2Buf)
-    var result = 0.0
-    sb0.withUnsafeBufferPointer { pb0 in sb1.withUnsafeBufferPointer { pb1 in
-    sb2.withUnsafeBufferPointer { pb2 in sa1.withUnsafeBufferPointer { pa1 in
-    sa2.withUnsafeBufferPointer { pa2 in
-        let b0 = unsafe pb0[idx], b1 = unsafe pb1[idx], b2 = unsafe pb2[idx]
-        let a1 = unsafe pa1[idx], a2 = unsafe pa2[idx]
-        let threshold = 1.0 / 32768.0
-        var lx1 = 0.0, lx2 = 0.0, ly1 = 0.0, ly2 = 0.0
-        let maxF = Int(maxFrame)
-        for f in 0 ..< maxF {
-            let x = f == 0 ? 1.0 : 0.0
-            var y = b0 * x; y.addProduct(b1, lx1); y.addProduct(b2, lx2)
-            y.addProduct(-a1, ly1); y.addProduct(-a2, ly2)
-            lx2 = lx1; lx1 = x; ly2 = ly1; ly1 = y
-            if abs(y) >= threshold { result = Double(f) }
-        }
-    }}}}}
-    return result
-}
-
-// MARK: - IIRFilter
-//
-// Direct Form I IIR filter. The C++ IIRProcessor calls IIRFilter::process() which
-// now dispatches here. xBuf/yBuf are circular delay buffers (size = power of 2).
-// outBufferIndex is the write index, passed by reference.
-// Caller owns all buffers for the duration of the call.
-// FIXME: rdar://186723514
-
-@_expose(Cxx)
-internal func iirProcess(
-    _ source: AudioDSPSpanConstFloat, _ destination: AudioDSPSpanFloat,
-    _ feedforward: AudioDSPSpanConstDouble, _ feedback: AudioDSPSpanConstDouble,
-    _ xBuf: AudioDSPSpanDouble, _ yBuf: AudioDSPSpanDouble,
-    _ bufferIndex: Int32, _ outBufferIndex: inout Int32
-) {
-    let ssrc = unsafe Span<Float>(_unsafeCxxSpan: source)
-    var sdst = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
-    let sff  = unsafe Span<Double>(_unsafeCxxSpan: feedforward)
-    let sfb  = unsafe Span<Double>(_unsafeCxxSpan: feedback)
-    var sxb  = unsafe MutableSpan<Double>(_unsafeCxxSpan: xBuf)
-    var syb  = unsafe MutableSpan<Double>(_unsafeCxxSpan: yBuf)
-    let n = ssrc.count
-    guard n > 0 else { return }
-    ssrc.withUnsafeBufferPointer { psrc in
-        sdst.withUnsafeMutableBufferPointer { pdst in
-            sff.withUnsafeBufferPointer { pff in
-                sfb.withUnsafeBufferPointer { pfb in
-                    sxb.withUnsafeMutableBufferPointer { pxb in
-                        syb.withUnsafeMutableBufferPointer { pyb in
-                            let ffLen = pff.count, fbLen = pfb.count
-                            let minLen = min(ffLen, fbLen)
-                            let bufLen = pxb.count  // must be power-of-2
-                            let mask = bufLen - 1
-                            var idx = Int(bufferIndex)
-                            for s in 0 ..< n {
-                                var yn = unsafe pff[0] * Double(unsafe psrc[s])
-                                for k in 1 ..< minLen {
-                                    let m = (idx &- k) & mask
-                                    // Use addProduct (FMA) to match C++ fmadd/fmsub.
-                                    yn.addProduct(unsafe pff[k], unsafe pxb[m])
-                                    yn.addProduct(-(unsafe pfb[k]), unsafe pyb[m])
-                                }
-                                for k in minLen ..< ffLen { yn.addProduct(unsafe pff[k], unsafe pxb[(idx &- k) & mask]) }
-                                for k in minLen ..< fbLen { yn.addProduct(-(unsafe pfb[k]), unsafe pyb[(idx &- k) & mask]) }
-                                unsafe pxb[idx] = Double(unsafe psrc[s])
-                                unsafe pyb[idx] = yn
-                                idx = (idx &+ 1) & mask
-                                unsafe pdst[s] = Float(yn)
-                            }
-                            outBufferIndex = Int32(idx)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@_expose(Cxx)
-internal func iirReset(
-    _ xBuf: AudioDSPSpanDouble, _ yBuf: AudioDSPSpanDouble,
-    _ outBufferIndex: inout Int32
-) {
-    var sxb = unsafe MutableSpan<Double>(_unsafeCxxSpan: xBuf)
-    var syb = unsafe MutableSpan<Double>(_unsafeCxxSpan: yBuf)
-    sxb.withUnsafeMutableBufferPointer { p in for i in 0 ..< p.count { unsafe p[i] = 0 } }
-    syb.withUnsafeMutableBufferPointer { p in for i in 0 ..< p.count { unsafe p[i] = 0 } }
-    outBufferIndex = 0
-}
-
-@_expose(Cxx)
-internal func iirGetFrequencyResponse(
-    _ freqHz: AudioDSPSpanConstFloat, _ magResponse: AudioDSPSpanFloat,
-    _ phaseResponse: AudioDSPSpanFloat, _ nyquist: Double,
-    _ feedforward: AudioDSPSpanConstDouble, _ feedback: AudioDSPSpanConstDouble
-) {
-    let sfq  = unsafe Span<Float>(_unsafeCxxSpan: freqHz)
-    var smag = unsafe MutableSpan<Float>(_unsafeCxxSpan: magResponse)
-    var sph  = unsafe MutableSpan<Float>(_unsafeCxxSpan: phaseResponse)
-    let count = sfq.count
-    guard count > 0 else { return }
-    let sff = unsafe Span<Double>(_unsafeCxxSpan: feedforward)
-    let sfb = unsafe Span<Double>(_unsafeCxxSpan: feedback)
-    sfq.withUnsafeBufferPointer { pfq in
-        smag.withUnsafeMutableBufferPointer { pmag in
-            sph.withUnsafeMutableBufferPointer { pph in
-                sff.withUnsafeBufferPointer { pff in
-                    sfb.withUnsafeBufferPointer { pfb in
-                        let ffLen = pff.count, fbLen = pfb.count
-                        guard ffLen > 0 && fbLen > 0 else { return }
-                        for k in 0 ..< count {
-                            let freqF = Float(Double(unsafe pfq[k]) / nyquist)
-                            if freqF < 0 || freqF > 1 {
-                                unsafe pmag[k] = .nan; unsafe pph[k] = .nan; continue
-                            }
-                            let omega = -Double.pi * Double(freqF)
-                            let zr = cos(omega), zi = sin(omega)
-                            // Horner's method (matching C++ evaluatePolynomial, high-to-low).
-                            var nr = unsafe pff[ffLen - 1]; var ni = 0.0
-                            for j in stride(from: ffLen - 2, through: 0, by: -1) {
-                                let coef = unsafe pff[j]
-                                let newR = nr * zr - ni * zi + coef
-                                ni = nr * zi + ni * zr
-                                nr = newR
-                            }
-                            var dr = unsafe pfb[fbLen - 1]; var di = 0.0
-                            for j in stride(from: fbLen - 2, through: 0, by: -1) {
-                                let coef = unsafe pfb[j]
-                                let newR = dr * zr - di * zi + coef
-                                di = dr * zi + di * zr
-                                dr = newR
-                            }
-                            let denom = dr * dr + di * di
-                            let respR = (nr * dr + ni * di) / denom
-                            let respI = (ni * dr - nr * di) / denom
-                            unsafe pmag[k] = Float((respR * respR + respI * respI).squareRoot())
-                            unsafe pph[k]  = Float(atan2(respI, respR))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@_expose(Cxx)
-internal func iirTailTime(
-    _ sampleRate: Double, _ isFilterStable: Bool,
-    _ feedforward: AudioDSPSpanConstDouble, _ feedback: AudioDSPSpanConstDouble
-) -> Double {
-    guard isFilterStable else { return 10.0 }
-    let sff = unsafe Span<Double>(_unsafeCxxSpan: feedforward)
-    let sfb = unsafe Span<Double>(_unsafeCxxSpan: feedback)
-    var tail = 0.0
-    sff.withUnsafeBufferPointer { pff in
-        sfb.withUnsafeBufferPointer { pfb in
-            let ffLen = pff.count, fbLen = pfb.count, minLen = min(ffLen, fbLen)
-            let bufLen = 16, mask = bufLen - 1
-            var xBuf = [Double](repeating: 0, count: bufLen)
-            var yBuf = [Double](repeating: 0, count: bufLen)
-            var idx = 0
-            let maxFrames = Int(10.0 * sampleRate)
-            let amp = 1.0 / 32768.0
-            for f in 0 ..< maxFrames {
-                let inp = f == 0 ? 1.0 : 0.0
-                let pff0 = unsafe pff[0]; var yn = pff0 * inp
-                for k in 1 ..< minLen { let m = (idx &- k) & mask; let pK = unsafe pff[k]; let xM = unsafe xBuf[m]; let pfK = unsafe pfb[k]; let yM = unsafe yBuf[m]; yn += pK * xM; yn -= pfK * yM }
-                for k in minLen ..< ffLen { let pK = unsafe pff[k]; let xM = unsafe xBuf[(idx &- k) & mask]; yn += pK * xM }
-                for k in minLen ..< fbLen { let pfK = unsafe pfb[k]; let yM = unsafe yBuf[(idx &- k) & mask]; yn -= pfK * yM }
-                xBuf[idx] = inp; yBuf[idx] = yn; idx = (idx &+ 1) & mask
-                if abs(yn) >= amp { tail = Double(f) }
-            }
-        }
-    }
-    return tail / sampleRate
-}
-
-// MARK: - DynamicsCompressor
-// DynamicsCompressorKernel.cpp handles the gate-on path entirely in C++.
-// These stubs satisfy the linker but are never called.
-
-@_expose(Cxx)
-internal func dcProcess(
-    _ srcL: AudioDSPSpanConstFloat, _ srcR: AudioDSPSpanConstFloat,
-    _ dstL: AudioDSPSpanFloat, _ dstR: AudioDSPSpanFloat,
-    _ nFrames: UInt32, _ dbThreshold: Float, _ dbKnee: Float,
-    _ ratio: Float, _ attackTime: Float, _ releaseTime: Float,
-    _ preDelayTime: Float, _ dbPostGain: Float, _ effectBlend: Float,
-    _ releaseZone1: Float, _ releaseZone2: Float,
-    _ releaseZone3: Float, _ releaseZone4: Float
-) { }
-
-@_expose(Cxx)
-internal func dcReset() { }
 
 // MARK: - ZeroPole
-//
-// First-order IIR: zero at `zero`, pole at `pole`, with gain normalisation.
-// State (lastX, lastY) passes in as scalars, returns via inout.
-// FIXME: rdar://186723514
 
+/// First-order filter with a zero and a pole and a gain that makes 0 dB at 0 Hz. The state goes in as scalars and comes
+/// back through the inout parameters.
 @_expose(Cxx)
 internal func zeroPoleProcess(
-    _ source: AudioDSPSpanConstFloat, _ destination: AudioDSPSpanFloat,
-    _ nFrames: UInt32, _ zero: Float, _ pole: Float,
-    _ lastX: Float, _ lastY: Float,
-    _ outLastX: inout Float, _ outLastY: inout Float
+    _ source: AudioDSPSpanConstFloat,
+    _ destination: AudioDSPSpanFloat,
+    _ nFrames: UInt32,
+    _ zero: Float,
+    _ pole: Float,
+    _ lastX: Float,
+    _ lastY: Float,
+    _ outLastX: inout Float,
+    _ outLastY: inout Float
 ) {
     let n = Int(nFrames)
     guard n > 0 else { return }
-    let ssrc = unsafe Span<Float>(_unsafeCxxSpan: source)
-    var sdst = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
+    let source = unsafe Span<Float>(_unsafeCxxSpan: source)
+    var destination = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
+    precondition(source.count >= n)
+    precondition(destination.count >= n)
     let k1 = 1.0 / (1.0 - zero)
     let k2 = 1.0 - pole
-    var lx = lastX, ly = lastY
-    ssrc.withUnsafeBufferPointer { psrc in
-        sdst.withUnsafeMutableBufferPointer { pdst in
-            for i in 0 ..< n {
-                let inp = unsafe psrc[i]
-                // Match C++ fmsub + fmul + fmul + fmadd instruction sequence.
-                var numer = inp; numer.addProduct(-zero, lx)  // numer = inp - zero*lx (fmsub)
-                let out1 = k1 * numer
-                lx = inp
-                var out2 = pole * ly; out2.addProduct(k2, out1)  // out2 = k2*out1 + pole*ly (fmul then fmadd)
-                ly = out2
-                unsafe pdst[i] = out2
-            }
-        }
+    var lx = lastX
+    var ly = lastY
+    @inline(always)
+    func step(_ inp: Float) -> Float {
+        var numer = inp
+        numer.addProduct(-zero, lx)
+        let out1 = k1 * numer
+        lx = inp
+        var out2 = pole * ly
+        out2.addProduct(k2, out1)
+        ly = out2
+        return out2
+    }
+    if isOutput(source.extracting(first: n), destination) {
+        for i in 0..<n { destination[i] = step(destination[i]) }
+    } else {
+        for i in 0..<n { destination[i] = step(source[i]) }
     }
     outLastX = flushDenormalFloat(lx)
     outLastY = flushDenormalFloat(ly)
 }
 
 // MARK: - EqualPowerPanner
-//
-// Computes per-channel equal-power gains and scales channels.
-// Azimuth aliasing: -180..-90 mirrors to -90..0; 90..180 mirrors to 90..0.
-// Mono source: one channel scaled to both outputs.
-// Stereo source: azimuth <= 0 crossfades left into right, az > 0 left into right.
-// FIXME: rdar://186723514
 
 private let kPiOverTwo = Double.pi / 2.0
 
+// The gains applied to a block of frames, with the library's two operations: dst = src * gain, and
+// dst = other + src * gain (fused). Each runs to the end of the block before the next starts. The panners' source is
+// the node's input bus and the destination its output bus, which are separate storage, so the sources do not overlap
+// the destinations.
+@inline(always)
+private func scale(_ source: Span<Float>, _ gain: Float, _ destination: inout MutableSpan<Float>, _ n: Int) {
+    precondition(source.count >= n)
+    precondition(destination.count >= n)
+    for i in 0..<n {
+        destination[i] = negativeZero.addingProduct(source[i], gain)
+    }
+}
+
+@inline(always)
+private func scaleAndAdd(
+    _ source: Span<Float>,
+    _ gain: Float,
+    _ other: Span<Float>,
+    _ destination: inout MutableSpan<Float>,
+    _ n: Int
+) {
+    precondition(source.count >= n)
+    precondition(other.count >= n)
+    precondition(destination.count >= n)
+    for i in 0..<n {
+        destination[i] = other[i].addingProduct(source[i], gain)
+    }
+}
+
+/// Pans a block with the equal-power gains for `azimuth` (degrees; -180...-90 mirrors to -90...0 and 90...180 to
+/// 90...0).
+///
+/// A mono source scales one channel into both outputs; a stereo source at azimuth <= 0 crossfades left into
+/// right, and above 0 right into left.
 @_expose(Cxx)
 internal func eppPan(
-    _ azimuth: Double, _ nInputChannels: UInt32,
-    _ srcL: AudioDSPSpanConstFloat, _ srcR: AudioDSPSpanConstFloat,
-    _ dstL: AudioDSPSpanFloat, _ dstR: AudioDSPSpanFloat,
+    _ azimuth: Double,
+    _ nInputChannels: UInt32,
+    _ srcL: AudioDSPSpanConstFloat,
+    _ srcR: AudioDSPSpanConstFloat,
+    _ dstL: AudioDSPSpanFloat,
+    _ dstR: AudioDSPSpanFloat,
     _ nFrames: Int32
 ) {
     let n = Int(nFrames)
     guard n > 0 else { return }
-    var az = max(-180.0, min(180.0, azimuth))
+    // std::max(-180.0, azimuth), then std::min(180.0, ...): a NaN becomes -180.
+    var az = -180.0 < azimuth ? azimuth : -180.0
+    az = az < 180.0 ? az : 180.0
     if az < -90 { az = -180 - az } else if az > 90 { az = 180 - az }
     let nCh = Int(nInputChannels)
     let pos = nCh == 1 ? (az + 90) / 180 : (az <= 0 ? (az + 90) / 90 : az / 90)
     let gainL = Float(cos(kPiOverTwo * pos))
     let gainR = Float(sin(kPiOverTwo * pos))
-    let ssl = unsafe Span<Float>(_unsafeCxxSpan: srcL)
-    let ssr = unsafe Span<Float>(_unsafeCxxSpan: srcR)
-    var sdl = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
-    var sdr = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
-    ssl.withUnsafeBufferPointer { psl in ssr.withUnsafeBufferPointer { psr in
-        sdl.withUnsafeMutableBufferPointer { pdl in sdr.withUnsafeMutableBufferPointer { pdr in
-            var gL = gainL, gR = gainR
-            if nCh == 1 {
-                unsafe vDSP_vsmul(psl.baseAddress!, 1, &gL, pdl.baseAddress!, 1, vDSP_Length(n))
-                unsafe vDSP_vsmul(psl.baseAddress!, 1, &gR, pdr.baseAddress!, 1, vDSP_Length(n))
-            } else if az <= 0 {
-                unsafe vDSP_vsma(psr.baseAddress!, 1, &gL, psl.baseAddress!, 1, pdl.baseAddress!, 1, vDSP_Length(n))
-                unsafe vDSP_vsmul(psr.baseAddress!, 1, &gR, pdr.baseAddress!, 1, vDSP_Length(n))
-            } else {
-                unsafe vDSP_vsmul(psl.baseAddress!, 1, &gL, pdl.baseAddress!, 1, vDSP_Length(n))
-                unsafe vDSP_vsma(psl.baseAddress!, 1, &gR, psr.baseAddress!, 1, pdr.baseAddress!, 1, vDSP_Length(n))
-            }
-        }}
-    }}
+    let srcL = unsafe Span<Float>(_unsafeCxxSpan: srcL)
+    let srcR = unsafe Span<Float>(_unsafeCxxSpan: srcR)
+    var dstL = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
+    var dstR = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
+    if nCh == 1 {
+        scale(srcL, gainL, &dstL, n)
+        scale(srcL, gainR, &dstR, n)
+    } else if az <= 0 {
+        scaleAndAdd(srcR, gainL, srcL, &dstL, n)
+        scale(srcR, gainR, &dstR, n)
+    } else {
+        scale(srcL, gainL, &dstL, n)
+        scaleAndAdd(srcL, gainR, srcR, &dstR, n)
+    }
 }
 
+/// As eppPan, with one azimuth per frame and double gains.
 @_expose(Cxx)
 internal func eppPanSampleAccurate(
-    _ azimuthSpan: AudioDSPSpanConstDouble, _ nInputChannels: UInt32,
-    _ srcL: AudioDSPSpanConstFloat, _ srcR: AudioDSPSpanConstFloat,
-    _ dstL: AudioDSPSpanFloat, _ dstR: AudioDSPSpanFloat,
+    _ azimuthSpan: AudioDSPSpanConstDouble,
+    _ nInputChannels: UInt32,
+    _ srcL: AudioDSPSpanConstFloat,
+    _ srcR: AudioDSPSpanConstFloat,
+    _ dstL: AudioDSPSpanFloat,
+    _ dstR: AudioDSPSpanFloat,
     _ nFrames: Int32
 ) {
     let n = Int(nFrames)
     guard n > 0 else { return }
-    let saz  = unsafe Span<Double>(_unsafeCxxSpan: azimuthSpan)
-    let ssl  = unsafe Span<Float>(_unsafeCxxSpan: srcL)
-    let ssr  = unsafe Span<Float>(_unsafeCxxSpan: srcR)
-    var sdl  = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
-    var sdr  = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
+    let azimuths = unsafe Span<Double>(_unsafeCxxSpan: azimuthSpan)
+    let srcL = unsafe Span<Float>(_unsafeCxxSpan: srcL)
+    let srcR = unsafe Span<Float>(_unsafeCxxSpan: srcR)
+    var dstL = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
+    var dstR = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
     let nCh = Int(nInputChannels)
-    saz.withUnsafeBufferPointer { paz in ssl.withUnsafeBufferPointer { psl in
-        ssr.withUnsafeBufferPointer { psr in sdl.withUnsafeMutableBufferPointer { pdl in
-            sdr.withUnsafeMutableBufferPointer { pdr in
-                for k in 0 ..< n {
-                    var az = max(-180.0, min(180.0, unsafe paz[k]))
-                    if az < -90 { az = -180 - az } else if az > 90 { az = 180 - az }
-                    let pos = nCh == 1 ? (az + 90) / 180 : (az <= 0 ? (az + 90) / 90 : az / 90)
-                    let gLD = cos(kPiOverTwo * pos)  // Double gain, matching C++ calculateDesiredGain
-                    let gRD = sin(kPiOverTwo * pos)
-                    if nCh == 1 {
-                        let pslK = Double(unsafe psl[k])
-                        unsafe pdl[k] = Float(pslK * gLD); unsafe pdr[k] = Float(pslK * gRD)
-                    } else if az <= 0 {
-                        let pslK = Double(unsafe psl[k]); let psrK = Double(unsafe psr[k])
-                        unsafe pdl[k] = Float(pslK + psrK * gLD); unsafe pdr[k] = Float(psrK * gRD)
-                    } else {
-                        let pslK = Double(unsafe psl[k]); let psrK = Double(unsafe psr[k])
-                        unsafe pdl[k] = Float(pslK * gLD); unsafe pdr[k] = Float(psrK + pslK * gRD)
-                    }
-                }
-            }
-        }}
-    }}
+    // The C++ indexes every span up to n; the second source span only for a stereo source.
+    precondition(n <= azimuths.count && n <= srcL.count && n <= dstL.count && n <= dstR.count)
+    precondition(nCh == 1 || n <= srcR.count)
+    for k in 0..<n {
+        let raw = azimuths[k]
+        // std::clamp: a NaN stays a NaN.
+        var az = raw < -180 ? -180 : (180 < raw ? 180 : raw)
+        if az < -90 { az = -180 - az } else if az > 90 { az = 180 - az }
+        let pos = nCh == 1 ? (az + 90) / 180 : (az <= 0 ? (az + 90) / 90 : az / 90)
+        let gLD = cos(kPiOverTwo * pos)
+        let gRD = sin(kPiOverTwo * pos)
+        if nCh == 1 {
+            let l = Double(srcL[k])
+            dstL[k] = Float(l * gLD)
+            dstR[k] = Float(l * gRD)
+        } else if raw <= 0 { // the C++ branches on the unclamped azimuth
+            let l = Double(srcL[k])
+            let r = Double(srcR[k])
+            dstL[k] = Float(l.addingContractedProduct(r, gLD))
+            dstR[k] = Float(r * gRD)
+        } else {
+            let l = Double(srcL[k])
+            let r = Double(srcR[k])
+            dstL[k] = Float(l * gLD)
+            dstR[k] = Float(r.addingContractedProduct(l, gRD))
+        }
+    }
 }
 
 // MARK: - StereoPanner
-// Equal-power panning: pan [-1, 1] maps to [0, pi/2] for left/right gain.
-// FIXME: rdar://186723514
 
+// clampTo(value, -1.0, 1.0): NaN passes through.
+@inline(always)
+private func stereoPannerClamp(_ value: Double) -> Double {
+    if value >= 1 { return 1 }
+    if value <= -1 { return -1 }
+    return value
+}
+
+/// Equal-power panning with one pan value per frame, -1...1 mapping to 0...pi/2.
 @_expose(Cxx)
 internal func spPanWithSampleAccurateValues(
-    _ srcL: AudioDSPSpanConstFloat, _ srcR: AudioDSPSpanConstFloat,
+    _ srcL: AudioDSPSpanConstFloat,
+    _ srcR: AudioDSPSpanConstFloat,
     _ nInputChannels: UInt32,
-    _ dstL: AudioDSPSpanFloat, _ dstR: AudioDSPSpanFloat,
-    _ panValues: AudioDSPSpanConstFloat, _ nFrames: Int32
+    _ dstL: AudioDSPSpanFloat,
+    _ dstR: AudioDSPSpanFloat,
+    _ panValues: AudioDSPSpanConstFloat,
+    _ nFrames: Int32
 ) {
     let n = Int(nFrames)
     guard n > 0 else { return }
-    let ssl = unsafe Span<Float>(_unsafeCxxSpan: srcL)
-    let ssr = unsafe Span<Float>(_unsafeCxxSpan: srcR)
-    var sdl = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
-    var sdr = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
-    let spv = unsafe Span<Float>(_unsafeCxxSpan: panValues)
+    let srcL = unsafe Span<Float>(_unsafeCxxSpan: srcL)
+    let srcR = unsafe Span<Float>(_unsafeCxxSpan: srcR)
+    var dstL = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
+    var dstR = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
+    let panValues = unsafe Span<Float>(_unsafeCxxSpan: panValues)
     let nCh = Int(nInputChannels)
-    ssl.withUnsafeBufferPointer { psl in ssr.withUnsafeBufferPointer { psr in
-        sdl.withUnsafeMutableBufferPointer { pdl in sdr.withUnsafeMutableBufferPointer { pdr in
-            spv.withUnsafeBufferPointer { ppv in
-                for i in 0 ..< n {
-                    let ppvI = unsafe ppv[i]
-                    let pan = Double(max(-1, min(1, ppvI)))
-                    let panRadian = (nCh == 1 ? (pan * 0.5 + 0.5) : (pan <= 0 ? pan + 1 : pan)) * kPiOverTwo
-                    // C++ uses double gains: float(float_input * double_gain).
-                    let gLD = cos(panRadian), gRD = sin(panRadian)
-                    let pslD = Double(unsafe psl[i]); let psrD = Double(unsafe psr[i])
-                    if nCh == 1 {
-                        unsafe pdl[i] = Float(pslD * gLD); unsafe pdr[i] = Float(pslD * gRD)
-                    } else if pan <= 0 {
-                        unsafe pdl[i] = Float(pslD + psrD * gLD); unsafe pdr[i] = Float(psrD * gRD)
-                    } else {
-                        unsafe pdl[i] = Float(pslD * gLD); unsafe pdr[i] = Float(psrD + pslD * gRD)
-                    }
-                }
-            }
-        }}
-    }}
+    for i in 0..<n {
+        let pan = stereoPannerClamp(Double(panValues[i]))
+        let panRadian = (nCh == 1 ? (pan * 0.5 + 0.5) : (pan <= 0 ? pan + 1 : pan)) * kPiOverTwo
+        // The C++ uses double gains: float(float_input * double_gain).
+        let gLD = cos(panRadian)
+        let gRD = sin(panRadian)
+        let l = Double(srcL[i])
+        let r = Double(srcR[i])
+        if nCh == 1 {
+            dstL[i] = Float(l * gLD)
+            dstR[i] = Float(l * gRD)
+        } else if pan <= 0 {
+            dstL[i] = Float(l.addingContractedProduct(r, gLD))
+            dstR[i] = Float(r * gRD)
+        } else {
+            dstL[i] = Float(l * gLD)
+            dstR[i] = Float(r.addingContractedProduct(l, gRD))
+        }
+    }
 }
 
+/// Equal-power panning with one pan value for the block.
 @_expose(Cxx)
 internal func spPanToTargetValue(
-    _ srcL: AudioDSPSpanConstFloat, _ srcR: AudioDSPSpanConstFloat,
+    _ srcL: AudioDSPSpanConstFloat,
+    _ srcR: AudioDSPSpanConstFloat,
     _ nInputChannels: UInt32,
-    _ dstL: AudioDSPSpanFloat, _ dstR: AudioDSPSpanFloat,
-    _ panValue: Float, _ nFrames: Int32
+    _ dstL: AudioDSPSpanFloat,
+    _ dstR: AudioDSPSpanFloat,
+    _ panValue: Float,
+    _ nFrames: Int32
 ) {
     let n = Int(nFrames)
     guard n > 0 else { return }
-    let ssl = unsafe Span<Float>(_unsafeCxxSpan: srcL)
-    let ssr = unsafe Span<Float>(_unsafeCxxSpan: srcR)
-    var sdl = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
-    var sdr = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
+    let srcL = unsafe Span<Float>(_unsafeCxxSpan: srcL)
+    let srcR = unsafe Span<Float>(_unsafeCxxSpan: srcR)
+    var dstL = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstL)
+    var dstR = unsafe MutableSpan<Float>(_unsafeCxxSpan: dstR)
     let nCh = Int(nInputChannels)
-    let pan = Double(max(-1, min(1, panValue)))
-    let panRadian = (nCh == 1 ? (pan * 0.5 + 0.5) : (pan <= 0 ? pan + 1 : pan)) * kPiOverTwo
-    let gainL = Float(cos(panRadian)), gainR = Float(sin(panRadian))
-    ssl.withUnsafeBufferPointer { psl in ssr.withUnsafeBufferPointer { psr in
-        sdl.withUnsafeMutableBufferPointer { pdl in sdr.withUnsafeMutableBufferPointer { pdr in
-            var gL = gainL, gR = gainR
-            if nCh == 1 {
-                unsafe vDSP_vsmul(psl.baseAddress!, 1, &gL, pdl.baseAddress!, 1, vDSP_Length(n))
-                unsafe vDSP_vsmul(psl.baseAddress!, 1, &gR, pdr.baseAddress!, 1, vDSP_Length(n))
-            } else if pan <= 0 {
-                unsafe vDSP_vsma(psr.baseAddress!, 1, &gL, psl.baseAddress!, 1, pdl.baseAddress!, 1, vDSP_Length(n))
-                unsafe vDSP_vsmul(psr.baseAddress!, 1, &gR, pdr.baseAddress!, 1, vDSP_Length(n))
-            } else {
-                unsafe vDSP_vsmul(psl.baseAddress!, 1, &gL, pdl.baseAddress!, 1, vDSP_Length(n))
-                unsafe vDSP_vsma(psl.baseAddress!, 1, &gR, psr.baseAddress!, 1, pdr.baseAddress!, 1, vDSP_Length(n))
-            }
-        }}
-    }}
-}
-
-// MARK: - SincResampler
-//
-// Windowed-sinc resampler. processBuffer creates a SincResampler and pulls
-// requestFrames at a time from source, resampled into destination.
-// Uses vDSP_dotpr for the sinc kernel convolution (Accelerate path).
-// FIXME: rdar://186723514
-
-private let kSincKernelSize: Int = 32
-private let kSincOffsetCount: Int = 32
-// Note: kernel is now built by C++ SincResampler constructor and passed to Swift.
-
-@_expose(Cxx)
-internal func sincResamplerProcessBuffer(
-    _ source: AudioDSPSpanConstFloat, _ destination: AudioDSPSpanFloat,
-    _ scaleFactor: Double, _ kernelBuf: AudioDSPSpanConstFloat
-) {
-    let ssrc = unsafe Span<Float>(_unsafeCxxSpan: source)
-    var sdst = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
-    let destN = sdst.count
-    guard destN > 0 else { return }
-    let sker = unsafe Span<Float>(_unsafeCxxSpan: kernelBuf)
-    ssrc.withUnsafeBufferPointer { psrc in
-        sdst.withUnsafeMutableBufferPointer { pdst in
-            sker.withUnsafeBufferPointer { pker in
-                // Replicates SincResampler exactly:
-                // updateRegions(false): r0=16, r2=16, r3=112, r4=128, blockSize=112
-                // updateRegions(true):  r0=32, r2=16, r3=128, r4=144, blockSize=128
-                let n = kSincKernelSize
-                let halfN = n / 2  // 16
-                let requestFrames = 128
-                let inputBufSize = requestFrames + n  // 160
-                var inputBuf = [Float](repeating: 0, count: inputBufSize)
-
-                var srcConsumed = 0
-                let srcTotal = psrc.count
-
-                // First load: r0 = halfN = 16
-                let firstR0 = halfN
-                let firstR3 = firstR0 + requestFrames - n  // = 16 + 128 - 32 = 112
-                let firstBlockSize = halfN + (requestFrames - halfN - halfN)  // r2=16, r4=128 → 112
-                // Actually blockSize = r4 - r2 where r2=halfN, r4=r0+(requestFrames-halfN)=16+112=128 → 112
-
-                // Second+ load: r0 = n = 32
-                let secondR0 = n
-                let secondR3 = secondR0 + requestFrames - n  // = 32 + 128 - 32 = 128
-                let secondBlockSize = 128  // r2=16, r4=144 → 128
-                // r4 = r0 + requestFrames - halfN = 32 + 112 = 144, blockSize = r4 - r2 = 144 - 16 = 128
-
-                // Prime first block
-                let toCopy0 = min(requestFrames, srcTotal - srcConsumed)
-                for i in 0 ..< toCopy0 { inputBuf[firstR0 + i] = unsafe psrc[srcConsumed + i] }
-                srcConsumed += toCopy0
-
-                var virtualIndex: Double = 0
-                var dstIdx = 0
-                var remaining = destN
-                var blockSize = firstBlockSize
-                var r3 = firstR3
-                var loadR0 = secondR0
-
-                while remaining > 0 {
-                    while virtualIndex < Double(blockSize) && remaining > 0 {
-                        let sourceI = Int(virtualIndex)
-                        let subsample = virtualIndex - Double(sourceI)
-                        let virtualOffset = subsample * Double(kSincOffsetCount)
-                        let offsetI = Int(virtualOffset)
-                        let interp = Float(virtualOffset - Double(offsetI))
-                        let k1Base = n * offsetI
-                        let k2Base = k1Base + n
-                        var s1: Float = 0, s2: Float = 0
-                        inputBuf.withUnsafeBufferPointer { pib in
-                            unsafe vDSP_dotpr(pib.baseAddress! + sourceI, 1,
-                                       pker.baseAddress! + k1Base, 1, &s1, vDSP_Length(n))
-                            unsafe vDSP_dotpr(pib.baseAddress! + sourceI, 1,
-                                       pker.baseAddress! + k2Base, 1, &s2, vDSP_Length(n))
-                        }
-                        // Match C++ convolve: fmul(interp,s2) then fmadd(1-interp, s1, result)
-                        let oneMinusInterp = 1 - interp
-                        var interpResult = interp * s2
-                        interpResult.addProduct(oneMinusInterp, s1)
-                        unsafe pdst[dstIdx] = interpResult
-                        dstIdx += 1
-                        remaining -= 1
-                        virtualIndex += scaleFactor
-                    }
-                    if remaining == 0 { break }
-                    virtualIndex -= Double(blockSize)
-                    // Copy r3..r3+n-1 to 0..n-1
-                    for i in 0 ..< n { inputBuf[i] = inputBuf[r3 + i] }
-                    // Load next block at loadR0
-                    let toCopy = min(requestFrames, srcTotal - srcConsumed)
-                    for i in 0 ..< toCopy { inputBuf[loadR0 + i] = unsafe psrc[srcConsumed + i] }
-                    for i in toCopy ..< requestFrames { inputBuf[loadR0 + i] = 0 }
-                    srcConsumed += toCopy
-                    // Switch to second+ block parameters
-                    blockSize = secondBlockSize
-                    r3 = secondR3
-                    loadR0 = secondR0
-                }
-            }
-        }
+    // The C++ narrows the clamped value to float, so `targetPan + 1` is a float addition.
+    let pan = Float(stereoPannerClamp(Double(panValue)))
+    let panRadian = (nCh == 1 ? (Double(pan) * 0.5 + 0.5) : Double(pan <= 0 ? pan + 1 : pan)) * kPiOverTwo
+    let gainL = Float(cos(panRadian))
+    let gainR = Float(sin(panRadian))
+    if nCh == 1 {
+        scale(srcL, gainL, &dstL, n)
+        scale(srcL, gainR, &dstR, n)
+    } else if pan <= 0 {
+        scaleAndAdd(srcR, gainL, srcL, &dstL, n)
+        scale(srcR, gainR, &dstR, n)
+    } else {
+        scale(srcL, gainL, &dstL, n)
+        scaleAndAdd(srcL, gainR, srcR, &dstR, n)
     }
 }
 
-// MARK: - DirectConvolver
-//
-// Direct-form convolution via VectorMath::convolve (vDSP_conv).
-// buffer is the double-length delay buffer (size = 2 * inputBlockSize).
-// FIXME: rdar://186723514
-
-@_expose(Cxx)
-internal func directConvolverProcess(
-    _ source: AudioDSPSpanConstFloat, _ kernel: AudioDSPSpanConstFloat,
-    _ buffer: AudioDSPSpanFloat, _ destination: AudioDSPSpanFloat,
-    _ inputBlockSize: Int32
-) {
-    let blockSize = Int(inputBlockSize)
-    let ssrc = unsafe Span<Float>(_unsafeCxxSpan: source)
-    let sker = unsafe Span<Float>(_unsafeCxxSpan: kernel)
-    var sbuf = unsafe MutableSpan<Float>(_unsafeCxxSpan: buffer)
-    var sdst = unsafe MutableSpan<Float>(_unsafeCxxSpan: destination)
-    let kernelSize = sker.count
-    guard blockSize > 0, kernelSize > 0, kernelSize <= blockSize else { return }
-    ssrc.withUnsafeBufferPointer { psrc in
-        sker.withUnsafeBufferPointer { pker in
-            sbuf.withUnsafeMutableBufferPointer { pbuf in
-                sdst.withUnsafeMutableBufferPointer { pdst in
-                    // Copy source into second half of buffer.
-                    let inputP = unsafe (pbuf.baseAddress! + blockSize)
-                    for i in 0 ..< blockSize { unsafe inputP[i] = unsafe psrc[i] }
-                    // Convolve: signal starts at inputP - (kernelSize - 1), filter reads backwards.
-                    let signalStart = unsafe (pbuf.baseAddress! + blockSize - (kernelSize - 1))
-                    let filterLast = unsafe (pker.baseAddress! + (kernelSize - 1))
-                    unsafe vDSP_conv(signalStart, 1, filterLast, -1,
-                              pdst.baseAddress!, 1, vDSP_Length(blockSize), vDSP_Length(kernelSize))
-                    // Copy second half to first half for next call.
-                    for i in 0 ..< blockSize { unsafe pbuf[i] = unsafe pbuf[blockSize + i] }
-                }
-            }
-        }
-    }
-}
-
-@_expose(Cxx)
-internal func directConvolverReset(_ buffer: AudioDSPSpanFloat) {
-    var sbuf = unsafe MutableSpan<Float>(_unsafeCxxSpan: buffer)
-    sbuf.withUnsafeMutableBufferPointer { p in for i in 0 ..< p.count { unsafe p[i] = 0 } }
-}
-
-// MARK: - Denormal helpers
-
-@inline(always)
-private func flushDenormal(_ x: Double) -> Double {
-    // Replicates DenormalDisabler::flushDenormalFloatToZero: convert to float precision first,
-    // then zero if sub-normal (< Float.leastNormalMagnitude = FLT_MIN). Exactly matches R10.
-    let f = Float(x)
-    return Double(f.magnitude < Float.leastNormalMagnitude ? 0 : f)
-}
-
+// Zeroes subnormals (magnitude below FLT_MIN), as DenormalDisabler::flushDenormalFloatToZero does.
 @inline(always)
 private func flushDenormalFloat(_ x: Float) -> Float {
-    // DenormalDisabler::flushDenormalFloatToZero: zero sub-normals (abs < FLT_MIN).
     x.magnitude < Float.leastNormalMagnitude ? 0 : x
 }
 

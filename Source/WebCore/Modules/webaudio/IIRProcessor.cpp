@@ -82,7 +82,11 @@ IIRProcessor::~IIRProcessor()
 
 std::unique_ptr<AudioDSPKernel> IIRProcessor::createKernel()
 {
+#if USE_SWIFT_AUDIO_DSP
+    return makeUnique<IIRDSPKernel>(*this, m_responseKernel.get());
+#else
     return makeUnique<IIRDSPKernel>(*this);
+#endif
 }
 
 void IIRProcessor::process(const AudioBus& source, AudioBus& destination, size_t framesToProcess)

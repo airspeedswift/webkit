@@ -26,7 +26,7 @@
 #pragma once
 
 #include "AudioDSPKernel.h"
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
 #include "IIRFilter.h"
 #endif
 #include "IIRProcessor.h"
@@ -37,8 +37,10 @@ namespace WebCore {
 class IIRDSPKernel final : public AudioDSPKernel {
     WTF_MAKE_TZONE_ALLOCATED(IIRDSPKernel);
 public:
+#if !USE_SWIFT_AUDIO_DSP
     explicit IIRDSPKernel(IIRProcessor&);
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#else
+    explicit IIRDSPKernel(IIRProcessor&, const IIRDSPKernel* tailTimeSource = nullptr);
     ~IIRDSPKernel();
 #endif
 
@@ -50,7 +52,7 @@ private:
 
     // AudioDSPKernel
     void process(std::span<const float> source, std::span<float> destination) final;
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
     double tailTime() const final { return m_tailTime; }
 #else
     double tailTime() const final;
@@ -59,7 +61,7 @@ private:
     void reset() final;
     bool NODELETE requiresTailProcessing() const final;
 
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
     IIRFilter m_iirFilter;
     double m_tailTime;
 #else

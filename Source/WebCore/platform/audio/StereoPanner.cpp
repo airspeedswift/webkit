@@ -32,8 +32,9 @@
 #endif
 #if ENABLE(WEB_AUDIO)
 
-#if !USE_SWIFT_AUDIO_DSP
-
+#if USE_SWIFT_AUDIO_DSP
+#include "WebCore-Swift.h"
+#endif
 #include "SharedBuffer.h"
 #include "VectorMath.h"
 #include <wtf/IndexedRange.h>
@@ -61,6 +62,9 @@ void panWithSampleAccurateValues(const AudioBus& inputBus, AudioBus& outputBus, 
     auto sourceR = numberOfInputChannels > 1 ? inputBus.channel(1)->span() : sourceL;
     auto destinationL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan();
     auto destinationR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan();
+#if USE_SWIFT_AUDIO_DSP
+    spPanWithSampleAccurateValues(sourceL, sourceR, numberOfInputChannels, destinationL, destinationR, panValues, static_cast<int32_t>(panValues.size()));
+#else
     
     double gainL;
     double gainR;
@@ -96,6 +100,7 @@ void panWithSampleAccurateValues(const AudioBus& inputBus, AudioBus& outputBus, 
             }
         }
     }
+#endif
 }
 
 void panToTargetValue(const AudioBus& inputBus, AudioBus& outputBus, float panValue, size_t framesToProcess)
@@ -116,6 +121,9 @@ void panToTargetValue(const AudioBus& inputBus, AudioBus& outputBus, float panVa
     auto sourceR = numberOfInputChannels > 1 ? inputBus.channel(1)->span().first(framesToProcess) : sourceL;
     auto destinationL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan();
     auto destinationR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan();
+#if USE_SWIFT_AUDIO_DSP
+    spPanToTargetValue(sourceL, sourceR, numberOfInputChannels, destinationL, destinationR, panValue, static_cast<int32_t>(framesToProcess));
+#else
 
     float targetPan = clampTo(panValue, -1.0, 1.0);
     
@@ -141,46 +149,11 @@ void panToTargetValue(const AudioBus& inputBus, AudioBus& outputBus, float panVa
             VectorMath::multiplyByScalarThenAddToVector(sourceL, gainR, sourceR, destinationR);
         }
     }
+#endif
 }
 
 } // namespace StereoPanner
 
 } // namespace WebCore
-
-
-#endif // !USE_SWIFT_AUDIO_DSP
-
-#if USE_SWIFT_AUDIO_DSP
-#include "WebCore-Swift.h"
-#include "AudioDSPBoundaryTypes.h"
-#include "AudioBus.h"
-#include "StereoPanner.h"
-
-namespace WebCore {
-namespace StereoPanner {
-
-void panWithSampleAccurateValues(const AudioBus& inputBus, AudioBus& outputBus, std::span<const float> panValues)
-{
-    unsigned nInputCh = inputBus.numberOfChannels();
-    auto srcL = nInputCh > 0 ? inputBus.channel(0)->span() : std::span<const float> {};
-    auto srcR = nInputCh > 1 ? inputBus.channel(1)->span() : srcL;
-    auto dstL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan();
-    auto dstR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan();
-    spPanWithSampleAccurateValues(srcL, srcR, nInputCh, dstL, dstR, panValues, static_cast<int32_t>(panValues.size()));
-}
-
-void panToTargetValue(const AudioBus& inputBus, AudioBus& outputBus, float panValue, size_t framesToProcess)
-{
-    unsigned nInputCh = inputBus.numberOfChannels();
-    auto srcL = nInputCh > 0 ? inputBus.channel(0)->span().first(framesToProcess) : std::span<const float> {};
-    auto srcR = nInputCh > 1 ? inputBus.channel(1)->span().first(framesToProcess) : srcL;
-    auto dstL = outputBus.channelByType(AudioBus::ChannelLeft)->mutableSpan();
-    auto dstR = outputBus.channelByType(AudioBus::ChannelRight)->mutableSpan();
-    spPanToTargetValue(srcL, srcR, nInputCh, dstL, dstR, panValue, static_cast<int32_t>(framesToProcess));
-}
-
-} // namespace StereoPanner
-} // namespace WebCore
-#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

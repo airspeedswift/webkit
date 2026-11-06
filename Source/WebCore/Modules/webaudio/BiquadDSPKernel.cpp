@@ -28,7 +28,7 @@
 
 #include "BiquadDSPKernel.h"
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 #if !USE(ACCELERATE)
 #error "The Swift biquad filter is the Accelerate implementation."
 #endif
@@ -44,7 +44,7 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/Vector.h>
 
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
 #if CPU(X86_SSE2)
 #include <immintrin.h>
 #endif
@@ -58,7 +58,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(BiquadDSPKernel);
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 
 // The Swift coefficient arrays hold one render quantum.
 static_assert(AudioUtilities::renderQuantumSize == 128);
@@ -133,7 +133,7 @@ static bool NODELETE hasConstantValue(std::span<float> values)
     return true;
 }
 
-#endif // USE_SWIFT_WEBAUDIO_KERNELS
+#endif // USE_SWIFT_AUDIO_DSP
 
 void BiquadDSPKernel::updateCoefficientsIfNecessary(size_t framesToProcess)
 {
@@ -161,7 +161,7 @@ void BiquadDSPKernel::updateCoefficientsIfNecessary(size_t framesToProcess)
             // automation rate is "k-rate" for all of the AudioParams), we don't need
             // to compute filter coefficients for each frame since they would be the
             // same as the first.
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
             biquadUpdateCoefficients(m_swift->kernel, framesToProcess, biquadProcessor()->type(), cutoffFrequencySpan, qSpan, gainSpan, detuneSpan, true);
 #else
             bool isConstant = hasConstantValue(cutoffFrequencySpan)
@@ -181,7 +181,7 @@ void BiquadDSPKernel::updateCoefficientsIfNecessary(size_t framesToProcess)
     }
 }
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 void BiquadDSPKernel::updateCoefficients(size_t numberOfFrames, std::span<const float> cutoffFrequency, std::span<const float> q, std::span<const float> gain, std::span<const float> detune)
 {
     biquadUpdateCoefficients(m_swift->kernel, numberOfFrames, biquadProcessor()->type(), cutoffFrequency, q, gain, detune, false);
@@ -255,7 +255,7 @@ void BiquadDSPKernel::process(std::span<const float> source, std::span<float> de
 
     updateCoefficientsIfNecessary(source.size());
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
     if (source.data() == destination.data())
         biquadProcessInPlace(m_swift->kernel, destination.first(source.size()));
     else
@@ -272,7 +272,7 @@ void BiquadDSPKernel::getFrequencyResponse(std::span<const float> frequencyHz, s
     if (!isGood)
         return;
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
     biquadFrequencyResponse(m_swift->kernel, frequencyHz, magResponse, phaseResponse);
 #else
     m_biquad.getFrequencyResponse(frequencyHz, magResponse, phaseResponse, nyquist());
@@ -281,7 +281,7 @@ void BiquadDSPKernel::getFrequencyResponse(std::span<const float> frequencyHz, s
 
 double BiquadDSPKernel::tailTime() const
 {
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
     return biquadTailTime(m_swift->kernel);
 #else
     return m_tailTime;
@@ -293,7 +293,7 @@ double BiquadDSPKernel::latencyTime() const
     return 0;
 }
 
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
 void BiquadDSPKernel::updateTailTime(size_t coefIndex)
 {
     // A reasonable upper limit for the tail time. While it's easy to

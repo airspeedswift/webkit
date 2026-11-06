@@ -38,7 +38,7 @@ class BiquadProcessor;
 class BiquadDSPKernel final : public AudioDSPKernel {
     WTF_MAKE_TZONE_ALLOCATED(BiquadDSPKernel);
 public:
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
     explicit BiquadDSPKernel(BiquadProcessor*);
     ~BiquadDSPKernel();
 #else
@@ -50,7 +50,7 @@ public:
     
     // AudioDSPKernel
     void process(std::span<const float> source, std::span<float> destination) final;
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
     void reset() override;
 #else
     void reset() override { m_biquad.reset(); }
@@ -68,7 +68,7 @@ public:
     bool NODELETE requiresTailProcessing() const final;
 
 private:
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
     struct SwiftState;
     std::unique_ptr<SwiftState> m_swift;
 #else
@@ -84,7 +84,7 @@ private:
     // if they are not dirty. (Used when computing the frequency
     // response.)
     void updateCoefficientsIfNecessary(size_t framesToProcess);
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
     void updateTailTime(size_t coefIndex);
 
     double m_tailTime { std::numeric_limits<double>::infinity() };

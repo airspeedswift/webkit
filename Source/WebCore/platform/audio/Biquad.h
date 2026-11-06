@@ -38,7 +38,7 @@
 
 namespace WebCore {
 
-#if !USE_SWIFT_WEBAUDIO_KERNELS
+#if !USE_SWIFT_AUDIO_DSP
 // A basic biquad (two-zero / two-pole digital filter)
 //
 // It can be configured to a number of common and very useful filters:
@@ -110,7 +110,7 @@ private:
     bool m_hasSampleAccurateValues { false };
 };
 
-#endif // !USE_SWIFT_WEBAUDIO_KERNELS
+#endif // !USE_SWIFT_AUDIO_DSP
 
 } // namespace WebCore
 

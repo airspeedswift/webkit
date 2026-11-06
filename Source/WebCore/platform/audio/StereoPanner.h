@@ -34,7 +34,7 @@ namespace WebCore {
 
 namespace StereoPanner {
     
-WEBCORE_EXPORT void panWithSampleAccurateValues(const AudioBus& inputBus, AudioBus& outputBus, std::span<const float> panValues);
+void panWithSampleAccurateValues(const AudioBus& inputBus, AudioBus& outputBus, std::span<const float> panValues);
 
 WEBCORE_EXPORT void panToTargetValue(const AudioBus& inputBus, AudioBus& outputBus, float panValue, size_t framesToProcess);
 

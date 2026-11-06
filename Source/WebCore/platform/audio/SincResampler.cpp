@@ -28,12 +28,7 @@
 
 #include "config.h"
 
-#if !defined(USE_SWIFT_AUDIO_DSP)
-#define USE_SWIFT_AUDIO_DSP 0
-#endif
 #if ENABLE(WEB_AUDIO)
-
-#if !USE_SWIFT_AUDIO_DSP
 
 #include "SincResampler.h"
 
@@ -374,107 +369,5 @@ float SincResampler::convolve(std::span<const float> inputP, std::span<const flo
 }
 
 } // namespace WebCore
-
-
-#endif // !USE_SWIFT_AUDIO_DSP
-
-#if USE_SWIFT_AUDIO_DSP
-#include "AudioUtilities.h"
-#include "WebCore-Swift.h"
-#include "AudioDSPBoundaryTypes.h"
-#include "SincResampler.h"
-#include <WebCore/PlatformExportMacros.h>
-#include <cmath>
-#include <numbers>
-#include <wtf/TZoneMallocInlines.h>
-
-namespace WebCore {
-
-WTF_MAKE_TZONE_ALLOCATED_IMPL(SincResampler);
-
-static constexpr unsigned sincKernelSize { 32 };
-static constexpr unsigned sincNumberOfKernelOffsets { 32 };
-static constexpr unsigned sincKernelStorageSize { sincKernelSize * (sincNumberOfKernelOffsets + 1) };
-
-SincResampler::SincResampler(double scaleFactor, unsigned requestFrames, Function<void(std::span<float>, size_t)>&& provideInput)
-    : m_scaleFactor(scaleFactor)
-    , m_kernelStorage(sincKernelStorageSize)
-    , m_requestFrames(requestFrames)
-    , m_provideInput(WTF::move(provideInput))
-    , m_inputBuffer(requestFrames + sincKernelSize)
-    , m_r1(m_inputBuffer.span())
-    , m_r2(m_inputBuffer.span())
-{
-    // Build the sinc kernel inline (same compilation context as gate-off initializeKernel,
-    // ensuring bit-identical float values for the oracle).
-    double alpha = 0.16;
-    double a0 = 0.5 * (1.0 - alpha);
-    double a1 = 0.5;
-    double a2 = 0.5 * alpha;
-    double sfactor = m_scaleFactor > 1.0 ? 1.0 / m_scaleFactor : 1.0;
-    sfactor *= 0.9;
-    const int n = sincKernelSize;
-    const int halfSize = n / 2;
-    for (unsigned offsetIndex = 0; offsetIndex <= sincNumberOfKernelOffsets; ++offsetIndex) {
-        double subsampleOffset = static_cast<double>(offsetIndex) / sincNumberOfKernelOffsets;
-        for (int i = 0; i < n; ++i) {
-            double s = sfactor * std::numbers::pi * (i - halfSize - subsampleOffset);
-            double sinc = !s ? 1.0 : sin(s) / s;
-            sinc *= sfactor;
-            double x = (i - subsampleOffset) / n;
-            double window = a0 - a1 * cos(2.0 * std::numbers::pi * x) + a2 * cos(4.0 * std::numbers::pi * x);
-            m_kernelStorage[i + offsetIndex * n] = static_cast<float>(sinc * window);
-        }
-    }
-}
-
-void SincResampler::processBuffer(std::span<const float> source, std::span<float> destination, double scaleFactor)
-{
-    // Build SincResampler with correct kernel, then pass kernel to Swift convolution.
-    SincResampler resampler(scaleFactor, AudioUtilities::renderQuantumSize, [](std::span<float>, size_t) {});
-    sincResamplerProcessBuffer(source, destination, scaleFactor,
-        std::span<const float>(resampler.kernelSpan()));
-}
-
-void SincResampler::process(std::span<float> destination, size_t framesToProcess)
-{
-    // skeleton: fill with zeros
-    for (size_t i = 0; i < framesToProcess && i < destination.size(); ++i)
-        destination[i] = 0.0f;
-}
-
-} // namespace WebCore
-
-// Helper: compute the sinc kernel using the original C++ algorithm.
-// Exposed to Swift via AudioDSPBoundaryTypes.h for exact-match kernel values.
-WEBCORE_EXPORT void sincResamplerInitKernel(double scaleFactor, std::span<float> kernelStorage)
-{
-    // Blackman window parameters.
-    double alpha = 0.16;
-    double a0 = 0.5 * (1.0 - alpha);
-    double a1 = 0.5;
-    double a2 = 0.5 * alpha;
-
-    double sincScaleFactor = scaleFactor > 1.0 ? 1.0 / scaleFactor : 1.0;
-    sincScaleFactor *= 0.9;
-
-    constexpr int n = 32;  // kernelSize
-    constexpr int halfSize = n / 2;
-    constexpr unsigned nOffsets = 32;  // numberOfKernelOffsets
-
-    for (unsigned offsetIndex = 0; offsetIndex <= nOffsets; ++offsetIndex) {
-        double subsampleOffset = static_cast<double>(offsetIndex) / nOffsets;
-        for (int i = 0; i < n; ++i) {
-            double s = sincScaleFactor * std::numbers::pi * (i - halfSize - subsampleOffset);
-            double sinc = !s ? 1.0 : sin(s) / s;
-            sinc *= sincScaleFactor;
-            double x = (i - subsampleOffset) / n;
-            double window = a0 - a1 * cos(2.0 * std::numbers::pi * x) + a2 * cos(4.0 * std::numbers::pi * x);
-            kernelStorage[i + offsetIndex * n] = static_cast<float>(sinc * window);
-        }
-    }
-}
-
-#endif // USE_SWIFT_AUDIO_DSP
 
 #endif // ENABLE(WEB_AUDIO)

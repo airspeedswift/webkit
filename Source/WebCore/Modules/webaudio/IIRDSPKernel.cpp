@@ -29,17 +29,18 @@
 #include "IIRDSPKernel.h"
 #include <wtf/TZoneMallocInlines.h>
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 #include "AudioUtilities.h"
 #include "IIRFilter.h"
 #include "WebCore-Swift.h"
+#include <limits>
 #endif
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(IIRDSPKernel);
 
-#if USE_SWIFT_WEBAUDIO_KERNELS
+#if USE_SWIFT_AUDIO_DSP
 
 // The Swift ring buffers have 32 entries and its tail time runs render quanta of 128 frames.
 static_assert(IIRFilter::maxOrder < 32);
@@ -48,14 +49,15 @@ static_assert(AudioUtilities::renderQuantumSize == 128);
 struct IIRDSPKernel::SwiftState {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(SwiftState);
 public:
-    explicit SwiftState(IIRKernel&& kernel) : kernel(std::move(kernel)) { }
     IIRKernel kernel;
 };
 
-IIRDSPKernel::IIRDSPKernel(IIRProcessor& processor)
+IIRDSPKernel::IIRDSPKernel(IIRProcessor& processor, const IIRDSPKernel* tailTimeSource)
     : AudioDSPKernel(&processor)
-    , m_swift(makeUnique<SwiftState>(makeIIRKernel(processor.feedforward().span(), processor.feedback().span(), processor.sampleRate(), processor.isFilterStable())))
 {
+    // NaN asks makeIIRKernel to compute the tail time itself.
+    double knownTailTime = tailTimeSource ? tailTimeSource->tailTime() : std::numeric_limits<double>::quiet_NaN();
+    m_swift = makeUnique<SwiftState>(makeIIRKernel(processor.feedforward().span(), processor.feedback().span(), processor.sampleRate(), processor.isFilterStable(), knownTailTime));
 }
 
 IIRDSPKernel::~IIRDSPKernel() = default;
@@ -114,7 +116,7 @@ void IIRDSPKernel::reset()
     m_iirFilter.reset();
 }
 
-#endif // USE_SWIFT_WEBAUDIO_KERNELS
+#endif // USE_SWIFT_AUDIO_DSP
 
 bool IIRDSPKernel::requiresTailProcessing() const
 {

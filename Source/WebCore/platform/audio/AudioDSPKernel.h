@@ -31,8 +31,8 @@
 #ifndef AudioDSPKernel_h
 #define AudioDSPKernel_h
 
-#if !defined(USE_SWIFT_WEBAUDIO_KERNELS)
-#define USE_SWIFT_WEBAUDIO_KERNELS 0
+#if !defined(USE_SWIFT_AUDIO_DSP)
+#define USE_SWIFT_AUDIO_DSP 0
 #endif
 
 #include "AudioDSPKernelProcessor.h"
