@@ -314,13 +314,22 @@ private:
     // So here, we don't visit each object for GC. The resolution cache map caches the once
     // looked up correctly resolved resolution, since (1) we rarely looked up the non-resolved one,
     // and (2) if we cache all the attempts the size of the map becomes infinitely large.
+    // The storage of a WTF::HashMap: its table pointer, plus, when NDEBUG is not defined, the iterator list and the
+    // lock that guards it (CHECK_HASHTABLE_ITERATORS in wtf/HashTable.h). The Clang importer is given the same NDEBUG
+    // as the C++ compiles, so both views of this class agree.
+#if defined(NDEBUG)
+    static constexpr size_t hashMapStorageSize = sizeof(void*);
+#else
+    static constexpr size_t hashMapStorageSize = 3 * sizeof(void*);
+#endif
+
 #if !defined(__swift__)
     typedef UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, Resolution, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>> Resolutions;
     Resolutions m_resolutionCache;
 
-    static_assert(sizeof(Resolutions) == sizeof(void*) && alignof(Resolutions) == alignof(void*));
+    static_assert(sizeof(Resolutions) == hashMapStorageSize && alignof(Resolutions) == alignof(void*));
 #else
-    void* m_resolutionCache;
+    alignas(void*) unsigned char m_resolutionCache[hashMapStorageSize];
 #endif
 
 protected:
@@ -329,9 +338,9 @@ protected:
 #if !defined(__swift__)
     ModuleMap<LoadedModuleRequest> m_loadedModules;
 
-    static_assert(sizeof(ModuleMap<LoadedModuleRequest>) == sizeof(void*) && alignof(ModuleMap<LoadedModuleRequest>) == alignof(void*));
+    static_assert(sizeof(ModuleMap<LoadedModuleRequest>) == hashMapStorageSize && alignof(ModuleMap<LoadedModuleRequest>) == alignof(void*));
 #else
-    void* m_loadedModules;
+    alignas(void*) unsigned char m_loadedModules[hashMapStorageSize];
 #endif
 
     Vector<WriteBarrier<AbstractModuleRecord>> m_asyncParentModules;
