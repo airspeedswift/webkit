@@ -318,7 +318,10 @@ private:
     typedef UncheckedKeyHashMap<RefPtr<UniquedStringImpl>, Resolution, IdentifierRepHash, HashTraits<RefPtr<UniquedStringImpl>>> Resolutions;
     Resolutions m_resolutionCache;
 
-    static_assert(sizeof(Resolutions) == sizeof(void*) && alignof(Resolutions) == alignof(void*));
+#if !ASSERT_ENABLED
+    static_assert(sizeof(Resolutions) == sizeof(void*));
+#endif
+    static_assert(alignof(Resolutions) == alignof(void*));
 #else
     void* m_resolutionCache;
 #endif
