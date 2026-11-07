@@ -2903,6 +2903,32 @@ bool RenderLayer::blendModeAppliesToSVGRootContentsOnly() const
     return renderer().isRenderSVGRoot() && renderer().isDocumentElementRenderer();
 }
 
+RenderLayer* RenderLayer::parentForTesting() const { return parent(); }
+RenderLayer* RenderLayer::previousSiblingForTesting() const { return previousSibling(); }
+RenderLayer* RenderLayer::nextSiblingForTesting() const { return nextSibling(); }
+RenderLayer* RenderLayer::firstChildForTesting() const { return firstChild(); }
+RenderLayer* RenderLayer::lastChildForTesting() const { return lastChild(); }
+
+static RenderLayer* layerAt(RenderLayer::LayerList list, size_t index)
+{
+    RELEASE_ASSERT(index < list.size());
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
+    return list.begin()[index];
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+}
+
+size_t RenderLayer::negativeZOrderLayerCountForTesting() const { return negativeZOrderLayers().size(); }
+RenderLayer* RenderLayer::negativeZOrderLayerAtForTesting(size_t index) const { return layerAt(negativeZOrderLayers(), index); }
+size_t RenderLayer::normalFlowLayerCountForTesting() const { return normalFlowLayers().size(); }
+RenderLayer* RenderLayer::normalFlowLayerAtForTesting(size_t index) const { return layerAt(normalFlowLayers(), index); }
+size_t RenderLayer::positiveZOrderLayerCountForTesting() const { return positiveZOrderLayers().size(); }
+RenderLayer* RenderLayer::positiveZOrderLayerAtForTesting(size_t index) const { return layerAt(positiveZOrderLayers(), index); }
+
+bool RenderLayer::zOrderListsDirtyForTesting() const { return zOrderListsDirty(); }
+bool RenderLayer::normalFlowListDirtyForTesting() const { return normalFlowListDirty(); }
+bool RenderLayer::isStackingContextForTesting() const { return isStackingContext(); }
+bool RenderLayer::isNormalFlowOnlyForTesting() const { return isNormalFlowOnly(); }
+
 bool RenderLayer::isDescendantOf(const RenderLayer& layer) const
 {
     for (auto* ancestor = this; ancestor; ancestor = ancestor->parent()) {

@@ -210,6 +210,23 @@ public:
     bool LEGACY_NODELETE isDescendantOf(const RenderLayer&) const;
     WEBCORE_EXPORT RenderLayer* commonAncestorWithLayer(const RenderLayer&) const;
 
+    // Out-of-line so that a client built once can read the layer tree in any build of WebCore.
+    WEBCORE_EXPORT RenderLayer* parentForTesting() const;
+    WEBCORE_EXPORT RenderLayer* previousSiblingForTesting() const;
+    WEBCORE_EXPORT RenderLayer* nextSiblingForTesting() const;
+    WEBCORE_EXPORT RenderLayer* firstChildForTesting() const;
+    WEBCORE_EXPORT RenderLayer* lastChildForTesting() const;
+    WEBCORE_EXPORT size_t negativeZOrderLayerCountForTesting() const;
+    WEBCORE_EXPORT RenderLayer* negativeZOrderLayerAtForTesting(size_t) const;
+    WEBCORE_EXPORT size_t normalFlowLayerCountForTesting() const;
+    WEBCORE_EXPORT RenderLayer* normalFlowLayerAtForTesting(size_t) const;
+    WEBCORE_EXPORT size_t positiveZOrderLayerCountForTesting() const;
+    WEBCORE_EXPORT RenderLayer* positiveZOrderLayerAtForTesting(size_t) const;
+    WEBCORE_EXPORT bool zOrderListsDirtyForTesting() const;
+    WEBCORE_EXPORT bool normalFlowListDirtyForTesting() const;
+    WEBCORE_EXPORT bool isStackingContextForTesting() const;
+    WEBCORE_EXPORT bool isNormalFlowOnlyForTesting() const;
+
     // This does an ancestor tree walk. Avoid it!
     const RenderLayer* root() const
     {
