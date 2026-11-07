@@ -100,4 +100,11 @@
 #define USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 0
 #endif
 
+#if !defined(USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+#define USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM 0
+#endif
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+#include "CSSNumericValueSwiftTypes.h"
+#endif
+
 #include "WebCoreSwift-Generated.h"

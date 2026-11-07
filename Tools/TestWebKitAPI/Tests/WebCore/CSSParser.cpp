@@ -32,9 +32,11 @@
 #include <WebCore/CSSCustomPropertyValue.h>
 #include <WebCore/CSSGridTemplateListValue.h>
 #include <WebCore/CSSKeywordValueInlines.h>
+#include <WebCore/CSSMathSum.h>
 #include <WebCore/CSSParser.h>
 #include <WebCore/CSSSerializationContext.h>
 #include <WebCore/CSSStyleDeclaration.h>
+#include <WebCore/CSSUnitValue.h>
 #include <WebCore/CSSValueList.h>
 #include <WebCore/Color.h>
 #include <WebCore/Document.h>
@@ -520,6 +522,30 @@ TEST(CSSPropertyParser, GradientStopCounts)
             ASSERT_TRUE(CSSParser::parseDeclarationList(properties, makeString("background-image: "_s, value, ';'), strictCSSParserContext()));
             EXPECT_EQ(properties->getPropertyValue(CSSPropertyID::BackgroundImage), value);
         }
+    }
+}
+
+TEST(CSSPropertyParser, TypedOMSumRecordCounts)
+{
+    // Typed OM sums of 31 and 32 lengths, whose calc() trees have 32 and 33 nodes, converted to CSS values.
+    for (unsigned count : { 31u, 32u }) {
+        FixedVector<WebCore::CSSNumberish> operands(count);
+        StringBuilder expected;
+        expected.append("calc("_s);
+        for (unsigned i = 0; i < count; ++i) {
+            auto length = WebCore::CSSUnitValue::create(i + 1, String { "px"_s });
+            ASSERT_FALSE(length.hasException());
+            operands[i] = Ref<WebCore::CSSNumericValue> { length.releaseReturnValue() };
+            expected.append(i ? " + "_s : ""_s, i + 1, "px"_s);
+        }
+        expected.append(')');
+
+        auto sum = WebCore::CSSMathSum::create(WTF::move(operands));
+        ASSERT_FALSE(sum.hasException());
+        Ref<WebCore::CSSStyleValue> value = sum.releaseReturnValue();
+        RefPtr cssValue = value->toCSSValue();
+        ASSERT_TRUE(cssValue);
+        EXPECT_EQ(cssValue->cssText(WebCore::CSS::defaultSerializationContext()), expected.toString());
     }
 }
 

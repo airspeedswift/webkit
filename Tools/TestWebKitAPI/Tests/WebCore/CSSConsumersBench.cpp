@@ -26,11 +26,21 @@
 #include "config.h"
 
 #include "Helpers/Test.h"
+#include <WebCore/CSSMathClamp.h>
+#include <WebCore/CSSMathInvert.h>
+#include <WebCore/CSSMathMax.h>
+#include <WebCore/CSSMathMin.h>
+#include <WebCore/CSSMathProduct.h>
+#include <WebCore/CSSMathSum.h>
+#include <WebCore/CSSNumericValue.h>
 #include <WebCore/CSSParser.h>
 #include <WebCore/CSSParserContext.h>
 #include <WebCore/CSSPropertyNames.h>
 #include <WebCore/CSSPropertyParserConsumer+Easing.h>
 #include <WebCore/CSSPropertyParserConsumer+Font.h>
+#include <WebCore/CSSSerializationContext.h>
+#include <WebCore/CSSUnitValue.h>
+#include <WebCore/CSSValue.h>
 #include <WebCore/DocumentInlines.h>
 #include <WebCore/MutableStyleProperties.h>
 #include <WebCore/ProcessWarming.h>
@@ -43,7 +53,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iterator>
+#include <limits>
+#include <optional>
 #include <span>
+#include <wtf/FixedVector.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/URL.h>
 #include <wtf/text/StringBuilder.h>
@@ -55,6 +68,8 @@
 // and prints the time taken. FontShorthands also parses its strings with parseUnresolvedFont, TimingFunctions parses
 // each of its easings with parseEasingFunctionDeprecated, and FontFaceBlocks parses style sheets of @font-face rules
 // and reads their descriptors back.
+// TypedOMCalc converts Typed OM math values (CSSMathSum, CSSMathProduct, CSSMathMin, CSSMathMax, CSSMathClamp) and
+// out-of-range CSSUnitValues to CSSValues, as StylePropertyMap's set() does.
 //
 // The generators make every random draw in its own statement, so the inputs do not depend on the order in which a
 // compiler evaluates function arguments.
@@ -4889,6 +4904,159 @@ static Vector<Block> smallFamiliesBlocks()
     });
 }
 
+// MARK: - Typed OM math values.
+
+struct TypedOMCase {
+    Ref<CSSNumericValue> value;
+    CSSPropertyID property;
+    bool isUnitValue;
+};
+
+static constexpr ASCIILiteral typedOMLengthUnits[] = {
+    "px"_s, "px"_s, "px"_s, "em"_s, "rem"_s, "vw"_s, "vh"_s, "percent"_s, "percent"_s, "cm"_s, "in"_s, "ch"_s, "cqi"_s,
+};
+static constexpr ASCIILiteral typedOMOtherUnits[] = { "number"_s, "deg"_s, "turn"_s, "s"_s, "ms"_s, "dppx"_s, "fr"_s };
+static constexpr double typedOMNumbers[] = {
+    0, -0.0, 1, 2.5, -3, 12, 100, 0.5, -0.001, 7, 33.25, -48, 1e6, 1e30, -1e30, std::numeric_limits<double>::infinity(),
+};
+
+// A unit value and a property it is converted for: lengths and percentages for a non-negative length property,
+// numbers for non-negative and integer properties, times for a non-negative time. A value outside the property's
+// range (a negative width, a fractional z-index, zero orphans) converts to calc() wrapping the value.
+struct TypedOMRangeCase {
+    CSSPropertyID property;
+    ASCIILiteral unit;
+};
+static constexpr TypedOMRangeCase typedOMRangeCases[] = {
+    { CSSPropertyID::Width, "px"_s }, { CSSPropertyID::Width, "em"_s }, { CSSPropertyID::Width, "percent"_s },
+    { CSSPropertyID::PaddingLeft, "px"_s }, { CSSPropertyID::BorderTopLeftRadius, "rem"_s }, { CSSPropertyID::MarginTop, "px"_s },
+    { CSSPropertyID::FlexGrow, "number"_s }, { CSSPropertyID::FlexShrink, "number"_s }, { CSSPropertyID::ZIndex, "number"_s },
+    { CSSPropertyID::Orphans, "number"_s }, { CSSPropertyID::ColumnCount, "number"_s }, { CSSPropertyID::AnimationDuration, "s"_s },
+    { CSSPropertyID::AnimationDuration, "ms"_s },
+};
+
+static Ref<CSSNumericValue> makeTypedOMUnitValue(double number, ASCIILiteral unit)
+{
+    auto result = CSSUnitValue::create(number, String { unit });
+    RELEASE_ASSERT(!result.hasException());
+    return result.releaseReturnValue();
+}
+
+// A length or percentage in most cases; in one in twelve a number, angle, time, resolution or flex, which makes the
+// math value around it a type error or a different category. With `allowPercent` false a percentage is px instead.
+static Ref<CSSNumericValue> makeTypedOMLeaf(Random& random, bool allowPercent)
+{
+    double number = random.pick(typedOMNumbers);
+    bool otherCategory = random.percent(8);
+    auto unit = otherCategory ? random.pick(typedOMOtherUnits) : random.pick(typedOMLengthUnits);
+    if (!allowPercent && unit == "percent"_s)
+        unit = "px"_s;
+    return makeTypedOMUnitValue(number, unit);
+}
+
+static Ref<CSSNumericValue> makeTypedOMNode(Random&, unsigned depth, bool allowPercent);
+
+static CSSNumberish makeTypedOMOperand(Random& random, unsigned depth, bool allowPercent)
+{
+    unsigned kind = random.below(100);
+    if (kind < 10)
+        return random.pick(typedOMNumbers);
+    if (depth && kind < 45)
+        return makeTypedOMNode(random, depth - 1, allowPercent);
+    return makeTypedOMLeaf(random, allowPercent);
+}
+
+static FixedVector<CSSNumberish> makeTypedOMOperands(Random& random, unsigned depth, unsigned count, bool allowPercent)
+{
+    FixedVector<CSSNumberish> operands(count);
+    for (auto& operand : operands)
+        operand = makeTypedOMOperand(random, depth, allowPercent);
+    return operands;
+}
+
+// Whether a percentage in the value is combined with a type other than a length: a percent hint of an angle, time,
+// frequency, resolution or flex. Converting such a value reaches ASSERT(!percentHint) in CSSCalcType.cpp for any
+// but an angle, so the generator keeps percentages to lengths.
+static bool hasNonLengthPercentHint(const CSSNumericValue& value)
+{
+    auto& hint = value.type().percentHint;
+    return hint && *hint != CSSNumericBaseType::Length;
+}
+
+template<typename T>
+static std::optional<Ref<CSSNumericValue>> typedOMResult(ExceptionOr<Ref<T>>&& result)
+{
+    if (result.hasException())
+        return std::nullopt;
+    return Ref<CSSNumericValue> { result.releaseReturnValue() };
+}
+
+// A sum of two to four operands of mixed units; a product of an operand and numbers, sometimes with an inverted
+// operand; a difference (a sum with a negated operand); min() and max() of two to four operands; clamp(). Operands
+// nest to `depth`. A combination the factory rejects as a type error falls back to a length. A node that combines a
+// percentage with a non-length type is made again, of the same kind and operand count, with no percentages (px).
+static Ref<CSSNumericValue> makeTypedOMNode(Random& random, unsigned depth, bool allowPercent)
+{
+    unsigned kind = random.below(100);
+    unsigned count = 2 + random.below(3);
+    auto make = [&](bool percents) -> Ref<CSSNumericValue> {
+        std::optional<Ref<CSSNumericValue>> node;
+        if (kind < 30)
+            node = typedOMResult(CSSMathSum::create(makeTypedOMOperands(random, depth, count, percents)));
+        else if (kind < 42) {
+            auto operands = makeTypedOMOperands(random, depth, count, percents);
+            for (size_t i = 1; i < operands.size(); ++i) {
+                unsigned operandKind = random.below(100);
+                if (operandKind < 60)
+                    operands[i] = random.pick(typedOMNumbers);
+                else if (operandKind < 80)
+                    operands[i] = Ref<CSSNumericValue> { CSSMathInvert::create(makeTypedOMOperand(random, depth, percents)) };
+            }
+            node = typedOMResult(CSSMathProduct::create(WTF::move(operands)));
+        } else if (kind < 54) {
+            auto first = makeTypedOMLeaf(random, percents);
+            node = typedOMResult(first->sub(makeTypedOMOperands(random, depth, count - 1, percents)));
+        } else if (kind < 70)
+            node = typedOMResult(CSSMathMin::create(makeTypedOMOperands(random, depth, count, percents)));
+        else if (kind < 86)
+            node = typedOMResult(CSSMathMax::create(makeTypedOMOperands(random, depth, count, percents)));
+        else {
+            auto lower = makeTypedOMOperand(random, depth, percents);
+            auto value = makeTypedOMOperand(random, depth, percents);
+            auto upper = makeTypedOMOperand(random, depth, percents);
+            node = typedOMResult(CSSMathClamp::create(WTF::move(lower), WTF::move(value), WTF::move(upper)));
+        }
+        if (node)
+            return WTF::move(*node);
+        return makeTypedOMLeaf(random, percents);
+    };
+    auto node = make(allowPercent);
+    if (allowPercent && hasNonLengthPercentHint(node))
+        return make(false);
+    return node;
+}
+
+static constexpr unsigned typedOMCaseCount = 4096;
+
+// Math values one to three levels deep (sums of mixed units, products with inverses, differences, nested min(),
+// max() and clamp()) and, in one case in four, a unit value converted for a property whose range it may be outside.
+static Vector<TypedOMCase> typedOMCases()
+{
+    Random random(333);
+    Vector<TypedOMCase> cases;
+    for (unsigned i = 0; i < typedOMCaseCount; ++i) {
+        if (random.percent(25)) {
+            auto& rangeCase = random.pick(typedOMRangeCases);
+            double number = random.pick(typedOMNumbers);
+            cases.append(TypedOMCase { makeTypedOMUnitValue(number, rangeCase.unit), rangeCase.property, true });
+            continue;
+        }
+        unsigned depth = random.below(3);
+        cases.append(TypedOMCase { makeTypedOMNode(random, depth, true), CSSPropertyID::Width, false });
+    }
+    return cases;
+}
+
 // MARK: - Running.
 
 static size_t blockBytes(const Vector<Block>& blocks)
@@ -5157,6 +5325,63 @@ static void runFontFaceSheets(ASCIILiteral name, const Vector<String>& sheets, u
     printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum);
 }
 
+// MARK: - Running the Typed OM shape.
+
+// Typed OM's own serialization of each value (the bytes the shape reports), whether converting it for its property
+// gave a CSSValue, and that value's text. Only CSSStyleValue's own virtual functions are called on the values.
+static uint64_t checksumOfTypedOMConversions(const Vector<TypedOMCase>& cases, size_t& bytes, unsigned& converted, unsigned& wrapped)
+{
+    auto& serialization = CSS::defaultSerializationContext();
+    Checksum checksum;
+    for (auto& entry : cases) {
+        StringBuilder builder;
+        entry.value->serialize(builder);
+        auto input = builder.toString();
+        bytes += input.length();
+        checksum.add(input);
+        checksum.add(static_cast<uint64_t>(entry.property));
+        auto value = entry.value->toCSSValueWithProperty(entry.property);
+        checksum.add(!!value);
+        if (!value)
+            continue;
+        ++converted;
+        auto text = value->cssText(serialization);
+        wrapped += entry.isUnitValue && text.startsWith("calc("_s);
+        checksum.add(text);
+    }
+    return checksum.value();
+}
+
+// Typed OM values converted to CSSValues as StylePropertyMap's set() converts them, with no document.
+static void runTypedOMConversions(ASCIILiteral name, uint64_t expectedChecksum, unsigned passes)
+{
+    // The conversions return values from the static CSS value pool, which creating a CSSParserContext
+    // initializes, as a document's does before script can reach Typed OM.
+    strictCSSParserContext();
+    auto cases = typedOMCases();
+    size_t bytes = 0;
+    unsigned converted = 0;
+    unsigned wrapped = 0;
+    auto checksum = checksumOfTypedOMConversions(cases, bytes, converted, wrapped);
+    ASSERT_GT(bytes, 0u);
+    EXPECT_GT(converted, 0u);
+    EXPECT_GT(cases.size(), converted);
+    EXPECT_GT(wrapped, 0u);
+    EXPECT_EQ(expectedChecksum, checksum) << "checksum=" << std::hex << checksum;
+    if (!runsBenchmarks())
+        return;
+
+    unsigned values = 0;
+    auto start = MonotonicTime::now();
+    for (unsigned pass = 0; pass < passes; ++pass) {
+        for (auto& entry : cases)
+            values += !!entry.value->toCSSValueWithProperty(entry.property);
+    }
+    auto elapsed = MonotonicTime::now() - start;
+    EXPECT_EQ(converted * passes, values);
+    printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum);
+}
+
 } // namespace CSSConsumersBenchmark
 
 using namespace CSSConsumersBenchmark;
@@ -5210,5 +5435,7 @@ TEST(CSSConsumersBench, ClipPaths) { run("ClipPaths"_s, clipPathsBlocks(), Value
 TEST(CSSConsumersBench, ShapesRare) { run("ShapesRare"_s, shapesRareBlocks(), Values::Valid, 0xf3b04e261f1daf91ULL, 150); }
 TEST(CSSConsumersBench, ContentAndCounters) { run("ContentAndCounters"_s, contentAndCountersBlocks(), Values::Valid, 0x6261324865658724ULL, 400); }
 TEST(CSSConsumersBench, SmallFamilies) { run("SmallFamilies"_s, smallFamiliesBlocks(), Values::Valid, 0xe6b2ff5e0da3d285ULL, 450); }
+
+TEST(CSSConsumersBench, TypedOMCalc) { runTypedOMConversions("TypedOMCalc"_s, 0x9e81b1b14a61c365ULL, 1700); }
 
 } // namespace TestWebKitAPI

@@ -104,6 +104,7 @@ bool CSSMathClamp::equals(const CSSNumericValue& other) const
         && m_upper->equals(otherClamp->m_upper);
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSSCalc::Child> CSSMathClamp::toCalcTreeNode() const
 {
     auto lower = m_lower->toCalcTreeNode();
@@ -123,5 +124,6 @@ std::optional<CSSCalc::Child> CSSMathClamp::toCalcTreeNode() const
 
     return CSSCalc::makeChild(WTF::move(clamp), *type);
 }
+#endif
 
 } // namespace WebCore

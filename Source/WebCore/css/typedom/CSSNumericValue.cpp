@@ -63,6 +63,10 @@
 #define USE_SWIFT_CSS_CALC 0
 #endif
 
+#if !defined(USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+#define USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM 0
+#endif
+
 #if USE_SWIFT_CSS_CALC
 #include "WebCore-Swift.h"
 #include <wtf/ForbidHeapAllocation.h>
@@ -278,6 +282,42 @@ ExceptionOr<Ref<CSSNumericValue>> CSSNumericValue::reifyMathExpression(const CSS
     }
     RELEASE_ASSERT(builder.values.size() == 1);
     return WTF::move(builder.values[0]);
+}
+#endif
+
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+namespace {
+
+class SwiftTypedOMSource final : public CSSCalcSwiftTypedOMSource {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    explicit SwiftTypedOMSource(const CSSNumericValue& value)
+        : value(value)
+    {
+    }
+
+    const CSSNumericValue& value;
+};
+
+} // namespace (anonymous)
+
+static_assert(isCSSCalcSwiftFacade<CSSCalcSwiftTypedOMSource>);
+
+const CSSNumericValue& CSSCalcSwiftTypedOMSource::root()
+{
+    return static_cast<SwiftTypedOMSource&>(*this).value;
+}
+
+std::optional<CSSCalc::Tree> CSSNumericValue::toCalcTree(bool wrapInSum) const
+{
+    CSSCalc::TreeStorage storage;
+    SwiftTypedOMSource source { *this };
+    CSSCalc::SwiftOutputState output { storage };
+    auto result = cssCalcConvertTypedOM(source, output, wrapInSum);
+    if (!result.ok)
+        return std::nullopt;
+    RELEASE_ASSERT(!storage.nodes.isEmpty());
+    return CSSCalc::Tree { .storage = WTF::move(storage), .type = std::bit_cast<CSSCalc::Type>(result.typeBits), .stage = CSSCalc::Stage::Specified };
 }
 #endif
 

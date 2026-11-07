@@ -39,7 +39,11 @@ public:
     static ExceptionOr<Ref<CSSMathMin>> create(Vector<Ref<CSSNumericValue>>&&);
     const CSSNumericArray& LEGACY_NODELETE values() const;
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+#else
+    const CSSNumericValue* mathOperand(size_t index) const final { return index < m_values->length() ? m_values->array()[index].ptr() : nullptr; }
+#endif
 
 private:
     CSSMathOperator getOperator() const final { return CSSMathOperator::Min; }

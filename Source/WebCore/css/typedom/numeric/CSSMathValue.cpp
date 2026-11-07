@@ -36,6 +36,7 @@ namespace WebCore {
 
 RefPtr<CSSCalc::Value> CSSMathValue::toCSSCalcValue() const
 {
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     auto node = toCalcTreeNode();
     if (!node)
         return nullptr;
@@ -58,6 +59,22 @@ RefPtr<CSSCalc::Value> CSSMathValue::toCSSCalcValue() const
 #endif
 #if USE_SWIFT_CSS_CALC
     return CSSCalc::Value::create(*category, CSS::All, CSSCalc::makeTree(*node, type, CSSCalc::Stage::Specified, !dependencies.isAbsolute()));
+#endif
+#endif
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+    auto tree = toCalcTree(false);
+    if (!tree)
+        return nullptr;
+
+    auto category = tree->type.calculationCategory();
+    if (!category)
+        return nullptr;
+
+    ComputedStyleDependencies dependencies;
+    CSSCalc::collectComputedStyleDependencies(*tree, dependencies);
+    tree->requiresConversionData = !dependencies.isAbsolute();
+
+    return CSSCalc::Value::create(*category, CSS::All, WTF::move(*tree));
 #endif
 }
 

@@ -24,16 +24,24 @@
 
 #pragma once
 
+#if !defined(USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+#define USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM 0
+#endif
+
 namespace WebCore {
 
 struct ComputedStyleDependencies;
 
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 struct Child;
+#endif
 struct Tree;
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 void collectComputedStyleDependencies(const Child&, ComputedStyleDependencies&);
+#endif
 void collectComputedStyleDependencies(const Tree&, ComputedStyleDependencies&);
 
 } // namespace CSSCalc

@@ -37,7 +37,11 @@ public:
     const CSSNumericValue& value() const { return m_value.get(); }
     const CSSNumericValue& upper() const { return m_upper.get(); }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+#else
+    const CSSNumericValue* mathOperand(size_t index) const final { return index == 0 ? m_lower.ptr() : index == 1 ? m_value.ptr() : index == 2 ? m_upper.ptr() : nullptr; }
+#endif
 
 private:
     CSSMathOperator getOperator() const final { return CSSMathOperator::Clamp; }

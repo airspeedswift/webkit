@@ -35,6 +35,7 @@
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Abs);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Acos);
 WTF_MAKE_STRUCT_TZONE_ALLOCATED_IMPL(Anchor);
@@ -469,6 +470,7 @@ std::optional<Type> toType(const Clamp& root)
         type = mergeTypesFor(root, type, getValidatedTypeFor(root, std::get<Child>(root.max.value)));
     return transformTypeFor(root, type);
 }
+#endif
 
 #if !USE_SWIFT_CSS_CALC
 std::optional<Type> toType(const RoundNearest& root)
@@ -629,6 +631,7 @@ TextStream& operator<<(TextStream& ts, Tree tree)
 }
 
 #if USE_SWIFT_CSS_CALC
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // Typed OM expressions have only these nodes; a null operand is `none`.
 static void appendRecords(Vector<CSSCalcNodeRecord, 4>& nodes, const Child& child)
 {
@@ -672,6 +675,7 @@ static void appendRecords(Vector<CSSCalcNodeRecord, 4>& nodes, const Child& chil
     nodes[start].subtreeSize = static_cast<uint32_t>(nodes.size() - start);
     nodes[start].childCount = childCount;
 }
+#endif
 
 bool TreeStorage::operator==(const TreeStorage& other) const
 {
@@ -690,12 +694,14 @@ bool TreeStorage::operator==(const TreeStorage& other) const
     return true;
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 Tree makeTree(const Child& root, Type type, Stage stage, bool requiresConversionData)
 {
     Tree tree { .storage = { }, .type = type, .stage = stage, .requiresConversionData = requiresConversionData };
     appendRecords(tree.storage.nodes, root);
     return tree;
 }
+#endif
 #endif
 } // namespace CSSCalc
 } // namespace WebCore

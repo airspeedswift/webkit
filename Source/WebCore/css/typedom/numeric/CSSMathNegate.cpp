@@ -82,6 +82,7 @@ bool CSSMathNegate::equals(const CSSNumericValue& other) const
     return m_value->equals(otherNegate->value());
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSSCalc::Child> CSSMathNegate::toCalcTreeNode() const
 {
     auto child = m_value->toCalcTreeNode();
@@ -95,5 +96,6 @@ std::optional<CSSCalc::Child> CSSMathNegate::toCalcTreeNode() const
 
     return CSSCalc::makeChild(WTF::move(negate), *type);
 }
+#endif
 
 } // namespace WebCore

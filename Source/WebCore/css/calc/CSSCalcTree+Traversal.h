@@ -30,6 +30,7 @@
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // MARK: Traversal
 
 // MARK: - forAllChildren
@@ -127,6 +128,7 @@ template<typename F> void forAllChildNodes(const Child& root, NOESCAPE const F& 
 {
     WTF::switchOn(root, [&](const auto& root) { forAllChildNodes(*root, functor); });
 }
+#endif
 
 } // namespace CSSCalc
 } // namespace WebCore

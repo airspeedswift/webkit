@@ -1079,6 +1079,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     css/query/MediaQuery.h
 
     css/typedom/CSSNumericValue.h
+    css/typedom/CSSNumericValueSwiftTypes.h
     css/typedom/CSSOMKeywordValue.h
     css/typedom/CSSStyleValue.h
     css/typedom/CSSUnitValue.h

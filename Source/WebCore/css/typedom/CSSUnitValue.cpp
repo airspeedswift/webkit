@@ -411,9 +411,16 @@ RefPtr<CSSValue> CSSUnitValue::toCSSValueWithProperty(CSSPropertyID propertyID) 
     if (isValueOutOfRangeForProperty(propertyID, m_value, m_unit)) {
         // Wrap out of range values with a calc.
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
         auto node = toCalcTreeNode();
         ASSERT(node);
         auto type = CSSCalc::getType(*node);
+#endif
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+        auto tree = toCalcTree(true);
+        RELEASE_ASSERT(tree);
+        auto type = tree->type;
+#endif
 
         auto range = rangeForProperty(propertyID, m_unit);
         auto category = calculationCategoryForProperty(propertyID, m_unit);
@@ -423,9 +430,11 @@ RefPtr<CSSValue> CSSUnitValue::toCSSValueWithProperty(CSSPropertyID propertyID) 
             return nullptr;
         }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
         Vector<CSSCalc::Child> sumChildren;
         sumChildren.append(WTF::move(*node));
         auto sum = CSSCalc::makeChild(CSSCalc::Sum { .children = WTF::move(sumChildren) }, type);
+#endif
 
 #if !USE_SWIFT_CSS_CALC
         return CSSPrimitiveValue::create(CSSCalc::Value::create(category, range, CSSCalc::Tree {
@@ -435,15 +444,22 @@ RefPtr<CSSValue> CSSUnitValue::toCSSValueWithProperty(CSSPropertyID propertyID) 
         }));
 #endif
 #if USE_SWIFT_CSS_CALC
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
         return CSSPrimitiveValue::create(CSSCalc::Value::create(category, range, CSSCalc::makeTree(sum, type, CSSCalc::Stage::Specified, false)));
+#endif
+#endif
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+        return CSSPrimitiveValue::create(CSSCalc::Value::create(category, range, WTF::move(*tree)));
 #endif
     }
     return toCSSValue();
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSSCalc::Child> CSSUnitValue::toCalcTreeNode() const
 {
     return CSSCalc::makeNumeric(m_value, m_unit);
 }
+#endif
 
 } // namespace WebCore

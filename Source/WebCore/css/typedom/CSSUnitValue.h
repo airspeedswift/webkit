@@ -54,7 +54,12 @@ public:
 
     RefPtr<CSSValue> toCSSValue() const final;
     RefPtr<CSSValue> toCSSValueWithProperty(CSSPropertyID) const final;
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+#else
+    double unitValue() const final { return m_value; }
+    CSSUnitType unitType() const final { return m_unit; }
+#endif
 
 private:
     CSSUnitValue(double, CSSUnitType);

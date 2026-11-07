@@ -34,6 +34,7 @@
 namespace WebCore {
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 void collectComputedStyleDependencies(const Child& root, ComputedStyleDependencies& dependencies)
 {
     WTF::switchOn(root,
@@ -81,6 +82,7 @@ void collectComputedStyleDependencies(const Child& root, ComputedStyleDependenci
         }
     );
 }
+#endif
 
 void collectComputedStyleDependencies(const Tree& tree, ComputedStyleDependencies& dependencies)
 {

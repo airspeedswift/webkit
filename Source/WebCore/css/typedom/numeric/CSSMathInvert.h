@@ -36,7 +36,11 @@ public:
     CSSNumericValue& value() { return m_value.get(); }
     const CSSNumericValue& value() const { return m_value.get(); }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+#else
+    const CSSNumericValue* mathOperand(size_t index) const final { return index ? nullptr : m_value.ptr(); }
+#endif
 
 private:
     CSSMathOperator getOperator() const final { return CSSMathOperator::Invert; }

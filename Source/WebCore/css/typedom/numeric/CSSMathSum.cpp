@@ -131,6 +131,7 @@ auto CSSMathSum::toSumValue() const -> std::optional<SumValue>
     return { WTF::move(values) };
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSSCalc::Child> CSSMathSum::toCalcTreeNode() const
 {
     CSSCalc::Children children = WTF::compactMap(m_values->array(), [](auto& child) {
@@ -146,5 +147,6 @@ std::optional<CSSCalc::Child> CSSMathSum::toCalcTreeNode() const
 
     return CSSCalc::makeChild(WTF::move(sum), *type);
 }
+#endif
 
 } // namespace WebCore

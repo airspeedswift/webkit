@@ -111,6 +111,7 @@ bool CSSMathInvert::equals(const CSSNumericValue& other) const
     return m_value->equals(otherInvert->value());
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSSCalc::Child> CSSMathInvert::toCalcTreeNode() const
 {
     auto child = m_value->toCalcTreeNode();
@@ -124,5 +125,6 @@ std::optional<CSSCalc::Child> CSSMathInvert::toCalcTreeNode() const
 
     return CSSCalc::makeChild(WTF::move(invert), *type);
 }
+#endif
 
 } // namespace WebCore

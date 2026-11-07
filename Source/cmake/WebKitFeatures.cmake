@@ -629,6 +629,13 @@ macro(WEBKIT_OPTION_END)
         message(FATAL_ERROR "WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 needs WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_3: its consumers are PropertyParser methods dispatched from CSSPropertyConsumerSwiftConsumer and use its builders")
     endif ()
     SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_PROPERTY_CONSUMERS_4 ${WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4})
+    # The counterpart of CommonBase.xcconfig's WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM: the conversion of Typed OM
+    # math values to calc() trees is Swift.
+    option(WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM "Convert Typed OM math values to calc() with WebCore's Swift" OFF)
+    if (WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM AND NOT WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4)
+        message(FATAL_ERROR "WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM needs WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4: the Typed OM conversion writes the Swift calc() trees")
+    endif ()
+    SET_AND_EXPOSE_TO_BUILD(USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM ${WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM})
 
     # A Swift feature still on with a too-old toolchain was requested explicitly
     # (the default declines to auto-enable it), so fail loudly rather than drop it

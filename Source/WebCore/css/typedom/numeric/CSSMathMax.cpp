@@ -98,6 +98,7 @@ auto CSSMathMax::toSumValue() const -> std::optional<SumValue>
     return currentMax;
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSSCalc::Child> CSSMathMax::toCalcTreeNode() const
 {
     CSSCalc::Children children = WTF::compactMap(m_values->array(), [](auto& child) {
@@ -113,5 +114,6 @@ std::optional<CSSCalc::Child> CSSMathMax::toCalcTreeNode() const
 
     return CSSCalc::makeChild(WTF::move(max), *type);
 }
+#endif
 
 } // namespace WebCore

@@ -40,6 +40,10 @@
 #define USE_SWIFT_CSS_CALC 0
 #endif
 
+#if !defined(USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+#define USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM 0
+#endif
+
 #if USE_SWIFT_CSS_CALC
 #include <WebCore/CSSCalcSwiftTypes.h>
 #endif
@@ -54,6 +58,7 @@ enum class CSSUnitType : uint8_t;
 
 namespace CSSCalc {
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // Math Operators.
 struct Sum;
 struct Product;
@@ -303,6 +308,7 @@ struct Children {
 
     bool operator==(const Children&) const = default;
 };
+#endif
 
 enum class Stage : bool { Specified, Computed };
 
@@ -337,10 +343,13 @@ struct Tree {
 };
 
 #if USE_SWIFT_CSS_CALC
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // The tree of a Typed OM expression, which builds it as nodes.
 Tree makeTree(const Child&, Type, Stage, bool requiresConversionData);
 #endif
+#endif
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 struct Sum {
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(Sum);
 
@@ -791,11 +800,14 @@ struct Sign {
 
     bool operator==(const Sign&) const = default;
 };
+#endif
 
 // Random Function - https://drafts.csswg.org/css-values-5/#random
 struct Random {
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(Random);
     static constexpr auto id = CSSValueID::Random;
+#endif
 
     // <random-key> = auto | <random-cache-key> | fixed <number [0,1]>
     // <random-cache-key> = <dashed-ident> || element-scoped || [ property-scoped | property-index-scoped ]
@@ -809,6 +821,7 @@ struct Random {
     };
     using Sharing = Variant<SharingAuto, Key, SharingFixed>;
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     // <random()> = random( <random-key>? , <calc-sum>, <calc-sum>, <calc-sum>? )
     //     - INPUT: "same" <number>, <dimension>, or <percentage>
     //     - OUTPUT: same type
@@ -822,8 +835,10 @@ struct Random {
     std::optional<Child> step;
 
     bool operator==(const Random&) const = default;
+#endif
 };
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // Progress Function - https://drafts.csswg.org/css-values-5/#progress
 struct Progress {
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(Progress);
@@ -862,21 +877,28 @@ struct ProgressNoClamp {
     bool operator==(const ProgressNoClamp&) const = default;
 };
 
+#endif
+
 // CalcMix Function - https://drafts.csswg.org/css-values-5/#calc-mix
 
 struct CalcMix {
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     WTF_MAKE_STRUCT_TZONE_ALLOCATED(CalcMix);
     static constexpr auto id = CSSValueID::CalcMix;
+#endif
 
     struct Item {
         using Weight = CSS::Percentage<CSS::ClosedPercentageRange>;
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
         Child value;
         std::optional<Weight> weight;
 
         bool operator==(const Item&) const = default;
+#endif
     };
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
     // <calc-mix()> = calc-mix( [ <calc-sum> <percentage [0,100]>? ]# )
     //     - INPUT: "consistent" <number>, <dimension>, or <percentage> (referring to <calc-sum> arguments)
     //     - OUTPUT: consistent type
@@ -887,8 +909,10 @@ struct CalcMix {
     Vector<Item> children;
 
     bool operator==(const CalcMix&) const = default;
+#endif
 };
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // Anchor Positioning Related Functions - https://drafts.csswg.org/css-anchor-position-1/
 
 struct AnchorSide {
@@ -932,12 +956,14 @@ struct AnchorSize {
 
     bool operator==(const AnchorSize&) const = default;
 };
+#endif
 
 
 // MARK: TextStream
 
 TextStream& operator<<(TextStream&, Tree);
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // MARK: Construction
 
 // Default implementation of ChildConstruction used for all indirect nodes.
@@ -1069,7 +1095,9 @@ Child LEGACY_NODELETE makeChildWithValueBasedOn(double value, const Percentage&)
 Child LEGACY_NODELETE makeChildWithValueBasedOn(double value, const CanonicalDimension&);
 Child LEGACY_NODELETE makeChildWithValueBasedOn(double value, const NonCanonicalDimension&);
 #endif
+#endif
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // MARK: Tuple Conformance
 
 // get<> overload (along with std::tuple_size and std::tuple_element below) to support destructuring of operation nodes.
@@ -1310,10 +1338,12 @@ Child::Child(T&& value)
     : value(std::forward<T>(value))
 {
 }
+#endif
 
 } // namespace CSSCalc
 } // namespace WebCore
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 namespace std {
 
 #define OP_TUPLE_LIKE_CONFORMANCE(op, numberOfArguments) \
@@ -1363,3 +1393,4 @@ OP_TUPLE_LIKE_CONFORMANCE(AnchorSize, 0);
 #undef OP_TUPLE_LIKE_CONFORMANCE
 
 } // namespace std
+#endif

@@ -3462,6 +3462,7 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftSmall.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftValues.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
+        ${WEBCORE_DIR}/css/typedom/CSSNumericValueSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
         ${WEBCORE_DIR}/html/parser/HTMLFastPathParser.swift
         ${WEBCORE_DIR}/html/parser/HTMLTokenizer.swift
@@ -3563,6 +3564,10 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         list(APPEND _webcore_swift_core_submodules css/parser/CSSCustomPropertySyntax.h)
         # The position values and the CSS::Position they hold, which the consumers' Swift builds.
         list(APPEND _webcore_swift_core_submodules css/CSSPositionValue.h css/values/primitives/CSSPosition.h)
+    endif ()
+    if (WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+        webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM" "-Xcc -DUSE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM=1")
+        list(APPEND _webcore_swift_core_submodules css/typedom/CSSNumericValueSwiftTypes.h)
     endif ()
     list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 
