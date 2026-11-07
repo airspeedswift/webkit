@@ -35,9 +35,11 @@
 #include <WebCore/CSSNumericValue.h>
 #include <WebCore/CSSParser.h>
 #include <WebCore/CSSParserContext.h>
+#include <WebCore/CSSProperty.h>
 #include <WebCore/CSSPropertyNames.h>
 #include <WebCore/CSSPropertyParserConsumer+Easing.h>
 #include <WebCore/CSSPropertyParserConsumer+Font.h>
+#include <WebCore/CSSRule.h>
 #include <WebCore/CSSSerializationContext.h>
 #include <WebCore/CSSUnitValue.h>
 #include <WebCore/CSSValue.h>
@@ -46,9 +48,11 @@
 #include <WebCore/ProcessWarming.h>
 #include <WebCore/Settings.h>
 #include <WebCore/StyleProperties.h>
+#include <WebCore/StylePropertiesInlines.h>
 #include <WebCore/StyleRule.h>
 #include <WebCore/StyleSheetContents.h>
 #include <WebCore/TimingFunction.h>
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -67,7 +71,8 @@
 // checks a checksum of what was parsed. With WEBKIT_RUN_BENCHMARKS set, it then parses them a fixed number of times
 // and prints the time taken. FontShorthands also parses its strings with parseUnresolvedFont, TimingFunctions parses
 // each of its easings with parseEasingFunctionDeprecated, and FontFaceBlocks parses style sheets of @font-face rules
-// and reads their descriptors back.
+// and reads their descriptors back. ShorthandHeavy reads back every longhand its shorthands set, and Descriptors
+// parses style sheets of @font-face, @counter-style and @property rules and reads back each rule's CSSOM text.
 // TypedOMCalc converts Typed OM math values (CSSMathSum, CSSMathProduct, CSSMathMin, CSSMathMax, CSSMathClamp) and
 // out-of-range CSSUnitValues to CSSValues, as StylePropertyMap's set() does.
 //
@@ -4904,6 +4909,477 @@ static Vector<Block> smallFamiliesBlocks()
     });
 }
 
+// MARK: - Heavy shorthands.
+
+static constexpr Property borderShorthand { CSSPropertyID::Border, "border"_s };
+static constexpr Property flexShorthand { CSSPropertyID::Flex, "flex"_s };
+static constexpr Property marginShorthand { CSSPropertyID::Margin, "margin"_s };
+static constexpr Property paddingShorthand { CSSPropertyID::Padding, "padding"_s };
+static constexpr Property insetShorthand { CSSPropertyID::Inset, "inset"_s };
+
+static constexpr ASCIILiteral borderLineStyles[] = { "solid"_s, "dashed"_s, "dotted"_s, "double"_s, "groove"_s, "ridge"_s, "inset"_s, "outset"_s, "none"_s, "hidden"_s };
+static constexpr ASCIILiteral commonFlexValues[] = {
+    "none"_s, "auto"_s, "1"_s, "0 0 auto"_s, "1 1 0%"_s, "2 2"_s, "1 0 200px"_s, "0 1 auto"_s, "content"_s, "1 auto"_s, "0.5 3rem"_s, "initial"_s,
+};
+// Three numbers, a negative grow, two bases, a basis between the numbers, a keyword after a number, a unitless basis.
+static constexpr ASCIILiteral invalidFlexValues[] = { "1 1 1 1"_s, "-1"_s, "10px 20px"_s, "1 10px 1 1"_s, "1 none"_s, "1 1 10"_s };
+// A slot twice, a color twice, a negative width, a number as a width.
+static constexpr ASCIILiteral invalidBorderValues[] = { "solid solid"_s, "red blue"_s, "-1px solid"_s, "1 solid red"_s, "thin thick"_s };
+static constexpr ASCIILiteral generatedGridAutoFlows[] = { "auto-flow"_s, "auto-flow dense"_s, "dense auto-flow"_s };
+static constexpr ASCIILiteral cssWideKeywords[] = { "inherit"_s, "initial"_s, "unset"_s, "revert"_s, "revert-layer"_s };
+static constexpr ASCIILiteral substitutionValues[] = {
+    "var(--a)"_s, "var(--a, 1px solid red)"_s, "1px var(--style) red"_s, "var(--x) / var(--y)"_s, "env(safe-area-inset-top) 1px"_s,
+};
+
+static void appendBorderValue(StringBuilder& value, Random& random)
+{
+    if (random.percent(5)) {
+        value.append(random.pick(invalidBorderValues));
+        return;
+    }
+    // Width, style and color, each present or not, in one of the six orders.
+    std::array<unsigned, 3> order { 0, 1, 2 };
+    unsigned rotation = random.below(3);
+    std::rotate(order.begin(), order.begin() + rotation, order.end());
+    if (random.percent(50))
+        std::swap(order[1], order[2]);
+    bool first = true;
+    for (auto slot : order) {
+        if (!random.percent(70))
+            continue;
+        appendComponentSeparator(value, first);
+        switch (slot) {
+        case 0:
+            appendLineWidth(value, random);
+            break;
+        case 1:
+            value.append(random.pick(borderLineStyles));
+            break;
+        default:
+            appendColor(value, random);
+            break;
+        }
+    }
+    if (first)
+        value.append(random.pick(borderLineStyles));
+}
+
+static void appendFlexBasis(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 15)
+        appendCalcLengthPercentage(value, random);
+    else if (kind < 25)
+        value.append(kind < 20 ? "auto"_s : "content"_s);
+    else
+        appendLengthPercentage(value, random, 0);
+}
+
+// A common value; a grow; a grow and a shrink; a grow, a shrink and a basis; a grow and a basis; a basis alone; a
+// basis before the numbers.
+static void appendFlexValue(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 5) {
+        value.append(random.pick(invalidFlexValues));
+        return;
+    }
+    if (kind < 40) {
+        value.append(random.pick(commonFlexValues));
+        return;
+    }
+    unsigned form = random.below(6);
+    if (form == 5) {
+        appendFlexBasis(value, random);
+        value.append(' ');
+    }
+    if (form != 4) {
+        appendNumber(value, random, 5, 2);
+        if (form == 1 || form == 2 || form == 5) {
+            value.append(' ');
+            appendNumber(value, random, 5, 1);
+        }
+    }
+    if (form == 2 || form == 3) {
+        value.append(' ');
+        appendFlexBasis(value, random);
+    } else if (form == 4)
+        appendFlexBasis(value, random);
+}
+
+// One to four values; padding takes no auto and no negative lengths, so an `auto` or a negative padding is an error.
+static void appendBoxSides(StringBuilder& value, Random& random, bool isPadding)
+{
+    unsigned count = 1 + random.below(4);
+    for (unsigned i = 0; i < count; ++i) {
+        if (i)
+            value.append(' ');
+        if (isPadding && !random.percent(3)) {
+            if (random.percent(12))
+                appendCalcLengthPercentage(value, random);
+            else
+                appendLengthPercentage(value, random, 0);
+            continue;
+        }
+        appendMarginOrInset(value, random);
+    }
+}
+
+// grid-template as rows / columns, or as rows of quoted areas with optional names and sizes, then columns.
+static void appendGridTemplateShorthandValue(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 25) {
+        value.append(random.pick(commonGridTemplates));
+        return;
+    }
+    if (kind < 55) {
+        appendGridTemplateValue(value, random, 25);
+        value.append(" / "_s);
+        appendGridTemplateValue(value, random, 25);
+        return;
+    }
+    unsigned rows = 1 + random.below(4);
+    unsigned columns = 1 + random.below(4);
+    for (unsigned row = 0; row < rows; ++row) {
+        if (row)
+            value.append(' ');
+        if (random.percent(20)) {
+            appendLineNames(value, random);
+            value.append(' ');
+        }
+        value.append('"');
+        for (unsigned column = 0; column < columns; ++column) {
+            if (column)
+                value.append(' ');
+            value.append(random.percent(10) ? "."_s : random.pick(areaNames));
+        }
+        value.append('"');
+        if (random.percent(50)) {
+            value.append(' ');
+            appendTrackSize(value, random);
+        }
+        if (random.percent(15)) {
+            value.append(' ');
+            appendLineNames(value, random);
+        }
+    }
+    if (random.percent(70)) {
+        value.append(" / "_s);
+        appendTrackList(value, random);
+    }
+}
+
+static void appendGridShorthandValue(StringBuilder& value, Random& random)
+{
+    unsigned kind = random.below(100);
+    if (kind < 35) {
+        value.append(random.pick(commonGridShorthands));
+        return;
+    }
+    if (kind < 60) {
+        // Rows, then auto-flow columns.
+        appendTrackList(value, random);
+        value.append(" / "_s, random.pick(generatedGridAutoFlows));
+        if (random.percent(60)) {
+            value.append(' ');
+            appendTrackSize(value, random);
+        }
+        return;
+    }
+    if (kind < 85) {
+        // Auto-flow rows, then columns.
+        value.append(random.pick(generatedGridAutoFlows));
+        if (random.percent(60)) {
+            value.append(' ');
+            appendTrackSize(value, random);
+        }
+        value.append(" / "_s);
+        appendGridTemplateValue(value, random, 30);
+        return;
+    }
+    appendGridTemplateShorthandValue(value, random);
+}
+
+// The eleven shorthands a style sheet's rules use most, in rule-sized blocks: font, grid, grid-template, background
+// with three layers, animation and transition lists of two to four items, border, flex, margin, padding and inset.
+// One declaration in ten is !important, three in a hundred are a CSS-wide keyword (which every longhand takes) and
+// three in a hundred hold a substitution function (which makes every longhand a pending substitution).
+static Vector<Block> shorthandHeavyBlocks()
+{
+    return generateBlocks(331, [](Random& random, StringBuilder& value, unsigned index) -> const Property& {
+        static constexpr const Property* properties[] = {
+            &fontShorthand, &gridShorthand, &gridTemplate, &backgroundShorthand, &animationShorthand, &transitionShorthand,
+            &borderShorthand, &flexShorthand, &marginShorthand, &paddingShorthand, &insetShorthand,
+        };
+        auto& property = *properties[index % std::size(properties)];
+        unsigned special = random.below(100);
+        if (special < 3)
+            value.append(random.pick(cssWideKeywords));
+        else if (special < 6)
+            value.append(random.pick(substitutionValues));
+        else {
+            switch (property.id) {
+            case CSSPropertyID::Font:
+                appendFontString(value, random);
+                break;
+            case CSSPropertyID::Grid:
+                appendGridShorthandValue(value, random);
+                break;
+            case CSSPropertyID::GridTemplate:
+                appendGridTemplateShorthandValue(value, random);
+                break;
+            case CSSPropertyID::Background:
+                for (unsigned i = 0; i < 3; ++i) {
+                    if (i)
+                        value.append(", "_s);
+                    appendFullLayer(value, random, property, i == 2);
+                }
+                break;
+            case CSSPropertyID::Animation:
+            case CSSPropertyID::Transition: {
+                unsigned count = 2 + random.below(3);
+                for (unsigned i = 0; i < count; ++i) {
+                    if (i)
+                        value.append(", "_s);
+                    if (property.id == CSSPropertyID::Animation)
+                        appendAnimationItem(value, random);
+                    else
+                        appendTransitionItem(value, random);
+                }
+                break;
+            }
+            case CSSPropertyID::Border:
+                appendBorderValue(value, random);
+                break;
+            case CSSPropertyID::Flex:
+                appendFlexValue(value, random);
+                break;
+            default:
+                appendBoxSides(value, random, property.id == CSSPropertyID::Padding);
+                break;
+            }
+        }
+        if (random.percent(10))
+            value.append(" !important"_s);
+        return property;
+    });
+}
+
+// MARK: - Descriptor blocks.
+
+static constexpr ASCIILiteral counterStyleRuleNames[] = { "thumbs"_s, "roman-ish"_s, "dots"_s, "circled"_s, "my-decimal"_s, "stars"_s, "box-steps"_s };
+static constexpr ASCIILiteral counterStyleSymbols[] = { "\"*\""_s, "\"\\2022\""_s, "'a'"_s, "\"\\1F44D\""_s, "x"_s, "\"\\25CF\""_s, "\"--\""_s };
+static constexpr ASCIILiteral counterStyleSystems[] = {
+    "cyclic"_s, "numeric"_s, "alphabetic"_s, "symbolic"_s, "additive"_s, "fixed"_s, "fixed 3"_s, "fixed -2"_s, "extends decimal"_s,
+    "extends lower-roman"_s, "extends thumbs"_s,
+};
+// Unknown, extends with no name, extends a reserved name, fixed with a non-integer.
+static constexpr ASCIILiteral invalidCounterStyleSystems[] = { "bogus"_s, "extends"_s, "extends none"_s, "fixed 1.5"_s };
+static constexpr ASCIILiteral counterStyleRanges[] = { "auto"_s, "1 10"_s, "infinite 0"_s, "-5 5, 10 infinite"_s, "infinite infinite"_s, "3 1"_s, "1 2, 4 8, 16 32"_s };
+static constexpr ASCIILiteral counterStyleSpeakAs[] = { "auto"_s, "bullets"_s, "numbers"_s, "words"_s, "spell-out"_s, "thumbs"_s };
+static constexpr ASCIILiteral registeredSyntaxes[] = {
+    "<length>"_s, "<color>"_s, "<length-percentage>"_s, "<number>"_s, "<integer>"_s, "<angle>"_s, "<time>"_s, "<percentage>"_s,
+    "<length>+"_s, "<length>#"_s, "<number> | auto"_s, "<color> | none"_s, "*"_s, "<custom-ident>"_s, "small | medium | large"_s,
+    "<transform-function>"_s, "<transform-list>"_s, "<image>"_s, "<url>"_s, "<resolution>"_s, "<string>"_s,
+};
+// Unknown types, an empty string, a multiplier on a keyword, a stray combinator, a CSS-wide keyword.
+static constexpr ASCIILiteral invalidRegisteredSyntaxes[] = { "<lenght>"_s, ""_s, "auto+"_s, "<length> |"_s, "inherit"_s, "<length>++"_s };
+
+// An initial value for one of registeredSyntaxes, matching it in most cases; a relative length (1em) is not
+// computationally independent, so it makes the registration invalid.
+static void appendRegisteredInitialValue(StringBuilder& value, Random& random, ASCIILiteral syntax)
+{
+    if (random.percent(6)) {
+        value.append(random.percent(50) ? "1em"_s : "nonsense()"_s);
+        return;
+    }
+    if (syntax == "<length>"_s || syntax == "<length-percentage>"_s) {
+        if (random.percent(20))
+            value.append("calc(10px + 2in)"_s);
+        else {
+            appendSignedNumber(value, random, 500, 2, 10);
+            value.append(random.percent(80) ? "px"_s : "cm"_s);
+        }
+    } else if (syntax == "<length>+"_s || syntax == "<length>#"_s) {
+        unsigned count = 1 + random.below(4);
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                value.append(syntax == "<length>#"_s ? ", "_s : " "_s);
+            appendNumber(value, random, 100, 1);
+            value.append("px"_s);
+        }
+    } else if (syntax == "<color>"_s || syntax == "<color> | none"_s)
+        appendAbsoluteColor(value, random);
+    else if (syntax == "<number>"_s || syntax == "<number> | auto"_s)
+        appendSignedNumber(value, random, 100, 3, 20);
+    else if (syntax == "<integer>"_s)
+        appendInteger(value, random, 1000, 20);
+    else if (syntax == "<angle>"_s)
+        appendAngle(value, random);
+    else if (syntax == "<time>"_s)
+        appendTime(value, random, 10);
+    else if (syntax == "<percentage>"_s) {
+        appendSignedNumber(value, random, 100, 1, 10);
+        value.append('%');
+    } else if (syntax == "<custom-ident>"_s)
+        value.append(random.pick(counterStyleRuleNames));
+    else if (syntax == "small | medium | large"_s)
+        value.append(random.percent(50) ? "medium"_s : "large"_s);
+    else if (syntax == "<transform-function>"_s || syntax == "<transform-list>"_s)
+        appendTransformFunction(value, random);
+    else if (syntax == "<image>"_s)
+        appendLinearGradient(value, random);
+    else if (syntax == "<url>"_s)
+        value.append("url(a.png)"_s);
+    else if (syntax == "<resolution>"_s)
+        value.append("2dppx"_s);
+    else if (syntax == "<string>"_s)
+        value.append("\"text\""_s);
+    else
+        value.append("anything [goes] (here)"_s);
+}
+
+static void appendCounterStyleRule(StringBuilder& sheet, Random& random, unsigned index)
+{
+    sheet.append("@counter-style "_s, random.pick(counterStyleRuleNames), '-', index, " { system: "_s);
+    bool invalidSystem = random.percent(4);
+    auto system = invalidSystem ? random.pick(invalidCounterStyleSystems) : random.pick(counterStyleSystems);
+    sheet.append(system, ';');
+    bool additive = system == "additive"_s;
+    bool extends = StringView { system }.startsWith("extends"_s);
+    if (additive) {
+        sheet.append(" additive-symbols: "_s);
+        unsigned count = 1 + random.below(5);
+        unsigned weight = 1000;
+        for (unsigned i = 0; i < count; ++i) {
+            if (i)
+                sheet.append(", "_s);
+            unsigned step = 1 + random.below(weight / 2 + 1);
+            weight = weight > step ? weight - step : 0;
+            sheet.append(weight, ' ', random.pick(counterStyleSymbols));
+        }
+        sheet.append(';');
+    } else if (!extends || random.percent(20)) {
+        // Symbols for every other system; an extends rule with symbols is invalid.
+        sheet.append(" symbols:"_s);
+        unsigned count = 1 + random.below(6);
+        for (unsigned i = 0; i < count; ++i)
+            sheet.append(' ', random.pick(counterStyleSymbols));
+        sheet.append(';');
+    }
+    if (random.percent(40)) {
+        sheet.append(" negative: "_s, random.pick(counterStyleSymbols));
+        if (random.percent(50))
+            sheet.append(" \")\""_s);
+        sheet.append(';');
+    }
+    if (random.percent(40))
+        sheet.append(" prefix: "_s, random.pick(counterStyleSymbols), ';');
+    if (random.percent(50))
+        sheet.append(" suffix: "_s, random.pick(counterStyleSymbols), ';');
+    if (random.percent(40))
+        sheet.append(" range: "_s, random.pick(counterStyleRanges), ';');
+    if (random.percent(30)) {
+        unsigned length = random.below(6);
+        sheet.append(" pad: "_s, length, ' ', random.pick(counterStyleSymbols), ';');
+    }
+    if (random.percent(30))
+        sheet.append(" fallback: "_s, random.percent(50) ? "decimal"_s : random.pick(counterStyleRuleNames), ';');
+    if (random.percent(20))
+        sheet.append(" speak-as: "_s, random.pick(counterStyleSpeakAs), ';');
+    sheet.append(" }\n"_s);
+}
+
+static void appendPropertyRule(StringBuilder& sheet, Random& random, unsigned index)
+{
+    sheet.append("@property --registered-"_s, index, " { "_s);
+    bool invalidSyntax = random.percent(5);
+    auto syntax = invalidSyntax ? random.pick(invalidRegisteredSyntaxes) : random.pick(registeredSyntaxes);
+    unsigned order = random.below(3);
+    // The three descriptors in one of three orders; one rule in twenty leaves out inherits, which it requires.
+    // One in twenty-five leaves out an initial value, which only the universal syntax may do; half the universal ones
+    // have none.
+    bool hasInherits = !random.percent(5);
+    bool dropsInitialValue = random.percent(4);
+    bool universalHasInitialValue = random.percent(50);
+    bool hasInitialValue = !dropsInitialValue && (syntax != "*"_s || universalHasInitialValue);
+    for (unsigned i = 0; i < 3; ++i) {
+        switch ((i + order) % 3) {
+        case 0:
+            sheet.append("syntax: \""_s, syntax, "\"; "_s);
+            break;
+        case 1:
+            if (hasInherits)
+                sheet.append("inherits: "_s, random.percent(50) ? "true"_s : "false"_s, "; "_s);
+            break;
+        default:
+            if (hasInitialValue) {
+                sheet.append("initial-value: "_s);
+                appendRegisteredInitialValue(sheet, random, syntax);
+                sheet.append("; "_s);
+            }
+            break;
+        }
+    }
+    sheet.append("}\n"_s);
+}
+
+static void appendShortFontFaceRule(StringBuilder& sheet, Random& random, unsigned index)
+{
+    sheet.append("@font-face { font-family: "_s);
+    appendFamilyName(sheet, random);
+    sheet.append("; src: "_s);
+    unsigned sources = 1 + random.below(3);
+    for (unsigned i = 0; i < sources; ++i) {
+        if (i)
+            sheet.append(", "_s);
+        appendFontSource(sheet, random, index);
+    }
+    if (random.percent(60)) {
+        sheet.append("; unicode-range: "_s);
+        unsigned ranges = 1 + random.below(3);
+        for (unsigned i = 0; i < ranges; ++i) {
+            if (i)
+                sheet.append(", "_s);
+            appendUnicodeRange(sheet, random);
+        }
+    }
+    sheet.append("; font-weight: "_s, random.pick(fontFaceWeights));
+    if (random.percent(60))
+        sheet.append("; font-style: "_s, random.pick(fontFaceStyles));
+    if (random.percent(50))
+        sheet.append("; font-width: "_s, random.pick(fontWidthKeywords));
+    if (random.percent(50))
+        sheet.append("; font-display: "_s, random.pick(fontDisplays));
+    if (random.percent(20))
+        sheet.append("; size-adjust: "_s, random.pick(fontFaceOverrides));
+    sheet.append("; }\n"_s);
+}
+
+static constexpr unsigned descriptorSheetCount = 1024;
+
+// Style sheets of one @font-face rule, two @counter-style rules (every system, symbols and additive symbols,
+// negative, prefix, suffix, range, pad, fallback, speak-as) and two @property registrations (every syntax kind, with
+// an initial value of its type, in any descriptor order), with errors in each: an unknown system or syntax, an
+// extends rule with symbols, a missing inherits or initial value, an initial value that is not computationally
+// independent.
+static Vector<String> descriptorSheets()
+{
+    Random random(332);
+    Vector<String> sheets;
+    for (unsigned sheetIndex = 0; sheetIndex < descriptorSheetCount; ++sheetIndex) {
+        StringBuilder sheet;
+        appendShortFontFaceRule(sheet, random, sheetIndex);
+        for (unsigned rule = 0; rule < 2; ++rule)
+            appendCounterStyleRule(sheet, random, sheetIndex * 2 + rule);
+        for (unsigned rule = 0; rule < 2; ++rule)
+            appendPropertyRule(sheet, random, sheetIndex * 2 + rule);
+        sheets.append(sheet.toString());
+    }
+    return sheets;
+}
+
 // MARK: - Typed OM math values.
 
 struct TypedOMCase {
@@ -5325,6 +5801,132 @@ static void runFontFaceSheets(ASCIILiteral name, const Vector<String>& sheets, u
     printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum);
 }
 
+
+// MARK: - Running the heavy shorthand and descriptor shapes.
+
+// Whether each block changed, then every longhand the block holds, in order: its id, whether it is important or
+// implicit, whether a shorthand set it and its index among the longhand's shorthands, and its value's text; then the
+// serialization of each declared shorthand.
+static uint64_t checksumOfLonghands(const Vector<Block>& blocks, const CSSParserContext& context, unsigned& parsedLonghands, unsigned& changedBlocks)
+{
+    auto& serialization = CSS::defaultSerializationContext();
+    Checksum checksum;
+    for (auto& block : blocks) {
+        Ref properties = MutableStyleProperties::create();
+        bool changed = CSSParser::parseDeclarationList(properties, block.text, context);
+        changedBlocks += changed;
+        checksum.add(changed);
+        unsigned count = properties->propertyCount();
+        checksum.add(count);
+        parsedLonghands += count;
+        for (unsigned i = 0; i < count; ++i) {
+            auto reference = properties->propertyAt(i);
+            auto property = reference.toCSSProperty();
+            auto& metadata = property.metadata();
+            checksum.add(static_cast<uint64_t>(reference.id()));
+            checksum.add(reference.isImportant());
+            checksum.add(reference.isImplicit());
+            checksum.add(metadata.m_isSetFromShorthand);
+            checksum.add(metadata.m_indexInShorthandsVector);
+            auto* value = reference.value();
+            checksum.add(!!value);
+            if (value)
+                checksum.add(value->cssText(serialization));
+        }
+        for (auto shorthand : block.properties)
+            checksum.add(properties->getPropertyValue(shorthand));
+    }
+    return checksum.value();
+}
+
+static void runShorthandHeavy(ASCIILiteral name, uint64_t expectedChecksum, unsigned passes)
+{
+    // The font shorthand's family names serialise from the names table (runFontFaceSheets).
+    ProcessWarming::initializeNames();
+    auto blocks = shorthandHeavyBlocks();
+    auto& context = strictCSSParserContext();
+    auto bytes = blockBytes(blocks);
+    ASSERT_GT(bytes, 0u);
+    unsigned parsedLonghands = 0;
+    unsigned changedBlocks = 0;
+    auto checksum = checksumOfLonghands(blocks, context, parsedLonghands, changedBlocks);
+    EXPECT_GT(parsedLonghands, 0u);
+    EXPECT_GT(changedBlocks, 0u);
+    EXPECT_EQ(expectedChecksum, checksum) << "checksum=" << std::hex << checksum;
+    if (!runsBenchmarks())
+        return;
+
+    unsigned changed = 0;
+    auto start = MonotonicTime::now();
+    for (unsigned pass = 0; pass < passes; ++pass) {
+        for (auto& block : blocks) {
+            Ref properties = MutableStyleProperties::create();
+            changed += CSSParser::parseDeclarationList(properties, block.text, context);
+        }
+    }
+    auto elapsed = MonotonicTime::now() - start;
+    EXPECT_EQ(changedBlocks * passes, changed);
+    printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum);
+}
+
+// Whether each sheet parsed, its rule count, and each rule's type and CSSOM text (which serialises every descriptor
+// the rule kept).
+static uint64_t checksumOfDescriptorRules(const Vector<String>& sheets, const CSSParserContext& context, unsigned& parsedRules, std::array<unsigned, 3>& rulesByKind)
+{
+    Checksum checksum;
+    for (auto& text : sheets) {
+        Ref sheet = StyleSheetContents::create(context);
+        checksum.add(sheet->parseString(text));
+        auto& rules = sheet->childRules();
+        parsedRules += static_cast<unsigned>(rules.size());
+        checksum.add(rules.size());
+        for (auto& rule : rules) {
+            auto type = rule->type();
+            checksum.add(static_cast<uint64_t>(type));
+            rulesByKind[0] += type == StyleRuleType::FontFace;
+            rulesByKind[1] += type == StyleRuleType::CounterStyle;
+            rulesByKind[2] += type == StyleRuleType::Property;
+            Ref wrapper = rule->createCSSOMWrapper();
+            checksum.add(wrapper->cssText());
+        }
+    }
+    return checksum.value();
+}
+
+static void runDescriptorSheets(ASCIILiteral name, uint64_t expectedChecksum, unsigned passes)
+{
+    ProcessWarming::initializeNames();
+    auto sheets = descriptorSheets();
+    auto& context = strictCSSParserContext();
+    auto bytes = stringBytes(sheets);
+    ASSERT_GT(bytes, 0u);
+    unsigned parsedRules = 0;
+    std::array<unsigned, 3> rulesByKind { };
+    auto checksum = checksumOfDescriptorRules(sheets, context, parsedRules, rulesByKind);
+    // Each kind is parsed, and each loses some rules to its errors.
+    EXPECT_GT(rulesByKind[0], 0u);
+    EXPECT_GT(rulesByKind[1], 0u);
+    EXPECT_GT(rulesByKind[2], 0u);
+    EXPECT_GT(sheets.size() * 2, rulesByKind[1]);
+    EXPECT_GT(sheets.size() * 2, rulesByKind[2]);
+    EXPECT_EQ(expectedChecksum, checksum) << "checksum=" << std::hex << checksum;
+    if (!runsBenchmarks())
+        return;
+
+    unsigned rules = 0;
+    auto start = MonotonicTime::now();
+    for (unsigned pass = 0; pass < passes; ++pass) {
+        for (auto& text : sheets) {
+            Ref sheet = StyleSheetContents::create(context);
+            sheet->parseString(text);
+            rules += static_cast<unsigned>(sheet->childRules().size());
+        }
+    }
+    auto elapsed = MonotonicTime::now() - start;
+    EXPECT_EQ(parsedRules * passes, rules);
+    printResult(name, elapsed, static_cast<double>(bytes) * passes, checksum);
+}
+
 // MARK: - Running the Typed OM shape.
 
 // Typed OM's own serialization of each value (the bytes the shape reports), whether converting it for its property
@@ -5436,6 +6038,8 @@ TEST(CSSConsumersBench, ShapesRare) { run("ShapesRare"_s, shapesRareBlocks(), Va
 TEST(CSSConsumersBench, ContentAndCounters) { run("ContentAndCounters"_s, contentAndCountersBlocks(), Values::Valid, 0x6261324865658724ULL, 400); }
 TEST(CSSConsumersBench, SmallFamilies) { run("SmallFamilies"_s, smallFamiliesBlocks(), Values::Valid, 0xe6b2ff5e0da3d285ULL, 450); }
 
+TEST(CSSConsumersBench, ShorthandHeavy) { runShorthandHeavy("ShorthandHeavy"_s, 0x150f2aa6abc85a2aULL, 100); }
+TEST(CSSConsumersBench, Descriptors) { runDescriptorSheets("Descriptors"_s, 0xd410ca08f8c96878ULL, 150); }
 TEST(CSSConsumersBench, TypedOMCalc) { runTypedOMConversions("TypedOMCalc"_s, 0x9e81b1b14a61c365ULL, 1700); }
 
 } // namespace TestWebKitAPI

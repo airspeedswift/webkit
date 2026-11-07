@@ -1168,6 +1168,7 @@ css/parser/CSSPropertyParserConsumer+URL.cpp
 css/parser/CSSPropertyParserConsumer+UnicodeRange.cpp
 css/parser/CSSPropertyParserConsumer+ViewTransition.cpp
 css/parser/CSSPropertyParserResult.cpp
+css/parser/CSSPropertyParserSwift.cpp @no-unify
 css/parser/CSSSelectorParser.cpp
 css/parser/CSSSelectorParserContext.cpp
 css/parser/CSSSupportsParser.cpp

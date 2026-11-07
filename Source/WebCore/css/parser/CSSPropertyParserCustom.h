@@ -116,6 +116,7 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/ZippedRange.h>
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 namespace WebCore {
 namespace CSS {
 
@@ -2450,3 +2451,4 @@ inline bool PropertyParserCustom::consumeMarkerShorthand(CSSParserTokenRange& ra
 
 } // namespace CSS
 } // namespace WebCore
+#endif // !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM

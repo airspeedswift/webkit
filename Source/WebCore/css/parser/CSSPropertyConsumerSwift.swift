@@ -756,6 +756,17 @@ struct PropertyParser: ~Copyable, ~Escapable {
             }
             unit = WebCore.CSS.toCSSUnitType(time)
         #endif
+        #if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+        case .resolution:
+            // ResolutionValidator: a dimension token of a resolution unit, with a finite value.
+            guard type == PropertyTokenType.dimension, !value.isInfinite,
+                let resolution = WebCore.CSSUnitType(rawValue: tokens.value.unitType(index)),
+                WebCore.CSS.toResolutionUnit(resolution).value != nil
+            else {
+                return nil
+            }
+            unit = resolution
+        #endif
         case .angle:
             guard type != PropertyTokenType.percentage,
                 let angle = angleUnit(
@@ -969,6 +980,10 @@ struct PropertyPrimitive {
         /// A range of all values or the non-negative ones, which `contains` checks as `TimeValidator` does.
         case time
         #endif
+        #if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+        /// A range of the non-negative values, which `contains` checks as `ResolutionValidator` does.
+        case resolution
+        #endif
     }
 
     let kind: Kind
@@ -1011,6 +1026,9 @@ struct PropertyPrimitive {
         case .integer: .Integer
         case .percentage: .Percentage
         case .time: .Time
+        #endif
+        #if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+        case .resolution: .Resolution
         #endif
         }
     }

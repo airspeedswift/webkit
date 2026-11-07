@@ -3008,11 +3008,15 @@ if (WEBKIT_PLATFORM_FEATURE_DEFINES_FILE)
     set(_platform_defines_file_dep "${WEBKIT_PLATFORM_FEATURE_DEFINES_FILE}")
 endif ()
 
-# process-css-properties.py defines the forwarders of SWIFT_HAND_WRITTEN_CONSUMERS_4 when the setting is among its
-# defines, as Xcode's FEATURE_AND_PLATFORM_DEFINES has it.
+# process-css-properties.py defines the forwarders of SWIFT_HAND_WRITTEN_CONSUMERS_4, and generates the Swift shorthand
+# and longhand dispatch in place of parseStylePropertyShorthand, when each setting is among its defines, as Xcode's
+# FEATURE_AND_PLATFORM_DEFINES has them.
 set(_css_properties_defines)
 if (WK_USE_SWIFT_CSS_PROPERTY_CONSUMERS_4)
     set(_css_properties_defines USE_SWIFT_CSS_PROPERTY_CONSUMERS_4)
+endif ()
+if (WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+    string(APPEND _css_properties_defines " USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM")
 endif ()
 
 # Generate CSS property names
@@ -3330,6 +3334,11 @@ endif ()
 if (WK_USE_SWIFT_CSS_FAST_PATHS)
     list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSParserFastPaths\\.cpp( |$)")
 endif ()
+# Set by WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM. CSSPropertyParserSwift.cpp then includes WebCore-Swift.h, so it
+# compiles in WebCore_SwiftInterop, after WebCore's Swift module.
+if (WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)CSSPropertyParserSwift\\.cpp( |$)")
+endif ()
 # Set by WK_USE_SWIFT_CSS_CALC. The calc sources that call CSSCalcSwift.swift include WebCore-Swift.h, so they compile
 # in WebCore_SwiftInterop, after WebCore's Swift module.
 set(_webcore_css_calc_swift_interop_sources
@@ -3461,6 +3470,12 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftProperties.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftSmall.swift
         ${WEBCORE_DIR}/css/parser/CSSPropertyConsumerSwiftValues.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyParserDescriptors.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyParserRoot.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyParserShorthands.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyParserShorthandsBackgroundGrid.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyParserShorthandsBox.swift
+        ${WEBCORE_DIR}/css/parser/CSSPropertyParserShorthandsFont.swift
         ${WEBCORE_DIR}/css/parser/CSSTokenizerSwift.swift
         ${WEBCORE_DIR}/css/typedom/CSSNumericValueSwift.swift
         ${WEBCORE_DIR}/html/parser/HTMLEntityParser.swift
@@ -3567,7 +3582,8 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
     endif ()
     if (WK_USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
         webkit_target_add_swift_options(WebCore "-D USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM" "-Xcc -DUSE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM=1")
-        list(APPEND _webcore_swift_core_submodules css/typedom/CSSNumericValueSwiftTypes.h)
+        list(APPEND _webcore_swift_core_submodules css/typedom/CSSNumericValueSwiftTypes.h css/CSSProperty.h)
+        list(APPEND WebCore_SWIFT_INTEROP_SOURCES css/parser/CSSPropertyParserSwift.cpp)
     endif ()
     list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
 

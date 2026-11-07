@@ -683,7 +683,7 @@ extension PropertyParser {
     }
 
     /// `consumeURL` with no modifiers: a url token or url(). Consumes nothing if there is no url.
-    private mutating func consumeURLValue() -> PropertyValue? {
+    mutating func consumeURLValue() -> PropertyValue? {
         let start = index
         let next: Int
         if peekType() == UInt8(WebCore.UrlToken.rawValue) {

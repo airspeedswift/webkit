@@ -84,13 +84,31 @@
 #include <wtf/text/ParsingUtilities.h>
 #include <wtf/text/StringView.h>
 
+#if !defined(USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM)
+#define USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM 0
+#endif
+
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+#include "CSSMaskBorder.h"
+#include "CSSPositionValue.h"
+#include "CSSPrimitiveNumericTypes+CSSValueCreation.h"
+#include "CSSPropertyParserConsumer+Color.h"
+#include "CSSProperty.h"
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
+#include "CSSValuePool.h"
+#endif
+
 namespace WebCore {
 
 // MARK: - Custom properties
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 static std::pair<RefPtr<CSSValue>, CSSCustomPropertySyntax::Type> consumeCustomPropertyValueWithSyntax(CSSParserTokenRange&, CSS::PropertyParserState&, const CSSCustomPropertySyntax&);
+#endif
 static std::optional<Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>> consumeTypedCustomPropertyValue(CSSParserTokenRange&, CSS::PropertyParserState&, const AtomString& name, const CSSCustomPropertySyntax&, Style::BuilderState&, Style::IsAttrTainted = Style::IsAttrTainted::No);
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // MARK: - Root consumers
 
 // Style properties.
@@ -127,6 +145,7 @@ static bool consumeFunctionDescriptor(CSSParserTokenRange&, const CSSParserConte
 // @environment-map descriptors.
 static bool consumeEnvironmentMapDescriptor(CSSParserTokenRange&, const CSSParserContext&, CSSPropertyID, CSS::PropertyParserResult&);
 #endif
+#endif // !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 
 // MARK: - CSSPropertyID parsing
 
@@ -226,6 +245,7 @@ static RefPtr<CSSValue> consumeCSSWideKeywordValue(CSSParserTokenRange& range)
 
 using namespace CSSPropertyParserHelpers;
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 bool CSSPropertyParser::parseValue(CSSPropertyID property, IsImportant important, CSSParserTokenRange range, const CSSParserContext& context, ParsedPropertyVector& parsedProperties, StyleRuleType ruleType, const CSSNamespacePrefixMap& namespaceMap)
 {
     int initialParsedPropertiesSize = parsedProperties.size();
@@ -279,6 +299,7 @@ bool CSSPropertyParser::parseValue(CSSPropertyID property, IsImportant important
 
     return parseSuccess;
 }
+#endif
 
 RefPtr<CSSValue> CSSPropertyParser::parseStylePropertyLonghand(CSSPropertyID property, StringView string, const CSSParserContext& context)
 {
@@ -466,6 +487,7 @@ RefPtr<CSSValue> CSSPropertyParser::parseWithSyntax(const CSSCustomPropertySynta
     return value;
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::pair<RefPtr<CSSValue>, CSSCustomPropertySyntax::Type> consumeCustomPropertyValueWithSyntax(CSSParserTokenRange& range, CSS::PropertyParserState& state, const CSSCustomPropertySyntax& syntax)
 {
     ASSERT(!syntax.isUniversal());
@@ -541,6 +563,7 @@ std::pair<RefPtr<CSSValue>, CSSCustomPropertySyntax::Type> consumeCustomProperty
     }
     return { nullptr, CSSCustomPropertySyntax::Type::Unknown };
 }
+#endif
 
 std::optional<Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>> consumeTypedCustomPropertyValue(CSSParserTokenRange& range, CSS::PropertyParserState& state, const AtomString& name, const CSSCustomPropertySyntax& syntax, Style::BuilderState& builderState, Style::IsAttrTainted isAttrTainted)
 {
@@ -617,6 +640,7 @@ std::optional<Variant<Ref<const Style::CustomProperty>, CSSWideKeyword>> consume
     return { { Style::CustomProperty::createForValue(name, WTF::move(*syntaxValue), isAttrTainted) } };
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 // MARK: - Root consumers
 
 bool consumeStyleProperty(CSSParserTokenRange& range, const CSSParserContext& context, CSSPropertyID property, IsImportant important, StyleRuleType ruleType, CSS::PropertyParserResult& result, const CSSNamespacePrefixMap& namespaceMap)
@@ -878,5 +902,92 @@ bool consumeFunctionDescriptor(CSSParserTokenRange& range, const CSSParserContex
     result.addProperty(state, property, CSSPropertyID::Invalid, WTF::move(parsedValue), IsImportant::No);
     return true;
 }
+#else
+// MARK: - C++ called by the Swift root consumers
+
+// The allowed color types of consumeBackgroundShorthand's color in CSSPropertyParserShorthandsBackgroundGrid.swift, and
+// of a <color> syntax component in CSSPropertyParserDescriptors.swift.
+static_assert(CSSPropertyParserHelpers::CSSColorParsingOptions { }.allowedColorTypes.toRaw() == 0b111);
+
+bool CSSPropertyConsumerSwiftValue::isExposed(uint16_t property) const
+{
+    return WebCore::isExposed(static_cast<CSSPropertyID>(property), propertyParserState(*this).context.propertySettings);
+}
+
+RefPtr<CSSValue> CSSPropertyConsumerSwiftValue::parseWithCxx(uint16_t consumer, bool descriptor, uint32_t start, uint32_t end, uint32_t& consumed) const
+{
+    auto range = swiftTokenRange(*this, start, end);
+    auto size = range.size();
+    auto& state = propertyParserState(*this);
+    RefPtr parsed = descriptor ? CSSPropertyParsing::parseDescriptorForSwift(state.currentRule, range, static_cast<CSSPropertyID>(consumer), state)
+        : consumer < cssPropertyIDEnumValueCount ? CSSPropertyParsing::parseStylePropertyLonghand(range, static_cast<CSSPropertyID>(consumer), state)
+        : CSSPropertyParsing::consumeRuleForSwift(consumer - cssPropertyIDEnumValueCount, range, state);
+    consumed = size - range.size();
+    return parsed;
+}
+
+static_assert(isCSSCalcSwiftFacade<CSSPropertyConsumerSwiftShorthandSink>);
+
+void CSSPropertyConsumerSwiftShorthandSink::addLonghand(uint16_t longhand, CSSValue* longhandValue, bool implicit) const
+{
+    state().result.addPropertyForCurrentShorthand(state().value.propertyParserState, static_cast<CSSPropertyID>(longhand), longhandValue, implicit ? IsImplicit::Yes : IsImplicit::No);
+}
+
+void CSSPropertyConsumerSwiftShorthandSink::addAllLonghands(uint16_t shorthand, CSSValue* longhandValue, bool implicit) const
+{
+    auto& parserState = state().value.propertyParserState;
+    state().result.addPropertyForAllLonghandsOfShorthand(parserState, static_cast<CSSPropertyID>(shorthand), longhandValue, parserState.important, implicit ? IsImplicit::Yes : IsImplicit::No);
+}
+
+void CSSPropertyConsumerSwiftShorthandSink::addProperty(uint16_t property, CSSValue& propertyValue, bool important) const
+{
+    state().result.addProperty(state().value.propertyParserState, static_cast<CSSPropertyID>(property), CSSPropertyID::Invalid, &propertyValue, important ? IsImportant::Yes : IsImportant::No);
+}
+
+bool CSSPropertyConsumerSwiftShorthandSink::addSubstitutionValue(uint32_t start, uint32_t end, bool withNamespaceMap) const
+{
+    auto& sink = state();
+    auto& state = sink.value.propertyParserState;
+    auto range = swiftTokenRange(sink.value, start, end);
+    if (!CSSSubstitutionParser::containsSubstitutionFunctions(range, state.context))
+        return false;
+    const CSSNamespacePrefixMap noNamespaceMap;
+    Ref substitution = CSSSubstitutionValue::create(range, withNamespaceMap ? sink.namespaceMap : noNamespaceMap, state.context);
+    if (WebCore::isShorthand(state.currentProperty))
+        sink.result.addPropertyForAllLonghandsOfCurrentShorthand(state, CSSShorthandSubstitutionValue::create(state.currentProperty, WTF::move(substitution)));
+    else
+        sink.result.addProperty(state, state.currentProperty, CSSPropertyID::Invalid, WTF::move(substitution), state.important);
+    return true;
+}
+
+bool CSSPropertyConsumerSwiftShorthandSink::isKeywordValid(uint16_t property, uint16_t valueID) const
+{
+    return CSSPropertyParsing::isKeywordValidForStyleProperty(static_cast<CSSPropertyID>(property), static_cast<CSSValueID>(valueID), state().value.propertyParserState);
+}
+
+void addBorderImageLonghandsForSwift(const CSSPropertyConsumerSwiftShorthandSink& shorthandSink, uint8_t options, CSSImageSwiftParts&& parts)
+{
+    auto& sink = static_cast<const CSSPropertyConsumerSwiftShorthandSinkState&>(shorthandSink);
+    auto& state = sink.value.propertyParserState;
+    std::optional<CSS::BorderImage> components;
+    CSSPropertyConsumerSwiftUnresolvedResult result { components };
+    RefPtr<CSSValue> unused;
+    CSSPropertyConsumerSwiftValueState value { sink.value.tokens, state, unused, options, *sink.value.gradientStops, &result };
+    setBorderResult(value, std::to_underlying(CSSPropertyConsumerSwiftConsumer::BorderImage), WTF::move(parts), std::numeric_limits<uint32_t>::max());
+    RELEASE_ASSERT(components);
+    auto add = [&](CSSPropertyID longhand, RefPtr<CSSValue>&& longhandValue) { sink.result.addPropertyForCurrentShorthand(state, longhand, WTF::move(longhandValue)); };
+    add(CSSPropertyID::BorderImageSource, CSS::tryCreateCSSValue(state.pool, components->borderImageSource));
+    add(CSSPropertyID::BorderImageSlice, CSS::tryCreateCSSValue(state.pool, components->borderImageSlice));
+    add(CSSPropertyID::BorderImageWidth, CSS::tryCreateCSSValue(state.pool, components->borderImageWidth));
+    add(CSSPropertyID::BorderImageOutset, CSS::tryCreateCSSValue(state.pool, components->borderImageOutset));
+    add(CSSPropertyID::BorderImageRepeat, CSS::tryCreateCSSValue(state.pool, components->borderImageRepeat));
+}
+
+CSSValueID valueIDForSwift(const CSSValue& value)
+{
+    return valueID(value);
+}
+
+#endif // !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 
 } // namespace WebCore

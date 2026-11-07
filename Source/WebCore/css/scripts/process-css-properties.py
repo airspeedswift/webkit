@@ -5609,6 +5609,207 @@ class GenerateCSSPropertyParsing:
             return SWIFT_CONSUMER_LISTS + [SWIFT_CONSUMER_LIST_4]
         return SWIFT_CONSUMER_LISTS
 
+    # Whether the shorthands and the property parser's root are Swift: SWIFT_SHORTHANDS_DEFINE is among the defines.
+    @property
+    def swift_shorthands(self):
+        return SWIFT_SHORTHANDS_DEFINE in self.generation_context.conditionals
+
+    # The exported consumers of properties and shared grammar rules, in GeneratedRule order: (Swift case name, consumer,
+    # C++ signature).
+    @property
+    def swift_generated_rules(self):
+        consumers = [consumer for consumer in self.all_property_consumers if consumer.is_exported] + [consumer for consumer in self.all_shared_grammar_rule_consumers if consumer.is_exported]
+        result = []
+        seen = set()
+        for consumer in consumers:
+            name = consumer.signature.name
+            if name in seen:
+                continue
+            seen.add(name)
+            case = name[len("consume"):]
+            case = case[0].lower() + case[1:]
+            result.append((f"`{case}`" if case in SWIFT_KEYWORDS else case, consumer, consumer.signature))
+        return result
+
+    @staticmethod
+    def _swift_property_id(property):
+        return property.id.replace("CSSPropertyID::", "WebCore.CSSPropertyID.")
+
+    # The longhands of the StylePropertyShorthand a shorthand is parsed with, in its order.
+    def _swift_parser_longhands(self, property):
+        parser_shorthand = property.codegen_properties.parser_shorthand
+        if parser_shorthand in SWIFT_PARSER_SHORTHAND_LONGHANDS:
+            return [self.properties_and_descriptors.style_properties.all_by_name[name] for name in SWIFT_PARSER_SHORTHAND_LONGHANDS[parser_shorthand]]
+        if parser_shorthand != f"{property.id_without_prefix_with_lowercase_first_letter}Shorthand":
+            raise Exception(f"'{property.name}' is parsed with '{parser_shorthand}', whose longhands SWIFT_PARSER_SHORTHAND_LONGHANDS does not list")
+        result = []
+        for longhand in property.codegen_properties.longhands:
+            if longhand.name == "all":
+                result += [inner for inner in self.properties_and_descriptors.style_properties.all_non_shorthands if inner.name not in ("direction", "unicode-bidi")]
+            else:
+                result.append(longhand)
+        return result
+
+    # The Swift a consumer of a longhand is, if any: the generated Swift consumer's call, or None.
+    def _swift_longhand_call(self, consumer):
+        if not isinstance(consumer, GeneratedPropertyConsumer) or consumer.swift_consumer_id is None:
+            return None
+        for swift_consumer_id, _, swift, define in self.swift_consumers:
+            if swift_consumer_id == consumer.swift_consumer_id:
+                return (f"{swift.name}()" if swift.stateless else f"{swift.name}(calc)", define)
+        return None
+
+    # The Swift consumer a longhand's C++ consumer only forwards to, if any: (its call, define). The C++ calls
+    # consumePropertyWithSwift with the property parser's state, whose numeric flags are those of the state's current
+    # property, as the Swift root's, and with no unresolved result; consumeColor's options are its allowed color types.
+    def _swift_forwarded_longhand_call(self, consumer):
+        call = consumer.generate_call_string(range_string="range", state_string="state")
+        if call is None:
+            return None
+        if SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE in self.generation_context.conditionals:
+            match = re.fullmatch(r"consume(\w+)\(range, state\)", call)
+            if match and match.group(1) in SWIFT_HAND_WRITTEN_KEYWORD_CONSUMERS_4 + SWIFT_HAND_WRITTEN_CONSUMERS_4:
+                return (f"consume(WebCore.CSSPropertyConsumerSwiftConsumer.{match.group(1)}.rawValue, calc)", SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE)
+        match = re.fullmatch(r"consume(\w+)\(range, state\)", call)
+        if match and match.group(1) in SWIFT_HAND_WRITTEN_FORWARDERS:
+            return SWIFT_HAND_WRITTEN_FORWARDERS[match.group(1)]
+        # The three types, CSSColorParsingOptions' default: 0b111, as CSSPropertyParser.cpp's static_assert pins it.
+        if call == "consumeColor(range, state, { .allowedColorTypes = { CSS::ColorType::Absolute, CSS::ColorType::Current, CSS::ColorType::System } })":
+            return ("colorValue(calc, allowedColorTypes: 0b111)", "USE_SWIFT_CSS_PROPERTY_CONSUMERS_3")
+        return None
+
+    # With SWIFT_SHORTHANDS_DEFINE: the shorthand dispatch, the longhands of each shorthand, the longhand dispatch and
+    # the exported rules, for CSSPropertyParserRoot.swift and the shorthands of CSSPropertyParserShorthands*.swift.
+    def _generate_css_property_parsing_swift_shorthands(self, *, to):
+        style_collection, = (collection for collection in self.all_property_parsing_collections if collection.supports_shorthands)
+        shorthands = [consumer.property for consumer in style_collection.consumers if consumer.property.codegen_properties.longhands and not consumer.property.codegen_properties.skip_parser]
+        all_shorthands = list(self.properties_and_descriptors.style_properties.all_shorthands)
+
+        to.write(f"#if {SWIFT_SHORTHANDS_DEFINE}")
+        to.newline()
+        to.write(f"/// The longhands of each shorthand the property parser parses, in the order of the StylePropertyShorthand it is")
+        to.write(f"/// parsed with (StylePropertyShorthandFunctions.cpp, or SWIFT_PARSER_SHORTHAND_LONGHANDS).")
+        to.write(f"enum ShorthandLonghands {{")
+        with to.indent():
+            for property in shorthands:
+                longhands = ", ".join(self._swift_property_id(longhand) for longhand in self._swift_parser_longhands(property))
+                to.write(f"static let {property.id_without_prefix_with_lowercase_first_letter}: [WebCore.CSSPropertyID] = [{longhands}]")
+        to.write(f"}}")
+        to.newline()
+        to.write(f"/// The exported consumers of CSSPropertyParsing, numbered as CSSPropertyParsing::consumeRuleForSwift numbers them.")
+        to.write(f"enum GeneratedRule: UInt16 {{")
+        with to.indent():
+            for number, (case, _, signature) in enumerate(self.swift_generated_rules):
+                to.write(f"case {case} = {number} // CSSPropertyParsing::{signature.name}")
+        to.write(f"}}")
+        to.newline()
+        to.write(f"extension PropertyParser {{")
+        with to.indent():
+            to.write(f"/// isShorthand (CSSPropertyNames.h).")
+            to.write(f"static func isShorthand(_ property: WebCore.CSSPropertyID) -> Bool {{")
+            with to.indent():
+                to.write(f"property.rawValue >= {self._swift_property_id(all_shorthands[0])}.rawValue && property.rawValue <= {self._swift_property_id(all_shorthands[-1])}.rawValue")
+            to.write(f"}}")
+            to.newline()
+            to.write(f"/// CSSProperty::isDescriptorOnly.")
+            to.write(f"static func isDescriptorOnly(_ property: WebCore.CSSPropertyID) -> Bool {{")
+            with to.indent():
+                to.write(f"switch property {{")
+                descriptor_only = []
+                for descriptor in self.properties_and_descriptors.all_descriptor_only:
+                    if descriptor.id not in descriptor_only:
+                        descriptor_only.append(descriptor.id)
+                if descriptor_only:
+                    to.write(f"case {', '.join(id.replace('CSSPropertyID::', '.') for id in descriptor_only)}: return true")
+                to.write(f"default: return false")
+                to.write(f"}}")
+            to.write(f"}}")
+            to.newline()
+
+            to.write(f"/// CSSPropertyParsing::parseStylePropertyShorthand: the shorthand's Swift parser, by the name its")
+            to.write(f"/// CSSProperties.json \"parser-function\" or \"shorthand-pattern\" gives.")
+            to.write(f"mutating func parseStylePropertyShorthand(_ property: WebCore.CSSPropertyID, _ sink: borrowing ShorthandSink, _ calc: PropertyCalc) -> Bool {{")
+            with to.indent():
+                to.write(f"switch property {{")
+                for property in shorthands:
+                    codegen = property.codegen_properties
+                    to.write(f"case {property.id.replace('CSSPropertyID::', '.')}:")
+                    with to.indent():
+                        if codegen.settings_flag and not codegen.internal_only:
+                            to.write(f"guard tokens.value.isExposed(property.rawValue) else {{")
+                            with to.indent():
+                                to.write(f"assertionFailure()")
+                                to.write(f"return false")
+                            to.write(f"}}")
+                        if codegen.parser_function:
+                            function = codegen.parser_function
+                        elif codegen.shorthand_parser_pattern:
+                            function = f"consume{codegen.shorthand_parser_pattern}Shorthand"
+                        else:
+                            raise Exception(f"Shorthand property '{property}' has unknown parsing method.")
+                        arguments = "sink, property" if function in SWIFT_SHORTHANDS_TAKING_PROPERTY else "sink"
+                        to.write(f"return {function}({arguments}, ShorthandLonghands.{property.id_without_prefix_with_lowercase_first_letter}.span, calc)")
+                to.write(f"default:")
+                with to.indent():
+                    to.write(f"return false")
+                to.write(f"}}")
+            to.write(f"}}")
+            to.newline()
+
+            to.write(f"/// CSSPropertyParsing::parseStylePropertyLonghand, for a longhand a shorthand parses: the C++ prologue, then")
+            to.write(f"/// the longhand's Swift consumer, or the C++ one on the tokens from `index`, which advances `index` by what it")
+            to.write(f"/// consumed whether or not it made a value.")
+            to.write(f"mutating func parseStylePropertyLonghand(_ property: WebCore.CSSPropertyID, _ calc: PropertyCalc) -> PropertyValue? {{")
+            with to.indent():
+                to.write(f"switch property {{")
+                for consumer in style_collection.consumers:
+                    property = consumer.property
+                    if property.codegen_properties.longhands:
+                        continue
+                    call = self._swift_longhand_call(consumer) or self._swift_forwarded_longhand_call(consumer)
+                    if not call:
+                        continue
+                    expression, define = call
+                    to.write(f"#if {define}")
+                    to.write(f"case {property.id.replace('CSSPropertyID::', '.')}:")
+                    with to.indent():
+                        if not property.codegen_properties.internal_only:
+                            to.write(f"guard tokens.value.isExposed(property.rawValue) else {{")
+                            with to.indent():
+                                to.write(f"assertionFailure()")
+                                to.write(f"return nil")
+                            to.write(f"}}")
+                        to.write(f"return {expression}")
+                    to.write(f"#endif")
+                to.write(f"default:")
+                with to.indent():
+                    to.write(f"return parseLonghandWithCxx(property)")
+                to.write(f"}}")
+            to.write(f"}}")
+            to.newline()
+
+            to.write(f"/// CSSPropertyParsing::<rule>: the rule's Swift consumer, or the C++ one on the tokens from `index`, which")
+            to.write(f"/// advances `index` by what it consumed whether or not it made a value.")
+            to.write(f"mutating func parseGeneratedRule(_ rule: GeneratedRule, _ calc: PropertyCalc) -> PropertyValue? {{")
+            with to.indent():
+                to.write(f"switch rule {{")
+                for case, consumer, _ in self.swift_generated_rules:
+                    swift = None
+                    if getattr(consumer, "swift_consumer_id", None) is not None:
+                        swift = next(((s, d) for i, _, s, d in self.swift_consumers if i == consumer.swift_consumer_id), None)
+                    if not swift:
+                        continue
+                    to.write(f"#if {swift[1]}")
+                    to.write(f"case .{case}: return {swift[0].name}()" if swift[0].stateless else f"case .{case}: return {swift[0].name}(calc)")
+                    to.write(f"#endif")
+                to.write(f"default: return parseRuleWithCxx(rule)")
+                to.write(f"}}")
+            to.write(f"}}")
+        to.write(f"}}")
+        to.newline()
+        to.write(f"#endif // {SWIFT_SHORTHANDS_DEFINE}")
+        to.newline()
+
     def generate_css_property_parsing_swift(self):
         with open('CSSPropertyParsingSwift.swift', 'w') as output_file:
             writer = Writer(output_file)
@@ -5676,6 +5877,8 @@ class GenerateCSSPropertyParsing:
                         writer.newline()
             writer.write(f"}}")
             writer.newline()
+            if self.swift_shorthands:
+                self._generate_css_property_parsing_swift_shorthands(to=writer)
             writer.write(f"#endif // USE_SWIFT_CSS_PROPERTY_CONSUMERS")
 
     @property
@@ -5738,6 +5941,12 @@ class GenerateCSSPropertyParsing:
                     ]
                 )
 
+                if self.swift_shorthands:
+                    writer.write(f"#if {SWIFT_SHORTHANDS_DEFINE}")
+                    writer.write(f"enum class StyleRuleType : uint8_t;")
+                    writer.write(f"#endif")
+                    writer.newline()
+
                 with self.generation_context.namespace("CSS", to=writer):
                     self.generation_context.generate_forward_declarations(
                         to=writer,
@@ -5791,6 +6000,10 @@ class GenerateCSSPropertyParsing:
                 self._generate_css_property_parsing_cpp_property_parsing_functions(
                     to=writer
                 )
+
+                if self.swift_shorthands:
+                    self._generate_css_property_parsing_cpp_consume_rule_for_swift(to=writer)
+                    self._generate_css_property_parsing_cpp_parse_descriptor_for_swift(to=writer)
 
                 for parsing_collection in self.all_property_parsing_collections:
                     self._generate_css_property_parsing_cpp_parse_longhand_property(
@@ -5851,11 +6064,24 @@ class GenerateCSSPropertyParsing:
                 to.write(f"// Parse and return a single {'longhand ' if parsing_collection.supports_shorthands else ''}{parsing_collection.name} {parsing_collection.noun}.")
                 to.write(f"static RefPtr<CSSValue> parse{parsing_collection.id}{'Longhand' if parsing_collection.supports_shorthands else ''}(CSSParserTokenRange&, CSSPropertyID, CSS::PropertyParserState&);")
                 if parsing_collection.supports_shorthands:
+                    if self.swift_shorthands:
+                        to.write(f"#if !{SWIFT_SHORTHANDS_DEFINE}")
                     to.write(f"// Parse a shorthand {parsing_collection.name} {parsing_collection.noun}, adding longhands to the provided result collection. Returns true on success, false on failure.")
                     to.write(f"static bool parse{parsing_collection.id}Shorthand(CSSParserTokenRange&, CSSPropertyID, CSS::PropertyParserState&, CSS::PropertyParserResult&);")
+                    if self.swift_shorthands:
+                        to.write(f"#endif")
                 to.write(f"// Fast path bare-keyword support.")
                 to.write(f"static bool isKeywordValidFor{parsing_collection.id}(CSSPropertyID, CSSValueID, CSS::PropertyParserState&);")
                 to.write(f"static bool isKeywordFastPathEligible{parsing_collection.id}(CSSPropertyID);")
+                to.newline()
+
+            if self.swift_shorthands:
+                to.write(f"#if {SWIFT_SHORTHANDS_DEFINE}")
+                to.write(f"// The exported consumer numbered `rule` in CSSPropertyParsingSwift.swift's GeneratedRule, for Swift.")
+                to.write(f"static RefPtr<CSSValue> consumeRuleForSwift(uint16_t rule, CSSParserTokenRange&, CSS::PropertyParserState&);")
+                to.write(f"// The descriptor of the rule type `rule`, which has descriptors, for Swift.")
+                to.write(f"static RefPtr<CSSValue> parseDescriptorForSwift(StyleRuleType rule, CSSParserTokenRange&, CSSPropertyID, CSS::PropertyParserState&);")
+                to.write(f"#endif")
                 to.newline()
 
             to.write(f"// Direct consumers.")
@@ -5994,6 +6220,8 @@ class GenerateCSSPropertyParsing:
     def _generate_css_property_parsing_cpp_parse_shorthand_property(self, *, to, parsing_collection):
         if not parsing_collection.supports_shorthands:
             return
+        if self.swift_shorthands:
+            to.write(f"#if !{SWIFT_SHORTHANDS_DEFINE}")
         to.write(f"bool CSSPropertyParsing::parse{parsing_collection.id}Shorthand(CSSParserTokenRange& range, CSSPropertyID id, CSS::PropertyParserState& state, CSS::PropertyParserResult& result)")
 
         to.write(f"{{")
@@ -6030,6 +6258,56 @@ class GenerateCSSPropertyParsing:
                 to.write(f"return false;")
             to.write(f"}}")
         to.write(f"}}")
+        if self.swift_shorthands:
+            to.write(f"#endif")
+        to.newline()
+
+    # With SWIFT_SHORTHANDS_DEFINE: the exported consumers by their GeneratedRule number, which Swift calls for the
+    # rules it has no consumer of its own for.
+    def _generate_css_property_parsing_cpp_consume_rule_for_swift(self, *, to):
+        to.write(f"#if {SWIFT_SHORTHANDS_DEFINE}")
+        to.write(f"RefPtr<CSSValue> CSSPropertyParsing::consumeRuleForSwift(uint16_t rule, CSSParserTokenRange& range, CSS::PropertyParserState& state)")
+        to.write(f"{{")
+        with to.indent():
+            to.write(f"switch (rule) {{")
+            for number, (_, consumer, signature) in enumerate(self.swift_generated_rules):
+                to.write(f"case {number}:")
+                with to.indent():
+                    arguments = ["range", "state"] if len(signature.parameters) > 1 else ["range"]
+                    to.write(f"return {signature.name}({', '.join(arguments)});")
+            to.write(f"default:")
+            with to.indent():
+                to.write(f"return nullptr;")
+            to.write(f"}}")
+        to.write(f"}}")
+        to.write(f"#endif")
+        to.newline()
+
+    # With SWIFT_SHORTHANDS_DEFINE: the parse<Rule>Descriptor of each descriptor set by its StyleRuleType, which Swift's
+    # descriptor consumers call.
+    def _generate_css_property_parsing_cpp_parse_descriptor_for_swift(self, *, to):
+        to.write(f"#if {SWIFT_SHORTHANDS_DEFINE}")
+        to.write(f"RefPtr<CSSValue> CSSPropertyParsing::parseDescriptorForSwift(StyleRuleType rule, CSSParserTokenRange& range, CSSPropertyID id, CSS::PropertyParserState& state)")
+        to.write(f"{{")
+        with to.indent():
+            to.write(f"switch (rule) {{")
+            for descriptor_set in self.properties_and_descriptors.descriptors.descriptor_sets:
+                condition = SWIFT_DESCRIPTOR_RULE_CONDITIONS.get(descriptor_set.name)
+                if condition:
+                    to.output.write(f"#if {condition}")
+                    to.newline()
+                to.write(f"case StyleRuleType::{Name.convert_name_to_id(descriptor_set.name[1:])}:")
+                with to.indent():
+                    to.write(f"return parse{descriptor_set.id}(range, id, state);")
+                if condition:
+                    to.output.write(f"#endif")
+                    to.newline()
+            to.write(f"default:")
+            with to.indent():
+                to.write(f"RELEASE_ASSERT_NOT_REACHED();")
+            to.write(f"}}")
+        to.write(f"}}")
+        to.write(f"#endif")
         to.newline()
 
 
@@ -10564,6 +10842,42 @@ SWIFT_HAND_WRITTEN_CONSUMERS_4 = [
     'GridLine', 'GridTemplateAreas', 'KeyframesName', 'MaskBorderOutset', 'MaskBorderRepeat', 'MaskBorderSource',
     'MaskBorderWidth', 'OffsetPath', 'OverflowClipMargin', 'Path', 'Quotes', 'ShapeOutside', 'TextShadow',
 ]
+
+# The hand-written C++ consumers that only call consumePropertyWithSwift, with the property parser's state and no
+# options, by the name after `consume`: the Swift consumer each forwards to, and its define. consumeMaskBorderSlice's
+# default MaskBorderSliceOverride::None is no options.
+SWIFT_HAND_WRITTEN_FORWARDERS = {
+    'Translate': ('consumeHandWritten(WebCore.CSSPropertyID.Translate.rawValue, calc)', 'USE_SWIFT_CSS_PROPERTY_CONSUMERS'),
+    'Rotate': ('consumeHandWritten(WebCore.CSSPropertyID.Rotate.rawValue, calc)', 'USE_SWIFT_CSS_PROPERTY_CONSUMERS'),
+    'Scale': ('consumeHandWritten(WebCore.CSSPropertyID.Scale.rawValue, calc)', 'USE_SWIFT_CSS_PROPERTY_CONSUMERS'),
+    'StrokeDasharray': ('consumeHandWritten(WebCore.CSSPropertyID.StrokeDasharray.rawValue, calc)', 'USE_SWIFT_CSS_PROPERTY_CONSUMERS'),
+    'TextBoxEdge': ('consumeValue4(WebCore.CSSPropertyConsumerSwiftConsumer.TextBoxEdge.rawValue, calc)', SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE),
+    'PositionArea': ('consumeValue4(WebCore.CSSPropertyConsumerSwiftConsumer.PositionArea.rawValue, calc)', SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE),
+    'GridTemplateList': ('consumeValue4(WebCore.CSSPropertyConsumerSwiftConsumer.GridTemplateList.rawValue, calc)', SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE),
+    'GridTrackSizes': ('consumeValue4(WebCore.CSSPropertyConsumerSwiftConsumer.GridTrackSizes.rawValue, calc)', SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE),
+    'MaskBorderSlice': ('consumeValue4(WebCore.CSSPropertyConsumerSwiftConsumer.MaskBorderSlice.rawValue, calc)', SWIFT_HAND_WRITTEN_CONSUMERS_4_DEFINE),
+}
+
+# With this define among the defines, the shorthands and the property parser's root are Swift
+# (CSSPropertyParserRoot.swift, CSSPropertyParserShorthands*.swift): CSSPropertyParsingSwift.swift gains the shorthand
+# and longhand dispatch, the longhands of each shorthand and the exported rules, CSSPropertyParsing gains
+# consumeRuleForSwift and parseDescriptorForSwift, and parseStylePropertyShorthand is not compiled.
+SWIFT_SHORTHANDS_DEFINE = 'USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM'
+
+# The Swift shorthand parsers that depend on which shorthand they parse, as the C++ reads state.currentProperty or
+# shorthand.id(): parseStylePropertyShorthand passes them the property before its longhands.
+SWIFT_SHORTHANDS_TAKING_PROPERTY = {'consumeFontShorthand', 'consumeLineClampShorthand'}
+
+# The condition of a descriptor set's StyleRuleType case in parseDescriptorForSwift, where it has one.
+SWIFT_DESCRIPTOR_RULE_CONDITIONS = {'@environment-map': 'ENABLE(SPATIAL_PORTAL)'}
+
+# The Swift keywords a generated name escapes.
+SWIFT_KEYWORDS = {'continue', 'default', 'repeat', 'return', 'switch', 'case', 'in', 'is', 'as', 'self', 'super', 'where', 'while', 'for', 'if', 'else', 'do', 'break', 'func', 'var', 'let', 'import', 'init', 'inout', 'operator', 'protocol', 'static', 'struct', 'class', 'enum', 'extension', 'internal', 'private', 'public', 'subscript', 'throw', 'throws', 'try', 'catch', 'defer', 'guard', 'nil', 'true', 'false', 'Type', 'Any'}
+
+# The longhands of each hand-written "parser-shorthand" (StylePropertyShorthand.cpp), in its order.
+SWIFT_PARSER_SHORTHAND_LONGHANDS = {
+    'transitionShorthandForParsing': ['transition-duration', 'transition-timing-function', 'transition-delay', 'transition-behavior', 'transition-property'],
+}
 
 # The consumers forwarded to Swift with USE_SWIFT_CSS_PROPERTY_CONSUMERS_4, named as in SWIFT_GENERATED_CONSUMERS_2,
 # when the setting is among the defines.

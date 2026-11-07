@@ -68,14 +68,14 @@ extension WebCore.CSSGridSwiftParts {
 }
 
 /// A <grid-line>: its CSSGridSwiftLine kind, its index (1 if it has none), and its name, if it has one.
-private typealias GridLineParts = (kind: UInt8, integer: (number: Double, calc: UInt32), name: UInt32?)
+typealias GridLineParts = (kind: UInt8, integer: (number: Double, calc: UInt32), name: UInt32?)
 
 extension PropertyParser {
     // MARK: - <grid-line>
 
     /// `consumeUnresolvedCustomIdentForGridLine`: the index of the <custom-ident> at the next token, which is neither
     /// auto nor span, consumed with the whitespace after it; nil and nothing consumed if there is none.
-    private mutating func gridLineName() -> UInt32? {
+    mutating func gridLineName() -> UInt32? {
         let id = peekIdent()
         guard peekType() == PropertyTokenType.ident, WebCore.isValidCustomIdentifier(id), id != .Auto, id != .Span else {
             return nil
@@ -123,7 +123,7 @@ extension PropertyParser {
     }
 
     /// The parts of a <grid-line>; nil if there is none.
-    private mutating func gridLineParts(_ calc: PropertyCalc) -> GridLineParts? {
+    mutating func gridLineParts(_ calc: PropertyCalc) -> GridLineParts? {
         let one = (number: 1.0, calc: UInt32.max)
         switch peekIdent() {
         case .Auto:
@@ -260,7 +260,7 @@ extension PropertyParser {
     /// after it, and its end. False if it is not a string (nothing consumed) or not a row: empty, white space alone, or
     /// a character that is neither white space, `.` nor a name code point.
     /// https://drafts.csswg.org/css-grid/#valdef-grid-template-areas-string
-    private mutating func gridAreaRow(_ parts: inout WebCore.CSSGridSwiftParts) -> Bool {
+    mutating func gridAreaRow(_ parts: inout WebCore.CSSGridSwiftParts) -> Bool {
         guard peekType() == PropertyTokenType.string else {
             return false
         }
@@ -372,7 +372,7 @@ extension PropertyParser {
     }
 
     /// <line-names> in a track list, which drops an empty `[]`; a list goes on after none.
-    private mutating func gridLineNamesInList(_ parts: inout WebCore.CSSGridSwiftParts) {
+    mutating func gridLineNamesInList(_ parts: inout WebCore.CSSGridSwiftParts) {
         let mark = parts.size()
         if gridLineNames(&parts) && parts.size() == mark &+ 2 { // At most the parts appended, two here.
             parts.shrink(mark)
@@ -453,7 +453,7 @@ extension PropertyParser {
     ///
     /// <track-size> = <track-breadth> | minmax( <inflexible-breadth> , <track-breadth> ) | fit-content( <length-percentage [0,∞]> )
     /// https://drafts.csswg.org/css-grid/#typedef-track-size
-    private mutating func gridTrackSize(_ parts: inout WebCore.CSSGridSwiftParts, _ calc: PropertyCalc) -> Bool? {
+    mutating func gridTrackSize(_ parts: inout WebCore.CSSGridSwiftParts, _ calc: PropertyCalc) -> Bool? {
         if let nonFixed = gridBreadth(&parts, flex: true, calc) {
             return nonFixed
         }

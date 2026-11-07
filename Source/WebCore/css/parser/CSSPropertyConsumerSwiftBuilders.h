@@ -879,6 +879,20 @@ template<typename T> std::optional<T> consumeUnresolvedWithSwift(CSSParserTokenR
     return result;
 }
 
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+// Adds to `sink` the five longhands of the border-image in `parts`, with `options`, as setBorderResult reads them.
+void addBorderImageLonghandsForSwift(const CSSPropertyConsumerSwiftShorthandSink&, uint8_t options, CSSImageSwiftParts&&);
+
+// The <length-percentage> of a position's axis, which Swift cannot name as a template.
+using CSSPositionSwiftLengthPercentage = CSS::LengthPercentage<>;
+
+// valueID(const CSSValue&), for Swift.
+CSSValueID valueIDForSwift(const CSSValue&);
+
+// Defined in CSSPropertyParserSwift.cpp, which calls the Swift; CSSPropertyParser.cpp calls it.
+std::pair<RefPtr<CSSValue>, CSSCustomPropertySyntax::Type> consumeCustomPropertyValueWithSyntax(CSSParserTokenRange&, CSS::PropertyParserState&, const CSSCustomPropertySyntax&);
+#endif
+
 } // namespace WebCore
 
 #endif // USE_SWIFT_CSS_PROPERTY_CONSUMERS_3

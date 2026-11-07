@@ -95,8 +95,13 @@ extension PropertyParser {
 
     /// `consumeColor`: a keyword, a pooled resolved color or a CSSColorValue.
     mutating func colorValue(_ calc: PropertyCalc) -> PropertyValue? {
+        colorValue(calc, allowedColorTypes: tokens.value.consumerOptions())
+    }
+
+    /// `consumeColor` with the OptionSet<CSS::ColorType> `allowedColorTypes`, as a raw value.
+    mutating func colorValue(_ calc: PropertyCalc, allowedColorTypes: UInt8) -> PropertyValue? {
         let start = index
-        var state = colorParserState()
+        var state = ColorConsumerState(allowedColorTypes: allowedColorTypes, context: WebCore.colorContextForSwift(tokens.value))
         // The level consumeColor gives the color it consumes.
         state.nestingLevel = 1
         switch consumeSimpleColor(state) {
@@ -237,12 +242,20 @@ extension PropertyParser {
 
     /// `consumeUnresolvedBorderRadiusSide`: <length-percentage [0,∞]>{1,2} [ / <length-percentage [0,∞]>{1,2} ]?
     mutating func borderRadiusSide(_ calc: PropertyCalc) -> PropertyValue? {
-        var radii = WebCore.CSSColorSwiftComponents()
-        guard consumeNumeric(&radii, 0, .nonnegativeLengthPercentage) else {
+        var parts = WebCore.CSSImageSwiftParts()
+        guard consumeBorderRadiusSideParts(&parts) else {
             return nil
         }
+        return setBorderResult(.BorderRadiusSide, parts)
+    }
+
+    /// The radii of `consumeUnresolvedBorderRadiusSide`, appended to `parts` as setBorderResult reads them.
+    mutating func consumeBorderRadiusSideParts(_ parts: inout WebCore.CSSImageSwiftParts) -> Bool {
+        var radii = WebCore.CSSColorSwiftComponents()
+        guard consumeNumeric(&radii, 0, .nonnegativeLengthPercentage) else {
+            return false
+        }
         let second: UInt8 = consumeNumeric(&radii, 1, .nonnegativeLengthPercentage) ? 1 : 0
-        var parts = WebCore.CSSImageSwiftParts()
         parts.append(radii, 0)
         parts.append(radii, second)
         if atEnd {
@@ -250,16 +263,16 @@ extension PropertyParser {
             parts.append(radii, second)
         } else {
             guard consumeSlash(), consumeNumeric(&radii, 2, .nonnegativeLengthPercentage) else {
-                return nil
+                return false
             }
             let verticalSecond: UInt8 = consumeNumeric(&radii, 3, .nonnegativeLengthPercentage) ? 3 : 2
             guard atEnd else {
-                return nil
+                return false
             }
             parts.append(radii, 2)
             parts.append(radii, verticalSecond)
         }
-        return setBorderResult(.BorderRadiusSide, parts)
+        return true
     }
 
     /// `consumeUnresolvedBorderImageSource`.
@@ -332,58 +345,60 @@ extension PropertyParser {
         return setBorderResult(.BorderImage, parts)
     }
 
-    /// Appends the parts of a border-image or a mask-border, which share a grammar, until the end: its slice and the
-    /// slice's fill, its width, outset, rules and source, an absent part's first component absent. The slice is filled
-    /// if `alwaysFill`.
-    mutating func consumeBorderImageParts(_ parts: inout WebCore.CSSImageSwiftParts, alwaysFill: Bool) -> Bool {
-        var source: BorderImageSource? = nil
-        var slice = WebCore.CSSColorSwiftComponents()
-        var fill = WebCore.CSSColorSwiftComponents()
-        var width = WebCore.CSSColorSwiftComponents()
-        var outset = WebCore.CSSColorSwiftComponents()
-        var rules = WebCore.CSSColorSwiftComponents()
-        var rulesCount: UInt8 = 0
+    /// The parts of a border-image or a mask-border, which share a grammar, until the end: its slice and the slice's
+    /// fill, its width, outset, rules and source, an absent part's first component absent (no rules: `rulesCount` 0).
+    /// The slice is filled if `alwaysFill`.
+    mutating func consumeBorderImageComponents(alwaysFill: Bool) -> BorderImageConsumedParts? {
+        var parts = BorderImageConsumedParts()
         var hasSlice = false
         repeat {
-            if source == nil {
-                source = consumeBorderImageSource()
-                if source != nil {
+            if parts.source == nil {
+                parts.source = consumeBorderImageSource()
+                if parts.source != nil {
                     continue
                 }
             }
-            if rulesCount == 0 {
-                rulesCount = consumeBorderImageRepeat(&rules)
-                if rulesCount != 0 {
+            if parts.rulesCount == 0 {
+                parts.rulesCount = consumeBorderImageRepeat(&parts.rules)
+                if parts.rulesCount != 0 {
                     continue
                 }
             }
-            guard !hasSlice, consumeBorderImageSlice(&slice, &fill, alwaysFill: alwaysFill) else {
-                return false
+            guard !hasSlice, consumeBorderImageSlice(&parts.slice, &parts.fill, alwaysFill: alwaysFill) else {
+                return nil
             }
             hasSlice = true
             if consumeSlash() {
-                let hasWidth = consumeBorderImageWidth(&width)
+                let hasWidth = consumeBorderImageWidth(&parts.width)
                 if consumeSlash() {
-                    guard consumeBorderImageOutset(&outset) else {
-                        return false
+                    guard consumeBorderImageOutset(&parts.outset) else {
+                        return nil
                     }
                 } else if !hasWidth {
-                    return false
+                    return nil
                 }
             }
         } while !atEnd
+        return parts
+    }
+
+    /// Appends the parts of `consumeBorderImageComponents`, as setBorderResult reads them.
+    mutating func consumeBorderImageParts(_ parts: inout WebCore.CSSImageSwiftParts, alwaysFill: Bool) -> Bool {
+        guard let components = consumeBorderImageComponents(alwaysFill: alwaysFill) else {
+            return false
+        }
         // An absent part's first component is absent.
-        parts.append(slice, 0..<4)
-        parts.append(fill, 0)
-        parts.append(width, 0..<4)
-        parts.append(outset, 0..<4)
-        if rulesCount != 0 {
-            parts.appendRules(rules, rulesCount)
+        parts.append(components.slice, 0..<4)
+        parts.append(components.fill, 0)
+        parts.append(components.width, 0..<4)
+        parts.append(components.outset, 0..<4)
+        if components.rulesCount != 0 {
+            parts.appendRules(components.rules, components.rulesCount)
         } else {
-            parts.append(rules, 0..<2)
+            parts.append(components.rules, 0..<2)
         }
         var present = WebCore.CSSColorSwiftComponents()
-        if let source {
+        if let source = components.source {
             present.setNone(0)
             if let image = source.image {
                 parts.appendImage(image, present)
@@ -481,6 +496,17 @@ extension PropertyParser {
 /// A border-image source: none, or an image.
 struct BorderImageSource {
     let image: PropertyValue?
+}
+
+/// The parts of a border-image or a mask-border (`consumeBorderImageComponents`).
+struct BorderImageConsumedParts {
+    var source: BorderImageSource? = nil
+    var slice = WebCore.CSSColorSwiftComponents()
+    var fill = WebCore.CSSColorSwiftComponents()
+    var width = WebCore.CSSColorSwiftComponents()
+    var outset = WebCore.CSSColorSwiftComponents()
+    var rules = WebCore.CSSColorSwiftComponents()
+    var rulesCount: UInt8 = 0
 }
 
 extension WebCore.CSSImageSwiftParts {

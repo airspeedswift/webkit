@@ -420,10 +420,12 @@ RefPtr<CSSValue> consumeMaskBorderSlice(CSSParserTokenRange& range, CSS::Propert
     return consumePropertyWithSwift(range, state, CSSPropertyConsumerSwiftConsumer::MaskBorderSlice, overridesSlice == MaskBorderSliceOverride::AlwaysFill ? CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill : 0);
 }
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::MaskBorder> consumeUnresolvedMaskBorder(CSSParserTokenRange& range, CSS::PropertyParserState& state, MaskBorderSliceOverride overridesSlice)
 {
     return consumeUnresolvedWithSwift<CSS::MaskBorder>(range, state, CSSPropertyConsumerSwiftConsumer::UnresolvedMaskBorder, overridesSlice == MaskBorderSliceOverride::AlwaysFill ? CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill : 0);
 }
+#endif
 #endif
 
 } // namespace CSSPropertyParserHelpers

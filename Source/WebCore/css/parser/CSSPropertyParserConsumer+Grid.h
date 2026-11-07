@@ -65,7 +65,9 @@ RefPtr<CSSValue> consumeGridTemplateAreas(CSSParserTokenRange&, CSS::PropertyPar
 // https://drafts.csswg.org/css-grid/#propdef-grid-column-start
 // https://drafts.csswg.org/css-grid/#propdef-grid-row-end
 // https://drafts.csswg.org/css-grid/#propdef-grid-column-end
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridLine> consumeUnresolvedGridLine(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 #if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
 RefPtr<CSSValue> consumeGridLine(CSSParserTokenRange&, CSS::PropertyParserState&);
 #endif
@@ -100,22 +102,30 @@ RefPtr<CSSValue> consumeGridAutoFlow(CSSParserTokenRange&, CSS::PropertyParserSt
 // Parses a single <string> token from a <'grid-template-areas'> production.
 // https://drafts.csswg.org/css-grid/#valdef-grid-template-areas-string
 // NOTE: Exposed for use by shorthand parsers.
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridNamedAreaMapRow> consumeUnresolvedGridTemplateAreasRow(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // <line-names> = '[' <custom-ident excluding=span,auto>* ']'
 // https://drafts.csswg.org/css-grid/#typedef-line-names
 // NOTE: Exposed for use by shorthand parsers.
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridLineNames> consumeUnresolvedGridLineNames(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // <track-size> = <track-breadth> | minmax( <inflexible-breadth> , <track-breadth> ) | fit-content( <length-percentage [0,∞]> )
 // https://drafts.csswg.org/css-grid/#typedef-track-size
 // NOTE: Exposed for use by shorthand parsers.
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridTrackSize> consumeUnresolvedGridTrackSize(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // <explicit-track-list> = [ <line-names>? <track-size> ]+ <line-names>?
 // https://drafts.csswg.org/css-grid-2/#typedef-explicit-track-list
 // NOTE: Exposed for use by shorthand parsers.
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridTrackList> consumeUnresolvedGridExplicitTrackList(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

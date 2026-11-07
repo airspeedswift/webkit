@@ -357,6 +357,12 @@
 		C55D0000000000000000000A /* CSSPropertyConsumerSwiftBuilders.h in Headers */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000009 /* CSSPropertyConsumerSwiftBuilders.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		C55D00000000000000000012 /* CSSPropertyConsumerSwiftComponents.h in Headers */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000011 /* CSSPropertyConsumerSwiftComponents.h */; };
 		C55D0000000000000000000C /* CSSPropertyConsumerSwiftValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D0000000000000000000B /* CSSPropertyConsumerSwiftValues.swift */; };
+		1BFDE1D72C5E4B0098BCA3FD /* CSSPropertyParserDescriptors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34D74A5250A244FFA63776F9 /* CSSPropertyParserDescriptors.swift */; };
+		8F77079444ED4373B778C7F3 /* CSSPropertyParserRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B2DEE095A54E63A257423F /* CSSPropertyParserRoot.swift */; };
+		F990D6A9692745289BB4190D /* CSSPropertyParserShorthands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9819E1F985DD4696A13F5D95 /* CSSPropertyParserShorthands.swift */; };
+		7C483C5410DC4E9ABFE68620 /* CSSPropertyParserShorthandsBackgroundGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 133349B3C81B459AB5DE6670 /* CSSPropertyParserShorthandsBackgroundGrid.swift */; };
+		5E6371F56EF64D8B8D24DEA2 /* CSSPropertyParserShorthandsBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B18DA8F66C744A9B15FD654 /* CSSPropertyParserShorthandsBox.swift */; };
+		F62B487326834EBE8211B33D /* CSSPropertyParserShorthandsFont.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2B317F8164BEB9D9275B7 /* CSSPropertyParserShorthandsFont.swift */; };
 		C55D00000000000000000004 /* CSSPropertyConsumerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000003 /* CSSPropertyConsumerSwift.swift */; };
 		C55D0000000000000000000E /* CSSPropertyConsumerSwiftAlignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D0000000000000000000D /* CSSPropertyConsumerSwiftAlignment.swift */; };
 		C55D00000000000000000014 /* CSSPropertyConsumerSwiftEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000013 /* CSSPropertyConsumerSwiftEffects.swift */; };
@@ -2821,6 +2827,7 @@
 		6E4ABCD5138EA0B70071D291 /* JSHTMLUnknownElement.h in Headers */ = {isa = PBXBuildFile; fileRef = 6E4ABCD3138EA0B70071D291 /* JSHTMLUnknownElement.h */; };
 		6E4E91AF10F7FB3100A2779C /* WebGLContextAttributes.h in Headers */ = {isa = PBXBuildFile; fileRef = 6E4E91AA10F7FB3100A2779C /* WebGLContextAttributes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		6E72F54E229DCD1000B3E151 /* GraphicsContextGLANGLE.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6E27F2422298CE4B00F1F632 /* GraphicsContextGLANGLE.cpp */; };
+		D0E23904B8024D32A6914F54 /* CSSPropertyParserSwift.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2C087ED43E4648C791C936F3 /* CSSPropertyParserSwift.cpp */; };
 		6E84E9E117668BF100815B68 /* RasterLayoutShape.h in Headers */ = {isa = PBXBuildFile; fileRef = 6E84E9DF17668BAD00815B68 /* RasterLayoutShape.h */; };
 		6E8ACDED23345CBC0024AAF5 /* WebGLCompressedTextureETC.h in Headers */ = {isa = PBXBuildFile; fileRef = 6E8ACDEB23345CAF0024AAF5 /* WebGLCompressedTextureETC.h */; };
 		6EBF0E4912A8926100DB1709 /* OESTextureFloat.h in Headers */ = {isa = PBXBuildFile; fileRef = 6EBF0E4612A8926100DB1709 /* OESTextureFloat.h */; };
@@ -20066,6 +20073,7 @@
 		BC7C5E5D2BE2A8FB00AE645C /* CSSParserTokenRange.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CSSParserTokenRange.cpp; sourceTree = "<group>"; };
 		BC7C5E5E2BE2A8FB00AE645C /* CSSParserTokenRange.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSParserTokenRange.h; sourceTree = "<group>"; };
 		BC7C5E5F2BE2A8FB00AE645C /* CSSPropertyParser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CSSPropertyParser.cpp; sourceTree = "<group>"; };
+		2C087ED43E4648C791C936F3 /* CSSPropertyParserSwift.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CSSPropertyParserSwift.cpp; sourceTree = "<group>"; };
 		BC7C5E602BE2A8FB00AE645C /* CSSPropertyParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSPropertyParser.h; sourceTree = "<group>"; };
 		BC7C5E632BE2A8FB00AE645C /* CSSPropertyParserConsumer+AngleDefinitions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "CSSPropertyParserConsumer+AngleDefinitions.h"; sourceTree = "<group>"; };
 		BC7C5E642BE2A8FB00AE645C /* CSSPropertyParserConsumer+Color.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = "CSSPropertyParserConsumer+Color.cpp"; sourceTree = "<group>"; };
@@ -20115,6 +20123,12 @@
 		C55D00000000000000000009 /* CSSPropertyConsumerSwiftBuilders.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSPropertyConsumerSwiftBuilders.h; sourceTree = "<group>"; };
 		C55D00000000000000000011 /* CSSPropertyConsumerSwiftComponents.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSPropertyConsumerSwiftComponents.h; sourceTree = "<group>"; };
 		C55D0000000000000000000B /* CSSPropertyConsumerSwiftValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyConsumerSwiftValues.swift; sourceTree = "<group>"; };
+		34D74A5250A244FFA63776F9 /* CSSPropertyParserDescriptors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParserDescriptors.swift; sourceTree = "<group>"; };
+		13B2DEE095A54E63A257423F /* CSSPropertyParserRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParserRoot.swift; sourceTree = "<group>"; };
+		9819E1F985DD4696A13F5D95 /* CSSPropertyParserShorthands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParserShorthands.swift; sourceTree = "<group>"; };
+		133349B3C81B459AB5DE6670 /* CSSPropertyParserShorthandsBackgroundGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParserShorthandsBackgroundGrid.swift; sourceTree = "<group>"; };
+		2B18DA8F66C744A9B15FD654 /* CSSPropertyParserShorthandsBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParserShorthandsBox.swift; sourceTree = "<group>"; };
+		B1A2B317F8164BEB9D9275B7 /* CSSPropertyParserShorthandsFont.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParserShorthandsFont.swift; sourceTree = "<group>"; };
 		C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParsingSwift.swift; sourceTree = "<group>"; };
 		C55C00000000000000000001 /* CSSCalcSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSCalcSwiftTypes.h; sourceTree = "<group>"; };
 		C55A00000000000000000003 /* CSSTokenizerSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSTokenizerSwift.swift; sourceTree = "<group>"; };
@@ -33882,8 +33896,15 @@
 				C55D00000000000000000019 /* CSSPropertyConsumerSwiftShapes.swift */,
 				C55D0000000000000000000F /* CSSPropertyConsumerSwiftSmall.swift */,
 				C55D0000000000000000000B /* CSSPropertyConsumerSwiftValues.swift */,
+				34D74A5250A244FFA63776F9 /* CSSPropertyParserDescriptors.swift */,
+				13B2DEE095A54E63A257423F /* CSSPropertyParserRoot.swift */,
+				9819E1F985DD4696A13F5D95 /* CSSPropertyParserShorthands.swift */,
+				133349B3C81B459AB5DE6670 /* CSSPropertyParserShorthandsBackgroundGrid.swift */,
+				2B18DA8F66C744A9B15FD654 /* CSSPropertyParserShorthandsBox.swift */,
+				B1A2B317F8164BEB9D9275B7 /* CSSPropertyParserShorthandsFont.swift */,
 				C55D00000000000000000001 /* CSSPropertyConsumerSwiftTypes.h */,
 				BC7C5E5F2BE2A8FB00AE645C /* CSSPropertyParser.cpp */,
+				2C087ED43E4648C791C936F3 /* CSSPropertyParserSwift.cpp */,
 				BC7C5E602BE2A8FB00AE645C /* CSSPropertyParser.h */,
 				BC6DA0F52C8CA935000ECE0F /* CSSPropertyParserConsumer+Align.cpp */,
 				BC6DA0F62C8CA935000ECE0F /* CSSPropertyParserConsumer+Align.h */,
@@ -51391,6 +51412,7 @@
 				51A9D9E9195B931F001B2B5C /* GamepadManager.cpp in Sources */,
 				837964CF1F8DB69D00218EA0 /* GeolocationPositionDataCocoa.mm in Sources */,
 				6E72F54E229DCD1000B3E151 /* GraphicsContextGLANGLE.cpp in Sources */,
+				D0E23904B8024D32A6914F54 /* CSSPropertyParserSwift.cpp in Sources */,
 				7BE37F7A27BB86AB007A6CD3 /* GraphicsContextGLCocoa.mm in Sources */,
 				4195B986296442AA0071566E /* GraphicsContextGLCVCocoa.mm in Sources */,
 				7C3E510B18DF8F3500C112F7 /* HTMLConverter.mm in Sources */,
@@ -51493,6 +51515,12 @@
 				C55D0000000000000000001A /* CSSPropertyConsumerSwiftShapes.swift in Sources */,
 				C55D00000000000000000010 /* CSSPropertyConsumerSwiftSmall.swift in Sources */,
 				C55D0000000000000000000C /* CSSPropertyConsumerSwiftValues.swift in Sources */,
+				1BFDE1D72C5E4B0098BCA3FD /* CSSPropertyParserDescriptors.swift in Sources */,
+				8F77079444ED4373B778C7F3 /* CSSPropertyParserRoot.swift in Sources */,
+				F990D6A9692745289BB4190D /* CSSPropertyParserShorthands.swift in Sources */,
+				7C483C5410DC4E9ABFE68620 /* CSSPropertyParserShorthandsBackgroundGrid.swift in Sources */,
+				5E6371F56EF64D8B8D24DEA2 /* CSSPropertyParserShorthandsBox.swift in Sources */,
+				F62B487326834EBE8211B33D /* CSSPropertyParserShorthandsFont.swift in Sources */,
 				C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */,
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,

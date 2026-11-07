@@ -38,6 +38,13 @@
 #include <span>
 #include <wtf/ForbidHeapAllocation.h>
 
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+#include <WebCore/CSSCustomPropertySyntax.h>
+#include <WebCore/CSSNamespacePrefixMap.h>
+#include <WebCore/CSSWideKeyword.h>
+#include <WebCore/StyleRuleType.h>
+#endif
+
 namespace WebCore {
 
 // What a numeric token may be where it is consumed, from the property parser's state and options.
@@ -286,6 +293,16 @@ struct __attribute__((swift_attr("~Sendable"))) CSSPropertyConsumerSwiftValue : 
     // The calc() value of the math function `function` whose arguments are the tokens [argumentsStart, argumentsEnd),
     // which cssConsumePropertyCalc parses with calc() states of this call's own, or null if they do not parse.
     RefPtr<CSSPrimitiveValue> parseCalc(uint32_t argumentsStart, uint32_t argumentsEnd, uint16_t function, uint8_t category, uint32_t flags, double rangeMin, double rangeMax) const;
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+    bool isExposed(uint16_t property) const;
+    // CSSPropertyParsing::parseStylePropertyLonghand of the CSSPropertyID `consumer`, the exported consumer numbered
+    // `consumer` from cssPropertyIDEnumValueCount (consumeRuleForSwift), or with `descriptor` the descriptor `consumer`
+    // of the rule being parsed (parseDescriptorForSwift), on the tokens [start, end); `consumed` is the number of tokens
+    // it consumed, with or without a value.
+    RefPtr<CSSValue> parseWithCxx(uint16_t consumer, bool descriptor, uint32_t start, uint32_t end, uint32_t& consumed) const;
+    // Whether a token is an ident token whose value is `ident`, compared case-sensitively.
+    bool identEquals(size_t index, const AtomString& ident) const { return type(index) == IdentToken && token(index).value() == ident; }
+#endif
 protected:
     CSSPropertyConsumerSwiftValue() = default;
 private:
@@ -327,6 +344,48 @@ public:
     CSSPropertyConsumerSwiftUnresolvedResult* const unresolvedResult { nullptr };
 #endif
 };
+
+#if USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
+namespace CSS {
+struct PropertyParserResult;
+}
+class CSSPropertyConsumerSwiftShorthandSinkState;
+
+// Where cssParsePropertyValue adds the properties of the declaration in `value`: CSS::PropertyParserResult.
+struct __attribute__((swift_attr("~Sendable"))) CSSPropertyConsumerSwiftShorthandSink : CSSCalcSwiftFacade {
+    // A null value is the implicit initial value.
+    void addLonghand(uint16_t longhand, CSSValue*, bool implicit) const;
+    void addAllLonghands(uint16_t shorthand, CSSValue*, bool implicit) const;
+    void addProperty(uint16_t property, CSSValue&, bool important) const;
+    // The CSSSubstitutionValue of the tokens [start, end), for the property or each longhand of the shorthand, if they
+    // contain a substitution function; with the namespace map, or with none.
+    bool addSubstitutionValue(uint32_t start, uint32_t end, bool withNamespaceMap) const;
+    bool isKeywordValid(uint16_t property, uint16_t valueID) const;
+protected:
+    CSSPropertyConsumerSwiftShorthandSink() = default;
+private:
+    inline const CSSPropertyConsumerSwiftShorthandSinkState& state() const;
+};
+
+// The state behind CSSPropertyConsumerSwiftShorthandSink.
+class CSSPropertyConsumerSwiftShorthandSinkState final : public CSSPropertyConsumerSwiftShorthandSink {
+    WTF_FORBID_HEAP_ALLOCATION;
+public:
+    CSSPropertyConsumerSwiftShorthandSinkState(const CSSPropertyConsumerSwiftValueState& value, CSS::PropertyParserResult& result, const CSSNamespacePrefixMap& namespaceMap)
+        : value(value)
+        , result(result)
+        , namespaceMap(namespaceMap)
+    {
+    }
+
+    const CSSPropertyConsumerSwiftValueState& value;
+    CSS::PropertyParserResult& result;
+    const CSSNamespacePrefixMap& namespaceMap;
+};
+
+inline const CSSPropertyConsumerSwiftShorthandSinkState& CSSPropertyConsumerSwiftShorthandSink::state() const { return static_cast<const CSSPropertyConsumerSwiftShorthandSinkState&>(*this); }
+
+#endif
 
 inline size_t CSSPropertyConsumerSwiftValue::count() const { return static_cast<const CSSPropertyConsumerSwiftValueState&>(*this).tokens.size(); }
 #if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3

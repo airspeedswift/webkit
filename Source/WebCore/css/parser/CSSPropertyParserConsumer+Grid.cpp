@@ -260,6 +260,7 @@ std::optional<CSS::GridLineNames> consumeUnresolvedGridLineNames(CSSParserTokenR
 static_assert(CSS::Positive == CSS::Range { 1, CSS::Range::infinity });
 static_assert(decltype(CSS::GridLineSpan::index)::range == CSS::Positive && decltype(CSS::GridLineExplicit::index)::range == CSS::All);
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridNamedAreaMapRow> consumeUnresolvedGridTemplateAreasRow(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     return consumeUnresolvedWithSwift<CSS::GridNamedAreaMapRow>(range, state, CSSPropertyConsumerSwiftConsumer::UnresolvedGridTemplateAreasRow);
@@ -274,6 +275,7 @@ std::optional<CSS::GridLineNames> consumeUnresolvedGridLineNames(CSSParserTokenR
 {
     return consumeUnresolvedWithSwift<CSS::GridLineNames>(range, state, CSSPropertyConsumerSwiftConsumer::UnresolvedGridLineNames);
 }
+#endif
 #endif
 
 #if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
@@ -307,10 +309,12 @@ std::optional<CSS::GridTrackList> consumeUnresolvedGridExplicitTrackList(CSSPars
 #endif
 
 #if USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridTrackList> consumeUnresolvedGridExplicitTrackList(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     return consumeUnresolvedWithSwift<CSS::GridTrackList>(range, state, CSSPropertyConsumerSwiftConsumer::UnresolvedGridExplicitTrackList);
 }
+#endif
 #endif
 
 #if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4
@@ -699,10 +703,12 @@ std::optional<CSS::GridTrackSize> consumeUnresolvedGridTrackSize(CSSParserTokenR
 // The ranges of the breadths Swift consumes: a fit-content() length and a flex are non-negative.
 static_assert(std::same_as<decltype(CSS::GridFitContentFunctionParameters::value), CSS::LengthPercentage<CSS::Nonnegative>> && CSS::Flex<CSS::Nonnegative>::range == CSS::Nonnegative);
 
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::GridTrackSize> consumeUnresolvedGridTrackSize(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     return consumeUnresolvedWithSwift<CSS::GridTrackSize>(range, state, CSSPropertyConsumerSwiftConsumer::UnresolvedGridTrackSize);
 }
+#endif
 #endif
 
 #if !USE_SWIFT_CSS_PROPERTY_CONSUMERS_4

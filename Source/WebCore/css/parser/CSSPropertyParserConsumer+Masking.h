@@ -95,7 +95,9 @@ RefPtr<CSSValue> consumeMaskBorderWidth(CSSParserTokenRange&, CSS::PropertyParse
 
 // <'mask-border'> = <'mask-border-source'> || <'mask-border-slice'> [ / <'mask-border-width'>? [ / <'mask-border-outset'> ]? ]? || <'mask-border-repeat'> || <'mask-border-mode'>
 // https://drafts.csswg.org/css-masking-1/#propdef-mask-border
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::MaskBorder> consumeUnresolvedMaskBorder(CSSParserTokenRange&, CSS::PropertyParserState&, MaskBorderSliceOverride = MaskBorderSliceOverride::None);
+#endif
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

@@ -525,6 +525,92 @@ TEST(CSSPropertyParser, GradientStopCounts)
     }
 }
 
+// The value of each layer of a layer list, from 1 to `count`, joined by ", ".
+static String cssPropertyParserLayerList(unsigned count, const Function<String(unsigned)>& layer)
+{
+    StringBuilder builder;
+    for (unsigned i = 1; i <= count; ++i)
+        builder.append(i > 1 ? ", "_s : ""_s, layer(i));
+    return builder.toString();
+}
+
+TEST(CSSPropertyParser, BackgroundLayerCounts)
+{
+    // Backgrounds of 4 and 5 layers, each with a position and a one-value size (its height auto), and a color in
+    // the last.
+    for (unsigned count : { 4u, 5u }) {
+        auto input = cssPropertyParserLayerList(count, [&](unsigned i) {
+            return makeString(i, "px "_s, 10 + i, "px / "_s, 20 + i, "px"_s, i == count ? " red"_s : ""_s);
+        });
+        auto repeated = [&](ASCIILiteral value) { return cssPropertyParserLayerList(count, [&](unsigned) { return String { value }; }); };
+        std::pair<WebCore::CSSPropertyID, String> longhands[] = {
+            { WebCore::CSSPropertyID::BackgroundImage, repeated("none"_s) },
+            { WebCore::CSSPropertyID::BackgroundPositionX, cssPropertyParserLayerList(count, [](unsigned i) { return makeString(i, "px"_s); }) },
+            { WebCore::CSSPropertyID::BackgroundPositionY, cssPropertyParserLayerList(count, [](unsigned i) { return makeString(10 + i, "px"_s); }) },
+            { WebCore::CSSPropertyID::BackgroundSize, cssPropertyParserLayerList(count, [](unsigned i) { return makeString(20 + i, "px auto"_s); }) },
+            { WebCore::CSSPropertyID::BackgroundRepeat, repeated("repeat"_s) },
+            { WebCore::CSSPropertyID::BackgroundAttachment, repeated("scroll"_s) },
+            { WebCore::CSSPropertyID::BackgroundOrigin, repeated("padding-box"_s) },
+            { WebCore::CSSPropertyID::BackgroundClip, repeated("border-box"_s) },
+            { WebCore::CSSPropertyID::BackgroundColor, String { "red"_s } },
+        };
+
+        auto properties = WebCore::MutableStyleProperties::create();
+        ASSERT_TRUE(WebCore::CSSParser::parseDeclarationList(properties, makeString("background: "_s, input, ';'), WebCore::strictCSSParserContext()));
+        for (auto& [longhand, value] : longhands)
+            EXPECT_EQ(properties->getPropertyValue(longhand), value);
+    }
+}
+
+TEST(CSSPropertyParser, AnimationLayerCounts)
+{
+    // Animations of 4 and 5 layers, each with a name and a duration.
+    for (unsigned count : { 4u, 5u }) {
+        auto input = cssPropertyParserLayerList(count, [](unsigned i) { return makeString('a', i, ' ', i, 's'); });
+        auto repeated = [&](ASCIILiteral value) { return cssPropertyParserLayerList(count, [&](unsigned) { return String { value }; }); };
+        std::pair<WebCore::CSSPropertyID, String> longhands[] = {
+            { WebCore::CSSPropertyID::AnimationDuration, cssPropertyParserLayerList(count, [](unsigned i) { return makeString(i, 's'); }) },
+            { WebCore::CSSPropertyID::AnimationTimingFunction, repeated("ease"_s) },
+            { WebCore::CSSPropertyID::AnimationDelay, repeated("0s"_s) },
+            { WebCore::CSSPropertyID::AnimationIterationCount, repeated("1"_s) },
+            { WebCore::CSSPropertyID::AnimationDirection, repeated("normal"_s) },
+            { WebCore::CSSPropertyID::AnimationFillMode, repeated("none"_s) },
+            { WebCore::CSSPropertyID::AnimationPlayState, repeated("running"_s) },
+            { WebCore::CSSPropertyID::AnimationName, cssPropertyParserLayerList(count, [](unsigned i) { return makeString('a', i); }) },
+            { WebCore::CSSPropertyID::AnimationTimeline, String { "auto"_s } },
+            { WebCore::CSSPropertyID::AnimationRangeStart, String { "normal"_s } },
+            { WebCore::CSSPropertyID::AnimationRangeEnd, String { "normal"_s } },
+        };
+
+        auto properties = WebCore::MutableStyleProperties::create();
+        ASSERT_TRUE(WebCore::CSSParser::parseDeclarationList(properties, makeString("animation: "_s, input, ';'), WebCore::strictCSSParserContext()));
+        for (auto& [longhand, value] : longhands)
+            EXPECT_EQ(properties->getPropertyValue(longhand), value);
+    }
+}
+
+TEST(CSSPropertyParser, TransitionLayerCounts)
+{
+    // Transitions of 4 and 5 layers, each with a property and a duration.
+    static constexpr ASCIILiteral transitionProperties[] = { "opacity"_s, "color"_s, "width"_s, "height"_s, "top"_s };
+    for (unsigned count : { 4u, 5u }) {
+        auto input = cssPropertyParserLayerList(count, [](unsigned i) { return makeString(transitionProperties[i - 1], ' ', i, 's'); });
+        auto repeated = [&](ASCIILiteral value) { return cssPropertyParserLayerList(count, [&](unsigned) { return String { value }; }); };
+        std::pair<WebCore::CSSPropertyID, String> longhands[] = {
+            { WebCore::CSSPropertyID::TransitionProperty, cssPropertyParserLayerList(count, [](unsigned i) { return String { transitionProperties[i - 1] }; }) },
+            { WebCore::CSSPropertyID::TransitionDuration, cssPropertyParserLayerList(count, [](unsigned i) { return makeString(i, 's'); }) },
+            { WebCore::CSSPropertyID::TransitionTimingFunction, repeated("ease"_s) },
+            { WebCore::CSSPropertyID::TransitionDelay, repeated("0s"_s) },
+            { WebCore::CSSPropertyID::TransitionBehavior, repeated("normal"_s) },
+        };
+
+        auto properties = WebCore::MutableStyleProperties::create();
+        ASSERT_TRUE(WebCore::CSSParser::parseDeclarationList(properties, makeString("transition: "_s, input, ';'), WebCore::strictCSSParserContext()));
+        for (auto& [longhand, value] : longhands)
+            EXPECT_EQ(properties->getPropertyValue(longhand), value);
+    }
+}
+
 TEST(CSSPropertyParser, TypedOMSumRecordCounts)
 {
     // Typed OM sums of 31 and 32 lengths, whose calc() trees have 32 and 33 nodes, converted to CSS values.

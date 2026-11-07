@@ -189,6 +189,7 @@ std::optional<CSS::BorderRadiusSide> consumeUnresolvedBorderRadiusSide(CSSParser
 #endif
 
 #if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::BorderRadius> consumeUnresolvedBorderRadius(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
     return consumeUnresolvedWithSwift<CSS::BorderRadius>(range, state, CSSPropertyConsumerSwiftConsumer::BorderRadius);
@@ -203,6 +204,7 @@ std::optional<CSS::BorderRadiusSide> consumeUnresolvedBorderRadiusSide(CSSParser
 {
     return consumeUnresolvedWithSwift<CSS::BorderRadiusSide>(range, state, CSSPropertyConsumerSwiftConsumer::BorderRadiusSide);
 }
+#endif
 #endif
 
 // MARK: - Border Image
@@ -492,12 +494,14 @@ std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange
 #endif
 
 #if USE_SWIFT_CSS_PROPERTY_CONSUMERS_3
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange& range, CSS::PropertyParserState& state, BorderImageSliceOverride overridesSlice, BorderImageWidthOverridesWidthForLength overridesWidth)
 {
     uint8_t options = (overridesSlice == BorderImageSliceOverride::AlwaysFill ? CSSPropertyConsumerSwiftBorderImageSliceAlwaysFill : 0)
         | (overridesWidth == BorderImageWidthOverridesWidthForLength::Yes ? CSSPropertyConsumerSwiftBorderImageWidthOverridesWidthForLength : 0);
     return consumeUnresolvedWithSwift<CSS::BorderImage>(range, state, CSSPropertyConsumerSwiftConsumer::BorderImage, options);
 }
+#endif
 #endif
 
 // MARK: - Background Size

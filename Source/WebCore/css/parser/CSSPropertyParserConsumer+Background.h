@@ -59,15 +59,21 @@ enum class BorderImageWidthOverridesWidthForLength : bool { No, Yes };
 
 // <'border-radius'> = <length-percentage [0,∞]>{1,4} [ / <length-percentage [0,∞]>{1,4} ]?
 // https://drafts.csswg.org/css-backgrounds/#propdef-border-radius
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::BorderRadius> consumeUnresolvedBorderRadius(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // Non-standard -webkit-border-radius.
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::BorderRadius> consumeUnresolvedWebKitBorderRadius(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // <'border-top-radius'>, <'border-right-radius'>, <'border-bottom-radius'>, <'border-left-radius'>, and their logical equivalents.
 // <length-percentage [0,∞]>{1,2} [ / <length-percentage [0,∞]>{1,2} ]?
 // https://drafts.csswg.org/css-borders-4/#corner-sizing-side-shorthands
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::BorderRadiusSide> consumeUnresolvedBorderRadiusSide(CSSParserTokenRange&, CSS::PropertyParserState&);
+#endif
 
 // MARK: - Border Image
 
@@ -97,7 +103,9 @@ std::optional<CSS::BorderImageWidth> consumeUnresolvedBorderImageWidth(CSSParser
 RefPtr<CSSValue> consumeBorderImageWidth(CSSParserTokenRange&, CSS::PropertyParserState&, BorderImageWidthOverridesWidthForLength = BorderImageWidthOverridesWidthForLength::No);
 
 // https://drafts.csswg.org/css-backgrounds/#border-image
+#if !USE_SWIFT_CSS_SHORTHANDS_AND_TYPED_OM
 std::optional<CSS::BorderImage> consumeUnresolvedBorderImage(CSSParserTokenRange&, CSS::PropertyParserState&, BorderImageSliceOverride = BorderImageSliceOverride::None, BorderImageWidthOverridesWidthForLength = BorderImageWidthOverridesWidthForLength::No);
+#endif
 
 // MARK: - Background Size
 
