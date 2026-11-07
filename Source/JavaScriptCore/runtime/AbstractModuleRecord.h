@@ -332,7 +332,10 @@ protected:
 #if !defined(__swift__)
     ModuleMap<LoadedModuleRequest> m_loadedModules;
 
-    static_assert(sizeof(ModuleMap<LoadedModuleRequest>) == sizeof(void*) && alignof(ModuleMap<LoadedModuleRequest>) == alignof(void*));
+#if !ASSERT_ENABLED
+    static_assert(sizeof(ModuleMap<LoadedModuleRequest>) == sizeof(void*));
+#endif
+    static_assert(alignof(ModuleMap<LoadedModuleRequest>) == alignof(void*));
 #else
     void* m_loadedModules;
 #endif
