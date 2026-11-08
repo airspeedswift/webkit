@@ -60,7 +60,7 @@ inline bool isGap(const PossibleEpochNanoseconds& p) { return std::holds_alterna
 
 // Helper: returns a span over the ExactTime candidates (empty for gap, 1 for single, 2 for fold).
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
-inline std::span<const ISO8601::ExactTime> epochCandidates(const PossibleEpochNanoseconds& p)
+inline std::span<const ISO8601::ExactTime> epochCandidates(const PossibleEpochNanoseconds& p LIFETIME_BOUND)
 {
     if (auto* a = std::get_if<std::array<ISO8601::ExactTime, 2>>(&p))
         return *a;
