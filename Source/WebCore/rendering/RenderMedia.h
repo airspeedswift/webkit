@@ -37,7 +37,7 @@ class RenderMedia : public RenderImage {
     WTF_MAKE_TZONE_ALLOCATED(RenderMedia);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderMedia);
 public:
-    RenderMedia(Type, HTMLMediaElement&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderMedia(Type, HTMLMediaElement&, Style::ComputedStyle&&);
     virtual ~RenderMedia();
 
     inline HTMLMediaElement& mediaElement() const; // Defined in RenderMediaInlines.h

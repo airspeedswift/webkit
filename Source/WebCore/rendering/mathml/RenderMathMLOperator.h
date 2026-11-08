@@ -39,8 +39,8 @@ class RenderMathMLOperator : public RenderMathMLToken {
     WTF_MAKE_TZONE_ALLOCATED(RenderMathMLOperator);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderMathMLOperator);
 public:
-    RenderMathMLOperator(Type, MathMLOperatorElement&, Style::ComputedStyle&&);
-    RenderMathMLOperator(Type, Document&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderMathMLOperator(Type, MathMLOperatorElement&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderMathMLOperator(Type, Document&, Style::ComputedStyle&&);
     virtual ~RenderMathMLOperator();
 
     MathMLOperatorElement& LEGACY_NODELETE element() const;

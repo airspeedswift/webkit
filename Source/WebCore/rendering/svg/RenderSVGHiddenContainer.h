@@ -32,7 +32,7 @@ class RenderSVGHiddenContainer : public RenderSVGContainer {
     WTF_MAKE_TZONE_ALLOCATED(RenderSVGHiddenContainer);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderSVGHiddenContainer);
 public:
-    RenderSVGHiddenContainer(Type, SVGElement&, Style::ComputedStyle&&, OptionSet<SVGModelObjectFlag> = { });
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderSVGHiddenContainer(Type, SVGElement&, Style::ComputedStyle&&, OptionSet<SVGModelObjectFlag> = { });
     virtual ~RenderSVGHiddenContainer();
 
 protected:

@@ -32,7 +32,7 @@ class RenderTextControlSingleLine : public RenderTextControl {
     WTF_MAKE_TZONE_ALLOCATED(RenderTextControlSingleLine);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderTextControlSingleLine);
 public:
-    RenderTextControlSingleLine(Type, HTMLInputElement&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderTextControlSingleLine(Type, HTMLInputElement&, Style::ComputedStyle&&);
     virtual ~RenderTextControlSingleLine();
 
     RenderTextControlInnerBlock* innerTextRenderer() const;

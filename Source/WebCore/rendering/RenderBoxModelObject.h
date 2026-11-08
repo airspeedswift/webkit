@@ -69,8 +69,8 @@ class RenderBoxModelObject : public RenderLayerModelObject {
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderBoxModelObject);
 public:
     // An inline box is a RenderBoxModelObject of its own. Boxes and line breaks use the protected constructors.
-    RenderBoxModelObject(Type, Element&, Style::ComputedStyle&&);
-    RenderBoxModelObject(Type, Document&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderBoxModelObject(Type, Element&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderBoxModelObject(Type, Document&, Style::ComputedStyle&&);
     virtual ~RenderBoxModelObject();
 
     ASCIILiteral renderName() const override;
@@ -248,7 +248,7 @@ protected:
 
 private:
     RenderBlock* containingBlockForAutoHeightDetectionGeneric(const auto& logicalHeight) const;
-};
+} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
 
 bool LEGACY_NODELETE isEmptyInline(const RenderBoxModelObject&);
 RenderObject* LEGACY_NODELETE firstContentfulChild(RenderBoxModelObject&);

@@ -762,6 +762,36 @@ RenderBlock* RenderObject::containingBlockForPositionType(PositionType positionT
     return nullptr;
 }
 
+const RenderBox* RenderObject::asRenderBox() const
+{
+    return dynamicDowncast<RenderBox>(*this);
+}
+
+const RenderBoxModelObject* RenderObject::asRenderBoxModelObject() const
+{
+    return dynamicDowncast<RenderBoxModelObject>(*this);
+}
+
+const RenderElement* RenderObject::asRenderElement() const
+{
+    return dynamicDowncast<RenderElement>(*this);
+}
+
+const RenderLayerModelObject* RenderObject::asRenderLayerModelObject() const
+{
+    return dynamicDowncast<RenderLayerModelObject>(*this);
+}
+
+const RenderSVGModelObject* RenderObject::asRenderSVGModelObject() const
+{
+    return dynamicDowncast<RenderSVGModelObject>(*this);
+}
+
+const RenderView* RenderObject::asRenderView() const
+{
+    return dynamicDowncast<RenderView>(*this);
+}
+
 RenderBlock* RenderObject::containingBlock() const
 {
     // FIXME: See https://bugs.webkit.org/show_bug.cgi?id=270977 for RenderLineBreak special treatment.

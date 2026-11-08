@@ -67,10 +67,10 @@ class RenderLayerModelObject : public RenderElement {
 public:
     virtual ~RenderLayerModelObject();
 
-    void destroyLayer();
+    SWIFT_UNSAFE void destroyLayer();
 
     bool LEGACY_NODELETE hasSelfPaintingLayer() const;
-    RenderLayer* layer() const LIFETIME_BOUND { return m_layer.get(); }
+    RenderLayer* layer() const { return m_layer.get(); }
 
     void styleWillChange(Style::Difference, const Style::ComputedStyle& newStyle) override;
     void styleDidChange(Style::Difference, const Style::ComputedStyle* oldStyle) override;
@@ -204,7 +204,7 @@ private:
     static bool s_hadLayer;
     static bool s_wasTransformed;
     static bool s_layerWasSelfPainting;
-};
+} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
 
 // Pixel-snapping (== 'device pixel alignment') helpers.
 bool LEGACY_NODELETE rendererNeedsPixelSnapping(const RenderLayerModelObject&);

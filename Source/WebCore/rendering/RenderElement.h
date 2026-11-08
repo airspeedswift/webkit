@@ -180,8 +180,8 @@ public:
     // can contain a mixture of boxes and other object types, these functions need to be in the base class.
     RenderLayer* LEGACY_NODELETE layerParent() const;
     RenderLayer* layerNextSibling(RenderLayer& parentLayer) const;
-    void removeLayers();
-    void moveLayers(RenderLayer& newParent);
+    SWIFT_UNSAFE void removeLayers();
+    SWIFT_UNSAFE void moveLayers(RenderLayer& newParent);
 
     // Conservative hint used to skip layer-less subtrees in findNextLayer.
     // True means "this or some descendant may have a RenderLayer". May be a false
@@ -325,8 +325,8 @@ public:
     bool isFirstLetter() const { return m_isFirstLetter; }
     void setIsFirstLetter() { m_isFirstLetter = true; }
 
-    RenderObject* attachRendererInternal(RenderPtr<RenderObject> child, RenderObject* beforeChild);
-    RenderPtr<RenderObject> detachRendererInternal(RenderObject&);
+    SWIFT_UNSAFE RenderObject* attachRendererInternal(RenderPtr<RenderObject> child, RenderObject* beforeChild);
+    SWIFT_UNSAFE RenderPtr<RenderObject> detachRendererInternal(RenderObject&);
 
     virtual bool startAnimation(double /* timeOffset */, const GraphicsLayerAnimation&, const BlendingKeyframes&) { return false; }
     virtual void animationPaused(double /* timeOffset */, const BlendingKeyframes&) { }
@@ -361,8 +361,8 @@ public:
 
     virtual LayoutRect paintRectToClipOutFromBorder(const LayoutRect&) { return { }; }
 
-    void establishesTopLayerWillChange();
-    void establishesTopLayerDidChange();
+    SWIFT_UNSAFE void establishesTopLayerWillChange();
+    SWIFT_UNSAFE void establishesTopLayerDidChange();
 
     static void markRendererDirtyAfterTopLayerChange(RenderElement* renderer, RenderBlock* containingBlockBeforeStyleResolution);
 
@@ -536,7 +536,7 @@ private:
     unsigned m_mayHaveNonScalingStrokeInSubtree : 1 { false };
     unsigned m_lineClampState : 2 { static_cast<unsigned>(LineClampState::None) };
     // 8 bits free.
-};
+} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
 
 WEBCORE_EXPORT float LEGACY_NODELETE opacity(const RenderElement&);
 

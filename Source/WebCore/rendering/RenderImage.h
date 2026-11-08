@@ -56,8 +56,8 @@ class RenderImage : public RenderReplaced {
     WTF_MAKE_TZONE_ALLOCATED(RenderImage);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderImage);
 public:
-    RenderImage(Type, Element&, Style::ComputedStyle&&, Style::Image* = nullptr, float currentPixelDensity = 1);
-    RenderImage(Type, Document&, Style::ComputedStyle&&, Style::Image* = nullptr);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderImage(Type, Element&, Style::ComputedStyle&&, Style::Image* = nullptr, float currentPixelDensity = 1);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderImage(Type, Document&, Style::ComputedStyle&&, Style::Image* = nullptr);
     virtual ~RenderImage();
 
     RenderImageResource& imageResource() { return *m_imageResource; }

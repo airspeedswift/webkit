@@ -76,6 +76,7 @@ class RenderFragmentedFlow;
 class RenderGeometryMap;
 class RenderLayer;
 class RenderLayerModelObject;
+class RenderSVGModelObject;
 class RenderFragmentContainer;
 class RenderTheme;
 class RenderTreeBuilder;
@@ -345,7 +346,7 @@ public:
 
     // Anonymous objects should pass the document as their node, and they will then automatically be
     // marked as anonymous in the constructor.
-    RenderObject(Type, Node&, OptionSet<TypeFlag>, TypeSpecificFlags);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderObject(Type, Node&, OptionSet<TypeFlag>, TypeSpecificFlags);
     virtual ~RenderObject();
 
     Type type() const { return m_type; }
@@ -741,7 +742,7 @@ public:
     // instead. Returns the capture state with this adjustment applied.
     bool effectiveCapturedInViewTransition() const;
 
-    inline RenderView& LEGACY_NODELETE view() const LIFETIME_BOUND; // Defined in RenderObjectDocument.h
+    inline RenderView& LEGACY_NODELETE view() const; // Defined in RenderObjectDocument.h
     inline LocalFrameViewLayoutContext& layoutContext() const;
 
     HostWindow* hostWindow() const;
@@ -789,7 +790,7 @@ public:
     void setBlockLevelReplacedOrAtomicInline(bool b = true) { m_stateBitfields.setFlag(StateFlag::IsBlockLevelReplacedOrAtomicInline, b); }
     void setHorizontalWritingMode(bool b = true) { m_stateBitfields.setFlag(StateFlag::VerticalWritingMode, !b); }
     void setHasNonVisibleOverflow(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasNonVisibleOverflow, b); }
-    void setHasLayer(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasLayer, b); }
+    SWIFT_UNSAFE void setHasLayer(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasLayer, b); }
     void setHasTransformRelatedProperty(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasTransformRelatedProperty, b); }
 
     void setHasReflection(bool = true);
@@ -818,6 +819,14 @@ public:
 
     // Returns the containing block level element for this element.
     WEBCORE_EXPORT RenderBlock* containingBlock() const;
+
+    // Swift has no downcast of a foreign reference type. Each is null when the renderer is not of the type.
+    const RenderBox* asRenderBox() const;
+    const RenderBoxModelObject* asRenderBoxModelObject() const;
+    const RenderElement* asRenderElement() const;
+    const RenderLayerModelObject* asRenderLayerModelObject() const;
+    const RenderSVGModelObject* asRenderSVGModelObject() const;
+    const RenderView* asRenderView() const;
     static RenderBlock* containingBlockForPositionType(PositionType, const RenderObject&);
 
     // Convert the given local point to absolute coordinates. If OptionSet<MapCoordinatesMode> includes UseTransforms, take transforms into account.
@@ -1057,7 +1066,7 @@ public:
     // When performing a global document tear-down, or when going into the back/forward cache, the renderer of the document is cleared.
     bool renderTreeBeingDestroyed() const; // Defined in RenderObjectDocument.h
 
-    void destroy();
+    SWIFT_UNSAFE void destroy();
 
     // Virtual function helpers for the deprecated Flexible Box Layout (display: -webkit-box).
     bool isRenderDeprecatedFlexibleBox() const { return m_type == RenderObject::Type::DeprecatedFlexibleBox; }
@@ -1327,7 +1336,7 @@ private:
 
     using RareDataMap = SingleThreadWeakHashMap<const RenderObject, std::unique_ptr<RenderObjectRareData>>;
     static RareDataMap& LEGACY_NODELETE rareDataMap();
-};
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 class RenderObject::SetLayoutNeededForbiddenScope {
 public:

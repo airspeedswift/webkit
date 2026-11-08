@@ -330,7 +330,7 @@ private:
 
     SingleThreadWeakPtr<RenderBlockFlow> m_viewTransitionContainingBlock;
     HashMap<AtomString, SingleThreadWeakPtr<RenderBox>> m_viewTransitionGroups;
-};
+} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
 
 } // namespace WebCore
 

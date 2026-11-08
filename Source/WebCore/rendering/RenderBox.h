@@ -755,7 +755,7 @@ private:
 
     // Used to store state between styleWillChange and styleDidChange
     static bool s_hadNonVisibleOverflow;
-};
+} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
 
 inline bool isSkippedContentRoot(const RenderBox&);
 

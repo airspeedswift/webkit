@@ -42,8 +42,8 @@ class RenderMathMLBlock : public RenderBlock {
     WTF_MAKE_TZONE_ALLOCATED(RenderMathMLBlock);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderMathMLBlock);
 public:
-    RenderMathMLBlock(Type, MathMLPresentationElement&, Style::ComputedStyle&&);
-    RenderMathMLBlock(Type, Document&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderMathMLBlock(Type, MathMLPresentationElement&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderMathMLBlock(Type, Document&, Style::ComputedStyle&&);
     virtual ~RenderMathMLBlock();
 
     MathMLStyle& mathMLStyle() const { return m_mathMLStyle; }

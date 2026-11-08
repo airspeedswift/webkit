@@ -39,8 +39,8 @@ class RenderMathMLToken : public RenderMathMLBlock {
     WTF_MAKE_TZONE_ALLOCATED(RenderMathMLToken);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderMathMLToken);
 public:
-    RenderMathMLToken(Type, MathMLTokenElement&, Style::ComputedStyle&&);
-    RenderMathMLToken(Type, Document&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderMathMLToken(Type, MathMLTokenElement&, Style::ComputedStyle&&);
+    SWIFT_UNAVAILABLE_IN_SWIFT RenderMathMLToken(Type, Document&, Style::ComputedStyle&&);
     virtual ~RenderMathMLToken();
 
     MathMLTokenElement& LEGACY_NODELETE element();
