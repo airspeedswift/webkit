@@ -311,7 +311,14 @@ RPATH_LDFLAGS = $(RPATH_LDFLAGS_$(USE_STAGING_INSTALL_PATH));
 // StagedFrameworks/WebKit.framework/Versions/A/ => StagedFrameworks/
 RPATH_LDFLAGS_YES = -rpath @loader_path/../../..;
 
-OTHER_LDFLAGS = $(inherited) -lsqlite3 -iframework $(SDK_DIR)$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks $(UNEXPORTED_SYMBOL_LDFLAGS) $(FRAMEWORK_AND_LIBRARY_LDFLAGS) $(OTHER_LDFLAGS_DELAY_INIT) $(OTHER_LDFLAGS_SHARED_CACHE) $(SOURCE_VERSION_LDFLAGS) $(WK_CLANG_PGO_USE_LDFLAGS) $(WK_CLANG_PGO_GEN_FLAGS) $(WK_NO_STATIC_INITIALIZERS) $(RPATH_LDFLAGS);
+// Thin LTO: no cross-module function import into WebKit's modules, as in WebCore.xcconfig and WebGPU.xcconfig. The Swift
+// snapshot's assertions-enabled libLTO aborts on importing into WebCore's C++ ("mapping to a source type", IRMover.cpp), and
+// on importing and inlining callees of Swift calls marked "clang.arc.attachedcall"(llvm.objc.claimAutoreleasedReturnValue)
+// ("unexpected ARC runtime function", ObjCARCUtil.h); WebKit links the same C++ headers and has Swift with ObjC++ interop.
+OTHER_LDFLAGS_THIN_LTO_IMPORT = $(OTHER_LDFLAGS_THIN_LTO_IMPORT_$(LLVM_LTO));
+OTHER_LDFLAGS_THIN_LTO_IMPORT_YES_THIN = -Wl,-mllvm,-import-instr-limit=0;
+
+OTHER_LDFLAGS = $(inherited) -lsqlite3 -iframework $(SDK_DIR)$(SYSTEM_LIBRARY_DIR)/PrivateFrameworks $(UNEXPORTED_SYMBOL_LDFLAGS) $(FRAMEWORK_AND_LIBRARY_LDFLAGS) $(OTHER_LDFLAGS_DELAY_INIT) $(OTHER_LDFLAGS_SHARED_CACHE) $(SOURCE_VERSION_LDFLAGS) $(WK_CLANG_PGO_USE_LDFLAGS) $(WK_CLANG_PGO_GEN_FLAGS) $(WK_NO_STATIC_INITIALIZERS) $(RPATH_LDFLAGS) $(OTHER_LDFLAGS_THIN_LTO_IMPORT);
 
 OTHER_LDFLAGS_DELAY_INIT[sdk=iphone*] = -Wl,-delay_framework,CoreTelephony;
 OTHER_LDFLAGS_DELAY_INIT[sdk=appletv*] = ;
