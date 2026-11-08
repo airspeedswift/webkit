@@ -175,6 +175,7 @@
 #include <stdio.h>
 #include <wtf/HexNumber.h>
 #include <wtf/MonotonicTime.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/CString.h>
@@ -2988,6 +2989,47 @@ uint64_t renderLayerAncestorWalkForTesting(std::span<const RenderLayer* const> l
         digest = (digest ^ (depth << 32 | stacking)) * fnvPrime;
     }
     return digest;
+}
+
+// Weak references to layers held on behalf of a benchmark, which cannot name how a layer is weakly referenced.
+static Vector<InlineWeakPtr<RenderLayer>>& testingWeakReferences()
+{
+    static NeverDestroyed<Vector<InlineWeakPtr<RenderLayer>>> references;
+    return references;
+}
+
+static Vector<size_t>& testingFreeWeakReferenceSlots()
+{
+    static NeverDestroyed<Vector<size_t>> slots;
+    return slots;
+}
+
+size_t renderLayerWeakReferenceAcquireForTesting(const Element& element)
+{
+    auto* renderer = dynamicDowncast<RenderLayerModelObject>(element.renderer());
+    auto* layer = renderer ? renderer->layer() : nullptr;
+    if (!layer)
+        return notFound;
+    auto& references = testingWeakReferences();
+    auto& freeSlots = testingFreeWeakReferenceSlots();
+    if (freeSlots.isEmpty()) {
+        references.append(layer);
+        return references.size() - 1;
+    }
+    size_t slot = freeSlots.takeLast();
+    references[slot] = layer;
+    return slot;
+}
+
+bool renderLayerWeakReferenceIsNullForTesting(size_t slot)
+{
+    return !testingWeakReferences()[slot];
+}
+
+void renderLayerWeakReferenceReleaseForTesting(size_t slot)
+{
+    testingWeakReferences()[slot] = nullptr;
+    testingFreeWeakReferenceSlots().append(slot);
 }
 
 bool RenderLayer::isDescendantOf(const RenderLayer& layer) const

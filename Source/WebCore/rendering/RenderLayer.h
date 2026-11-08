@@ -97,6 +97,7 @@ enum class TransformResolverOption : uint8_t;
 
 class ClipRects;
 class ClipRectsCache;
+class Element;
 class HitTestRequest;
 class HitTestResult;
 class HitTestingTransformState;
@@ -1701,6 +1702,11 @@ bool LEGACY_NODELETE compositedWithOwnBackingStore(const RenderLayer&);
 // Walks of the layer links with the reads inlined, for the tree benchmark. Each returns a digest of what it visited.
 WEBCORE_EXPORT uint64_t renderLayerPreorderWalkForTesting(const RenderLayer& root);
 WEBCORE_EXPORT uint64_t renderLayerAncestorWalkForTesting(std::span<const RenderLayer* const>);
+// Weak references to the layer of an element, kept in a table until released; notFound if the element has no layer.
+// The table is not synchronized, so Swift may call these only with unsafe.
+WEBCORE_EXPORT SWIFT_UNSAFE size_t renderLayerWeakReferenceAcquireForTesting(const Element&);
+WEBCORE_EXPORT SWIFT_UNSAFE bool renderLayerWeakReferenceIsNullForTesting(size_t);
+WEBCORE_EXPORT SWIFT_UNSAFE void renderLayerWeakReferenceReleaseForTesting(size_t);
 
 WTF::TextStream& operator<<(WTF::TextStream&, ClipRectsType);
 WTF::TextStream& operator<<(WTF::TextStream&, const RenderLayer&);
