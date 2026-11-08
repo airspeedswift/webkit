@@ -66,6 +66,18 @@
 #include <wtf/Range.h>
 #include <wtf/UniquelyOwned.h>
 
+#if defined(__swift__)
+// WebCore's headers only forward declare these reference-counted JavaScriptCore types. Swift's importer rejects a
+// reference-counted type whose definition it cannot reach, so the definitions are included here for it alone.
+#include <JavaScriptCore/DOMJITCallDOMGetterSnippet.h>
+#include <JavaScriptCore/Snippet.h>
+#include <JavaScriptCore/WasmBranchHints.h>
+#include <JavaScriptCore/WasmCalleeGroup.h>
+#include <JavaScriptCore/WasmInstanceAnchor.h>
+#include <JavaScriptCore/WasmModule.h>
+#include <JavaScriptCore/WasmModuleDebugInfo.h>
+#endif
+
 namespace WTF {
 class TextStream;
 }
