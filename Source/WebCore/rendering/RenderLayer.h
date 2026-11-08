@@ -199,6 +199,7 @@ public:
     friend class RenderLayerBacking;
     friend class RenderLayerCompositor;
     friend class RenderLayerScrollableArea;
+    friend class LayerListMutationDetector;
     friend void ::outputLayerPositionTreeRecursive(TextStream&, const WebCore::RenderLayer&, unsigned, const WebCore::RenderLayer*);
 
     static UniquelyOwnedPtr<RenderLayer> create(RenderLayerModelObject& modelObject)
@@ -265,8 +266,8 @@ public:
     SWIFT_UNSAFE void addChild(RenderLayer& newChild, RenderLayer* beforeChild = nullptr);
     SWIFT_UNSAFE void removeChild(RenderLayer&);
 
-    void insertOnlyThisLayer();
-    void removeOnlyThisLayer();
+    SWIFT_UNSAFE void insertOnlyThisLayer();
+    SWIFT_UNSAFE void removeOnlyThisLayer();
 
     bool isNormalFlowOnly() const { return m_isNormalFlowOnly; }
 
@@ -302,7 +303,9 @@ public:
 
 #if ASSERT_ENABLED
     bool layerListMutationAllowed() const { return m_layerListMutationAllowed; }
+private:
     void setLayerListMutationAllowed(bool flag) { m_layerListMutationAllowed = flag; }
+public:
 #endif
 
     bool willCompositeClipPath() const;
@@ -1006,8 +1009,8 @@ public:
     static Vector<RenderLayer*> topLayerRenderLayers(const RenderView&);
 
     bool LEGACY_NODELETE establishesTopLayer() const;
-    void establishesTopLayerWillChange();
-    void establishesTopLayerDidChange();
+    SWIFT_UNSAFE void establishesTopLayerWillChange();
+    SWIFT_UNSAFE void establishesTopLayerDidChange();
 
     bool isBitmapOnly() const;
 
@@ -1671,7 +1674,7 @@ inline void RenderLayer::setIsHiddenByOverflowTruncation(bool isHidden)
 }
 
 #if ASSERT_ENABLED
-class LayerListMutationDetector {
+class SWIFT_UNSAFE LayerListMutationDetector {
 public:
     LayerListMutationDetector(RenderLayer& layer)
         : m_layer(layer)
