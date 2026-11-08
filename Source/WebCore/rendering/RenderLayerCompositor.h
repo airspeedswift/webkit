@@ -170,7 +170,7 @@ class RenderLayerCompositor final : public GraphicsLayerClient, public CanMakeCh
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderLayerCompositor);
     friend class LegacyWebKitScrollingLayerCoordinator;
 public:
-    explicit RenderLayerCompositor(RenderView&);
+    SWIFT_UNAVAILABLE_IN_SWIFT explicit RenderLayerCompositor(RenderView&);
     virtual ~RenderLayerCompositor();
 
     // Return true if this RenderView is in "compositing mode" (i.e. has one or more
@@ -716,7 +716,7 @@ private:
 #if PLATFORM(IOS_FAMILY)
     const std::unique_ptr<LegacyWebKitScrollingLayerCoordinator> m_legacyScrollingLayerCoordinator;
 #endif
-};
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 void paintScrollbar(Scrollbar*, GraphicsContext&, const IntRect& clip, const Color& backgroundColor = Color());
 
