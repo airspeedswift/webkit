@@ -47,6 +47,7 @@ set(WTF_PUBLIC_HEADERS
     CheckedArithmetic.h
     CheckedPtr.h
     CheckedRef.h
+    CheckedSlotTable.h
     ClockType.h
     CodePtr.h
     CommaPrinter.h

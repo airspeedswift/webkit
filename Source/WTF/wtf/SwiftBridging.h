@@ -478,3 +478,12 @@
 #define SWIFT_MAIN_ACTOR
 #endif
 #endif
+
+// SWIFT_UNAVAILABLE_IN_SWIFT keeps a member out of the Swift import, so Swift cannot call it. C++ callers are unaffected.
+#ifndef SWIFT_UNAVAILABLE_IN_SWIFT
+#if __has_attribute(availability)
+#define SWIFT_UNAVAILABLE_IN_SWIFT __attribute__((availability(swift, unavailable)))
+#else
+#define SWIFT_UNAVAILABLE_IN_SWIFT
+#endif
+#endif

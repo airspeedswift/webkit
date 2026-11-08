@@ -612,6 +612,7 @@
 		DD3DC98F27A4BF8E007E5B61 /* TinyPtrSet.h in Headers */ = {isa = PBXBuildFile; fileRef = 0FED67B51B22D4D80066CE15 /* TinyPtrSet.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC99027A4BF8E007E5B61 /* RawPtrTraits.h in Headers */ = {isa = PBXBuildFile; fileRef = FE05FAE61FDB214300093230 /* RawPtrTraits.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC99127A4BF8E007E5B61 /* CheckedRef.h in Headers */ = {isa = PBXBuildFile; fileRef = 9BF00134267C4CCF00DCFB3F /* CheckedRef.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		5C5E71A02F10000100AB0001 /* CheckedSlotTable.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C5E71A02F10000100AB0002 /* CheckedSlotTable.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC99227A4BF8E007E5B61 /* SegmentedVector.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A47306151A825B004123FF /* SegmentedVector.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC99327A4BF8E007E5B61 /* ThreadSpecific.h in Headers */ = {isa = PBXBuildFile; fileRef = A8A4733F151A825B004123FF /* ThreadSpecific.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		DD3DC99427A4BF8E007E5B61 /* SinglyLinkedListWithTail.h in Headers */ = {isa = PBXBuildFile; fileRef = 0F4D8C711FC1E7CE001D32AC /* SinglyLinkedListWithTail.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -1576,6 +1577,7 @@
 		9BD8F40A176C2AD80002D865 /* AtomStringTable.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AtomStringTable.h; sourceTree = "<group>"; };
 		9BE153352671F00F00C7D096 /* WeakHashMap.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WeakHashMap.h; sourceTree = "<group>"; };
 		9BF00134267C4CCF00DCFB3F /* CheckedRef.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CheckedRef.h; sourceTree = "<group>"; };
+		5C5E71A02F10000100AB0002 /* CheckedSlotTable.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CheckedSlotTable.h; sourceTree = "<group>"; };
 		9C67C542589348E285B49699 /* IndexedContainerIterator.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IndexedContainerIterator.h; sourceTree = "<group>"; };
 		A1657D3D2CB46E25003579FC /* RuntimeApplicationChecks.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RuntimeApplicationChecks.h; sourceTree = "<group>"; };
 		A1657D3E2CB46E25003579FC /* RuntimeApplicationChecks.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RuntimeApplicationChecks.cpp; sourceTree = "<group>"; };
@@ -2437,6 +2439,7 @@
 				A8A4726A151A825A004123FF /* CheckedArithmetic.h */,
 				9BB91F512648EA4D00A56217 /* CheckedPtr.h */,
 				9BF00134267C4CCF00DCFB3F /* CheckedRef.h */,
+				5C5E71A02F10000100AB0002 /* CheckedSlotTable.h */,
 				0F66B2801DC97BAB004A1D3F /* ClockType.cpp */,
 				0F66B2811DC97BAB004A1D3F /* ClockType.h */,
 				FE9B8B1D28B1B1C60088C6E1 /* CodePtr.cpp */,
@@ -3583,6 +3586,7 @@
 				DD3DC86627A4BF8E007E5B61 /* CheckedArithmetic.h in Headers */,
 				DD3DC88227A4BF8E007E5B61 /* CheckedPtr.h in Headers */,
 				DD3DC99127A4BF8E007E5B61 /* CheckedRef.h in Headers */,
+				5C5E71A02F10000100AB0001 /* CheckedSlotTable.h in Headers */,
 				DD3DC93A27A4BF8E007E5B61 /* ClockType.h in Headers */,
 				DDF307C427C086DF006A526F /* CodePointIterator.h in Headers */,
 				FE9B8B1A28B1453D0088C6E1 /* CodePtr.h in Headers */,
