@@ -2945,6 +2945,51 @@ unsigned RenderLayer::compositingDirtyBitsForTesting() const { return m_composit
 void RenderLayer::addChildForTesting(RenderLayer& newChild, RenderLayer* beforeChild) { addChild(newChild, beforeChild); }
 void RenderLayer::removeChildForTesting(RenderLayer& oldChild) { removeChild(oldChild); }
 
+static constexpr uint64_t fnvOffsetBasis = 0xcbf29ce484222325ULL;
+static constexpr uint64_t fnvPrime = 0x100000001b3ULL;
+
+uint64_t renderLayerPreorderWalkForTesting(const RenderLayer& root)
+{
+    uint64_t digest = fnvOffsetBasis;
+    uint64_t depth = 0;
+    for (const RenderLayer* layer = &root; ; ) {
+        auto* previous = layer->previousSibling();
+        auto* parent = layer->parent();
+        uint64_t flags = (layer->isStackingContext() ? 1 : 0) | (layer->isNormalFlowOnly() ? 2 : 0);
+        flags |= !previous || previous->nextSibling() == layer ? 4 : 0;
+        flags |= !parent || layer->nextSibling() || parent->lastChild() == layer ? 8 : 0;
+        digest = (digest ^ (depth << 8 | flags)) * fnvPrime;
+
+        if (auto* child = layer->firstChild()) {
+            layer = child;
+            ++depth;
+            continue;
+        }
+        while (layer != &root && !layer->nextSibling()) {
+            layer = layer->parent();
+            --depth;
+        }
+        if (layer == &root)
+            return digest;
+        layer = layer->nextSibling();
+    }
+}
+
+uint64_t renderLayerAncestorWalkForTesting(std::span<const RenderLayer* const> layers)
+{
+    uint64_t digest = fnvOffsetBasis;
+    for (auto* start : layers) {
+        uint64_t depth = 0;
+        uint64_t stacking = 0;
+        for (auto* layer = start; layer; layer = layer->parent()) {
+            ++depth;
+            stacking += layer->isStackingContext();
+        }
+        digest = (digest ^ (depth << 32 | stacking)) * fnvPrime;
+    }
+    return digest;
+}
+
 bool RenderLayer::isDescendantOf(const RenderLayer& layer) const
 {
     for (auto* ancestor = this; ancestor; ancestor = ancestor->parent()) {
