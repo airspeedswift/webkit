@@ -2928,6 +2928,20 @@ bool RenderLayer::zOrderListsDirtyForTesting() const { return zOrderListsDirty()
 bool RenderLayer::normalFlowListDirtyForTesting() const { return normalFlowListDirty(); }
 bool RenderLayer::isStackingContextForTesting() const { return isStackingContext(); }
 bool RenderLayer::isNormalFlowOnlyForTesting() const { return isNormalFlowOnly(); }
+void RenderLayer::updateLayerListsIfNeededForTesting() { updateLayerListsIfNeeded(); }
+void RenderLayer::dirtyZOrderListsForTesting() { dirtyZOrderLists(); }
+void RenderLayer::dirtyNormalFlowListForTesting() { dirtyNormalFlowList(); }
+int RenderLayer::zIndexForTesting() const { return zIndex(); }
+bool RenderLayer::wasOmittedFromZOrderTreeForTesting() const { return m_wasOmittedFromZOrderTree; }
+
+unsigned RenderLayer::paintOrderMarksForTesting() const
+{
+    return (m_hasVisibleContent ? 1u : 0) | (m_hasVisibleDescendant ? 2u : 0) | (m_alwaysIncludedInZOrderLists ? 4u : 0)
+        | (m_hasAlwaysIncludedInZOrderListsDescendants ? 8u : 0) | (m_hasAlwaysIncludedInZOrderListsDescendantsStatusDirty ? 16u : 0)
+        | (m_hadNegativeZOrderList ? 32u : 0);
+}
+
+unsigned RenderLayer::compositingDirtyBitsForTesting() const { return m_compositingDirtyBits.toRaw(); }
 
 bool RenderLayer::isDescendantOf(const RenderLayer& layer) const
 {

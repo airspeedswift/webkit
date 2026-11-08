@@ -226,6 +226,15 @@ public:
     WEBCORE_EXPORT bool normalFlowListDirtyForTesting() const;
     WEBCORE_EXPORT bool isStackingContextForTesting() const;
     WEBCORE_EXPORT bool isNormalFlowOnlyForTesting() const;
+    WEBCORE_EXPORT void updateLayerListsIfNeededForTesting();
+    WEBCORE_EXPORT void dirtyZOrderListsForTesting();
+    WEBCORE_EXPORT void dirtyNormalFlowListForTesting();
+    WEBCORE_EXPORT int zIndexForTesting() const;
+    WEBCORE_EXPORT bool wasOmittedFromZOrderTreeForTesting() const;
+    // Bit 0 hasVisibleContent, 1 hasVisibleDescendant, 2 alwaysIncludedInZOrderLists, 3 hasAlwaysIncludedInZOrderListsDescendants,
+    // 4 its status dirty, 5 hadNegativeZOrderList.
+    WEBCORE_EXPORT unsigned paintOrderMarksForTesting() const;
+    WEBCORE_EXPORT unsigned compositingDirtyBitsForTesting() const;
 
     // This does an ancestor tree walk. Avoid it!
     const RenderLayer* root() const
