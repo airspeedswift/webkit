@@ -84,6 +84,9 @@ class TextStream;
 
 void outputLayerPositionTreeRecursive(TextStream&, const WebCore::RenderLayer&, unsigned, const WebCore::RenderLayer*);
 
+namespace WebCore { class RenderLayer; }
+inline void refRenderLayer(WebCore::RenderLayer*) SWIFT_UNSAFE;
+inline void derefRenderLayer(WebCore::RenderLayer*) SWIFT_UNSAFE;
 namespace WebCore {
 
 namespace Style {
@@ -214,11 +217,11 @@ public:
     RenderLayerModelObject& renderer() const { return m_renderer; }
     RenderBox* renderBox() const { return dynamicDowncast<RenderBox>(renderer()); }
 
-    RenderLayer* parent() const LIFETIME_BOUND { return m_parent.get(); }
-    RenderLayer* previousSibling() const LIFETIME_BOUND { return m_previous.get(); }
-    RenderLayer* nextSibling() const LIFETIME_BOUND { return m_next.get(); }
-    RenderLayer* firstChild() const LIFETIME_BOUND { return m_first.get(); }
-    RenderLayer* lastChild() const LIFETIME_BOUND { return m_last.get(); }
+    RenderLayer* parent() const { return m_parent.get(); }
+    RenderLayer* previousSibling() const { return m_previous.get(); }
+    RenderLayer* nextSibling() const { return m_next.get(); }
+    RenderLayer* firstChild() const { return m_first.get(); }
+    RenderLayer* lastChild() const { return m_last.get(); }
     bool LEGACY_NODELETE isDescendantOf(const RenderLayer&) const;
     WEBCORE_EXPORT RenderLayer* commonAncestorWithLayer(const RenderLayer&) const;
 
@@ -257,8 +260,8 @@ public:
         return curr;
     }
 
-    void addChild(RenderLayer& newChild, RenderLayer* beforeChild = nullptr);
-    void removeChild(RenderLayer&);
+    SWIFT_UNSAFE void addChild(RenderLayer& newChild, RenderLayer* beforeChild = nullptr);
+    SWIFT_UNSAFE void removeChild(RenderLayer&);
 
     void insertOnlyThisLayer();
     void removeOnlyThisLayer();
@@ -615,7 +618,7 @@ public:
 
     bool hasCompositedLayerInEnclosingPaginationChain() const;
     enum PaginationInclusionMode { ExcludeCompositedPaginatedLayers, IncludeCompositedPaginatedLayers };
-    RenderLayer* enclosingPaginationLayer(PaginationInclusionMode mode) const LIFETIME_BOUND
+    RenderLayer* enclosingPaginationLayer(PaginationInclusionMode mode) const
     {
         if (mode == ExcludeCompositedPaginatedLayers && hasCompositedLayerInEnclosingPaginationChain())
             return nullptr;
@@ -954,13 +957,13 @@ public:
     void clearHasDescendantNeedingEventRegionUpdate() { m_hasDescendantNeedingEventRegionUpdate = false; }
 
     // If non-null, a non-ancestor composited layer that this layer paints into (it is sharing its backing store with this layer).
-    RenderLayer* backingProviderLayer() const LIFETIME_BOUND { return m_backingProviderLayer.get(); }
+    RenderLayer* backingProviderLayer() const { return m_backingProviderLayer.get(); }
     void setBackingProviderLayer(RenderLayer*, OptionSet<UpdateBackingSharingFlags>);
     void disconnectFromBackingProviderLayer(OptionSet<UpdateBackingSharingFlags>);
 
     bool paintsIntoProvidedBacking() const { return !!m_backingProviderLayer; }
 
-    RenderLayer* backingProviderLayerAtEndOfCompositingUpdate() const LIFETIME_BOUND { return m_backingProviderLayerAtEndOfCompositingUpdate.get(); }
+    RenderLayer* backingProviderLayerAtEndOfCompositingUpdate() const { return m_backingProviderLayerAtEndOfCompositingUpdate.get(); }
     void setBackingProviderLayerAtEndOfCompositingUpdate(RenderLayer* provider) { m_backingProviderLayerAtEndOfCompositingUpdate = provider; }
     RenderLayerModelObject* repaintContainer() const { return m_repaintContainer.get(); }
 
@@ -1081,10 +1084,12 @@ private:
     bool shouldPaintWithFilters(const Style::Filter&, OptionSet<PaintBehavior> = { }) const;
     bool requiresFullLayerImageForFilters(const Style::Filter&) const;
 
-    void setNextSibling(RenderLayer* next) { m_next = next; }
-    void setPreviousSibling(RenderLayer* prev) { m_previous = prev; }
-    void setFirstChild(RenderLayer* first) { m_first = first; }
-    void setLastChild(RenderLayer* last) { m_last = last; }
+public:
+    SWIFT_UNSAFE void setNextSibling(RenderLayer* next) { m_next = next; }
+    SWIFT_UNSAFE void setPreviousSibling(RenderLayer* prev) { m_previous = prev; }
+    SWIFT_UNSAFE void setFirstChild(RenderLayer* first) { m_first = first; }
+    SWIFT_UNSAFE void setLastChild(RenderLayer* last) { m_last = last; }
+private:
 
     void updateAncestorDependentState();
 
@@ -1136,7 +1141,9 @@ private:
     bool isDirtyStackingContext() const { return m_zOrderListsDirty && isStackingContext(); }
 
     void updateZOrderLists();
-    void rebuildZOrderLists();
+public:
+    SWIFT_UNSAFE void rebuildZOrderLists();
+private:
     void rebuildZOrderLists(std::unique_ptr<Vector<RenderLayer*>>&, std::unique_ptr<Vector<RenderLayer*>>&, OptionSet<Compositing>&);
     void collectLayers(std::unique_ptr<Vector<RenderLayer*>>&, std::unique_ptr<Vector<RenderLayer*>>&, OptionSet<Compositing>&);
     void clearZOrderLists();
@@ -1428,8 +1435,10 @@ private:
 
     void updatePagination();
 
+public:
     void setWasOmittedFromZOrderTree();
     void setWasIncludedInZOrderTree();
+private:
     void removeSelfFromCompositor();
     void removeDescendantsFromCompositor();
 
@@ -1621,7 +1630,7 @@ private:
     const std::unique_ptr<SVGData> m_svgData;
 
     PaintFrequencyTracker m_paintFrequencyTracker;
-};
+} SWIFT_SHARED_REFERENCE(refRenderLayer, derefRenderLayer) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 inline void RenderLayer::clearZOrderLists()
 {
@@ -1693,6 +1702,9 @@ WTF::TextStream& operator<<(WTF::TextStream&, PaintBehavior);
 WTF::TextStream& operator<<(WTF::TextStream&, RenderLayer::PaintLayerFlag);
 
 } // namespace WebCore
+
+inline void refRenderLayer(WebCore::RenderLayer* l) { l->incrementCheckedPtrCount(); }
+inline void derefRenderLayer(WebCore::RenderLayer* l) { l->decrementCheckedPtrCount(); }
 
 #if ENABLE(TREE_DEBUGGING)
 // Outside the WebCore namespace for ease of invocation from lldb.

@@ -40,19 +40,19 @@ class UniquelyOwned : private RefCountedWithInlineWeakPtr<T> {
 public:
     using typename RefCountedWithInlineWeakPtr<T>::RefCountedType;
     // UniquelyOwned interface
-    void disown() const
+    SWIFT_UNSAFE void disown() const
     {
         this->refCountDebugger().willDelete();
         this->deref();
     }
 
     // CheckedPtr interface
-    void incrementCheckedPtrCount() const
+    SWIFT_UNSAFE void incrementCheckedPtrCount() const
     {
         this->ref();
     }
 
-    void decrementCheckedPtrCount() const
+    SWIFT_UNSAFE void decrementCheckedPtrCount() const
     {
         // If this ASSERT fires, it means that a CheckedPtr outlived a UniquelyOwnedPtr.
         // Note: There's no security risk here -- CheckedPtr is a strong pointer in release builds.
