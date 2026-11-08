@@ -105,7 +105,14 @@ ALLOW_SHARED_CACHE__YES_macosx = NO;
 OTHER_LDFLAGS_SHARED_CACHE = $(OTHER_LDFLAGS_SHARED_CACHE_$(ALLOW_SHARED_CACHE));
 OTHER_LDFLAGS_SHARED_CACHE_NO = -Wl,-not_for_dyld_shared_cache;
 
-OTHER_LDFLAGS = $(inherited) $(UNEXPORT_SWIFT_CXX_LDFLAGS) $(SOURCE_VERSION_LDFLAGS) $(WK_NO_STATIC_INITIALIZERS) $(OTHER_LDFLAGS_SHARED_CACHE) $(OTHER_LDFLAGS_ADDITIONAL_FRAMEWORKS) -Wl,-unexported_symbol,*s_heapSpec;
+// Thin LTO: no cross-module function import into WebGPU's modules. Swift's pre-link ARC contraction marks calls to C++
+// functions returning Objective-C objects with "clang.arc.attachedcall"(llvm.objc.claimAutoreleasedReturnValue), and
+// importing and inlining such a callee aborts an assertions-enabled libLTO: "isRetainOrClaimRV(FnClass) && unexpected ARC
+// runtime function" (ObjCARCUtil.h, getAttachedARCFunctionKind, from InlineFunction).
+OTHER_LDFLAGS_THIN_LTO_IMPORT = $(OTHER_LDFLAGS_THIN_LTO_IMPORT_$(LLVM_LTO));
+OTHER_LDFLAGS_THIN_LTO_IMPORT_YES_THIN = -Wl,-mllvm,-import-instr-limit=0;
+
+OTHER_LDFLAGS = $(inherited) $(UNEXPORT_SWIFT_CXX_LDFLAGS) $(SOURCE_VERSION_LDFLAGS) $(WK_NO_STATIC_INITIALIZERS) $(OTHER_LDFLAGS_SHARED_CACHE) $(OTHER_LDFLAGS_ADDITIONAL_FRAMEWORKS) -Wl,-unexported_symbol,*s_heapSpec $(OTHER_LDFLAGS_THIN_LTO_IMPORT);
 
 ENABLE_WEBGPU_SWIFT = ;
 
