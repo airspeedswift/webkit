@@ -31,6 +31,7 @@
 namespace WebCore {
 
 inline UsedStyle RenderObject::usedStyle() const { return UsedStyle { *this }; }
+inline UsedVisibility RenderObject::usedVisibility() const { return usedStyle().visibility(); }
 inline UsedStyle RenderObject::firstLineUsedStyle() const
 {
     if (isRenderText())

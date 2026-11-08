@@ -38,6 +38,10 @@
 #include <wtf/Platform.h>
 #include <wtf/TZoneMalloc.h>
 
+#if defined(__swift__)
+#include <WebCore/StyleComputedStyle.h>
+#endif
+
 namespace WTF {
 class TextStream;
 }
@@ -116,6 +120,8 @@ typedef const void* WrappedImagePtr;
 
 // Base class for all rendering tree objects.
 // Only RenderElement and RenderText derive from RenderObject directly. Their second base is their layout box.
+enum class RenderObjectStyleTag : uint8_t { Style };
+
 class RenderObject : public CanMakeSingleThreadWeakPtr<RenderObject>, public CanMakeCheckedPtr<RenderObject> {
     WTF_MAKE_PREFERABLY_COMPACT_TZONE_ALLOCATED(RenderObject);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderObject);
@@ -886,7 +892,9 @@ public:
     WEBCORE_EXPORT LayoutRect subtreePaintRootRect(LayoutRect& topLevelRect, RespectTransforms = RespectTransforms::No);
 
     inline const Style::ComputedStyle& style() const LIFETIME_BOUND; // Defined in RenderObjectStyle.h.
+    inline const Style::ComputedStyle& operator[](RenderObjectStyleTag) const LIFETIME_BOUND; // Defined in RenderObjectStyle.h.
     inline UsedStyle usedStyle() const LIFETIME_BOUND; // Defined in RenderElementInlines.h.
+    inline UsedVisibility usedVisibility() const; // Defined in RenderElementInlines.h.
     inline UsedStyle firstLineUsedStyle() const LIFETIME_BOUND; // Defined in RenderElementInlines.h.
     inline CheckedRef<const Style::ComputedStyle> firstLineStyle() const LIFETIME_BOUND;
     inline WritingMode writingMode() const; // Defined in RenderObjectStyle.h.

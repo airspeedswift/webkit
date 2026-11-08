@@ -362,6 +362,26 @@ inline bool ComputedStyle::isSkippedRootOrSkippedContent() const
     return usedContentVisibility() != ContentVisibility::Visible;
 }
 
+inline BackfaceVisibility ComputedStyle::backfaceVisibilityForSwift() const
+{
+    return ComputedStyleProperties::backfaceVisibility();
+}
+
+inline bool ComputedStyle::hasFilterForSwift() const
+{
+    return !filter().isNone();
+}
+
+inline PositionType ComputedStyle::positionForSwift() const
+{
+    return ComputedStyleProperties::position();
+}
+
+inline std::optional<PseudoElementType> ComputedStyle::pseudoElementTypeForSwift() const
+{
+    return ComputedStyleBase::pseudoElementType();
+}
+
 // MARK: - Logical getters
 
 // MARK: logical inset value aliases

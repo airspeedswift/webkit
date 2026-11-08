@@ -37,6 +37,13 @@ public:
     ComputedStyle(ComputedStyle&&);
     ComputedStyle& operator=(ComputedStyle&&);
 
+    // The getters that Swift calls on a borrowed style: the importer takes no member of the generated base. They have
+    // names of their own because the generated code takes the base getters' addresses; Swift sees the plain names.
+    inline BackfaceVisibility backfaceVisibilityForSwift() const SWIFT_NAME(backfaceVisibility());
+    inline bool hasFilterForSwift() const SWIFT_NAME(hasFilter());
+    inline PositionType positionForSwift() const SWIFT_NAME(position());
+    inline std::optional<PseudoElementType> pseudoElementTypeForSwift() const SWIFT_NAME(pseudoElementType());
+
     explicit ComputedStyle(CreateDefaultStyleTag);
     ComputedStyle(const ComputedStyle&, CloneTag);
 

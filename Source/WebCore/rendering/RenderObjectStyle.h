@@ -37,4 +37,9 @@ inline const Style::ComputedStyle& RenderObject::style() const
     return layoutBox().style();
 }
 
+inline const Style::ComputedStyle& RenderObject::operator[](RenderObjectStyleTag) const
+{
+    return style();
+}
+
 } // namespace WebCore
