@@ -2942,6 +2942,8 @@ unsigned RenderLayer::paintOrderMarksForTesting() const
 }
 
 unsigned RenderLayer::compositingDirtyBitsForTesting() const { return m_compositingDirtyBits.toRaw(); }
+void RenderLayer::addChildForTesting(RenderLayer& newChild, RenderLayer* beforeChild) { addChild(newChild, beforeChild); }
+void RenderLayer::removeChildForTesting(RenderLayer& oldChild) { removeChild(oldChild); }
 
 bool RenderLayer::isDescendantOf(const RenderLayer& layer) const
 {

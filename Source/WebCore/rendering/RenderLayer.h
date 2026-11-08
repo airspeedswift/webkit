@@ -250,6 +250,8 @@ public:
     // 4 its status dirty, 5 hadNegativeZOrderList.
     WEBCORE_EXPORT unsigned paintOrderMarksForTesting() const;
     WEBCORE_EXPORT unsigned compositingDirtyBitsForTesting() const;
+    WEBCORE_EXPORT SWIFT_UNSAFE void addChildForTesting(RenderLayer& newChild, RenderLayer* beforeChild);
+    WEBCORE_EXPORT SWIFT_UNSAFE void removeChildForTesting(RenderLayer&);
 
     // This does an ancestor tree walk. Avoid it!
     const RenderLayer* root() const
