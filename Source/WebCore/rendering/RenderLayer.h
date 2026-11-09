@@ -977,7 +977,7 @@ public:
     void setBackingProviderLayerAtEndOfCompositingUpdate(RenderLayer* provider) { m_backingProviderLayerAtEndOfCompositingUpdate = provider; }
     RenderLayerModelObject* repaintContainer() const { return m_repaintContainer.get(); }
 
-    RenderLayerBacking* backing() const LIFETIME_BOUND { return m_backing.get(); }
+    RenderLayerBacking* backing() const { return m_backing.get(); }
     RenderLayerBacking* ensureBacking() LIFETIME_BOUND;
     void clearBacking(OptionSet<UpdateBackingSharingFlags>, bool layerBeingDestroyed = false);
 
@@ -1242,10 +1242,13 @@ private:
         };
     }
 
+public:
+    // Public, so that Swift can name the mode in its definitions of the private members.
     enum UpdateLayerPositionsMode {
         Write,
         Verify,
     };
+private:
 
     // Returns true if the position changed.
     bool updateLayerPosition(OptionSet<UpdateLayerPositionsFlag>* = nullptr, UpdateLayerPositionsMode = Write);

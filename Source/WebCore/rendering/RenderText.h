@@ -249,7 +249,7 @@ private:
 
     PositionWithAffinity positionForPoint(const LayoutPoint&, HitTestSource, const RenderFragmentContainer*) override;
 
-    void setSelectionState(HighlightState) final;
+    SWIFT_UNSAFE void setSelectionState(HighlightState) final;
     LayoutRect selectionRectForRepaint(const RenderLayerModelObject* repaintContainer, bool clipToVisibleContent = true) final;
     RepaintRects localRectsForRepaint(RepaintOutlineBounds) const final;
 

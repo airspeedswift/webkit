@@ -99,7 +99,7 @@ private:
     RenderReplaced* embeddedSVGRoot() const final;
     FloatSize preferredAspectRatioAsSize() const final;
 
-    void setSelectionState(HighlightState) final;
+    SWIFT_UNSAFE void setSelectionState(HighlightState) final;
     void setOverlapTestResult(bool) final;
 
     bool setWidgetGeometry(const LayoutRect&);

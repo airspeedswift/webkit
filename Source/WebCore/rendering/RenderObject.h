@@ -538,10 +538,10 @@ public:
     };
 
     enum class SkipDescendentFragmentedFlow : bool { No, Yes };
-    void setFragmentedFlowStateIncludingDescendants(FragmentedFlowState, SkipDescendentFragmentedFlow = SkipDescendentFragmentedFlow::Yes);
+    SWIFT_UNSAFE void setFragmentedFlowStateIncludingDescendants(FragmentedFlowState, SkipDescendentFragmentedFlow = SkipDescendentFragmentedFlow::Yes);
 
     FragmentedFlowState fragmentedFlowState() const { return m_stateBitfields.fragmentedFlowState(); }
-    void setFragmentedFlowState(FragmentedFlowState state) { m_stateBitfields.setFragmentedFlowState(state); }
+    SWIFT_UNSAFE void setFragmentedFlowState(FragmentedFlowState state) { m_stateBitfields.setFragmentedFlowState(state); }
 
 #if ENABLE(MATHML)
     virtual bool LEGACY_NODELETE isRenderMathMLBlock() const { return false; }
@@ -705,7 +705,7 @@ public:
     bool hasSVGTransform() const { return m_stateBitfields.hasFlag(StateFlag::HasSVGTransform); }
 
     bool isExcludedFromNormalLayout() const { return m_stateBitfields.hasFlag(StateFlag::IsExcludedFromNormalLayout); }
-    void setIsExcludedFromNormalLayout(bool excluded) { m_stateBitfields.setFlag(StateFlag::IsExcludedFromNormalLayout, excluded); }
+    SWIFT_UNSAFE void setIsExcludedFromNormalLayout(bool excluded) { m_stateBitfields.setFlag(StateFlag::IsExcludedFromNormalLayout, excluded); }
     bool isExcludedAndPlacedInBorder() const { return isExcludedFromNormalLayout() && isLegend(); }
     bool LEGACY_NODELETE isExcludedMarker() const;
 
@@ -787,25 +787,25 @@ public:
     
     inline void setNeedsLayoutAndInvalidateContentLogicalWidths();
 
-    void setPositionState(PositionType);
-    void clearPositionedState() { m_stateBitfields.clearPositionedState(); }
+    SWIFT_UNSAFE void setPositionState(PositionType);
+    SWIFT_UNSAFE void clearPositionedState() { m_stateBitfields.clearPositionedState(); }
 
-    void setFloating(bool b = true) { m_stateBitfields.setFlag(StateFlag::Floating, b); }
-    void setInline(bool b) { m_stateBitfields.setFlag(StateFlag::IsBlock, !b); }
+    SWIFT_UNSAFE void setFloating(bool b = true) { m_stateBitfields.setFlag(StateFlag::Floating, b); }
+    SWIFT_UNSAFE void setInline(bool b) { m_stateBitfields.setFlag(StateFlag::IsBlock, !b); }
 
     void setHasVisibleBoxDecorations(bool = true);
     void invalidateBackgroundObscurationStatus();
 
-    void setBlockLevelReplacedOrAtomicInline(bool b = true) { m_stateBitfields.setFlag(StateFlag::IsBlockLevelReplacedOrAtomicInline, b); }
-    void setHorizontalWritingMode(bool b = true) { m_stateBitfields.setFlag(StateFlag::VerticalWritingMode, !b); }
-    void setHasNonVisibleOverflow(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasNonVisibleOverflow, b); }
+    SWIFT_UNSAFE void setBlockLevelReplacedOrAtomicInline(bool b = true) { m_stateBitfields.setFlag(StateFlag::IsBlockLevelReplacedOrAtomicInline, b); }
+    SWIFT_UNSAFE void setHorizontalWritingMode(bool b = true) { m_stateBitfields.setFlag(StateFlag::VerticalWritingMode, !b); }
+    SWIFT_UNSAFE void setHasNonVisibleOverflow(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasNonVisibleOverflow, b); }
     SWIFT_UNSAFE void setHasLayer(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasLayer, b); }
-    void setHasTransformRelatedProperty(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasTransformRelatedProperty, b); }
+    SWIFT_UNSAFE void setHasTransformRelatedProperty(bool b = true) { m_stateBitfields.setFlag(StateFlag::HasTransformRelatedProperty, b); }
 
     void setHasReflection(bool = true);
-    void setHasOutlineAutoAncestor(bool = true);
-    void setPaintContainmentApplies(bool value = true) { m_stateBitfields.setFlag(StateFlag::PaintContainmentApplies, value); }
-    void setHasSVGTransform(bool value = true) { m_stateBitfields.setFlag(StateFlag::HasSVGTransform, value); }
+    SWIFT_UNSAFE void setHasOutlineAutoAncestor(bool = true);
+    SWIFT_UNSAFE void setPaintContainmentApplies(bool value = true) { m_stateBitfields.setFlag(StateFlag::PaintContainmentApplies, value); }
+    SWIFT_UNSAFE void setHasSVGTransform(bool value = true) { m_stateBitfields.setFlag(StateFlag::HasSVGTransform, value); }
 
     // used for element state updates that cannot be fixed with a
     // repaint and do not need a relayout
@@ -1068,7 +1068,7 @@ public:
     // The current selection state for an object.  For blocks, the state refers to the state of the leaf
     // descendants (as described above in the HighlightState enum declaration).
     HighlightState selectionState() const { return m_stateBitfields.selectionState(); }
-    virtual void setSelectionState(HighlightState);
+    SWIFT_UNSAFE virtual void setSelectionState(HighlightState);
     inline void setSelectionStateIfNeeded(HighlightState);
     bool canUpdateSelectionOnRootLineBoxes();
 
@@ -1129,8 +1129,8 @@ public:
     LayoutRect absoluteOutlineBounds() const { return outlineBoundsForRepaint(nullptr); }
 
     // FIXME: Renderers should not need to be notified about internal reparenting (webkit.org/b/224143).
-    virtual void insertedIntoTree();
-    virtual void willBeRemovedFromTree();
+    SWIFT_UNSAFE virtual void insertedIntoTree();
+    SWIFT_UNSAFE virtual void willBeRemovedFromTree();
 
     void resetFragmentedFlowStateOnRemoval();
     void initializeFragmentedFlowStateOnInsertion();

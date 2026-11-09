@@ -63,7 +63,7 @@ private:
     void layoutShadowContent(const LayoutSize&) override;
 
     bool shouldDrawSelectionTint() const final { return false; }
-    void setSelectionState(HighlightState) final;
+    SWIFT_UNSAFE void setSelectionState(HighlightState) final;
     void paintReplaced(PaintInfo&, const LayoutPoint& offset) final;
 
     void layout() override;

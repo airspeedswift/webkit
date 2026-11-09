@@ -177,7 +177,7 @@ public:
     const Style::ComputedStyle* targetTextPseudoStyle() const LIFETIME_BOUND;
 
     virtual bool isChildAllowed(const RenderObject&, const Style::ComputedStyle&) const { return true; }
-    void didAttachChild(RenderObject& child, RenderObject* beforeChild);
+    SWIFT_UNSAFE void didAttachChild(RenderObject& child, RenderObject* beforeChild);
 
     // The following functions are used when the render tree hierarchy changes to make sure layers get
     // properly added and removed. Since containership can be implemented by any subclass, and since a hierarchy
@@ -301,7 +301,7 @@ public:
     bool allowsAnimation() const final;
     bool repaintForPausedImageAnimationsIfNeeded(const IntRect& visibleRect, CachedImage&);
     bool hasPausedImageAnimations() const { return m_hasPausedImageAnimations; }
-    void setHasPausedImageAnimations(bool b) { m_hasPausedImageAnimations = b; }
+    SWIFT_UNSAFE void setHasPausedImageAnimations(bool b) { m_hasPausedImageAnimations = b; }
 
 #if HAVE(SUPPORT_HDR_DISPLAY)
     bool hasHDRImages() const { return m_hasHDRImages; }
@@ -309,7 +309,7 @@ public:
 #endif
 
     bool hasCounterNodeMap() const { return m_hasCounterNodeMap; }
-    void setHasCounterNodeMap(bool f) { m_hasCounterNodeMap = f; }
+    SWIFT_UNSAFE void setHasCounterNodeMap(bool f) { m_hasCounterNodeMap = f; }
 
     void adjustFontSizesOnBlocks(float size, float visibleWidth);
     WEBCORE_EXPORT void resetTextAutosizing();
@@ -346,8 +346,8 @@ public:
 
     std::unique_ptr<Style::ComputedStyle> animatedStyle();
 
-    SingleThreadWeakPtr<RenderBlockFlow> pseudoElementRenderer(PseudoElementType) const;
-    void setPseudoElementRenderer(PseudoElementType, RenderBlockFlow&);
+    SWIFT_UNSAFE SingleThreadWeakPtr<RenderBlockFlow> pseudoElementRenderer(PseudoElementType) const;
+    SWIFT_UNSAFE void setPseudoElementRenderer(PseudoElementType, RenderBlockFlow&);
 
     ReferencedSVGResources& ensureReferencedSVGResources();
     ReferencedSVGResources* LEGACY_NODELETE referencedSVGResources() const;

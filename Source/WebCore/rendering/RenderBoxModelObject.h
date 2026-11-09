@@ -199,7 +199,7 @@ public:
     PositionWithAffinity positionForPoint(const LayoutPoint&, HitTestSource, const RenderFragmentContainer*) override;
     std::optional<RepaintRects> computeVisibleRectsInContainer(const RepaintRects&, const RenderLayerModelObject* container, const VisibleRectContext&, VisibleRectState) const override;
 
-    void setSelectionState(HighlightState) override;
+    SWIFT_UNSAFE void setSelectionState(HighlightState) override;
 
     bool hasRunningAcceleratedAnimations() const;
 

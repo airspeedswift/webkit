@@ -30,7 +30,7 @@ class RenderSVGResourceContainer : public RenderSVGHiddenContainer {
 public:
     virtual ~RenderSVGResourceContainer();
 
-    void insertedIntoTree() final;
+    SWIFT_UNSAFE void insertedIntoTree() final;
 
     void idChanged();
     virtual void repaintAllClients() const;

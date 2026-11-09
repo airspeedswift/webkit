@@ -93,7 +93,7 @@ public:
         SkipAfterReset,
     };
     TextAutosizingState textAutosizingState() const { return m_textAutosizingState; }
-    void setTextAutosizingState(TextAutosizingState state) { m_textAutosizingState = state; }
+    SWIFT_UNSAFE void setTextAutosizingState(TextAutosizingState state) { m_textAutosizingState = state; }
 
     std::optional<RepaintRects> computeVisibleRectsInContainer(const RepaintRects&, const RenderLayerModelObject* container, const VisibleRectContext&, VisibleRectState) const override;
     void repaintRootContents();

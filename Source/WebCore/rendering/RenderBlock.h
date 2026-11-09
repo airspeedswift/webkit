@@ -97,8 +97,8 @@ public:
     virtual bool willStretchItem(const RenderBox& item, LogicalBoxAxis containingAxis, StretchingMode = StretchingMode::Normal) const;
     bool isContainingBlockAncestorFor(RenderObject&) const;
 
-    void setHasMarginBeforeQuirk(bool b) { setRenderBlockHasMarginBeforeQuirk(b); }
-    void setHasMarginAfterQuirk(bool b) { setRenderBlockHasMarginAfterQuirk(b); }
+    SWIFT_UNSAFE void setHasMarginBeforeQuirk(bool b) { setRenderBlockHasMarginBeforeQuirk(b); }
+    SWIFT_UNSAFE void setHasMarginAfterQuirk(bool b) { setRenderBlockHasMarginAfterQuirk(b); }
     void setShouldForceRelayoutChildren(bool b) { setRenderBlockShouldForceRelayoutChildren(b); }
 
     bool hasMarginBeforeQuirk() const { return renderBlockHasMarginBeforeQuirk(); }
