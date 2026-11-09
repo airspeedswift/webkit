@@ -2386,6 +2386,48 @@ FloatPoint RenderLayer::perspectiveOrigin() const
     return Style::evaluate<FloatPoint>(style->perspectiveOrigin(), renderer().transformReferenceBoxRect(style).size(), style->usedZoomForLength());
 }
 
+auto RenderLayer::allTransformOperations() -> TransformResolverOptions
+{
+    return Style::TransformResolver::allTransformOperations;
+}
+
+auto RenderLayer::individualTransformOperations() -> TransformResolverOptions
+{
+    return Style::TransformResolver::individualTransformOperations;
+}
+
+bool RenderLayer::includesTransformOrigin(TransformResolverOptions options)
+{
+    return options.contains(Style::TransformResolverOption::TransformOrigin);
+}
+
+FloatPoint3D RenderLayer::computeTransformOrigin(const Style::ComputedStyle& style, FloatRect referenceBox)
+{
+    return Style::TransformResolver::computeTransformOrigin(style, referenceBox);
+}
+
+FloatPoint RenderLayer::computePerspectiveOrigin(const Style::ComputedStyle& style, FloatRect referenceBox)
+{
+    return Style::TransformResolver::computePerspectiveOrigin(style, referenceBox);
+}
+
+FloatPoint RenderLayer::evaluatePerspectiveOrigin(const Style::ComputedStyle& style, FloatSize referenceBoxSize)
+{
+    return Style::evaluate<FloatPoint>(style.perspectiveOrigin(), referenceBoxSize, style.usedZoomForLength());
+}
+
+TransformationMatrix RenderLayer::applyingPerspective(TransformationMatrix transform, const Style::ComputedStyle& style, FloatPoint perspectiveOrigin)
+{
+    Style::TransformResolver { transform, style }.applyPerspective(perspectiveOrigin);
+    return transform;
+}
+
+bool RenderLayer::isRunningAcceleratedTransformRelatedAnimation() const
+{
+    auto styleable = Styleable::fromRenderer(renderer());
+    return styleable && styleable->isRunningAcceleratedTransformRelatedAnimation();
+}
+
 static inline bool isContainerForPositioned(RenderLayer& layer, PositionType position, bool establishesTopLayer)
 {
     if (establishesTopLayer)
@@ -6908,6 +6950,24 @@ bool RenderLayer::allowsDynamicContentScaling() const
     return true;
 }
 #endif
+
+bool RenderLayer::hasNonOpacityTransparency() const
+{
+    if (renderer().hasMask())
+        return true;
+
+    if (hasBlendMode() || isolatesBlending())
+        return true;
+
+    if (!renderer().document().settings().layerBasedSVGEngineEnabled())
+        return false;
+
+    // SVG clip-paths may use clipping masks, if so, flag this layer as transparent.
+    if (CheckedPtr svgClipper = renderer().svgClipperResourceFromStyle(); svgClipper && !svgClipper->shouldApplyPathClipping())
+        return true;
+
+    return false;
+}
 
 bool RenderLayer::isBitmapOnly() const
 {

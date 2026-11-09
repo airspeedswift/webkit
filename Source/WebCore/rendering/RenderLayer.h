@@ -916,6 +916,18 @@ public:
     TransformationMatrix perspectiveTransform() const;
     FloatPoint perspectiveOrigin() const;
     FloatPoint3D transformOriginPixelSnappedIfNeeded() const;
+
+    // Style::TransformResolver's options and computations by value, for Swift, which sees the option enum only as declared.
+    using TransformResolverOptions = OptionSet<Style::TransformResolverOption>;
+    using OptionalAffineTransform = std::optional<AffineTransform>;
+    static TransformResolverOptions allTransformOperations();
+    static TransformResolverOptions individualTransformOperations();
+    static bool includesTransformOrigin(TransformResolverOptions);
+    static FloatPoint3D computeTransformOrigin(const Style::ComputedStyle&, FloatRect referenceBox);
+    static FloatPoint computePerspectiveOrigin(const Style::ComputedStyle&, FloatRect referenceBox);
+    static FloatPoint evaluatePerspectiveOrigin(const Style::ComputedStyle&, FloatSize referenceBoxSize);
+    static TransformationMatrix applyingPerspective(TransformationMatrix, const Style::ComputedStyle&, FloatPoint perspectiveOrigin);
+    bool isRunningAcceleratedTransformRelatedAnimation() const;
     inline bool preserves3D() const;
     bool has3DTransform() const { return m_transform && !m_transform->isAffine(); }
     bool hasTransformedAncestor() const { return m_hasTransformedAncestor; }
@@ -1467,7 +1479,7 @@ private:
 
     RenderLayer* LEGACY_NODELETE enclosingTransformedAncestor() const;
 
-    inline bool hasNonOpacityTransparency() const;
+    bool hasNonOpacityTransparency() const;
 
     void updatePagination();
 

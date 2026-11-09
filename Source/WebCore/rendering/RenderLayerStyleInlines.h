@@ -51,6 +51,15 @@ inline bool RenderLayer::isTransformed() const
     return renderer().isTransformed() || m_anchorScrollAdjustment;
 }
 
+inline bool RenderLayer::canPaintTransparencyWithSetOpacity() const { return isBitmapOnly() && !hasNonOpacityTransparency() && !hasFilter(); }
+
+inline bool RenderLayer::paintsWithTransparency(OptionSet<PaintBehavior> paintBehavior) const
+{
+    if (!renderer().isTransparent() && !hasNonOpacityTransparency())
+        return false;
+    return (paintBehavior & PaintBehavior::FlattenCompositingLayers) || !isComposited();
+}
+
 inline bool RenderLayer::hasBlendMode() const { return renderer().hasBlendMode(); } // FIXME: Why ask the renderer this given we have m_blendMode?
 
 inline bool RenderLayer::canUseOffsetFromAncestor() const
