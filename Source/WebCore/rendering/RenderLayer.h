@@ -805,7 +805,7 @@ public:
     static constexpr OptionSet<ClipRectsOption> clipRectDefaultOptions = { ClipRectsOption::RespectOverflowClip };
     static constexpr OptionSet<ClipRectsOption> clipRectTemporaryOptions = { ClipRectsOption::RespectOverflowClip, ClipRectsOption::Temporary };
 
-    struct ClipRectsContext {
+    struct SWIFT_UNAVAILABLE_IN_SWIFT ClipRectsContext {
         ClipRectsContext(const RenderLayer* inRootLayer, ClipRectsType inClipRectsType, OptionSet<ClipRectsOption> inOptions = clipRectDefaultOptions)
             : rootLayer(inRootLayer)
             , clipRectsType(inClipRectsType)
@@ -1137,7 +1137,7 @@ private:
     bool paintForegroundForFragmentsForSVG(const LayerFragments&, GraphicsContext&, const LayerPaintingInfo&, OptionSet<PaintBehavior>, RenderObject*);
     void paintNegativeZOrderChildrenForSVG(GraphicsContext&, const LayerPaintingInfo&, OptionSet<PaintLayerFlag>);
     void paintForegroundChildrenForSVG(GraphicsContext&, const LayerPaintingInfo&, const LayerPaintingInfo& localPaintingInfo, OptionSet<PaintLayerFlag>, const LayerFragments&, OptionSet<PaintBehavior>, RenderObject* subtreePaintRoot, std::optional<WTF::Range<unsigned>> svgPaintOrderItemRange, LayoutSize svgFilterChildLayerCorrection);
-    struct HitLayer {
+    struct SWIFT_UNAVAILABLE_IN_SWIFT HitLayer {
         RenderLayer* layer { nullptr };
         double zOffset = 0;
     };
