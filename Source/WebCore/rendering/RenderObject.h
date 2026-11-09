@@ -847,6 +847,10 @@ public:
     WEBCORE_EXPORT FloatPoint localToAbsolute(const FloatPoint& localPoint = FloatPoint(), OptionSet<MapCoordinatesMode> = { }, bool* wasFixed = nullptr) const;
     // The origin mapped with MapCoordinatesMode::IsFixed, for Swift, which takes no pointer argument.
     FloatPoint fixedOriginToAbsoluteForSwift() const { return localToAbsolute({ }, MapCoordinatesMode::IsFixed); }
+    FloatQuad localToAbsoluteQuadForSwift(const FloatQuad&) const;
+    FloatQuad localToContainerQuadForSwift(const FloatQuad&, const RenderLayerModelObject* container) const;
+    // The bounding box of the fragments of this fragmented flow that the given box spans.
+    LayoutRect fragmentsBoundingBoxForSwift(const LayoutRect&) const;
     TransformState viewTransitionTransform() const;
     FloatPoint absoluteToLocal(const DoublePoint&, OptionSet<MapCoordinatesMode> = { }) const;
 

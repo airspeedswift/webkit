@@ -457,6 +457,11 @@ inline bool ComputedStyle::perspectiveIsNoneForSwift() const
     return perspective().isNone();
 }
 
+inline bool ComputedStyle::hasBorderRadiusForSwift() const
+{
+    return border().hasBorderRadius();
+}
+
 // MARK: - Logical getters
 
 // MARK: logical inset value aliases

@@ -803,6 +803,21 @@ const RenderMultiColumnFlow* RenderObject::asRenderMultiColumnFlow() const
     return dynamicDowncast<RenderMultiColumnFlow>(*this);
 }
 
+FloatQuad RenderObject::localToAbsoluteQuadForSwift(const FloatQuad& quad) const
+{
+    return localToAbsoluteQuad(quad);
+}
+
+FloatQuad RenderObject::localToContainerQuadForSwift(const FloatQuad& quad, const RenderLayerModelObject* container) const
+{
+    return localToContainerQuad(quad, container);
+}
+
+LayoutRect RenderObject::fragmentsBoundingBoxForSwift(const LayoutRect& layerBoundingBox) const
+{
+    return downcast<RenderFragmentedFlow>(*this).fragmentsBoundingBox(layerBoundingBox);
+}
+
 const RenderReplica* RenderObject::asRenderReplica() const
 {
     return dynamicDowncast<RenderReplica>(*this);

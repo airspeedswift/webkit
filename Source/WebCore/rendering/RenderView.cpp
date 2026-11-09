@@ -700,6 +700,16 @@ LayoutRect RenderView::viewRect() const
     return frameView().visibleContentRect(ScrollableArea::LegacyIOSDocumentVisibleRect);
 }
 
+LayoutPoint RenderView::frameViewScrollPositionForFixedPositionForSwift() const
+{
+    return frameView().scrollPositionForFixedPosition();
+}
+
+bool RenderView::frameViewHasFlippedBlockRenderersForSwift() const
+{
+    return frameView().hasFlippedBlockRenderers();
+}
+
 IntRect RenderView::unscaledDocumentRect() const
 {
     LayoutRect overflowRect(layoutOverflowRect());

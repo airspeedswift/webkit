@@ -61,6 +61,7 @@
 #include "InlineRunAndOffset.h"
 #include "LayoutIntegrationLineLayout.h"
 #include "LegacyRenderSVGResourceClipper.h"
+#include "LineClampUpdater.h"
 #include "LocalFrame.h"
 #include "LocalFrameViewInlines.h"
 #include "Page.h"
@@ -2459,6 +2460,11 @@ LayoutRect RenderBox::overflowClipRect(const LayoutPoint& location, OverlayScrol
     }
 
     return clipRect;
+}
+
+std::optional<LayoutRect> RenderBox::blockEndClipRectForSwift(const RenderElement& paintingRoot) const
+{
+    return LineClampUpdater::blockEndClipRect(*this, paintingRoot);
 }
 
 LayoutRect RenderBox::clipRect(const LayoutPoint& location) const
