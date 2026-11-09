@@ -26,11 +26,11 @@
 #pragma once
 
 #include <wtf/Platform.h>
+#include <JavaScriptCore/WasmModuleInformation.h>
 
 #if ENABLE(WEBASSEMBLY_DEBUGGER)
 
 #include <JavaScriptCore/JSExportMacros.h>
-#include <JavaScriptCore/WasmModuleInformation.h>
 #include <cstdint>
 #include <optional>
 #include <wtf/DataLog.h>
