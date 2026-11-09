@@ -149,3 +149,13 @@ _SWIFT_EXPLICIT_MODULES_ALLOW_CXX_INTEROP = $(WK_SUPPORTS_SWIFT_OBJCXX_INTEROP);
 OTHER_SWIFT_FLAGS = $(inherited) @$(BUILT_PRODUCTS_DIR)/DerivedSources/TestWebKitAPI/platform-enabled-swift-args.$(arch).resp $(OTHER_SWIFT_FLAGS_SUPPORTS_SWIFT_OBJCXX_INTEROP_$(WK_SUPPORTS_SWIFT_OBJCXX_INTEROP));
 OTHER_SWIFT_FLAGS_SUPPORTS_SWIFT_OBJCXX_INTEROP_YES = -Xcc -std=c++2b -no-verify-emitted-module-interface;
 OTHER_SWIFT_FLAGS_SUPPORTS_SWIFT_OBJCXX_INTEROP_NO = ;
+
+// The in-process Swift dependency scan of an assertions-enabled Swift toolchain asserts on this project's Swift ("Wrote
+// the same PCM with different contents", InProcessModuleCache.cpp), which crashes the build service. Build its Swift
+// with implicit modules, and so without the compilation cache, which needs explicit modules.
+_EXPERIMENTAL_SWIFT_EXPLICIT_MODULES = NO;
+SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+SWIFT_ENABLE_COMPILE_CACHE = NO;
+// An explicit module build resolves cross-import overlays (WebKit with SwiftUI); an implicit one imports them only when
+// asked.
+OTHER_SWIFT_FLAGS = $(inherited) -Xfrontend -enable-cross-import-overlays;
