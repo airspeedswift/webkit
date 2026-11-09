@@ -3742,6 +3742,7 @@
 		9331BAC929EC982900137ED2 /* InlineIteratorLineBoxInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = 9331BAC829EC982800137ED2 /* InlineIteratorLineBoxInlines.h */; };
 		9331BACB29EC9CCB00137ED2 /* InlineIteratorBoxInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = 9331BACA29EC9CCA00137ED2 /* InlineIteratorBoxInlines.h */; };
 		9331BACF29EC9FFA00137ED2 /* RenderLayerInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = 9331BACE29EC9FF900137ED2 /* RenderLayerInlines.h */; };
+		7B94B369F4A4487A804E59BD /* RenderLayerStyleInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = F9914A6B5F554CD08FA0432C /* RenderLayerStyleInlines.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9331BAD129EDA36600137ED2 /* StyleBuilderStateInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = 9331BAD029EDA36500137ED2 /* StyleBuilderStateInlines.h */; };
 		9331BAD329EDA88200137ED2 /* RenderTableInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = 9331BAD229EDA88100137ED2 /* RenderTableInlines.h */; };
 		9331BAD529F02F9000137ED2 /* RenderTableSectionInlines.h in Headers */ = {isa = PBXBuildFile; fileRef = 9331BAD429F02F8F00137ED2 /* RenderTableSectionInlines.h */; };
@@ -16275,6 +16276,7 @@
 		9331BAC829EC982800137ED2 /* InlineIteratorLineBoxInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = InlineIteratorLineBoxInlines.h; sourceTree = "<group>"; };
 		9331BACA29EC9CCA00137ED2 /* InlineIteratorBoxInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = InlineIteratorBoxInlines.h; sourceTree = "<group>"; };
 		9331BACE29EC9FF900137ED2 /* RenderLayerInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RenderLayerInlines.h; sourceTree = "<group>"; };
+		F9914A6B5F554CD08FA0432C /* RenderLayerStyleInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RenderLayerStyleInlines.h; sourceTree = "<group>"; };
 		9331BAD029EDA36500137ED2 /* StyleBuilderStateInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StyleBuilderStateInlines.h; sourceTree = "<group>"; };
 		9331BAD229EDA88100137ED2 /* RenderTableInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RenderTableInlines.h; sourceTree = "<group>"; };
 		9331BAD429F02F8F00137ED2 /* RenderTableSectionInlines.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RenderTableSectionInlines.h; sourceTree = "<group>"; };
@@ -42510,6 +42512,7 @@
 				0F53FB8B213B768400C40D34 /* RenderLayerFilters.cpp */,
 				0F53FB89213B768400C40D34 /* RenderLayerFilters.h */,
 				9331BACE29EC9FF900137ED2 /* RenderLayerInlines.h */,
+				F9914A6B5F554CD08FA0432C /* RenderLayerStyleInlines.h */,
 				3C244FE5A375AC633F88BE6F /* RenderLayerModelObject.cpp */,
 				3C244FE4A375AC633F88BE6F /* RenderLayerModelObject.h */,
 				BC913ABD2EDF542D009E3349 /* RenderLayerModelObjectInlines.h */,
@@ -48547,6 +48550,7 @@
 				0F580CFF0F12DE9B0051D689 /* RenderLayerBacking.h in Headers */,
 				0F580CFD0F12DE9B0051D689 /* RenderLayerCompositor.h in Headers */,
 				9331BACF29EC9FFA00137ED2 /* RenderLayerInlines.h in Headers */,
+				7B94B369F4A4487A804E59BD /* RenderLayerStyleInlines.h in Headers */,
 				3C244FEAA375AC633F88BE6F /* RenderLayerModelObject.h in Headers */,
 				0F53FB84213B7A6400C40D34 /* RenderLayerScrollableArea.h in Headers */,
 				3D4E6A98F12B0C85A2C173D6 /* RenderLayerSVGAdditions.h in Headers */,

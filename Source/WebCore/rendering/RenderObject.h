@@ -833,6 +833,8 @@ public:
     const RenderLayerModelObject* asRenderLayerModelObject() const;
     const RenderSVGModelObject* asRenderSVGModelObject() const;
     const RenderView* asRenderView() const;
+    // Swift compares renderers here: it has no identity comparison of its own for them.
+    static bool isSameRenderer(const RenderObject* a, const RenderObject* b) { return a == b; }
     static RenderBlock* containingBlockForPositionType(PositionType, const RenderObject&);
 
     // Convert the given local point to absolute coordinates. If OptionSet<MapCoordinatesMode> includes UseTransforms, take transforms into account.

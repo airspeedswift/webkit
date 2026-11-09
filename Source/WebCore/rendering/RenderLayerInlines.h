@@ -22,6 +22,7 @@
 #include "RenderElementInlines.h"
 #include "RenderElementStyleInlines.h"
 #include "RenderLayer.h"
+#include "RenderLayerStyleInlines.h"
 #include "RenderObjectInlines.h"
 #include "RenderSVGResourceClipper.h"
 #include "RenderView.h"
@@ -32,38 +33,6 @@
 namespace WebCore {
 
 inline bool RenderLayer::canPaintTransparencyWithSetOpacity() const { return isBitmapOnly() && !hasNonOpacityTransparency() && !hasFilter(); }
-inline bool RenderLayer::hasBackdropFilter() const { return renderer().hasBackdropFilter(); }
-inline bool RenderLayer::hasFilter() const { return renderer().hasFilter(); }
-inline bool RenderLayer::isTransparent() const { return renderer().isTransparent() || renderer().hasMask(); }
-inline bool RenderLayer::overlapBoundsIncludeChildren() const { return hasFilter() && renderer().style().filter().hasFilterThatMovesPixels(); }
-inline bool RenderLayer::preserves3D() const { return renderer().style().usedTransformStyle3D() == TransformStyle3D::Preserve3D; }
-inline int RenderLayer::zIndex() const { return renderer().style().usedZIndex().tryValue().value_or(0).value; }
-inline Page& RenderLayer::page() const { return renderer().page(); }
-
-#if HAVE(CORE_MATERIAL)
-inline bool RenderLayer::hasAppleVisualEffect() const { return renderer().hasAppleVisualEffect(); }
-inline bool RenderLayer::hasAppleVisualEffectRequiringBackdropFilter() const { return renderer().hasAppleVisualEffectRequiringBackdropFilter(); }
-#endif
-
-inline bool RenderLayer::isViewportConstrained() const
-{
-    return renderer().isFixedPositioned() || renderer().isStickilyPositioned();
-}
-
-inline bool RenderLayer::isTransformed() const
-{
-    // If the scroll offset is present, a transform is applied on top of existing
-    // transforms from the renderer.
-    return renderer().isTransformed() || m_anchorScrollAdjustment;
-}
-
-inline bool RenderLayer::hasBlendMode() const { return renderer().hasBlendMode(); } // FIXME: Why ask the renderer this given we have m_blendMode?
-
-inline bool RenderLayer::canUseOffsetFromAncestor() const
-{
-    // FIXME: This really needs to know if there are transforms on this layer and any of the layers between it and the ancestor in question.
-    return !isTransformed() && !renderer().isRenderOrLegacyRenderSVGRoot();
-}
 
 inline bool RenderLayer::paintsWithTransparency(OptionSet<PaintBehavior> paintBehavior) const
 {
@@ -88,23 +57,6 @@ inline bool RenderLayer::hasNonOpacityTransparency() const
         return true;
 
     return false;
-}
-
-inline const LayoutPoint& RenderLayer::location() const LIFETIME_BOUND
-{
-    ASSERT(!renderer().layerAccessPreventedSlow());
-    return m_topLeft;
-}
-
-inline const IntSize& RenderLayer::size() const LIFETIME_BOUND
-{
-    ASSERT(!renderer().layerAccessPreventedSlow());
-    return m_layerSize;
-}
-
-inline LayoutRect RenderLayer::rect() const
-{
-    return LayoutRect(location(), size());
 }
 
 enum class AncestorTraversal { Continue, Stop };

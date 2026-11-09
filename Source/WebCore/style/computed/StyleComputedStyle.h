@@ -43,6 +43,10 @@ public:
     inline bool hasFilterForSwift() const SWIFT_NAME(hasFilter());
     inline PositionType positionForSwift() const SWIFT_NAME(position());
     inline std::optional<PseudoElementType> pseudoElementTypeForSwift() const SWIFT_NAME(pseudoElementType());
+    inline Isolation isolationForSwift() const SWIFT_NAME(isolation());
+    inline bool usedZIndexIsAutoForSwift() const SWIFT_NAME(usedZIndexIsAuto());
+    inline bool willChangeCanCreateStackingContextForSwift() const SWIFT_NAME(willChangeCanCreateStackingContext());
+    inline bool willChangeCanBeBackdropRootForSwift() const SWIFT_NAME(willChangeCanBeBackdropRoot());
 
     explicit ComputedStyle(CreateDefaultStyleTag);
     ComputedStyle(const ComputedStyle&, CloneTag);

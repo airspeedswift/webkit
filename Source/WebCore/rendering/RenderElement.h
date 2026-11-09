@@ -147,6 +147,10 @@ public:
     inline bool isInsideDrawableCanvas() const; // Defined in RenderElementStyleInlines.h.
     inline bool canContainFixedPositionObjects(const Style::ComputedStyle* styleToUse = nullptr) const; // Defined in RenderElementStyleInlines.h.
     inline bool canContainAbsolutelyPositionedObjects(const Style::ComputedStyle* styleToUse = nullptr) const; // Defined in RenderElementStyleInlines.h.
+    // Swift takes no pointer argument safely: these read the renderer's own style.
+    inline bool canContainFixedPositionObjectsForSwift() const; // Defined in RenderElementStyleInlines.h.
+    inline bool canContainAbsolutelyPositionedObjectsForSwift() const; // Defined in RenderElementStyleInlines.h.
+    inline bool isInTopLayerOrBackdropForSwift() const; // Defined in RenderElementStyleInlines.h.
     bool canEstablishContainingBlockWithTransform() const;
     RenderBlock* nearestNonAnonymousContainingBlockIncludingSelf() const;
     RenderHTMLCanvas* drawableCanvas() const;
@@ -536,7 +540,7 @@ private:
     unsigned m_mayHaveNonScalingStrokeInSubtree : 1 { false };
     unsigned m_lineClampState : 2 { static_cast<unsigned>(LineClampState::None) };
     // 8 bits free.
-} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
+} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_PRIVATE_FILEID("WebCore/RenderElementLayers.swift");
 
 WEBCORE_EXPORT float LEGACY_NODELETE opacity(const RenderElement&);
 

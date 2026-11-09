@@ -204,7 +204,7 @@ private:
     static bool s_hadLayer;
     static bool s_wasTransformed;
     static bool s_layerWasSelfPainting;
-} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount);
+} DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_PRIVATE_FILEID("WebCore/RenderLayerModelObjectLayer.swift");
 
 // Pixel-snapping (== 'device pixel alignment') helpers.
 bool LEGACY_NODELETE rendererNeedsPixelSnapping(const RenderLayerModelObject&);

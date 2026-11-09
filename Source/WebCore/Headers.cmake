@@ -3014,6 +3014,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     rendering/RenderLayerModelObject.h
     rendering/RenderLayerSVGAdditions.h
     rendering/RenderLayerScrollableArea.h
+    rendering/RenderLayerStyleInlines.h
     rendering/RenderLayoutState.h
     rendering/RenderListItem.h
     rendering/RenderMedia.h

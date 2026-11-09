@@ -890,6 +890,8 @@ public:
     inline bool isTransformed() const;
     // Note that this transform has the transform-origin baked in.
     TransformationMatrix* transform() const LIFETIME_BOUND { return m_transform.get(); }
+    // The transform by value, for Swift, which reads no interior pointer.
+    std::optional<TransformationMatrix> transformValue() const { return m_transform ? std::optional { *m_transform } : std::nullopt; }
     // updateTransformFromStyle computes a transform according to the passed options (e.g. transform-origin baked in or excluded) and the given style.
     void updateTransformFromStyle(TransformationMatrix&, const Style::ComputedStyle&, OptionSet<Style::TransformResolverOption>) const;
     // currentTransform computes a transform which takes accelerated animations into account. The
@@ -1008,6 +1010,15 @@ public:
     Element* LEGACY_NODELETE enclosingElement() const;
 
     static Vector<RenderLayer*> topLayerRenderLayers(const RenderView&);
+    // The top layer's layer after this one, for Swift, which cannot read the vector.
+    static RenderLayer* topLayerRenderLayerAfter(const RenderView& renderView, const RenderLayer& layer)
+    {
+        auto topLayerLayers = topLayerRenderLayers(renderView);
+        auto layerIndex = topLayerLayers.find(const_cast<RenderLayer*>(&layer));
+        if (layerIndex != notFound && layerIndex < topLayerLayers.size() - 1)
+            return topLayerLayers[layerIndex + 1];
+        return nullptr;
+    }
 
     bool LEGACY_NODELETE establishesTopLayer() const;
     SWIFT_UNSAFE void establishesTopLayerWillChange();

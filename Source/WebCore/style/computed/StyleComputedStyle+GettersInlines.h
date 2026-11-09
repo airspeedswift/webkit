@@ -382,6 +382,26 @@ inline std::optional<PseudoElementType> ComputedStyle::pseudoElementTypeForSwift
     return ComputedStyleBase::pseudoElementType();
 }
 
+inline Isolation ComputedStyle::isolationForSwift() const
+{
+    return ComputedStyleProperties::isolation();
+}
+
+inline bool ComputedStyle::usedZIndexIsAutoForSwift() const
+{
+    return usedZIndex().isAuto();
+}
+
+inline bool ComputedStyle::willChangeCanCreateStackingContextForSwift() const
+{
+    return willChange().canCreateStackingContext();
+}
+
+inline bool ComputedStyle::willChangeCanBeBackdropRootForSwift() const
+{
+    return willChange().canBeBackdropRoot();
+}
+
 // MARK: - Logical getters
 
 // MARK: logical inset value aliases
