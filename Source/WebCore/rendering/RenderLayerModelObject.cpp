@@ -67,6 +67,7 @@
 #include "TransformOperationData.h"
 #include "TransformState.h"
 #include <wtf/MathExtras.h>
+#include <wtf/SetForScope.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -78,6 +79,7 @@ bool RenderLayerModelObject::s_wasFloating = false;
 bool RenderLayerModelObject::s_hadLayer = false;
 bool RenderLayerModelObject::s_wasTransformed = false;
 bool RenderLayerModelObject::s_layerWasSelfPainting = false;
+RenderLayerModelObject::StyleChange RenderLayerModelObject::s_styleChange;
 
 RenderLayerModelObject::RenderLayerModelObject(Type type, Element& element, Style::ComputedStyle&& style, OptionSet<TypeFlag> baseTypeFlags, TypeSpecificFlags typeSpecificFlags)
     : RenderElement(type, element, WTF::move(style), baseTypeFlags | TypeFlag::IsLayerModelObject, typeSpecificFlags)
@@ -166,6 +168,12 @@ bool RenderLayerModelObject::requiresLayerForSVGIntrinsicReasons() const
         || style.isolation() != Isolation::Auto;
 }
 
+const Style::ComputedStyle& RenderLayerModelObject::operator[](RenderLayerModelObjectOldStyleTag) const
+{
+    RELEASE_ASSERT(hasOldStyle());
+    return *s_styleChange.oldStyle;
+}
+
 void RenderLayerModelObject::styleWillChange(Style::Difference diff, const Style::ComputedStyle& newStyle)
 {
     s_wasFloating = isFloating();
@@ -182,6 +190,8 @@ void RenderLayerModelObject::styleWillChange(Style::Difference diff, const Style
 
 void RenderLayerModelObject::styleDidChange(Style::Difference diff, const Style::ComputedStyle* oldStyle)
 {
+    SetForScope styleChangeScope(s_styleChange, StyleChange { this, oldStyle });
+
     // Read before updateFromStyle() and RenderLayer::styleChanged() refresh the transform.
     auto previousSVGTransform = oldStyle ? svgTransformBeforeStyleChange(*oldStyle) : std::nullopt;
 
@@ -1052,7 +1062,7 @@ AffineTransform RenderLayerModelObject::computeRendererTransform() const
     return matrix.toAffineTransform();
 }
 
-void RenderLayerModelObject::contentChanged(ContentChangeType changeType, const std::optional<FloatRect>& dirtyRect)
+void RenderLayerModelObject::contentChanged(ContentChangeType changeType, std::optional<FloatRect> dirtyRect)
 {
     if (CheckedPtr layer = this->layer())
         layer->contentChanged(changeType, dirtyRect);

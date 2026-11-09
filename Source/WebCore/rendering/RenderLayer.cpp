@@ -1043,7 +1043,7 @@ String RenderLayer::name() const
     return makeString(renderer().debugDescription(), " (reflection)"_s);
 }
 
-void RenderLayer::contentChanged(ContentChangeType changeType, const std::optional<FloatRect>& dirtyRect)
+void RenderLayer::contentChanged(ContentChangeType changeType, std::optional<FloatRect> dirtyRect)
 {
     if (changeType == ContentChangeType::Canvas || changeType == ContentChangeType::Video || changeType == ContentChangeType::FullScreen || changeType == ContentChangeType::Model || changeType == ContentChangeType::HDRImage) {
         setNeedsPostLayoutCompositingUpdate();
@@ -2630,7 +2630,7 @@ RenderLayer* RenderLayer::enclosingFilterRepaintLayer() const
 }
 
 // FIXME: This needs a better name.
-void RenderLayer::setFilterBackendNeedsRepaintingInRect(const LayoutRect& rect, UseFilterOutsets useFilterOutsets)
+void RenderLayer::setFilterBackendNeedsRepaintingInRect(LayoutRect rect, UseFilterOutsets useFilterOutsets)
 {
     ASSERT(requiresFullLayerImageForFilters());
 
@@ -2711,7 +2711,7 @@ RenderLayer* RenderLayer::clippingRootForPainting() const
     return nullptr;
 }
 
-LayoutPoint RenderLayer::absoluteToContents(const LayoutPoint& absolutePoint) const
+LayoutPoint RenderLayer::absoluteToContents(LayoutPoint absolutePoint) const
 {
     // We don't use convertToLayerCoords because it doesn't know about transforms
     return LayoutPoint(renderer().absoluteToLocal(absolutePoint, MapCoordinatesMode::UseTransforms));
@@ -5778,7 +5778,7 @@ LayoutRect RenderLayer::selfClipRect() const
     return clippingRootLayer->renderer().localToAbsoluteQuad(FloatQuad(clipRect)).enclosingBoundingBox();
 }
 
-void RenderLayer::addBlockSelectionGapsBounds(const LayoutRect& bounds)
+void RenderLayer::addBlockSelectionGapsBounds(LayoutRect bounds)
 {
     m_blockSelectionGapsBounds.unite(enclosingIntRect(bounds));
 }
@@ -6185,7 +6185,7 @@ bool RenderLayer::shouldApplyClipPath(OptionSet<PaintBehavior> paintBehavior, Op
     return paintFlags.containsAny({ PaintLayerFlag::PaintingCompositingClipPathPhase, PaintLayerFlag::CollectingEventRegion });
 }
 
-bool RenderLayer::backgroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect) const
+bool RenderLayer::backgroundIsKnownToBeOpaqueInRect(LayoutRect localRect) const
 {
     if (!isSelfPaintingLayer() && !hasSelfPaintingLayerDescendant())
         return false;
@@ -6239,7 +6239,7 @@ bool RenderLayer::backgroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect)
         || listBackgroundIsKnownToBeOpaqueInRect(normalFlowLayers(), localRect);
 }
 
-bool RenderLayer::listBackgroundIsKnownToBeOpaqueInRect(const LayerList& list, const LayoutRect& localRect) const
+bool RenderLayer::listBackgroundIsKnownToBeOpaqueInRect(const LayerList& list, LayoutRect localRect) const
 {
     if (list.begin() == list.end())
         return false;

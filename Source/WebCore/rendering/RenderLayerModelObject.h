@@ -61,6 +61,8 @@ enum class ContentChangeType : uint8_t {
     Model
 };
 
+enum class RenderLayerModelObjectOldStyleTag : uint8_t { OldStyle };
+
 class RenderLayerModelObject : public RenderElement {
     WTF_MAKE_TZONE_ALLOCATED(RenderLayerModelObject);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderLayerModelObject);
@@ -74,6 +76,10 @@ public:
 
     void styleWillChange(Style::Difference, const Style::ComputedStyle& newStyle) override;
     void styleDidChange(Style::Difference, const Style::ComputedStyle* oldStyle) override;
+
+    // The style that styleDidChange() replaces, while styleDidChange() runs for this renderer.
+    bool hasOldStyle() const { return s_styleChange.renderer == this && s_styleChange.oldStyle; }
+    const Style::ComputedStyle& operator[](RenderLayerModelObjectOldStyleTag) const LIFETIME_BOUND;
 
     virtual bool requiresLayer() const = 0;
     bool requiresLayerForSVGIntrinsicReasons() const;
@@ -170,7 +176,7 @@ public:
 
     AffineTransform computeRendererTransform() const;
 
-    void contentChanged(ContentChangeType, const std::optional<FloatRect>& = std::nullopt);
+    void contentChanged(ContentChangeType, std::optional<FloatRect> = std::nullopt);
 
     bool hasAcceleratedCompositing() const;
 
@@ -204,6 +210,12 @@ private:
     static bool s_hadLayer;
     static bool s_wasTransformed;
     static bool s_layerWasSelfPainting;
+
+    struct StyleChange {
+        const RenderLayerModelObject* renderer { nullptr };
+        const Style::ComputedStyle* oldStyle { nullptr };
+    };
+    static StyleChange s_styleChange;
 } DERIVED_CLASS_SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_PRIVATE_FILEID("WebCore/RenderLayerModelObjectLayer.swift");
 
 // Pixel-snapping (== 'device pixel alignment') helpers.

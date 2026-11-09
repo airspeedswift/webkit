@@ -41,6 +41,9 @@ public:
     // names of their own because the generated code takes the base getters' addresses; Swift sees the plain names.
     inline BackfaceVisibility backfaceVisibilityForSwift() const SWIFT_NAME(backfaceVisibility());
     inline bool hasFilterForSwift() const SWIFT_NAME(hasFilter());
+    inline bool filterHasReferenceFilterForSwift() const SWIFT_NAME(filterHasReferenceFilter());
+    inline bool filterHasFilterThatAffectsOpacityForSwift() const SWIFT_NAME(filterHasFilterThatAffectsOpacity());
+    inline bool filterHasFilterThatMovesPixelsForSwift() const SWIFT_NAME(filterHasFilterThatMovesPixels());
     inline PositionType positionForSwift() const SWIFT_NAME(position());
     inline std::optional<PseudoElementType> pseudoElementTypeForSwift() const SWIFT_NAME(pseudoElementType());
     inline Isolation isolationForSwift() const SWIFT_NAME(isolation());

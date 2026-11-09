@@ -372,6 +372,21 @@ inline bool ComputedStyle::hasFilterForSwift() const
     return !filter().isNone();
 }
 
+inline bool ComputedStyle::filterHasReferenceFilterForSwift() const
+{
+    return filter().hasReferenceFilter();
+}
+
+inline bool ComputedStyle::filterHasFilterThatAffectsOpacityForSwift() const
+{
+    return filter().hasFilterThatAffectsOpacity();
+}
+
+inline bool ComputedStyle::filterHasFilterThatMovesPixelsForSwift() const
+{
+    return filter().hasFilterThatMovesPixels();
+}
+
 inline PositionType ComputedStyle::positionForSwift() const
 {
     return ComputedStyleProperties::position();
