@@ -772,6 +772,8 @@ public:
         CollectingEventRegion                 = 1 << 16,
         PaintingSkipDescendantViewTransition  = 1 << 17,
     };
+    using PaintLayerFlags = OptionSet<PaintLayerFlag>;
+    using PaintBehaviors = OptionSet<PaintBehavior>;
     static constexpr OptionSet<PaintLayerFlag> paintLayerPaintingCompositingAllPhasesFlags() { return { PaintLayerFlag::PaintingCompositingBackgroundPhase, PaintLayerFlag::PaintingCompositingForegroundPhase }; }
 
     enum class SecurityOriginPaintPolicy { AnyOrigin, AccessibleOriginOnly };
@@ -1259,6 +1261,11 @@ private:
         HasChangedAncestor                      = 1 << 3,
         SkipsUnconstrainedSubtrees              = 1 << 4,
     };
+public:
+    // Public, so that Swift can name the sets in its definitions of the private members.
+    using UpdateLayerPositionsFlags = OptionSet<UpdateLayerPositionsFlag>;
+    using UpdateLayerPositionsAfterScrollFlags = OptionSet<UpdateLayerPositionsAfterScrollFlag>;
+private:
     void recursiveUpdateLayerPositionsAfterScroll(OptionSet<UpdateLayerPositionsAfterScrollFlag> = { });
 #if ASSERT_ENABLED || ENABLE(CONJECTURE_ASSERT)
     void verifySkippedLayerPositionsAfterDocumentScroll();

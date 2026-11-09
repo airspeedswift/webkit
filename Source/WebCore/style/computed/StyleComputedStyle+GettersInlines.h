@@ -402,6 +402,46 @@ inline bool ComputedStyle::willChangeCanBeBackdropRootForSwift() const
     return willChange().canBeBackdropRoot();
 }
 
+inline bool ComputedStyle::opacityIsTransparentForSwift() const
+{
+    return opacity().isTransparent();
+}
+
+inline Visibility ComputedStyle::visibilityForSwift() const
+{
+    return ComputedStyleProperties::visibility();
+}
+
+inline bool ComputedStyle::isForceHiddenForSwift() const
+{
+    return ComputedStyleBase::isForceHidden();
+}
+
+inline ContentVisibility ComputedStyle::usedContentVisibilityForSwift() const
+{
+    return ComputedStyleBase::usedContentVisibility();
+}
+
+inline bool ComputedStyle::hasSameUsedZIndexForSwift(const ComputedStyle& other) const
+{
+    return usedZIndex() == other.usedZIndex();
+}
+
+inline bool ComputedStyle::hasSameWritingModeForSwift(const ComputedStyle& other) const
+{
+    return writingMode() == other.writingMode();
+}
+
+inline bool ComputedStyle::viewTransitionNameIsNoneForSwift() const
+{
+    return viewTransitionName().isNone();
+}
+
+inline bool ComputedStyle::perspectiveIsNoneForSwift() const
+{
+    return perspective().isNone();
+}
+
 // MARK: - Logical getters
 
 // MARK: logical inset value aliases

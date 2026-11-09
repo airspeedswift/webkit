@@ -58,7 +58,7 @@ class RenderLayerScrollableArea final : public ScrollableArea, public CanMakeChe
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderLayerScrollableArea);
     friend class ScrollbarUpdateScope;
 public:
-    explicit RenderLayerScrollableArea(RenderLayer&);
+    SWIFT_UNAVAILABLE_IN_SWIFT explicit RenderLayerScrollableArea(RenderLayer&);
     virtual ~RenderLayerScrollableArea();
 
     // CheckedPtr interface
@@ -234,6 +234,9 @@ public:
     void setContainsDirtyOverlayScrollbars(bool dirtyScrollbars) { m_containsDirtyOverlayScrollbars = dirtyScrollbars; }
 
     void updateScrollbarsAfterStyleChange(const Style::ComputedStyle* oldStyle);
+    // The old style by reference, or none, for Swift, which takes no pointer argument.
+    void updateScrollbarsAfterStyleChange(const Style::ComputedStyle& oldStyle) { updateScrollbarsAfterStyleChange(&oldStyle); }
+    void updateScrollbarsAfterStyleChangeWithoutOldStyle() { updateScrollbarsAfterStyleChange(nullptr); }
 
     bool positionOverflowControls(const IntSize&);
 
@@ -338,7 +341,7 @@ private:
     std::unique_ptr<RenderMarquee> m_marquee;
 
     const std::unique_ptr<ScrollAnchoringController> m_scrollAnchoringController;
-};
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 } // namespace WebCore
 

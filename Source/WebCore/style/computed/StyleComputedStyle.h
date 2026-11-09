@@ -47,6 +47,15 @@ public:
     inline bool usedZIndexIsAutoForSwift() const SWIFT_NAME(usedZIndexIsAuto());
     inline bool willChangeCanCreateStackingContextForSwift() const SWIFT_NAME(willChangeCanCreateStackingContext());
     inline bool willChangeCanBeBackdropRootForSwift() const SWIFT_NAME(willChangeCanBeBackdropRoot());
+    inline bool opacityIsTransparentForSwift() const SWIFT_NAME(opacityIsTransparent());
+    float opacityValueForSwift() const SWIFT_NAME(opacityValue());
+    inline Visibility visibilityForSwift() const SWIFT_NAME(visibility());
+    inline bool isForceHiddenForSwift() const SWIFT_NAME(isForceHidden());
+    inline ContentVisibility usedContentVisibilityForSwift() const SWIFT_NAME(usedContentVisibility());
+    inline bool hasSameUsedZIndexForSwift(const ComputedStyle&) const SWIFT_NAME(hasSameUsedZIndex(_:));
+    inline bool hasSameWritingModeForSwift(const ComputedStyle&) const SWIFT_NAME(hasSameWritingMode(_:));
+    inline bool viewTransitionNameIsNoneForSwift() const SWIFT_NAME(viewTransitionNameIsNone());
+    inline bool perspectiveIsNoneForSwift() const SWIFT_NAME(perspectiveIsNone());
 
     explicit ComputedStyle(CreateDefaultStyleTag);
     ComputedStyle(const ComputedStyle&, CloneTag);

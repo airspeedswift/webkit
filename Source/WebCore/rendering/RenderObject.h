@@ -78,8 +78,11 @@ class RenderBlockFlow;
 class RenderElement;
 class RenderFragmentedFlow;
 class RenderGeometryMap;
+class RenderImage;
 class RenderLayer;
 class RenderLayerModelObject;
+class RenderMultiColumnFlow;
+class RenderReplica;
 class RenderSVGModelObject;
 class RenderFragmentContainer;
 class RenderTheme;
@@ -833,12 +836,17 @@ public:
     const RenderLayerModelObject* asRenderLayerModelObject() const;
     const RenderSVGModelObject* asRenderSVGModelObject() const;
     const RenderView* asRenderView() const;
+    const RenderImage* asRenderImage() const;
+    const RenderMultiColumnFlow* asRenderMultiColumnFlow() const;
+    const RenderReplica* asRenderReplica() const;
     // Swift compares renderers here: it has no identity comparison of its own for them.
     static bool isSameRenderer(const RenderObject* a, const RenderObject* b) { return a == b; }
     static RenderBlock* containingBlockForPositionType(PositionType, const RenderObject&);
 
     // Convert the given local point to absolute coordinates. If OptionSet<MapCoordinatesMode> includes UseTransforms, take transforms into account.
     WEBCORE_EXPORT FloatPoint localToAbsolute(const FloatPoint& localPoint = FloatPoint(), OptionSet<MapCoordinatesMode> = { }, bool* wasFixed = nullptr) const;
+    // The origin mapped with MapCoordinatesMode::IsFixed, for Swift, which takes no pointer argument.
+    FloatPoint fixedOriginToAbsoluteForSwift() const { return localToAbsolute({ }, MapCoordinatesMode::IsFixed); }
     TransformState viewTransitionTransform() const;
     FloatPoint absoluteToLocal(const DoublePoint&, OptionSet<MapCoordinatesMode> = { }) const;
 

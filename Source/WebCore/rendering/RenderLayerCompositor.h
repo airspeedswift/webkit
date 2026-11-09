@@ -266,6 +266,9 @@ public:
     void layerWillBeRemoved(RenderLayer& parent, RenderLayer& child);
 
     void layerStyleChanged(Style::Difference, RenderLayer&, const Style::ComputedStyle* oldStyle);
+    // The old style by reference, or none, for Swift, which takes no pointer argument.
+    void layerStyleChanged(Style::Difference diff, RenderLayer& layer, const Style::ComputedStyle& oldStyle) { layerStyleChanged(diff, layer, &oldStyle); }
+    void layerStyleChangedWithoutOldStyle(Style::Difference diff, RenderLayer& layer) { layerStyleChanged(diff, layer, nullptr); }
     void layerGainedCompositedScrollableOverflow(RenderLayer&);
 
     void establishesTopLayerWillChangeForLayer(RenderLayer&);

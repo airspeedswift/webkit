@@ -71,11 +71,12 @@ enum class AsTextFlag : uint8_t;
 // 
 // There is one RenderLayerBacking for each RenderLayer that is composited.
 
-class RenderLayerBacking final : public GraphicsLayerClient {
+class RenderLayerBacking final : public GraphicsLayerClient, public CanMakeCheckedPtr<RenderLayerBacking> {
     WTF_MAKE_TZONE_ALLOCATED(RenderLayerBacking);
     WTF_MAKE_NONCOPYABLE(RenderLayerBacking);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderLayerBacking);
 public:
-    explicit RenderLayerBacking(RenderLayer&);
+    SWIFT_UNAVAILABLE_IN_SWIFT explicit RenderLayerBacking(RenderLayer&);
     ~RenderLayerBacking();
 
     // Do cleanup while layer->backing() is still valid.
@@ -572,7 +573,7 @@ private:
     bool m_needsEventRegionUpdate { true };
 #endif
     bool m_shouldPaintUsingCompositeCopy { false };
-};
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
 
 enum CanvasCompositingStrategy {
     CanvasPaintedToEnclosingLayer,

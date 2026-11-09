@@ -35,6 +35,7 @@
 #include <string.h> //for memcpy
 #include <wtf/Forward.h>
 #include <wtf/Platform.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Variant.h>
 
@@ -300,6 +301,14 @@ public:
     TransformationMatrix& skewY(double angle) { return skew(0, angle); }
 
     WEBCORE_EXPORT TransformationMatrix& applyPerspective(double p);
+
+    // The mutators for Swift, which imports no reference result of a value type.
+    void makeIdentityForSwift() SWIFT_NAME(setIdentity()) { makeIdentity(); }
+    void multiplyForSwift(const TransformationMatrix& matrix) SWIFT_NAME(multiplyBy(_:)) { multiply(matrix); }
+    void scaleNonUniformForSwift(double sx, double sy) SWIFT_NAME(scaleBy(_:_:)) { scaleNonUniform(sx, sy); }
+    void translateForSwift(double tx, double ty) SWIFT_NAME(translateBy(_:_:)) { translate(tx, ty); }
+    void translate3dForSwift(double tx, double ty, double tz) SWIFT_NAME(translateBy(_:_:_:)) { translate3d(tx, ty, tz); }
+    void applyPerspectiveForSwift(double p) SWIFT_NAME(applyPerspectiveBy(_:)) { applyPerspective(p); }
     bool hasPerspective() const { return m_matrix[0][3] != 0.0f || m_matrix[1][3] != 0.0f || m_matrix[2][3] != 0.0f || m_matrix[3][3] != 1.0f; }
 
     // Returns a transformation that maps a rect to a rect.

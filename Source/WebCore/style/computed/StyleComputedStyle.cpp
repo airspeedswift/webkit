@@ -175,6 +175,11 @@ bool ComputedStyle::isListItemType() const
     return display().isListItemType();
 }
 
+float ComputedStyle::opacityValueForSwift() const
+{
+    return Style::evaluate<float>(opacity());
+}
+
 void ComputedStyle::inheritIgnoringCustomPropertiesFrom(const ComputedStyle& inheritParent)
 {
     auto oldCustomProperties = m_inheritedRareData->customProperties;

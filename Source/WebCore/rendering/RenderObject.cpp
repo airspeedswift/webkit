@@ -63,6 +63,7 @@
 #include "RenderFragmentedFlow.h"
 #include "RenderGrid.h"
 #include "RenderHTMLCanvas.h"
+#include "RenderImage.h"
 #include "RenderIterator.h"
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
@@ -790,6 +791,21 @@ const RenderSVGModelObject* RenderObject::asRenderSVGModelObject() const
 const RenderView* RenderObject::asRenderView() const
 {
     return dynamicDowncast<RenderView>(*this);
+}
+
+const RenderImage* RenderObject::asRenderImage() const
+{
+    return dynamicDowncast<RenderImage>(*this);
+}
+
+const RenderMultiColumnFlow* RenderObject::asRenderMultiColumnFlow() const
+{
+    return dynamicDowncast<RenderMultiColumnFlow>(*this);
+}
+
+const RenderReplica* RenderObject::asRenderReplica() const
+{
+    return dynamicDowncast<RenderReplica>(*this);
 }
 
 RenderBlock* RenderObject::containingBlock() const
