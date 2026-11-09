@@ -2467,6 +2467,11 @@ std::optional<LayoutRect> RenderBox::blockEndClipRectForSwift(const RenderElemen
     return LineClampUpdater::blockEndClipRect(*this, paintingRoot);
 }
 
+bool RenderBox::isSkippedContentRootForSwift() const
+{
+    return isSkippedContentRoot(*this);
+}
+
 LayoutRect RenderBox::clipRect(const LayoutPoint& location) const
 {
     auto borderBoxRect = this->borderBoxRect();

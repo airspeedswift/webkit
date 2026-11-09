@@ -710,6 +710,21 @@ bool RenderView::frameViewHasFlippedBlockRenderersForSwift() const
     return frameView().hasFlippedBlockRenderers();
 }
 
+LayoutRect RenderView::frameViewLayoutViewportRectForSwift() const
+{
+    return frameView().layoutViewportRect();
+}
+
+float RenderView::frameViewFrameScaleFactorForSwift() const
+{
+    return frameView().frame().frameScaleFactor();
+}
+
+IntRect RenderView::frameViewLegacyIOSDocumentVisibleRectForSwift() const
+{
+    return frameView().visibleContentRect(ScrollableArea::LegacyIOSDocumentVisibleRect);
+}
+
 IntRect RenderView::unscaledDocumentRect() const
 {
     LayoutRect overflowRect(layoutOverflowRect());

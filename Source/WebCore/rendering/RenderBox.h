@@ -475,6 +475,7 @@ public:
     virtual LayoutRect overflowClipRectForChildLayers(const LayoutPoint& location, OverlayScrollbarSizeRelevancy relevancy) const { return overflowClipRect(location, relevancy); }
     LayoutRect clipRect(const LayoutPoint& location) const;
     std::optional<LayoutRect> blockEndClipRectForSwift(const RenderElement&) const;
+    bool isSkippedContentRootForSwift() const;
     virtual bool hasControlClip() const { return false; }
     virtual LayoutRect controlClipRect(const LayoutPoint&) const { return LayoutRect(); }
     bool pushContentsClip(PaintInfo&, const LayoutPoint& accumulatedOffset);

@@ -800,6 +800,16 @@ FloatPoint TransformationMatrix::projectPoint(const FloatPoint& p, bool* clamped
     return FloatPoint(static_cast<float>(outX), static_cast<float>(outY));
 }
 
+FloatPoint TransformationMatrix::projectPointForSwift(const FloatPoint& point) const
+{
+    return projectPoint(point);
+}
+
+FloatQuad TransformationMatrix::projectQuadForSwift(const FloatQuad& quad) const
+{
+    return projectQuad(quad);
+}
+
 FloatQuad TransformationMatrix::projectQuad(const FloatQuad& q, bool* clamped) const
 {
     FloatQuad projectedQuad;

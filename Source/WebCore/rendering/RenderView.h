@@ -164,6 +164,9 @@ public:
     WEBCORE_EXPORT IntRect unscaledDocumentRect() const;
     LayoutPoint frameViewScrollPositionForFixedPositionForSwift() const;
     bool frameViewHasFlippedBlockRenderersForSwift() const;
+    LayoutRect frameViewLayoutViewportRectForSwift() const;
+    float frameViewFrameScaleFactorForSwift() const;
+    IntRect frameViewLegacyIOSDocumentVisibleRectForSwift() const;
     LayoutRect unextendedBackgroundRect() const;
     LayoutRect backgroundRect() const;
 

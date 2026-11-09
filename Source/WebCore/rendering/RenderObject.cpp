@@ -818,6 +818,11 @@ LayoutRect RenderObject::fragmentsBoundingBoxForSwift(const LayoutRect& layerBou
     return downcast<RenderFragmentedFlow>(*this).fragmentsBoundingBox(layerBoundingBox);
 }
 
+void RenderObject::collectLayerFragmentsForSwift(LayerFragments& fragments, const LayoutRect& layerBoundingBox, const LayoutRect& dirtyRect) const
+{
+    downcast<RenderFragmentedFlow>(*this).collectLayerFragments(fragments, layerBoundingBox, dirtyRect);
+}
+
 const RenderReplica* RenderObject::asRenderReplica() const
 {
     return dynamicDowncast<RenderReplica>(*this);

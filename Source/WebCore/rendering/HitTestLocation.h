@@ -43,6 +43,7 @@ public:
     HitTestLocation& LEGACY_NODELETE operator=(const HitTestLocation&);
 
     const LayoutPoint& point() const LIFETIME_BOUND { return m_point; }
+    LayoutPoint pointForSwift() const SWIFT_NAME(point()) { return m_point; }
     IntPoint roundedPoint() const { return roundedIntPoint(m_point); }
 
     // Rect-based hit test related methods.
@@ -56,6 +57,8 @@ public:
 
     const FloatPoint& transformedPoint() const LIFETIME_BOUND { return m_transformedPoint; }
     const FloatQuad& transformedRect() const LIFETIME_BOUND { return m_transformedRect; }
+    FloatPoint transformedPointForSwift() const SWIFT_NAME(transformedPoint()) { return m_transformedPoint; }
+    FloatQuad transformedRectForSwift() const SWIFT_NAME(transformedRect()) { return m_transformedRect; }
 
 private:
     template<typename RectType> bool LEGACY_NODELETE intersectsRect(const RectType&) const;

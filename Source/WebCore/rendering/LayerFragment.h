@@ -123,4 +123,18 @@ public:
 
 typedef Vector<LayerFragment, 1> LayerFragments;
 
+// LayerFragments that a C++ caller lends to Swift for the duration of one call.
+class LayerFragmentsView {
+public:
+    explicit LayerFragmentsView(LayerFragments& fragments LIFETIME_BOUND)
+        : m_fragments(&fragments)
+    {
+    }
+
+    LayerFragments& operator*() const LIFETIME_BOUND { return *m_fragments; }
+
+private:
+    LayerFragments* m_fragments;
+} SWIFT_VIEW;
+
 } // namespace WebCore

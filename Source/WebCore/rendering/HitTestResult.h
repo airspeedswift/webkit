@@ -105,6 +105,7 @@ public:
     WEBCORE_EXPORT void setToNonUserAgentShadowAncestor();
 
     const HitTestLocation& hitTestLocation() const LIFETIME_BOUND { return m_hitTestLocation; }
+    HitTestLocation hitTestLocationForSwift() const SWIFT_NAME(hitTestLocation()) { return m_hitTestLocation; }
 
     WEBCORE_EXPORT LocalFrame* LEGACY_NODELETE frame() const;
     WEBCORE_EXPORT RefPtr<Frame> targetFrame() const;
@@ -205,7 +206,21 @@ private:
     std::optional<Style::PseudoElementIdentifier> m_pseudoElementIdentifier;
 
     mutable std::unique_ptr<NodeSet> m_listBasedTestResult;
-};
+} SWIFT_SELF_CONTAINED; // Owns everything it points to: its nodes, element and scrollbar by RefPtr, and the node set.
+
+// A HitTestResult that a C++ caller lends to Swift for the duration of one call.
+class HitTestResultView {
+public:
+    explicit HitTestResultView(HitTestResult& result LIFETIME_BOUND)
+        : m_result(&result)
+    {
+    }
+
+    HitTestResult& operator*() const LIFETIME_BOUND { return *m_result; }
+
+private:
+    HitTestResult* m_result;
+} SWIFT_VIEW;
 
 WEBCORE_EXPORT String displayString(const String&, const Node*);
 

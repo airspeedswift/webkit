@@ -62,6 +62,8 @@ class Frame;
 class HitTestLocation;
 class HitTestRequest;
 class HitTestResult;
+class LayerFragment;
+typedef Vector<LayerFragment, 1> LayerFragments;
 class HostWindow;
 class LocalFrame;
 class LocalFrameViewLayoutContext;
@@ -851,6 +853,8 @@ public:
     FloatQuad localToContainerQuadForSwift(const FloatQuad&, const RenderLayerModelObject* container) const;
     // The bounding box of the fragments of this fragmented flow that the given box spans.
     LayoutRect fragmentsBoundingBoxForSwift(const LayoutRect&) const;
+    // The layer fragments of this fragmented flow that the given box and dirty rect span, appended.
+    void collectLayerFragmentsForSwift(LayerFragments&, const LayoutRect& layerBoundingBox, const LayoutRect& dirtyRect) const;
     TransformState viewTransitionTransform() const;
     FloatPoint absoluteToLocal(const DoublePoint&, OptionSet<MapCoordinatesMode> = { }) const;
 
