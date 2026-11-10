@@ -3587,8 +3587,12 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/text-decoration/StyleTextUnderlinePosition.h
 
     style/values/transforms/functions/StyleTransformFunctionWrapper.h
+    style/values/transforms/functions/StyleMatrix3DTransformFunction.h
+    style/values/transforms/functions/StyleMatrixTransformFunction.h
+    style/values/transforms/functions/StylePerspectiveTransformFunction.h
     style/values/transforms/functions/StyleRotateTransformFunction.h
     style/values/transforms/functions/StyleScaleTransformFunction.h
+    style/values/transforms/functions/StyleSkewTransformFunction.h
     style/values/transforms/functions/StyleTransformFunctionBase.h
     style/values/transforms/functions/StyleTransformFunctionWrapper.h
     style/values/transforms/functions/StyleTranslateTransformFunction.h

@@ -5358,13 +5358,13 @@
 		BC4C223A2C01052A003F561F /* JSDOMConvertResult.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4C222C2C00F312003F561F /* JSDOMConvertResult.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC4F32AD2E89C15C00F6AEC1 /* StyleTransformFunctionWrapper.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32AC2E89C15800F6AEC1 /* StyleTransformFunctionWrapper.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC4F32B02E89C4BE00F6AEC1 /* StyleTransformFunctionBase.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32AA2E89C0B800F6AEC1 /* StyleTransformFunctionBase.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		BC4F32B22E89C4DA00F6AEC1 /* StyleMatrixTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F329C2E89B04300F6AEC1 /* StyleMatrixTransformFunction.h */; };
+		BC4F32B22E89C4DA00F6AEC1 /* StyleMatrixTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F329C2E89B04300F6AEC1 /* StyleMatrixTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC4F32B32E89C4DA00F6AEC1 /* StyleTranslateTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32A82E89B8F100F6AEC1 /* StyleTranslateTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC4F32B42E89C4DA00F6AEC1 /* StyleScaleTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32A22E89B04300F6AEC1 /* StyleScaleTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		BC4F32B52E89C4DA00F6AEC1 /* StyleSkewTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32A42E89B04300F6AEC1 /* StyleSkewTransformFunction.h */; };
-		BC4F32B62E89C4DA00F6AEC1 /* StyleMatrix3DTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F329A2E89B04300F6AEC1 /* StyleMatrix3DTransformFunction.h */; };
+		BC4F32B52E89C4DA00F6AEC1 /* StyleSkewTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32A42E89B04300F6AEC1 /* StyleSkewTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		BC4F32B62E89C4DA00F6AEC1 /* StyleMatrix3DTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F329A2E89B04300F6AEC1 /* StyleMatrix3DTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC4F32B72E89C4DA00F6AEC1 /* StyleRotateTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32A02E89B04300F6AEC1 /* StyleRotateTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		BC4F32B82E89C4DA00F6AEC1 /* StylePerspectiveTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F329E2E89B04300F6AEC1 /* StylePerspectiveTransformFunction.h */; };
+		BC4F32B82E89C4DA00F6AEC1 /* StylePerspectiveTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F329E2E89B04300F6AEC1 /* StylePerspectiveTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC4F32BB2E89C51D00F6AEC1 /* StyleTransformFunction.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32B92E89C51400F6AEC1 /* StyleTransformFunction.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC4F32CC2E8C518D00F6AEC1 /* StyleAccentColor.h in Headers */ = {isa = PBXBuildFile; fileRef = BC4F32CA2E8C518300F6AEC1 /* StyleAccentColor.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC51156E12B1749C00C96754 /* ScrollAnimatorMac.mm in Sources */ = {isa = PBXBuildFile; fileRef = BC51156D12B1749C00C96754 /* ScrollAnimatorMac.mm */; };
