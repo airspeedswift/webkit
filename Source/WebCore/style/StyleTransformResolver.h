@@ -80,7 +80,7 @@ public:
 
     void applyTransform(const TransformOperationData&, OptionSet<Option> = allTransformOperations);
 
-    static void applyTransform(TransformationMatrix&, const ComputedStyle&, const TransformOperationData&, OptionSet<Option> = allTransformOperations);
+    WEBCORE_EXPORT static void applyTransform(TransformationMatrix&, const ComputedStyle&, const TransformOperationData&, OptionSet<Option> = allTransformOperations);
 
     static TransformationMatrix computeTransform(const ComputedStyle&, const TransformOperationData&, OptionSet<Option> = allTransformOperations);
 

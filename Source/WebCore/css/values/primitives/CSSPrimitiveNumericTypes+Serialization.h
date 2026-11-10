@@ -43,7 +43,7 @@ void formatCSSNumberValue(StringBuilder&, const SerializableNumber&);
 WTF::String formatCSSNumberValue(const SerializableNumber&);
 
 template<> struct Serialize<SerializableNumber> {
-    void operator()(StringBuilder&, const SerializationContext&, const SerializableNumber&);
+    WEBCORE_EXPORT void operator()(StringBuilder&, const SerializationContext&, const SerializableNumber&);
 };
 
 template<NumericRaw RawType> struct Serialize<RawType> {

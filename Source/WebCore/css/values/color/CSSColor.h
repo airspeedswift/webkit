@@ -151,7 +151,7 @@ public:
     Color(Color&&);
     Color& operator=(Color&&);
 
-    ~Color();
+    WEBCORE_EXPORT ~Color();
 
     bool operator==(const Color&) const;
 

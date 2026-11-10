@@ -272,7 +272,7 @@ public:
 
     NODELETE WEBCORE_EXPORT TransformationMatrix& scale(double);
     NODELETE WEBCORE_EXPORT TransformationMatrix& scaleNonUniform(double sx, double sy);
-    NODELETE TransformationMatrix& scale3d(double sx, double sy, double sz);
+    NODELETE WEBCORE_EXPORT TransformationMatrix& scale3d(double sx, double sy, double sz);
 
     enum class RotationSnapping {
         None,
@@ -315,7 +315,7 @@ public:
     //
     //     new_mat * (scale3d(z, z, z) * x) == scale3d(z, z, z) * (mat * x)
     //
-    NODELETE TransformationMatrix& zoom(double zoomFactor);
+    NODELETE WEBCORE_EXPORT TransformationMatrix& zoom(double zoomFactor);
     NODELETE TransformationMatrix& unzoom(double zoomFactor);
 
     NODELETE WEBCORE_EXPORT bool isInvertible() const;

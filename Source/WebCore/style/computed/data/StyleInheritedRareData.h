@@ -92,7 +92,7 @@ class InheritedRareData : public RefCounted<InheritedRareData> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(InheritedRareData, InheritedRareData);
 public:
     static Ref<InheritedRareData> create() { return adoptRef(*new InheritedRareData); }
-    Ref<InheritedRareData> copy() const;
+    WEBCORE_EXPORT Ref<InheritedRareData> copy() const;
     ~InheritedRareData();
 
     bool operator==(const InheritedRareData&) const;

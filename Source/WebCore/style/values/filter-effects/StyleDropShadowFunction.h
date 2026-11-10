@@ -48,7 +48,7 @@ struct DropShadow {
     SpaceSeparatedPoint<Length<>> location;
     Length<CSS::Nonnegative> stdDeviation;
 
-    static DropShadow passthroughForInterpolation();
+    WEBCORE_EXPORT static DropShadow passthroughForInterpolation();
 
     bool requiresRepaintForCurrentColorChange() const { return color.containsCurrentColor(); }
     constexpr bool affectsOpacity() const { return true; }
@@ -74,8 +74,8 @@ template<size_t I> const auto& get(const DropShadow& value)
 
 // MARK: - Conversion
 
-template<> struct ToCSS<DropShadow> { auto operator()(const DropShadow&, const Style::ComputedStyle&) -> CSS::DropShadow; };
-template<> struct ToStyle<CSS::DropShadow> { auto operator()(const CSS::DropShadow&, const BuilderState&) -> DropShadow; };
+template<> struct ToCSS<DropShadow> { WEBCORE_EXPORT auto operator()(const DropShadow&, const Style::ComputedStyle&) -> CSS::DropShadow; };
+template<> struct ToStyle<CSS::DropShadow> { WEBCORE_EXPORT auto operator()(const CSS::DropShadow&, const BuilderState&) -> DropShadow; };
 
 // MARK: - Evaluation
 

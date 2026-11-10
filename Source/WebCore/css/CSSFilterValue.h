@@ -31,7 +31,7 @@ namespace WebCore {
 
 class CSSFilterValue final : public CSSValue {
 public:
-    static Ref<CSSFilterValue> create(CSS::Filter);
+    WEBCORE_EXPORT static Ref<CSSFilterValue> create(CSS::Filter);
 
     const CSS::Filter& filter() const LIFETIME_BOUND { return m_filter; }
 

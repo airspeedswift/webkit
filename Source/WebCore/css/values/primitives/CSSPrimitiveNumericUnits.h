@@ -465,7 +465,7 @@ template<AngleUnit To, typename T> constexpr T convertAngle(T value, AngleUnit u
     }
 }
 
-ASCIILiteral unitString(AngleUnit);
+WEBCORE_EXPORT ASCIILiteral unitString(AngleUnit);
 
 template<> struct UnitTraits<AngleUnit> {
     static constexpr auto count = 4;

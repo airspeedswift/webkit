@@ -340,8 +340,8 @@ class GenerationContext:
     def _generate_css_value_keywords_h_forward_declarations(self, *, to):
         to.write(textwrap.dedent("""\
             CSSValueID findCSSValueKeyword(std::span<const char> characters);
-            ASCIILiteral nameLiteral(CSSValueID);
-            ASCIILiteral nameLiteralForSerialization(CSSValueID); // Lowercase.
+            WEBCORE_EXPORT ASCIILiteral nameLiteral(CSSValueID);
+            WEBCORE_EXPORT ASCIILiteral nameLiteralForSerialization(CSSValueID); // Lowercase.
             WEBCORE_EXPORT const AtomString& nameString(CSSValueID);
             const AtomString& nameStringForSerialization(CSSValueID); // Lowercase.
 

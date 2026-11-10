@@ -64,7 +64,7 @@ public:
     const Ref<TransformOperation>& first() const LIFETIME_BOUND { return m_operations.first(); }
     const Ref<TransformOperation>& last() const LIFETIME_BOUND { return m_operations.last(); }
 
-    void apply(TransformationMatrix&, unsigned start = 0) const;
+    WEBCORE_EXPORT void apply(TransformationMatrix&, unsigned start = 0) const;
 
     template<TransformOperation::Type operationType>
     bool hasTransformOfType() const;
@@ -74,7 +74,7 @@ public:
 
 private:
     friend struct IPC::ArgumentCoder<TransformOperations>;
-    friend WTF::TextStream& operator<<(WTF::TextStream&, const TransformOperations&);
+    friend WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const TransformOperations&);
 
     Vector<Ref<TransformOperation>> m_operations;
 };
@@ -87,6 +87,6 @@ bool TransformOperations::hasTransformOfType() const
 
 TransformOperations blend(const TransformOperations& from, const TransformOperations& to, const BlendingContext&);
 
-WTF::TextStream& operator<<(WTF::TextStream&, const TransformOperations&);
+WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const TransformOperations&);
 
 } // namespace WebCore

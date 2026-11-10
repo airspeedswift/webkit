@@ -57,10 +57,10 @@ public:
     bool isCalculatedPercentageWithLength() const { return primitiveType() == CSSUnitType::CalcPercentageWithLength; }
     bool isFlex() const { return primitiveType() == CSSUnitType::Fr; }
 
-    static Ref<CSSPrimitiveValue> create(double);
+    WEBCORE_EXPORT static Ref<CSSPrimitiveValue> create(double);
     static Ref<CSSPrimitiveValue> create(double, CSSUnitType);
     NODELETE static Ref<CSSPrimitiveValue> createInteger(double);
-    static Ref<CSSPrimitiveValue> create(CSS::UnevaluatedCalcBase);
+    WEBCORE_EXPORT static Ref<CSSPrimitiveValue> create(CSS::UnevaluatedCalcBase);
 
     ~CSSPrimitiveValue();
 

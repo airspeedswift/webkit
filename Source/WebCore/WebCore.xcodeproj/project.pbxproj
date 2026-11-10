@@ -7109,6 +7109,7 @@
 		E4D58EBB17B8F12800CBDCA8 /* ElementTraversal.h in Headers */ = {isa = PBXBuildFile; fileRef = E4D58EBA17B8F12800CBDCA8 /* ElementTraversal.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		E4D68EB517B4DBDC00CBDCA8 /* StyleResolveForFont.h in Headers */ = {isa = PBXBuildFile; fileRef = E4D68EB317B4DBDC00CBDCA8 /* StyleResolveForFont.h */; };
 		E4D86E6D2640394C00B62425 /* StyleScopeOrdinal.h in Headers */ = {isa = PBXBuildFile; fileRef = E4D86E6B2640394C00B62425 /* StyleScopeOrdinal.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		C5F2EA4AB0CB4457A3CE773C /* StyleTransformsBenchmarkHooks.h in Headers */ = {isa = PBXBuildFile; fileRef = 2B71D027D8EF4A978F4A2A52 /* StyleTransformsBenchmarkHooks.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		E4D988B417BFD1F60084FB88 /* TextNodeTraversal.h in Headers */ = {isa = PBXBuildFile; fileRef = E4D988B317BFD1F60084FB88 /* TextNodeTraversal.h */; };
 		E4DA5E36289D242000849BCF /* GenericMediaQueryParser.h in Headers */ = {isa = PBXBuildFile; fileRef = E4DA5E34289D23F300849BCF /* GenericMediaQueryParser.h */; };
 		E4DA5E3D28A2805700849BCF /* GenericMediaQueryTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = E4DA5E35289D23FD00849BCF /* GenericMediaQueryTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -20360,6 +20361,8 @@
 		BCA8C81D11E3D36900812FB7 /* BackForwardController.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BackForwardController.cpp; sourceTree = "<group>"; };
 		BCAA38182EFB27DF00AA7F6E /* StyleTransformResolver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StyleTransformResolver.h; sourceTree = "<group>"; };
 		BCAA38192EFB27DF00AA7F6E /* StyleTransformResolver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = StyleTransformResolver.cpp; sourceTree = "<group>"; };
+		F23F502B82A94762B575780E /* StyleTransformsBenchmarkHooks.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = StyleTransformsBenchmarkHooks.cpp; sourceTree = "<group>"; };
+		2B71D027D8EF4A978F4A2A52 /* StyleTransformsBenchmarkHooks.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StyleTransformsBenchmarkHooks.h; sourceTree = "<group>"; };
 		BCAA486D14A052530088FAC4 /* PlatformEventFactoryMac.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = PlatformEventFactoryMac.mm; sourceTree = "<group>"; };
 		BCAA486E14A052530088FAC4 /* PlatformEventFactoryMac.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PlatformEventFactoryMac.h; sourceTree = "<group>"; };
 		BCAA90C20A7EBA60008B1229 /* Scrollbar.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = Scrollbar.cpp; sourceTree = "<group>"; };
@@ -41765,6 +41768,8 @@
 				F658DC7BD08000000087F79C /* StyleSubstitutionResolver.h */,
 				BCAA38192EFB27DF00AA7F6E /* StyleTransformResolver.cpp */,
 				BCAA38182EFB27DF00AA7F6E /* StyleTransformResolver.h */,
+				F23F502B82A94762B575780E /* StyleTransformsBenchmarkHooks.cpp */,
+				2B71D027D8EF4A978F4A2A52 /* StyleTransformsBenchmarkHooks.h */,
 				E4DEAA1517A93DC3000E0430 /* StyleTreeResolver.cpp */,
 				E4DEAA1617A93DC3000E0430 /* StyleTreeResolver.h */,
 				CD671C9F2F5D0A7F00B387A2 /* StyleTreeResolverInlines.h */,
@@ -49778,6 +49783,7 @@
 				E461D65F1BB0C80D00CB5645 /* StyleScope.h in Headers */,
 				EEE349082DE0061C00A7D4BB /* StyleScopeIdentifier.h in Headers */,
 				E4D86E6D2640394C00B62425 /* StyleScopeOrdinal.h in Headers */,
+				C5F2EA4AB0CB4457A3CE773C /* StyleTransformsBenchmarkHooks.h in Headers */,
 				4A4F48AA16B0DFC000EDBB29 /* StyleScopeRuleSets.h in Headers */,
 				A3DCA4EA2A2930DA004E18C2 /* StyleScrollbarColor.h in Headers */,
 				A39F8E232A1ECC2700967C09 /* StyleScrollbarGutter.h in Headers */,

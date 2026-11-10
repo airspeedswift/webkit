@@ -61,7 +61,7 @@ template<auto R, typename V> double canonicalize(PercentageRaw<R, V> raw)
 
 // MARK: Angle
 
-double canonicalizeAngle(double value, AngleUnit);
+WEBCORE_EXPORT double canonicalizeAngle(double value, AngleUnit);
 
 template<auto R, typename V> double canonicalize(AngleRaw<R, V> raw)
 {

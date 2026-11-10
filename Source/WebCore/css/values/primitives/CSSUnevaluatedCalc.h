@@ -74,7 +74,7 @@ public:
     UnevaluatedCalcBase(Ref<CSSCalc::Value>&&);
     UnevaluatedCalcBase(Category, Range, const Style::UnevaluatedCalculationBase&);
 
-    UnevaluatedCalcBase(const UnevaluatedCalcBase&);
+    WEBCORE_EXPORT UnevaluatedCalcBase(const UnevaluatedCalcBase&);
     WEBCORE_EXPORT UnevaluatedCalcBase(UnevaluatedCalcBase&&);
     UnevaluatedCalcBase& operator=(const UnevaluatedCalcBase&);
     UnevaluatedCalcBase& operator=(UnevaluatedCalcBase&&);
@@ -84,17 +84,17 @@ public:
     static std::optional<UnevaluatedCalcBase> parseBase(CSSParserTokenRange&, PropertyParserState&, Category, Range, CSSCalcSymbolsAllowed&&, const CSSPropertyParserOptions&);
 
     CSSCalc::Value& calcValue() const { return m_calc; }
-    NODELETE [[nodiscard]] CSSCalc::Value& leakRef();
+    NODELETE WEBCORE_EXPORT [[nodiscard]] CSSCalc::Value& leakRef();
 
-    NODELETE Category runtimeCategory() const;
-    NODELETE CSSUnitType primitiveType() const;
-    NODELETE bool rootNodeIsPercentage() const;
+    NODELETE WEBCORE_EXPORT Category runtimeCategory() const;
+    NODELETE WEBCORE_EXPORT CSSUnitType primitiveType() const;
+    NODELETE WEBCORE_EXPORT bool rootNodeIsPercentage() const;
     NODELETE bool requiresConversionData() const;
 
     NODELETE bool canBeCastedTo(Category) const;
 
     WTF::String serializationForCSS(const SerializationContext&) const;
-    void serializationForCSS(StringBuilder&, const SerializationContext&) const;
+    WEBCORE_EXPORT void serializationForCSS(StringBuilder&, const SerializationContext&) const;
 
     void collectComputedStyleDependencies(ComputedStyleDependencies&) const;
 

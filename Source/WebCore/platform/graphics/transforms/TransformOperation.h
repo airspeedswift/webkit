@@ -132,7 +132,7 @@ private:
 };
 
 WTF::TextStream& operator<<(WTF::TextStream&, TransformOperation::Type);
-WTF::TextStream& operator<<(WTF::TextStream&, const TransformOperation&);
+WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const TransformOperation&);
 
 } // namespace WebCore
 

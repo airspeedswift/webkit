@@ -74,12 +74,12 @@ bool equals(const AnimatableCSSProperty&, const ComputedStyle& a, const Computed
 // Returns whether the property can be interpolated with the values in ComputedStyle `a` and `b`.
 //
 // Controlled for non-custom properties by implementing `canInterpolate` on the properties interpolation wrapper.
-bool canInterpolate(const AnimatableCSSProperty&, const ComputedStyle& a, const ComputedStyle& b, const Document&);
+WEBCORE_EXPORT bool canInterpolate(const AnimatableCSSProperty&, const ComputedStyle& a, const ComputedStyle& b, const Document&);
 
 // Interpolates the property from ComputedStyle `a` to ComputedStyle `b` into ComputedStyle `destination`.
 //
 // Controlled for non-custom properties by implementing `interpolate` on the properties interpolation wrapper.
-void interpolate(const AnimatableCSSProperty&, ComputedStyle& destination, const ComputedStyle& from, const ComputedStyle& to, double progress, CompositeOperation, IterationCompositeOperation, double currentIteration, const Client&);
+WEBCORE_EXPORT void interpolate(const AnimatableCSSProperty&, ComputedStyle& destination, const ComputedStyle& from, const ComputedStyle& to, double progress, CompositeOperation, IterationCompositeOperation, double currentIteration, const Client&);
 void interpolate(const AnimatableCSSProperty&, ComputedStyle& destination, const ComputedStyle& from, const ComputedStyle& to, double progress, CompositeOperation, const Client&);
 
 // Returns whether the property requires interpolation for accumulative iteration for the values in ComputedStyle `a` and `b`

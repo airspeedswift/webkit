@@ -3328,6 +3328,7 @@ style/StyleScopeRuleSets.cpp
 style/StyleSheetContentsCache.cpp
 style/StyleSubstitutionResolver.cpp @header:RenderStyleGetters @cost:6
 style/StyleTransformResolver.cpp @cost:4
+style/StyleTransformsBenchmarkHooks.cpp
 style/StyleTreeResolver.cpp @header:RenderStyleGetters @cost:9
 style/StyleUpdate.cpp
 style/Styleable.cpp @header:RenderStyleGetters @cost:7

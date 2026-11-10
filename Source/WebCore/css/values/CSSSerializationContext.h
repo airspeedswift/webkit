@@ -34,7 +34,7 @@ class CSSStyleSheet;
 namespace CSS {
 
 struct SerializationContext {
-    SerializationContext();
+    WEBCORE_EXPORT SerializationContext();
     SerializationContext(HashMap<WTF::String, WTF::String>&&, HashMap<Ref<CSSStyleSheet>, WTF::String>&&, bool);
     ~SerializationContext();
 

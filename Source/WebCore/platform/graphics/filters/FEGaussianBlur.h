@@ -52,7 +52,7 @@ public:
     static IntSize calculateUnscaledKernelSize(FloatSize stdDeviation);
     static IntSize calculateOutsetSize(FloatSize stdDeviation);
 
-    static IntOutsets calculateOutsets(const FloatSize& stdDeviation);
+    WEBCORE_EXPORT static IntOutsets calculateOutsets(const FloatSize& stdDeviation);
 
 private:
     FEGaussianBlur(float x, float y, EdgeModeType, ColorSpace);

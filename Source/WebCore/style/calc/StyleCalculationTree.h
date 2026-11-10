@@ -79,7 +79,7 @@ struct Tree {
     bool operator==(const Tree&) const = default;
 };
 
-size_t computeDepth(const Tree&);
+WEBCORE_EXPORT size_t computeDepth(const Tree&);
 
 // Distinct from computeDepth(): substitution multiplies a tree rather than deepening it, so the two
 // bound different things.
@@ -89,12 +89,12 @@ size_t computeNodeCount(const Child&);
 // Convenience constructors
 
 NODELETE Child number(double value);
-NODELETE Child percentage(double value);
-NODELETE Child dimension(double value);
-Child add(Child&& a, Child&& b);
+NODELETE WEBCORE_EXPORT Child percentage(double value);
+NODELETE WEBCORE_EXPORT Child dimension(double value);
+WEBCORE_EXPORT Child add(Child&& a, Child&& b);
 Child multiply(Child&& a, Child&& b);
 Child subtract(Child&& a, Child&& b);
-Child blend(Child&& from, Child&& to, double progress);
+WEBCORE_EXPORT Child blend(Child&& from, Child&& to, double progress);
 
 // MARK: Dumping
 

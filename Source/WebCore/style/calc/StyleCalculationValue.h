@@ -56,7 +56,7 @@ public:
 
     const Tree& tree() const LIFETIME_BOUND { return m_tree; }
     Tree copyTree() const;
-    Child copyRoot() const;
+    WEBCORE_EXPORT Child copyRoot() const;
 
     WEBCORE_EXPORT bool operator==(const Value&) const;
 

@@ -428,7 +428,7 @@ inline RefPtr<CSSValue> tryCreateCSSValue(CSSValuePool& pool, const CSSType& val
     return nullptr;
 }
 
-NODELETE Ref<CSSValue> makePrimitiveCSSValue(CSSValueID);
+NODELETE WEBCORE_EXPORT Ref<CSSValue> makePrimitiveCSSValue(CSSValueID);
 Ref<CSSValue> makeFunctionCSSValue(CSSValueID, Ref<CSSValue>&&);
 
 template<SerializationSeparatorType> Ref<CSSValue> makeCoalescingPairCSSValue(Ref<CSSValue>&&, Ref<CSSValue>&&);

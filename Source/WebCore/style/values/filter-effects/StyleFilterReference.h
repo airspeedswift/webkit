@@ -77,8 +77,8 @@ template<> struct Blending<FilterReference> {
 
 // MARK: - Conversion
 
-template<> struct ToCSS<FilterReference> { auto operator()(const FilterReference&, const Style::ComputedStyle&) -> CSS::FilterReference; };
-template<> struct ToStyle<CSS::FilterReference> { auto operator()(const CSS::FilterReference&, const BuilderState&) -> FilterReference; };
+template<> struct ToCSS<FilterReference> { WEBCORE_EXPORT auto operator()(const FilterReference&, const Style::ComputedStyle&) -> CSS::FilterReference; };
+template<> struct ToStyle<CSS::FilterReference> { WEBCORE_EXPORT auto operator()(const CSS::FilterReference&, const BuilderState&) -> FilterReference; };
 
 } // namespace Style
 } // namespace WebCore

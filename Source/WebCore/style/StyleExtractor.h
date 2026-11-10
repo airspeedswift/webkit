@@ -59,7 +59,7 @@ public:
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(Extractor, Extractor);
 public:
     Extractor(Node*, bool allowVisitedStyle = false);
-    Extractor(Node*, bool allowVisitedStyle, const std::optional<Style::PseudoElementIdentifier>&);
+    WEBCORE_EXPORT Extractor(Node*, bool allowVisitedStyle, const std::optional<Style::PseudoElementIdentifier>&);
     Extractor(Element*, bool allowVisitedStyle = false);
     Extractor(Element*, bool allowVisitedStyle, const std::optional<Style::PseudoElementIdentifier>&);
 
@@ -78,7 +78,7 @@ public:
     RefPtr<CSSValue> propertyValueInStyle(const Style::ComputedStyle&, CSSPropertyID, CSSValuePool&, const RenderElement* = nullptr, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
 
     // Extract a serialized value for the specified property using the provided ComputedStyle and RenderElement.
-    WTF::String propertyValueSerializationInStyle(const Style::ComputedStyle&, CSSPropertyID, const CSS::SerializationContext&, CSSValuePool&, const RenderElement* = nullptr, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
+    WEBCORE_EXPORT WTF::String propertyValueSerializationInStyle(const Style::ComputedStyle&, CSSPropertyID, const CSS::SerializationContext&, CSSValuePool&, const RenderElement* = nullptr, ExtractorState::PropertyValueType = ExtractorState::PropertyValueType::Resolved) const;
 
     // Extract a CSSValue for the specified custom property.
     RefPtr<CSSValue> customPropertyValue(const AtomString& propertyName) const;

@@ -34,7 +34,7 @@ namespace Style {
 namespace Calculation {
 class Value;
 struct Child;
-NODELETE Ref<Value> CLANG_POINTER_CONVERSION protect(Value&);
+NODELETE WEBCORE_EXPORT Ref<Value> CLANG_POINTER_CONVERSION protect(Value&);
 }
 
 struct ZoomFactor;
@@ -42,7 +42,7 @@ struct ZoomFactor;
 // Non-generic base type to allow code sharing and out-of-line definitions.
 class UnevaluatedCalculationBase {
 public:
-    explicit UnevaluatedCalculationBase(Calculation::Value&);
+    WEBCORE_EXPORT explicit UnevaluatedCalculationBase(Calculation::Value&);
     explicit UnevaluatedCalculationBase(Ref<Calculation::Value>&&);
     explicit UnevaluatedCalculationBase(Calculation::Child&&);
 
