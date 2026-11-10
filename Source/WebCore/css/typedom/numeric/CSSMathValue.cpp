@@ -36,24 +36,19 @@ namespace WebCore {
 
 RefPtr<CSSCalc::Value> CSSMathValue::toCSSCalcValue() const
 {
-    auto node = toCalcTreeNode();
-    if (!node)
+    auto tree = toCalcTree(false);
+    if (!tree)
         return nullptr;
 
-    auto type = CSSCalc::getType(*node);
-    auto category = type.calculationCategory();
+    auto category = tree->type.calculationCategory();
     if (!category)
         return nullptr;
 
     ComputedStyleDependencies dependencies;
-    CSSCalc::collectComputedStyleDependencies(*node, dependencies);
+    CSSCalc::collectComputedStyleDependencies(*tree, dependencies);
+    tree->requiresConversionData = !dependencies.isAbsolute();
 
-    return CSSCalc::Value::create(*category, CSS::All, CSSCalc::Tree {
-        .root = WTF::move(*node),
-        .type = type,
-        .stage = CSSCalc::Stage::Specified,
-        .requiresConversionData = !dependencies.isAbsolute(),
-    });
+    return CSSCalc::Value::create(*category, CSS::All, WTF::move(*tree));
 }
 
 RefPtr<CSSValue> CSSMathValue::toCSSValue() const

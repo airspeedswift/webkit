@@ -32,75 +32,15 @@ namespace WebCore {
 namespace Style {
 namespace Calculation {
 
-static auto copy(const std::optional<Child>& root) -> std::optional<Child>;
-static auto copy(const Random::Fixed&) -> Random::Fixed;
-static auto copy(const CSS::Keyword::None&) -> CSS::Keyword::None;
-static auto copy(const CalcMix::Item&) -> CalcMix::Item;
-static auto copy(const Vector<CalcMix::Item>&) -> Vector<CalcMix::Item>;
-static auto copy(const ChildOrNone&) -> ChildOrNone;
-static auto copy(const Children&) -> Children;
-template<Leaf Op>
-NODELETE Child copy(const Op&);
-template<typename Op>
-static auto copy(const IndirectNode<Op>&) -> Child;
-
-// MARK: Copying
-
 Tree copy(const Tree& tree)
 {
-    return Tree { .root = copy(tree.root) };
-}
-
-std::optional<Child> copy(const std::optional<Child>& root)
-{
-    if (root)
-        return copy(*root);
-    return std::nullopt;
-}
-
-NODELETE Random::Fixed copy(const Random::Fixed& root)
-{
-    return root;
-}
-
-NODELETE CSS::Keyword::None copy(const CSS::Keyword::None& none)
-{
-    return none;
-}
-
-CalcMix::Item copy(const CalcMix::Item& item)
-{
-    return { copy(item.value), item.weight };
-}
-
-Vector<CalcMix::Item> copy(const Vector<CalcMix::Item>& children)
-{
-    return WTF::map(children, [&](const auto& child) { return copy(child); });
-}
-
-ChildOrNone copy(const ChildOrNone& root)
-{
-    return WTF::switchOn(root, [&](const auto& root) { return ChildOrNone { copy(root) }; });
-}
-
-Children copy(const Children& children)
-{
-    return WTF::map(children, [&](const auto& child) { return copy(child); });
+    return Tree { copy(tree.root) };
 }
 
 Child copy(const Child& root)
 {
-    return WTF::switchOn(root, [&](const auto& root) { return copy(root); });
-}
-
-template<Leaf Op> NODELETE Child copy(const Op& root)
-{
-    return { root };
-}
-
-template<typename Op> Child copy(const IndirectNode<Op>& root)
-{
-    return makeChild(WTF::apply([](const auto& ...x) { return Op { copy(x)... }; } , *root));
+    auto nodes = root.nodes;
+    return Child { WTF::move(nodes) };
 }
 
 } // namespace Calculation

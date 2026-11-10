@@ -27,6 +27,11 @@
 
 #include <WebCore/CSSParserContext.h>
 #include <WebCore/CSSParserFastPaths.h>
+#include <WebCore/CSSPrimitiveValue.h>
+#include <WebCore/CSSPropertyNames.h>
+#include <WebCore/CSSPropertyParserState.h>
+#include <WebCore/CSSSerializationContext.h>
+#include <wtf/text/StringBuilder.h>
 
 namespace TestWebKitAPI {
 
@@ -251,6 +256,196 @@ TEST(CSSParserFastPaths, ParseModernHslInvalid)
 
     // Double slash.
     EXPECT_FALSE(CSSParserFastPaths::parseSimpleColor("hsl(0 100% 50% / / 0.5)"_s, context));
+}
+
+TEST(CSSParserFastPaths, ParseNamedColorsInAnyCase)
+{
+    // Every name in ColorData.gperf, each of lowercase ASCII letters only.
+    static constexpr ASCIILiteral names[] = {
+        "aliceblue"_s, "alpha"_s, "antiquewhite"_s, "aqua"_s, "aquamarine"_s, "azure"_s, "beige"_s, "bisque"_s,
+        "black"_s, "blanchedalmond"_s, "blue"_s, "blueviolet"_s, "brown"_s, "burlywood"_s, "cadetblue"_s,
+        "chartreuse"_s, "chocolate"_s, "coral"_s, "cornflowerblue"_s, "cornsilk"_s, "crimson"_s, "cyan"_s,
+        "darkblue"_s, "darkcyan"_s, "darkgoldenrod"_s, "darkgray"_s, "darkgrey"_s, "darkgreen"_s, "darkkhaki"_s,
+        "darkmagenta"_s, "darkolivegreen"_s, "darkorange"_s, "darkorchid"_s, "darkred"_s, "darksalmon"_s,
+        "darkseagreen"_s, "darkslateblue"_s, "darkslategray"_s, "darkslategrey"_s, "darkturquoise"_s,
+        "darkviolet"_s, "deeppink"_s, "deepskyblue"_s, "dimgray"_s, "dimgrey"_s, "dodgerblue"_s, "firebrick"_s,
+        "floralwhite"_s, "forestgreen"_s, "fuchsia"_s, "gainsboro"_s, "ghostwhite"_s, "gold"_s, "goldenrod"_s,
+        "gray"_s, "grey"_s, "green"_s, "greenyellow"_s, "honeydew"_s, "hotpink"_s, "indianred"_s, "indigo"_s,
+        "ivory"_s, "khaki"_s, "lavender"_s, "lavenderblush"_s, "lawngreen"_s, "lemonchiffon"_s, "lightblue"_s,
+        "lightcoral"_s, "lightcyan"_s, "lightgoldenrodyellow"_s, "lightgray"_s, "lightgrey"_s, "lightgreen"_s,
+        "lightpink"_s, "lightsalmon"_s, "lightseagreen"_s, "lightskyblue"_s, "lightslateblue"_s,
+        "lightslategray"_s, "lightslategrey"_s, "lightsteelblue"_s, "lightyellow"_s, "lime"_s, "limegreen"_s,
+        "linen"_s, "magenta"_s, "maroon"_s, "mediumaquamarine"_s, "mediumblue"_s, "mediumorchid"_s,
+        "mediumpurple"_s, "mediumseagreen"_s, "mediumslateblue"_s, "mediumspringgreen"_s, "mediumturquoise"_s,
+        "mediumvioletred"_s, "midnightblue"_s, "mintcream"_s, "mistyrose"_s, "moccasin"_s, "navajowhite"_s,
+        "navy"_s, "oldlace"_s, "olive"_s, "olivedrab"_s, "orange"_s, "orangered"_s, "orchid"_s,
+        "palegoldenrod"_s, "palegreen"_s, "paleturquoise"_s, "palevioletred"_s, "papayawhip"_s, "peachpuff"_s,
+        "peru"_s, "pink"_s, "plum"_s, "powderblue"_s, "purple"_s, "rebeccapurple"_s, "red"_s, "rosybrown"_s,
+        "royalblue"_s, "saddlebrown"_s, "salmon"_s, "sandybrown"_s, "seagreen"_s, "seashell"_s, "sienna"_s,
+        "silver"_s, "skyblue"_s, "slateblue"_s, "slategray"_s, "slategrey"_s, "snow"_s, "springgreen"_s,
+        "steelblue"_s, "tan"_s, "teal"_s, "thistle"_s, "tomato"_s, "transparent"_s, "turquoise"_s, "violet"_s,
+        "violetred"_s, "wheat"_s, "white"_s, "whitesmoke"_s, "yellow"_s, "yellowgreen"_s
+    };
+    EXPECT_EQ(std::size(names), 152u);
+
+    for (auto name : names) {
+        StringView lower { name };
+        auto color = CSSParserFastPaths::parseNamedColor(lower);
+        ASSERT_TRUE(color) << name.characters();
+        StringBuilder upper;
+        for (size_t i = 0; i < lower.length(); ++i) {
+            ASSERT_TRUE(isASCIILower(lower[i])) << name.characters();
+            upper.append(toASCIIUpper(lower[i]));
+        }
+        EXPECT_EQ(CSSParserFastPaths::parseNamedColor(upper.toString()), color) << name.characters();
+
+        // Any other ASCII character in place of a letter is not a name.
+        for (char16_t character = 0; character < 0x80; ++character) {
+            if (isASCIIAlpha(character))
+                continue;
+            for (unsigned position : { 0u, lower.length() / 2, lower.length() - 1 }) {
+                StringBuilder builder;
+                builder.append(lower.left(position), character, lower.substring(position + 1));
+                EXPECT_FALSE(CSSParserFastPaths::parseNamedColor(builder.toString()))
+                    << name.characters() << " " << static_cast<unsigned>(character) << " at " << position;
+            }
+        }
+    }
+}
+
+TEST(CSSParserFastPaths, ParseNumbersAroundExactConversionLimits)
+{
+    // A decimal number with at most 19 significant digits, a significand of at most 2^53 and an exponent from -22 to
+    // 22 converts with one exact multiplication or division. These are on both sides of each limit.
+    struct TestCase {
+        ASCIILiteral input;
+        double expected;
+    };
+    static constexpr TestCase testCases[] = {
+        { "9007199254740992"_s, 9007199254740992.0 },
+        { "9007199254740993"_s, 9007199254740993.0 },
+        { "9007199254740995"_s, 9007199254740995.0 },
+        { "1234567890123456789"_s, 1234567890123456789.0 },
+        { "12345678901234567890"_s, 12345678901234567890.0 },
+        { "0.1234567890123456789"_s, 0.1234567890123456789 },
+        { "0.12345678901234567891"_s, 0.12345678901234567891 },
+        { "1e22"_s, 1e22 },
+        { "1e23"_s, 1e23 },
+        { "3e-22"_s, 3e-22 },
+        { "3e-23"_s, 3e-23 },
+        { "0.0000000000000000000003"_s, 0.0000000000000000000003 },
+        { "0.00000000000000000000003"_s, 0.00000000000000000000003 },
+        { "123.456e5"_s, 123.456e5 },
+        { "-0.1"_s, -0.1 },
+        { "1.7976931348623157e308"_s, 1.7976931348623157e308 },
+    };
+
+    CSS::PropertyParserState state { .context = strictCSSParserContext() };
+    for (auto& testCase : testCases) {
+        RefPtr value = CSSParserFastPaths::maybeParseValue(CSSPropertyID::Opacity, StringView { testCase.input }, state);
+        ASSERT_TRUE(value) << testCase.input.characters();
+        auto raw = downcast<CSSPrimitiveValue>(*value).raw();
+        ASSERT_TRUE(raw) << testCase.input.characters();
+        EXPECT_EQ(raw->value, testCase.expected) << testCase.input.characters();
+    }
+
+    // An explicit exponent of a million or more, after a fraction with as many digits: 10^-1000000 times
+    // 10^999999, 10^1000000 and 10^10000000.
+    struct LongTestCase {
+        ASCIILiteral exponent;
+        std::optional<double> expected;
+    };
+    static constexpr LongTestCase longTestCases[] = {
+        { "999999"_s, 0.1 },
+        { "1000000"_s, 1.0 },
+        { "10000000"_s, std::nullopt },
+    };
+    for (auto& testCase : longTestCases) {
+        StringBuilder builder;
+        builder.append("0."_s);
+        for (unsigned i = 0; i < 999999; ++i)
+            builder.append('0');
+        builder.append("1e"_s, testCase.exponent);
+        auto input = builder.toString();
+        RefPtr value = CSSParserFastPaths::maybeParseValue(CSSPropertyID::Opacity, input, state);
+        if (!testCase.expected) {
+            EXPECT_FALSE(value) << testCase.exponent.characters();
+            continue;
+        }
+        ASSERT_TRUE(value) << testCase.exponent.characters();
+        auto raw = downcast<CSSPrimitiveValue>(*value).raw();
+        ASSERT_TRUE(raw) << testCase.exponent.characters();
+        EXPECT_EQ(raw->value, *testCase.expected) << testCase.exponent.characters();
+    }
+}
+
+TEST(CSSParserFastPaths, ParseNumbersAroundLargestDouble)
+{
+    // A number of 10^309 or more is above the largest double, so it is infinite, which an opacity cannot be. These
+    // are on both sides of that bound, at both widths.
+    struct TestCase {
+        ASCIILiteral input;
+        std::optional<double> expected;
+    };
+    static constexpr TestCase testCases[] = {
+        { "1e308"_s, 1e308 },
+        { "-1e308"_s, -1e308 },
+        { "1e309"_s, std::nullopt },
+        { "-1e309"_s, std::nullopt },
+        { "+1e309"_s, std::nullopt },
+        { "0.1e309"_s, 1e308 },
+        { "0.1e310"_s, std::nullopt },
+        { "10e307"_s, 1e308 },
+        { "10e308"_s, std::nullopt },
+        { "17976931348623157e292"_s, 1.7976931348623157e308 },
+        { "17976931348623159e292"_s, std::nullopt },
+        { "1234567890123456789e290"_s, 1234567890123456789e290 },
+        { "1234567890123456789e291"_s, std::nullopt },
+        { "0e400"_s, 0.0 },
+        { "1e1000000"_s, std::nullopt },
+    };
+
+    CSS::PropertyParserState state { .context = strictCSSParserContext() };
+    for (auto& testCase : testCases) {
+        String narrow { testCase.input };
+        Vector<char16_t> characters;
+        for (unsigned i = 0; i < narrow.length(); ++i)
+            characters.append(narrow[i]);
+        for (auto& input : { narrow, String { characters.span() } }) {
+            RefPtr value = CSSParserFastPaths::maybeParseValue(CSSPropertyID::Opacity, input, state);
+            if (!testCase.expected) {
+                EXPECT_FALSE(value) << testCase.input.characters();
+                continue;
+            }
+            ASSERT_TRUE(value) << testCase.input.characters();
+            auto raw = downcast<CSSPrimitiveValue>(*value).raw();
+            ASSERT_TRUE(raw) << testCase.input.characters();
+            EXPECT_EQ(raw->value, *testCase.expected) << testCase.input.characters();
+        }
+    }
+
+    // A transform keeps an infinite argument.
+    struct TransformTestCase {
+        ASCIILiteral input;
+        ASCIILiteral expected;
+    };
+    static constexpr TransformTestCase transformTestCases[] = {
+        { "scale3d(1e309, 1, 1)"_s, "scale3d(infinity, 1, 1)"_s },
+        { "scale3d(-1e309, 1, 1)"_s, "scale3d(-infinity, 1, 1)"_s },
+        { "scale3d(17976931348623159e292, 1, 1)"_s, "scale3d(infinity, 1, 1)"_s },
+        { "scale3d(1, 1, 1e309)"_s, "scale3d(1, 1, infinity)"_s },
+    };
+    for (auto& testCase : transformTestCases) {
+        String narrow { testCase.input };
+        Vector<char16_t> characters;
+        for (unsigned i = 0; i < narrow.length(); ++i)
+            characters.append(narrow[i]);
+        for (auto& input : { narrow, String { characters.span() } }) {
+            RefPtr value = CSSParserFastPaths::maybeParseValue(CSSPropertyID::Transform, input, state);
+            ASSERT_TRUE(value) << testCase.input.characters();
+            EXPECT_EQ(value->cssText(CSS::defaultSerializationContext()), String { testCase.expected }) << testCase.input.characters();
+        }
+    }
 }
 
 } // namespace TestWebKitAPI

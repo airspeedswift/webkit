@@ -1491,7 +1491,7 @@ template<typename T, size_t N> inline constexpr auto SerializationSeparator<Comm
 template<typename T> using CommaSeparatedPair = CommaSeparatedArray<T, 2>;
 
 // Wraps a variadic list of types, semantically marking them as serializing as "space separated".
-template<typename... Ts> struct SpaceSeparatedTuple {
+template<typename... Ts> struct __attribute__((swift_attr("~Sendable"))) SpaceSeparatedTuple {
     using Tuple = std::tuple<Ts...>;
 
     constexpr SpaceSeparatedTuple(Ts&&... values)
@@ -1523,7 +1523,7 @@ template<typename... Ts> inline constexpr auto TreatAsTupleLike<SpaceSeparatedTu
 template<typename... Ts> inline constexpr auto SerializationSeparator<SpaceSeparatedTuple<Ts...>> = SerializationSeparatorType::Space;
 
 // Wraps a variadic list of types, semantically marking them as serializing as "comma separated".
-template<typename... Ts> struct CommaSeparatedTuple {
+template<typename... Ts> struct __attribute__((swift_attr("~Sendable"))) CommaSeparatedTuple {
     using Tuple = std::tuple<Ts...>;
 
     constexpr CommaSeparatedTuple(Ts&&... values)

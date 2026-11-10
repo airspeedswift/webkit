@@ -34,19 +34,6 @@
 
 namespace WebCore {
 
-class DecodedHTMLEntity;
-class SegmentedString;
-
-// This function expects a null character at the end, otherwise it assumes the source is partial.
-DecodedHTMLEntity consumeHTMLEntity(SegmentedString&, char16_t additionalAllowedCharacter = 0);
-
-// This function assumes the source is complete, and does not expect a null character.
-DecodedHTMLEntity consumeHTMLEntity(StringParsingBuffer<Latin1Character>&, char16_t additionalAllowedCharacter = 0);
-DecodedHTMLEntity consumeHTMLEntity(StringParsingBuffer<char16_t>&, char16_t additionalAllowedCharacter = 0);
-
-// This function does not check for "not enough characters" at all.
-DecodedHTMLEntity decodeNamedHTMLEntityForXMLParser(const char*);
-
 class DecodedHTMLEntity {
 public:
     NODELETE constexpr DecodedHTMLEntity();

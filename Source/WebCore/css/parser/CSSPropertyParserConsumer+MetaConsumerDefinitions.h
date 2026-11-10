@@ -31,6 +31,9 @@
 #include "CSSPropertyParserOptions.h"
 #include "CSSPropertyParserState.h"
 #include "CSSUnevaluatedCalc.h"
+#include "CSSParserContext.h"
+#include "CSSProperty.h"
+#include "CSSPropertyConsumerSwiftTypes.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
@@ -219,6 +222,41 @@ template<typename Primitive, typename Validator, auto unit> struct NumberConsume
         return rawValue;
     }
 };
+
+// The shared consumer of `tokenType` tokens for the numeric primitives whose validators are cssConsumeNumericSwift.
+template<typename Primitive, CSSParserTokenType type> struct SwiftNumericConsumer {
+    static constexpr CSSParserTokenType tokenType = type;
+
+    static std::optional<typename Primitive::Raw> consume(CSSParserTokenRange& range, CSS::PropertyParserState& state, CSSCalcSymbolsAllowed, CSSPropertyParserOptions options)
+    {
+        using Raw = typename Primitive::Raw;
+        constexpr auto R = Raw::range;
+        auto& token = range.peek();
+        auto mode = options.overrideParserMode.value_or(state.context.mode);
+        uint8_t flags = (std::same_as<typename Raw::ResolvedValueType, float> ? CSSNumericConsumerSwiftResolvesToFloat : 0)
+            | (options.unitlessZeroLength == UnitlessZeroQuirk::Allow ? CSSNumericConsumerSwiftUnitlessZeroLength : 0)
+            | (state.absoluteLengthUnitsOnly ? CSSNumericConsumerSwiftAbsoluteLengthUnitsOnly : 0)
+            | (mode == HTMLQuirksMode && CSSProperty::acceptsQuirkyLength(state.currentProperty) ? CSSNumericConsumerSwiftQuirkyLength : 0);
+        auto result = cssConsumeNumericSwift(token.numericValue(), R.min, R.max, static_cast<uint8_t>(Raw::category), static_cast<uint8_t>(token.type()), static_cast<uint8_t>(token.unitType()), static_cast<uint8_t>(mode), static_cast<uint8_t>(R.minParseTimeBehavior), static_cast<uint8_t>(R.maxParseTimeBehavior), flags);
+        if (!(result.packed >> 8))
+            return std::nullopt;
+        // A unit of UnitTraits::count or more would select PrimitiveData's calc() alternative.
+        RELEASE_ASSERT((result.packed & 0xff) < Raw::UnitTraits::count);
+        range.consumeIncludingWhitespace();
+        return Raw { static_cast<typename Raw::UnitType>(result.packed & 0xff), result.value };
+    }
+};
+
+// The validators cssConsumeNumericSwift replaces, and their token consumers.
+struct LengthValidator;
+struct LengthPercentageValidator;
+struct NumberValidator;
+struct PercentageValidator;
+template<typename Validator> concept SwiftNumericValidator = std::same_as<Validator, LengthValidator> || std::same_as<Validator, LengthPercentageValidator> || std::same_as<Validator, NumberValidator> || std::same_as<Validator, PercentageValidator>;
+template<typename Primitive, SwiftNumericValidator Validator> struct DimensionConsumer<Primitive, Validator> : SwiftNumericConsumer<Primitive, DimensionToken> { };
+template<typename Primitive, SwiftNumericValidator Validator> struct PercentageConsumer<Primitive, Validator> : SwiftNumericConsumer<Primitive, PercentageToken> { };
+template<typename Primitive, SwiftNumericValidator Validator> struct NumberConsumer<Primitive, Validator> : SwiftNumericConsumer<Primitive, NumberToken> { };
+template<typename Primitive, SwiftNumericValidator Validator, auto unit> struct NumberConsumerForUnitlessValues<Primitive, Validator, unit> : SwiftNumericConsumer<Primitive, NumberToken> { };
 
 // Shared consumer for `Function` tokens that processes `calc()` for the provided primitive.
 template<typename Primitive> struct FunctionConsumerForCalcValues {

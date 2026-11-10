@@ -54,7 +54,7 @@ enum class IsAttrTainted : bool;
 class CSSPropertyParser {
 public:
     // Parses any CSS property or descriptor. If successful, the result will be appended to the `result` Vector and the function will return true, otherwise, the function will return false and the `result` Vector will be unmodified.
-    static bool parseValue(CSSPropertyID, IsImportant, CSSParserTokenRange, const CSSParserContext&, Vector<CSSProperty, 256>& result, StyleRuleType, const CSSNamespacePrefixMap& = { });
+    WEBCORE_EXPORT static bool parseValue(CSSPropertyID, IsImportant, CSSParserTokenRange, const CSSParserContext&, Vector<CSSProperty, 256>& result, StyleRuleType, const CSSNamespacePrefixMap& = { });
 
     // Parses a longhand style property.
     static RefPtr<CSSValue> parseStylePropertyLonghand(CSSPropertyID, StringView, const CSSParserContext&);
@@ -73,7 +73,7 @@ public:
 
 // MARK: - CSSPropertyID parsing
 
-CSSPropertyID cssPropertyID(StringView);
+WEBCORE_EXPORT CSSPropertyID cssPropertyID(StringView);
 
 // MARK: - CSSValueID parsing
 

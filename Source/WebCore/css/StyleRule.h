@@ -90,7 +90,7 @@ public:
     Ref<CSSRule> createCSSOMWrapper(CSSStyleRule& parentRule) const;
 
     // This is only needed to support getMatchedCSSRules.
-    Ref<CSSRule> createCSSOMWrapper() const;
+    WEBCORE_EXPORT Ref<CSSRule> createCSSOMWrapper() const;
 
     WEBCORE_EXPORT void operator delete(StyleRuleBase*, std::destroying_delete_t);
 

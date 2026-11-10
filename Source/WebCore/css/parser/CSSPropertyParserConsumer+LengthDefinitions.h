@@ -32,37 +32,6 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-struct LengthValidator {
-    static constexpr std::optional<CSS::LengthUnit> validate(CSSUnitType unitType, CSS::PropertyParserState& state, CSSPropertyParserOptions options)
-    {
-        if (unitType == CSSUnitType::QuirkyEm && !isUASheetBehavior(options.overrideParserMode.value_or(state.context.mode)))
-            return std::nullopt;
-        auto result = CSS::UnitTraits<CSS::LengthUnit>::validate(unitType);
-        if (result && state.absoluteLengthUnitsOnly && CSS::conversionToCanonicalUnitRequiresConversionData(*result))
-            return std::nullopt;
-        return result;
-    }
-
-    template<auto R, typename V> static bool isValid(CSS::LengthRaw<R, V> raw, CSSPropertyParserOptions)
-    {
-        // Values other than 0 and +/-∞ are not supported for <length> numeric ranges currently.
-        return isValidNonCanonicalizableDimensionValue(raw);
-    }
-
-    static bool shouldAcceptUnitlessValue(double value, CSS::PropertyParserState& state, CSSPropertyParserOptions options)
-    {
-        if (!value && options.unitlessZeroLength == UnitlessZeroQuirk::Allow)
-            return true;
-
-        auto mode = options.overrideParserMode.value_or(state.context.mode);
-
-        if (isUnitlessValueParsingForcedForMode(mode))
-            return true;
-
-        return mode == HTMLQuirksMode && CSSProperty::acceptsQuirkyLength(state.currentProperty);
-    }
-};
-
 template<auto R, typename V> struct ConsumerDefinition<CSS::Length<R, V>> {
     using FunctionToken = FunctionConsumerForCalcValues<CSS::Length<R, V>>;
     using DimensionToken = DimensionConsumer<CSS::Length<R, V>, LengthValidator>;

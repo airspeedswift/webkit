@@ -35,7 +35,7 @@ namespace WebCore {
 
 class CSSParserTokenRange;
 
-struct CSSCustomPropertySyntax {
+struct __attribute__((swift_attr("~Sendable"))) CSSCustomPropertySyntax {
     enum class Type : uint8_t {
         Length,
         LengthPercentage,

@@ -32,7 +32,6 @@ struct Tree;
 
 // Makes a copy of the tree.
 Tree copy(const Tree&);
-AnchorSide copy(const AnchorSide&);
 
 } // namespace CSSCalc
 } // namespace WebCore

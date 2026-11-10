@@ -60,14 +60,15 @@ enum class Category : uint8_t;
 
 // Type-erased helpers to allow for shared code.
 
-NODELETE void unevaluatedCalcRef(CSSCalc::Value*);
-void unevaluatedCalcDeref(CSSCalc::Value*);
+NODELETE WEBCORE_EXPORT void unevaluatedCalcRef(CSSCalc::Value*);
+WEBCORE_EXPORT void unevaluatedCalcDeref(CSSCalc::Value*);
 
 // `UnevaluatedCalc` annotates a `CSSCalc::Value` with the raw value type that it
 // will be evaluated to, allowing the processing of calc in generic code.
 
 // Non-generic base type to allow code sharing and out-of-line definitions.
-class UnevaluatedCalcBase {
+// ~Sendable: CSSCalc::Value's refcount is not atomic. A derived class does not inherit it, so UnevaluatedCalc repeats it.
+class __attribute__((swift_attr("~Sendable"))) UnevaluatedCalcBase {
 public:
     WEBCORE_EXPORT UnevaluatedCalcBase(CSSCalc::Value&);
     UnevaluatedCalcBase(Ref<CSSCalc::Value>&&);
@@ -126,7 +127,7 @@ private:
     Ref<CSSCalc::Value> m_calc;
 };
 
-template<NumericRaw RawType> struct UnevaluatedCalc : UnevaluatedCalcBase {
+template<NumericRaw RawType> struct __attribute__((swift_attr("~Sendable"))) UnevaluatedCalc : UnevaluatedCalcBase {
     using UnevaluatedCalcBase::UnevaluatedCalcBase;
     using UnevaluatedCalcBase::operator=;
 

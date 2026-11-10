@@ -38,64 +38,15 @@
 #include "CSSValueKeywords.h"
 #include "CSSVariableData.h"
 #include <pal/text/TextEncoding.h>
+#include "CSSPropertyConsumerSwiftBuilders.h"
+#include "CSSPropertyConsumerSwiftComponents.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-// <param()>    = param( <param-spec> , <declaration-value>? )
-// <param-spec> = color | accent-color | [ <dashed-ident> <css-type>? ]
-// https://drafts.csswg.org/css-link-params/#funcdef-param
-static std::optional<CSS::ParamSpec> consumeParamSpec(CSSParserTokenRange& range, CSS::PropertyParserState& state)
-{
-    switch (range.peek().id()) {
-    case CSSValueID::Color:
-        range.consumeIncludingWhitespace();
-        return CSS::ParamSpec { CSS::Keyword::Color { } };
-    case CSSValueID::AccentColor:
-        range.consumeIncludingWhitespace();
-        return CSS::ParamSpec { CSS::Keyword::AccentColor { } };
-    default:
-        break;
-    }
-
-    auto name = consumeUnresolvedDashedIdent(range, state);
-    if (!name)
-        return { };
-
-    std::optional<CSS::TypeSpecifier> type;
-    if (!range.atEnd() && range.peek().type() != CommaToken) {
-        auto syntax = CSSCustomPropertySyntax::consumeType(range);
-        if (!syntax)
-            return { };
-        type = CSS::TypeSpecifier { WTF::move(*syntax) };
-    }
-
-    return CSS::ParamSpec { CSS::ParamSpec::Custom { WTF::move(*name), WTF::move(type) } };
-}
-
 std::optional<CSS::ParamFunction> consumeParamFunctionRaw(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
-    if (range.peek().functionId() != CSSValueID::Param)
-        return { };
-
-    auto arguments = consumeFunction(range);
-
-    auto spec = consumeParamSpec(arguments, state);
-    if (!spec)
-        return { };
-
-    // The value may be empty but the comma is required.
-    // https://github.com/w3c/csswg-drafts/issues/13767
-    if (!consumeCommaIncludingWhitespace(arguments))
-        return { };
-
-    // A value containing substitutions cannot be resolved until computed-value time, so
-    // fail here and let the declaration be stored unresolved instead. The longhand parser
-    // runs before the substitution path, so succeeding would swallow the substitution.
-    if (CSSSubstitutionParser::containsSubstitutionFunctions(arguments, state.context))
-        return { };
-
-    return CSS::ParamFunction { CSS::LinkParameter { WTF::move(*spec), CSS::DeclarationValue { CSSVariableData::create(arguments) } } };
+    return consumeUnresolvedWithSwift<CSS::ParamFunction>(range, state, CSSPropertyConsumerSwiftConsumer::ParamFunctionRaw);
 }
 
 RefPtr<CSSValue> consumeParamFunction(CSSParserTokenRange& range, CSS::PropertyParserState& state)
@@ -129,4 +80,36 @@ Vector<CSS::ParamFunction> parseLinkParametersFromFragmentDirective(StringView f
 }
 
 } // namespace CSSPropertyParserHelpers
+
+bool setParamFunctionResult(const CSSPropertyConsumerSwiftValue& value, uint16_t keyword, uint32_t name, uint32_t start, uint32_t end)
+{
+    auto& state = propertyParserState(value);
+    auto arguments = swiftTokenRange(value, start, end);
+    std::optional<CSS::ParamSpec> spec;
+    switch (static_cast<CSSValueID>(keyword)) {
+    case CSSValueID::Color:
+        spec = CSS::ParamSpec { CSS::Keyword::Color { } };
+        break;
+    case CSSValueID::AccentColor:
+        spec = CSS::ParamSpec { CSS::Keyword::AccentColor { } };
+        break;
+    default: {
+        auto ident = CSS::CustomIdent { swiftTokenRange(value, name, name + 1).peek().value().toAtomString() };
+        std::optional<CSS::TypeSpecifier> type;
+        if (!arguments.atEnd() && arguments.peek().type() != CommaToken) {
+            auto syntax = CSSCustomPropertySyntax::consumeType(arguments);
+            if (!syntax)
+                return false;
+            type = CSS::TypeSpecifier { WTF::move(*syntax) };
+        }
+        spec = CSS::ParamSpec { CSS::ParamSpec::Custom { WTF::move(ident), WTF::move(type) } };
+    }
+    }
+    if (!CSSPropertyParserHelpers::consumeCommaIncludingWhitespace(arguments))
+        return false;
+    if (CSSSubstitutionParser::containsSubstitutionFunctions(arguments, state.context))
+        return false;
+    CSSPropertyConsumerSwiftUnresolvedResult::set(value, CSS::ParamFunction { CSS::LinkParameter { WTF::move(*spec), CSS::DeclarationValue { CSSVariableData::create(arguments) } } });
+    return true;
+}
 } // namespace WebCore

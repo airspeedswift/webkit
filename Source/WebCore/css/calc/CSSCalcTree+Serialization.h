@@ -50,9 +50,6 @@ struct SerializationOptions {
 void serializationForCSS(StringBuilder&, const Tree&, const SerializationOptions&);
 String serializationForCSS(const Tree&, const SerializationOptions&);
 
-void serializationForCSS(StringBuilder&, const Child&, const SerializationOptions&);
-String serializationForCSS(const Child&, const SerializationOptions&);
-
 // Serializes a `<calc-sum>` as a math function argument, omitting the grouping parentheses.
 void serializationForCSSAsFunctionArgument(StringBuilder&, const Tree&, const SerializationOptions&);
 

@@ -44,49 +44,4 @@ CSSTokenizerInputStream::CSSTokenizerInputStream(StringView string)
 {
 }
 
-void CSSTokenizerInputStream::advanceUntilNonWhitespace()
-{
-    // Using ASCII whitespace here rather than CSS space since we don't do preprocessing
-    auto advance = [this](auto characters) {
-        while (m_offset < m_stringLength && isASCIIWhitespace(characters[m_offset]))
-            ++m_offset;
-    };
-
-    if (m_string.is8Bit())
-        advance(m_string.span8());
-    else
-        advance(m_string.span16());
-}
-
-void CSSTokenizerInputStream::advanceUntilNewlineOrNonWhitespace()
-{
-    auto advance = [this](auto characters) {
-        while (m_offset < m_stringLength && isASCIIWhitespace(characters[m_offset])) {
-            if (isCSSNewline(characters[m_offset]))
-                return;
-            ++m_offset;
-        }
-    };
-
-    if (m_string.is8Bit())
-        advance(m_string.span8());
-    else
-        advance(m_string.span16());
-}
-
-double CSSTokenizerInputStream::getDouble(unsigned start, unsigned end) const
-{
-    ASSERT(start <= end && ((m_offset + end) <= m_stringLength));
-    bool isResultOK = false;
-    double result = 0.0;
-    if (start < end) {
-        if (m_string.is8Bit())
-            result = charactersToDouble(m_string.span8().subspan(m_offset + start, end - start), &isResultOK);
-        else
-            result = charactersToDouble(m_string.span16().subspan(m_offset + start, end - start), &isResultOK);
-    }
-    // FIXME: It looks like callers ensure we have a valid number
-    return isResultOK ? result : 0.0;
-}
-
 } // namespace WebCore

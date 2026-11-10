@@ -30,9 +30,41 @@
 #include "HTMLToken.h"
 #include "InputStreamPreprocessor.h"
 
+#include <wtf/SwiftBridging.h>
+
+#include "TagName.h"
+
 namespace WebCore {
 
 class SegmentedString;
+
+// The tree builder's tag name and attributes for the tag token that HTMLTokenizer::nextToken(SegmentedString&, HTMLTokenAttributes&) returns.
+// AtomHTMLToken's constructor moves them out, leaving it ready for the next tag.
+struct HTMLTokenAttributes {
+    TagName tagName { TagName::Unknown };
+    AtomString name; // TagName::Unknown only.
+    Vector<Attribute> attributes;
+    bool hasDuplicateAttribute { false };
+    // The rest of the token, which HTMLDocumentParser::nextTokenForTreeBuilder (type, selfClosing) and
+    // HTMLTokenizer.swift add for HTMLTreeBuilder.swift. For a DOCTYPE, name is its name; for a processing
+    // instruction, its target.
+    HTMLToken::Type type { HTMLToken::Type::Uninitialized };
+    bool selfClosing { false };
+    bool isReplacedNullCharacter { false };
+    bool forceQuirks { false };
+    String data; // Character, Comment, ProcessingInstruction.
+    String publicIdentifier; // DOCTYPE.
+    String systemIdentifier; // DOCTYPE.
+};
+
+#if OS(WINDOWS)
+// FIXME: MSVC does not allow a thread_local static data member in an exported class, so on Windows the
+// HTMLTokenizer::s_tokenAttributes below is this namespace-scope variable. constinit, so that reading it needs no
+// check for a dynamic initializer.
+extern constinit thread_local HTMLTokenAttributes* s_tokenAttributes;
+#endif
+
+class SWIFT_PRIVATE_FILEID("WebCore/HTMLTokenizer.swift") HTMLTokenizer;
 
 class WEBCORE_EXPORT HTMLTokenizer {
 public:
@@ -41,6 +73,8 @@ public:
     // If we can't parse a whole token, this returns null.
     class TokenPtr;
     TokenPtr nextToken(SegmentedString&);
+    // Also makes the tree builder's attributes of a returned tag token.
+    TokenPtr nextToken(SegmentedString&, HTMLTokenAttributes&);
 
     // Returns a copy of any characters buffered internally by the tokenizer.
     // The tokenizer buffers characters when searching for the </script> token that terminates a script element.
@@ -156,40 +190,47 @@ private:
     };
 
     bool processToken(SegmentedString&);
-    bool processEntity(SegmentedString&);
+    bool processToken(SegmentedString&, HTMLTokenAttributes&);
 
-    NODELETE void parseError();
+    // Set in the additional allowed character passed to HTMLTokenizer.swift when it makes the attributes.
+    static constexpr char16_t makesTokenAttributesBit = 0x8000;
 
-    void bufferASCIICharacter(char16_t);
-    void bufferCharacter(char16_t);
-    template<typename CharacterType> void bufferCharacters(std::span<const CharacterType>);
-    void bufferCharacters(ASCIILiteral literal) { bufferCharacters(literal.span8()); }
-
-    bool emitAndResumeInDataState(SegmentedString&);
-    bool emitProcessingInstruction(SegmentedString&);
-    void rewindToBogusCommentForProcessingInstructionTarget();
-    bool emitAndReconsumeInDataState();
-    bool emitEndOfFile(SegmentedString&);
-    bool emitReplacedNullCharacter(SegmentedString&, State);
-
-    // Return true if we wil emit a character token before dealing with the buffered end tag.
-    void flushBufferedEndTag();
-    bool commitToPartialEndTag(SegmentedString&, char16_t, State);
-    bool commitToCompleteEndTag(SegmentedString&);
-
-    void appendToTemporaryBuffer(char16_t);
-    NODELETE bool temporaryBufferIs(ASCIILiteral);
-
-    // Sometimes we speculatively consume input characters and we don't know whether they represent
-    // end tags or RCDATA, etc. These functions help manage these state.
-    NODELETE bool inEndTagBufferingState() const;
-    void appendToPossibleEndTag(char16_t);
-    void saveEndTagNameIfNeeded();
-    NODELETE bool isAppropriateEndTag() const;
-
-    NODELETE bool haveBufferedCharacterToken() const;
-
-    NODELETE bool shouldSkipNullCharacters(State) const;
+    // Where HTMLTokenizer.swift puts the attributes; non-null only during processToken(SegmentedString&, HTMLTokenAttributes&).
+#if !OS(WINDOWS)
+    static thread_local HTMLTokenAttributes* s_tokenAttributes;
+#endif
+    ALWAYS_INLINE static HTMLTokenAttributes& tokenAttributes()
+    {
+        RELEASE_ASSERT(s_tokenAttributes);
+        return *s_tokenAttributes;
+    }
+    ALWAYS_INLINE void setTokenTagName() const
+    {
+        auto& attributes = tokenAttributes();
+        attributes.tagName = findTagName(m_token.name());
+        if (attributes.tagName == TagName::Unknown) [[unlikely]]
+            attributes.name = AtomString(m_token.name().span());
+    }
+    ALWAYS_INLINE static void reserveTokenAttributes(unsigned size) { tokenAttributes().attributes.reserveCapacity(size); }
+    ALWAYS_INLINE static bool tokenAttributesContainLocalName(const QualifiedName& name) { return tokenAttributes().attributes.containsIf([&](auto& attribute) { return attribute.localName().impl() == name.localName().impl(); }); }
+    ALWAYS_INLINE static void appendTokenAttribute(Attribute&& attribute) { tokenAttributes().attributes.append(WTF::move(attribute)); }
+    ALWAYS_INLINE static void setTokenHasDuplicateAttribute() { tokenAttributes().hasDuplicateAttribute = true; }
+    // The rest of a token that is not a tag, from HTMLTokenizer.swift.
+    static void setTokenText(AtomString&& name, String&& data, bool isReplacedNullCharacter)
+    {
+        auto& attributes = tokenAttributes();
+        attributes.name = WTF::move(name);
+        attributes.data = WTF::move(data);
+        attributes.isReplacedNullCharacter = isReplacedNullCharacter;
+    }
+    void setTokenDoctype()
+    {
+        auto doctype = m_token.releaseDoctypeData();
+        auto& attributes = tokenAttributes();
+        attributes.forceQuirks = doctype->forceQuirks;
+        attributes.publicIdentifier = doctype->hasPublicIdentifier ? String(StringImpl::create8BitIfPossible(doctype->publicIdentifier)) : String();
+        attributes.systemIdentifier = doctype->hasSystemIdentifier ? String(StringImpl::create8BitIfPossible(doctype->systemIdentifier)) : String();
+    }
 
     State m_state { DataState };
     bool m_forceNullCharacterReplacement { false };
@@ -289,6 +330,11 @@ inline HTMLTokenizer::TokenPtr HTMLTokenizer::nextToken(SegmentedString& source)
     return TokenPtr(processToken(source) ? &m_token : nullptr);
 }
 
+inline HTMLTokenizer::TokenPtr HTMLTokenizer::nextToken(SegmentedString& source, HTMLTokenAttributes& attributes)
+{
+    return TokenPtr(processToken(source, attributes) ? &m_token : nullptr);
+}
+
 inline size_t HTMLTokenizer::numberOfBufferedCharacters() const
 {
     // Notice that we add 2 to the length of the m_temporaryBuffer to
@@ -340,11 +386,6 @@ inline void HTMLTokenizer::setRCDATAState()
 inline void HTMLTokenizer::setScriptDataState()
 {
     m_state = ScriptDataState;
-}
-
-inline bool HTMLTokenizer::shouldSkipNullCharacters(State state) const
-{
-    return state == DataState && !m_forceNullCharacterReplacement;
 }
 
 } // namespace WebCore

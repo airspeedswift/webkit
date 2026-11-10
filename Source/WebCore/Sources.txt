@@ -1123,18 +1123,15 @@ css/parser/CSSParserObserverWrapper.cpp
 css/parser/CSSParserToken.cpp
 css/parser/CSSParserTokenRange.cpp
 css/parser/CSSPropertyParser.cpp @cost:3
-css/parser/CSSPropertyParserConsumer+Align.cpp
 css/parser/CSSPropertyParserConsumer+Anchor.cpp
 css/parser/CSSPropertyParserConsumer+Animations.cpp
 css/parser/CSSPropertyParserConsumer+Background.cpp
-css/parser/CSSPropertyParserConsumer+Box.cpp
 css/parser/CSSPropertyParserConsumer+CalcSize.cpp
 css/parser/CSSPropertyParserConsumer+Color.cpp @cost:7
 css/parser/CSSPropertyParserConsumer+ColorAdjust.cpp
 css/parser/CSSPropertyParserConsumer+ColorInterpolationMethod.cpp
 css/parser/CSSPropertyParserConsumer+Content.cpp
 css/parser/CSSPropertyParserConsumer+CounterStyles.cpp
-css/parser/CSSPropertyParserConsumer+Display.cpp
 css/parser/CSSPropertyParserConsumer+Easing.cpp
 css/parser/CSSPropertyParserConsumer+Filter.cpp @cost:3
 css/parser/CSSPropertyParserConsumer+Font.cpp
@@ -1143,11 +1140,9 @@ css/parser/CSSPropertyParserConsumer+Ident.cpp
 css/parser/CSSPropertyParserConsumer+Image.cpp
 css/parser/CSSPropertyParserConsumer+Inline.cpp
 css/parser/CSSPropertyParserConsumer+LinkParameters.cpp
-css/parser/CSSPropertyParserConsumer+Lists.cpp
 css/parser/CSSPropertyParserConsumer+Masking.cpp
 css/parser/CSSPropertyParserConsumer+Motion.cpp
 css/parser/CSSPropertyParserConsumer+ObjectViewBox.cpp
-css/parser/CSSPropertyParserConsumer+Overflow.cpp
 css/parser/CSSPropertyParserConsumer+Percentage.cpp
 css/parser/CSSPropertyParserConsumer+Position.cpp
 css/parser/CSSPropertyParserConsumer+PositionTry.cpp
@@ -1168,6 +1163,7 @@ css/parser/CSSPropertyParserConsumer+URL.cpp
 css/parser/CSSPropertyParserConsumer+UnicodeRange.cpp
 css/parser/CSSPropertyParserConsumer+ViewTransition.cpp
 css/parser/CSSPropertyParserResult.cpp
+css/parser/CSSPropertyParserSwift.cpp @no-unify
 css/parser/CSSSelectorParser.cpp
 css/parser/CSSSelectorParserContext.cpp
 css/parser/CSSSupportsParser.cpp
@@ -1917,10 +1913,6 @@ html/parser/CSSPreloadScanner.cpp
 html/parser/HTMLConstructionSite.cpp
 html/parser/HTMLDocumentParser.cpp
 html/parser/HTMLDocumentParserFastPath.cpp
-html/parser/HTMLElementStack.cpp
-html/parser/HTMLEntityParser.cpp
-html/parser/HTMLEntitySearch.cpp
-html/parser/HTMLFormattingElementList.cpp
 html/parser/HTMLMetaCharsetParser.cpp
 html/parser/HTMLNameCache.cpp
 html/parser/HTMLParserIdioms.cpp

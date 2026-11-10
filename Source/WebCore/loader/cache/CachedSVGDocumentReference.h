@@ -42,7 +42,7 @@ class CachedSVGDocumentReference final : public CachedSVGDocumentClient, public 
 public:
     NODELETE static Ref<CachedSVGDocumentReference> create(const Style::URL&);
 
-    virtual ~CachedSVGDocumentReference();
+    WEBCORE_EXPORT virtual ~CachedSVGDocumentReference();
 
     // CachedResourceClient.
     void ref() const final { RefCounted::ref(); }

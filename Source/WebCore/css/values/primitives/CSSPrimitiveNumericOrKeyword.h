@@ -31,7 +31,8 @@ namespace CSS {
 
 // MARK: Primitive Numeric or Keyword
 
-template<Numeric NumericType, SpecificKeyword... Ks> struct PrimitiveNumericOrKeyword {
+// ~Sendable: its PrimitiveData may hold a calc whose refcount is not atomic.
+template<Numeric NumericType, SpecificKeyword... Ks> struct __attribute__((swift_attr("~Sendable"))) PrimitiveNumericOrKeyword {
     using Raw = typename NumericType::Raw;
     using Calc = typename NumericType::Calc;
     using UnitType = typename NumericType::UnitType;

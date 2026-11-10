@@ -29,34 +29,18 @@
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-struct IntegerValidator {
-    static constexpr std::optional<CSS::IntegerUnit> validate(CSSUnitType unitType, CSS::PropertyParserState&, CSSPropertyParserOptions)
-    {
-        return CSS::UnitTraits<CSS::IntegerUnit>::validate(unitType);
-    }
+// cssConsumeNumericSwift validates <integer> tokens, so IntegerValidator is only declared. It checks the range as a
+// double, so the range must not clamp at parse time, which would convert the value to the integer type.
+struct IntegerValidator;
 
-    template<auto R, typename V> static bool isValid(CSS::IntegerRaw<R, V> raw, CSSPropertyParserOptions)
-    {
-        return isValidCanonicalValue(raw);
-    }
-};
-
-template<typename Primitive, typename Validator> struct NumberConsumerForIntegerValues {
+template<typename Primitive, typename> struct NumberConsumerForIntegerValues {
     static constexpr CSSParserTokenType tokenType = NumberToken;
-
-    static std::optional<typename Primitive::Raw> consume(CSSParserTokenRange& range, CSS::PropertyParserState&, CSSCalcSymbolsAllowed, CSSPropertyParserOptions options)
+    static std::optional<typename Primitive::Raw> consume(CSSParserTokenRange& range, CSS::PropertyParserState& state, CSSCalcSymbolsAllowed symbolsAllowed, CSSPropertyParserOptions options)
     {
-        ASSERT(range.peek().type() == NumberToken);
-
+        static_assert(Primitive::Raw::range.minParseTimeBehavior != CSS::RangeParseTimeBehavior::Clamp && Primitive::Raw::range.maxParseTimeBehavior != CSS::RangeParseTimeBehavior::Clamp);
         if (range.peek().numericValueType() != IntegerValueType)
             return std::nullopt;
-
-        auto rawValue = performOptionalParseTimeClamp(typename Primitive::Raw { CSS::IntegerUnit::Integer, range.peek().numericValue() });
-        if (!Validator::isValid(rawValue, options))
-            return std::nullopt;
-
-        range.consumeIncludingWhitespace();
-        return rawValue;
+        return SwiftNumericConsumer<Primitive, NumberToken>::consume(range, state, WTF::move(symbolsAllowed), options);
     }
 };
 

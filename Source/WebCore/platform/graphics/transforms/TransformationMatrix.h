@@ -59,6 +59,8 @@ typedef struct tagXFORM XFORM;
 #endif
 #endif
 
+#include <cmath>
+
 namespace WTF {
 class TextStream;
 }
@@ -492,5 +494,8 @@ private:
 };
 
 WEBCORE_EXPORT WTF::TextStream& operator<<(WTF::TextStream&, const TransformationMatrix&);
+
+double transformationMatrixDeterminant4x4(const TransformationMatrix::Matrix4&);
+inline double transformationMatrixHypot(double x, double y, double z) { return std::hypot(x, y, z); }
 
 } // namespace WebCore

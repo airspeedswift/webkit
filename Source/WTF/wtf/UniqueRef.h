@@ -81,7 +81,8 @@ public:
         ASSERT(m_ref);
     }
 
-    explicit UniqueRef(T& other)
+    // Unsafe in Swift: this adopts other, which must have been allocated with new.
+    SWIFT_UNSAFE explicit UniqueRef(T& other)
         : m_ref(&other)
     {
         ASSERT(m_ref);
@@ -95,7 +96,8 @@ public:
 
     operator T&() const LIFETIME_BOUND { ASSERT(m_ref); return *m_ref; }
 
-    std::unique_ptr<T> moveToUniquePtr() { return WTF::move(m_ref); }
+    // Unsafe in Swift: this leaves the UniqueRef null.
+    SWIFT_UNSAFE std::unique_ptr<T> moveToUniquePtr() { return WTF::move(m_ref); }
 
     explicit UniqueRef(HashTableEmptyValueType) { }
     bool isHashTableEmptyValue() const { return !m_ref; }

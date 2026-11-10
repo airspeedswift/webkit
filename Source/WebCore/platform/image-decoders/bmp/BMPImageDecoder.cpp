@@ -31,18 +31,14 @@
 #include "config.h"
 #include "BMPImageDecoder.h"
 
-#include "BMPImageReader.h"
+#include "ImageDecoderSwiftFrames.h"
+#include "WebCore-Swift.h"
 
 namespace WebCore {
 
-// Number of bits in .BMP used to store the file header (doesn't match
-// "sizeof(BMPImageDecoder::BitmapFileHeader)" since we omit some fields and
-// don't pack).
-static const size_t sizeOfFileHeader = 14;
-
 BMPImageDecoder::BMPImageDecoder(AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
     : ScalableImageDecoder(alphaOption, gammaAndColorProfileOption)
-    , m_decodedOffset(0)
+    , m_swift(makeUniqueWithoutFastMallocCheck<BMPImageDecoderState>(BMPImageDecoderState::init(m_premultiplyAlpha)))
 {
 }
 
@@ -52,8 +48,9 @@ void BMPImageDecoder::setData(const FragmentedSharedBuffer& data, bool allDataRe
         return;
 
     ScalableImageDecoder::setData(data, allDataReceived);
-    if (m_reader)
-        m_reader->setData(*m_data);
+    Locker locker { m_lock };
+    if (m_hasReader)
+        m_readerData = m_data;
 }
 
 ScalableImageDecoderFrame* BMPImageDecoder::frameBufferAtIndex(size_t index)
@@ -68,77 +65,20 @@ ScalableImageDecoderFrame* BMPImageDecoder::frameBufferAtIndex(size_t index)
     auto* buffer = &m_frameBufferCache.first();
     if (!buffer->isComplete())
         decode(false, isAllDataReceived());
+    // The decode can resize m_frameBufferCache.
+    buffer = &m_frameBufferCache.first();
     return buffer;
 }
 
-bool BMPImageDecoder::setFailed()
-{
-    m_reader = nullptr;
-    return ScalableImageDecoder::setFailed();
-}
+BMPImageDecoder::~BMPImageDecoder() = default;
 
 void BMPImageDecoder::decode(bool onlySize, bool allDataReceived)
 {
     assertIsHeld(m_lock);
-    if (failed())
-        return;
-
-    // If we couldn't decode the image but we've received all the data, decoding
-    // has failed.
-    if (!decodeHelper(onlySize) && allDataReceived)
-        setFailed();
-    // If we're done decoding the image, we don't need the BMPImageReader
-    // anymore.  (If we failed, |m_reader| has already been cleared.)
-    else if (!m_frameBufferCache.isEmpty() && m_frameBufferCache.first().isComplete())
-        m_reader = nullptr;
-}
-
-bool BMPImageDecoder::decodeHelper(bool onlySize)
-{
-    assertIsHeld(m_lock);
-    size_t imgDataOffset = 0;
-    if ((m_decodedOffset < sizeOfFileHeader) && !processFileHeader(&imgDataOffset))
-        return false;
-
-    if (!m_reader) {
-        m_reader = makeUnique<BMPImageReader>(this, m_decodedOffset, imgDataOffset, false);
-        m_reader->setData(*m_data);
-    }
-
-    if (!m_frameBufferCache.isEmpty())
-        m_reader->setBuffer(&m_frameBufferCache.first());
-
-    return m_reader->decodeBMP(onlySize);
-}
-
-bool BMPImageDecoder::processFileHeader(size_t* imgDataOffset)
-{
-    ASSERT(imgDataOffset);
-
-    // Read file header.
-    ASSERT(!m_decodedOffset);
-    if (m_data->size() < sizeOfFileHeader)
-        return false;
-    auto dataSpan = m_data->span();
-    const uint16_t fileType = (dataSpan[0] << 8) | dataSpan[1];
-    *imgDataOffset = readUint32(10);
-    m_decodedOffset = sizeOfFileHeader;
-
-    // See if this is a bitmap filetype we understand.
-    enum {
-        BMAP = 0x424D,  // "BM"
-        // The following additional OS/2 2.x header values (see
-        // http://www.fileformat.info/format/os2bmp/egff.htm ) aren't widely
-        // decoded, and are unlikely to be in much use.
-        /*
-        ICON = 0x4943,  // "IC"
-        POINTER = 0x5054,  // "PT"
-        COLORICON = 0x4349,  // "CI"
-        COLORPOINTER = 0x4350,  // "CP"
-        BITMAPARRAY = 0x4241,  // "BA"
-        */
-    };
-    return (fileType == BMAP) || setFailed();
+    RefPtr readerData = m_hasReader ? m_readerData : m_data;
+    ImageDecoderFramesState frames { *this, m_frameBufferCache };
+    m_hasReader = bmpImageDecoderDecode(*m_swift, frames, readerData ? readerData->span() : std::span<const uint8_t> { }, onlySize, allDataReceived);
+    m_readerData = m_hasReader ? std::move(readerData) : nullptr;
 }
 
 } // namespace WebCore

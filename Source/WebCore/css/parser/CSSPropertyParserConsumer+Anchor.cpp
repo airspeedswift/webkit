@@ -37,6 +37,7 @@
 #include "CSSValuePair.h"
 #include "RenderStyleConstants.h"
 #include "StyleKeyword+Mappings.h"
+#include "CSSPropertyConsumerSwiftBuilders.h"
 
 #if ENABLE(SPATIAL_PORTAL)
 #include "CSSPinnedAnchorNameValue.h"
@@ -348,27 +349,9 @@ RefPtr<CSSValue> valueForPositionArea(CSSValueID dim1, CSSValueID dim2, ValueTyp
     return CSSValuePair::create(CSSKeywordValue::create(dim1), CSSKeywordValue::create(dim2));
 }
 
-RefPtr<CSSValue> consumePositionArea(CSSParserTokenRange& range, CSS::PropertyParserState&)
+RefPtr<CSSValue> consumePositionArea(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
-    // <'position-area'> = none | <position-area>
-    // https://drafts.csswg.org/css-anchor-position-1/#propdef-position-area
-
-    auto maybeDim1 = consumeIdentRaw(range);
-    if (!maybeDim1)
-        return nullptr;
-    auto dim1 = *maybeDim1;
-    if (dim1 == CSSValueID::None)
-        return CSSKeywordValue::create(CSSValueID::None);
-
-    auto maybeDim2 = consumeIdentRaw(range);
-    if (!maybeDim2) {
-        if (!getKeywordType(dim1))
-            return nullptr;
-        return CSSKeywordValue::create(dim1);
-    }
-    auto dim2 = *maybeDim2;
-
-    return valueForPositionArea(dim1, dim2, ValueType::Specified);
+    return consumePropertyWithSwift(range, state, CSSPropertyConsumerSwiftConsumer::PositionArea);
 }
 
 RefPtr<CSSValue> consumePinnedAnchorName(CSSParserTokenRange& range, CSS::PropertyParserState& state)
@@ -397,4 +380,12 @@ RefPtr<CSSValue> consumePinnedAnchorName(CSSParserTokenRange& range, CSS::Proper
 }
 
 } // namespace CSSPropertyParserHelpers
+
+RefPtr<CSSValue> makePositionAreaValue(uint16_t first, uint32_t second)
+{
+    auto dim1 = static_cast<CSSValueID>(first);
+    if (second == std::numeric_limits<uint32_t>::max())
+        return CSSPropertyParserHelpers::getKeywordType(dim1) ? RefPtr { CSSKeywordValue::create(dim1) } : nullptr;
+    return CSSPropertyParserHelpers::valueForPositionArea(dim1, static_cast<CSSValueID>(second), CSSPropertyParserHelpers::ValueType::Specified);
+}
 } // namespace WebCore

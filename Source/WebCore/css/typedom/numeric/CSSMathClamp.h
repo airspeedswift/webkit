@@ -32,12 +32,20 @@ namespace WebCore {
 class CSSMathClamp final : public CSSMathValue {
     WTF_MAKE_TZONE_ALLOCATED(CSSMathClamp);
 public:
-    static ExceptionOr<Ref<CSSMathClamp>> create(CSSNumberish&&, CSSNumberish&&, CSSNumberish&&);
+    WEBCORE_EXPORT static ExceptionOr<Ref<CSSMathClamp>> create(CSSNumberish&&, CSSNumberish&&, CSSNumberish&&);
     const CSSNumericValue& lower() const { return m_lower.get(); }
     const CSSNumericValue& value() const { return m_value.get(); }
     const CSSNumericValue& upper() const { return m_upper.get(); }
 
-    std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+    const CSSNumericValue* mathOperand(size_t index) const final
+    {
+        switch (index) {
+        case 0: return m_lower.ptr();
+        case 1: return m_value.ptr();
+        case 2: return m_upper.ptr();
+        }
+        return nullptr;
+    }
 
 private:
     CSSMathOperator getOperator() const final { return CSSMathOperator::Clamp; }

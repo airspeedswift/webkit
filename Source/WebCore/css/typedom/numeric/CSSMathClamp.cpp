@@ -104,24 +104,4 @@ bool CSSMathClamp::equals(const CSSNumericValue& other) const
         && m_upper->equals(otherClamp->m_upper);
 }
 
-std::optional<CSSCalc::Child> CSSMathClamp::toCalcTreeNode() const
-{
-    auto lower = m_lower->toCalcTreeNode();
-    if (!lower)
-        return std::nullopt;
-    auto value = m_value->toCalcTreeNode();
-    if (!value)
-        return std::nullopt;
-    auto upper = m_upper->toCalcTreeNode();
-    if (!upper)
-        return std::nullopt;
-
-    auto clamp = CSSCalc::Clamp { .min = WTF::move(*lower), .val = WTF::move(*value), .max = WTF::move(*upper) };
-    auto type = CSSCalc::toType(clamp);
-    if (!type)
-        return std::nullopt;
-
-    return CSSCalc::makeChild(WTF::move(clamp), *type);
-}
-
 } // namespace WebCore

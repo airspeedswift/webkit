@@ -33,17 +33,23 @@
 #include <type_traits>
 #include <wtf/Brigand.h>
 #include <wtf/EnumTraits.h>
+#include <wtf/SwiftBridging.h>
 
 namespace WebCore {
 namespace CSS {
 
 // MARK: - Primitive Numeric (Raw + UnevaluatedCalc)
 
+// Every numeric is SWIFT_SELF_CONTAINED: it owns its calc through a leaked Ref, refs it on copy and derefs it on
+// destruction, so it depends on no other value's lifetime. Every numeric is also ~Sendable: that refcount is not
+// atomic, and Swift infers Sendable for a union holding a pointer. A derived template does not inherit ~Sendable
+// from its base, so each numeric below repeats it.
+
 // NOTE: As is the case for `PrimitiveNumericRaw`, `ResolvedValueType` here only effects the type
 // the CSS value gets resolved to. Unresolved CSS primitive numeric types always use a `double` as
 // its internal representation.
 
-template<NumericRaw RawType> struct PrimitiveNumeric {
+template<NumericRaw RawType> struct __attribute__((swift_attr("~Sendable"))) PrimitiveNumeric {
     using Raw = RawType;
     using Calc = UnevaluatedCalc<Raw>;
     using UnitType = typename Raw::UnitType;
@@ -163,59 +169,59 @@ private:
     Calc asCalc() const { return m_data.asCalc(); }
 
     Data m_data;
-};
+} SWIFT_SELF_CONTAINED;
 
 // MARK: Integer Primitive
 
-template<Range R, typename V> struct Integer : PrimitiveNumeric<IntegerRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Integer : PrimitiveNumeric<IntegerRaw<R, V>> {
     using Base = PrimitiveNumeric<IntegerRaw<R, V>>;
     using Base::Base;
 };
 
 // MARK: Number Primitive
 
-template<Range R, typename V> struct Number : PrimitiveNumeric<NumberRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Number : PrimitiveNumeric<NumberRaw<R, V>> {
     using Base = PrimitiveNumeric<NumberRaw<R, V>>;
     using Base::Base;
 };
 
 // MARK: Percentage Primitive
 
-template<Range R, typename V> struct Percentage : PrimitiveNumeric<PercentageRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Percentage : PrimitiveNumeric<PercentageRaw<R, V>> {
     using Base = PrimitiveNumeric<PercentageRaw<R, V>>;
     using Base::Base;
 };
 
 // MARK: Dimension Primitives
 
-template<Range R, typename V> struct Angle : PrimitiveNumeric<AngleRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Angle : PrimitiveNumeric<AngleRaw<R, V>> {
     using Base = PrimitiveNumeric<AngleRaw<R, V>>;
     using Base::Base;
 };
-template<Range R, typename V> struct Length : PrimitiveNumeric<LengthRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Length : PrimitiveNumeric<LengthRaw<R, V>> {
     using Base = PrimitiveNumeric<LengthRaw<R, V>>;
     using Base::Base;
 };
-template<Range R, typename V> struct Time : PrimitiveNumeric<TimeRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Time : PrimitiveNumeric<TimeRaw<R, V>> {
     using Base = PrimitiveNumeric<TimeRaw<R, V>>;
     using Base::Base;
 };
-template<Range R, typename V> struct Frequency : PrimitiveNumeric<FrequencyRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Frequency : PrimitiveNumeric<FrequencyRaw<R, V>> {
     using Base = PrimitiveNumeric<FrequencyRaw<R, V>>;
     using Base::Base;
 };
-template<Range R, typename V> struct Resolution : PrimitiveNumeric<ResolutionRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Resolution : PrimitiveNumeric<ResolutionRaw<R, V>> {
     using Base = PrimitiveNumeric<ResolutionRaw<R, V>>;
     using Base::Base;
 };
-template<Range R, typename V> struct Flex : PrimitiveNumeric<FlexRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) Flex : PrimitiveNumeric<FlexRaw<R, V>> {
     using Base = PrimitiveNumeric<FlexRaw<R, V>>;
     using Base::Base;
 };
 
 // MARK: Dimension + Percentage Primitives
 
-template<Range R, typename V> struct AnglePercentage : PrimitiveNumeric<AnglePercentageRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) AnglePercentage : PrimitiveNumeric<AnglePercentageRaw<R, V>> {
     using Base = PrimitiveNumeric<AnglePercentageRaw<R, V>>;
     using Base::Base;
     using MarkableTraits = PrimitiveDataMarkableTraits<AnglePercentage<R, V>>;
@@ -223,7 +229,7 @@ template<Range R, typename V> struct AnglePercentage : PrimitiveNumeric<AnglePer
     using Dimension = CSS::Angle<R, V>;
     using Percentage = CSS::Percentage<R, V>;
 };
-template<Range R, typename V> struct LengthPercentage : PrimitiveNumeric<LengthPercentageRaw<R, V>> {
+template<Range R, typename V> struct __attribute__((swift_attr("~Sendable"))) LengthPercentage : PrimitiveNumeric<LengthPercentageRaw<R, V>> {
     using Base = PrimitiveNumeric<LengthPercentageRaw<R, V>>;
     using Base::Base;
     using MarkableTraits = PrimitiveDataMarkableTraits<LengthPercentage<R, V>>;

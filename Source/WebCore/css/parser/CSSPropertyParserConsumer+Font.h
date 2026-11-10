@@ -101,37 +101,18 @@ struct UnresolvedFont {
 
 // MARK: 'font' (shorthand)
 // https://drafts.csswg.org/css-fonts-4/#font-prop
-std::optional<UnresolvedFont> parseUnresolvedFont(StringView, ScriptExecutionContext&, std::optional<CSSParserMode> parserModeOverride = std::nullopt);
+WEBCORE_EXPORT std::optional<UnresolvedFont> parseUnresolvedFont(StringView, ScriptExecutionContext&, std::optional<CSSParserMode> parserModeOverride = std::nullopt);
 
-// MARK: 'font-style'
-// https://drafts.csswg.org/css-fonts-4/#font-style-prop
-RefPtr<CSSValue> consumeFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: 'font-family'
-// https://drafts.csswg.org/css-fonts-4/#font-family-prop
-RefPtr<CSSValue> consumeFontFamily(CSSParserTokenRange&, CSS::PropertyParserState&);
-// Sub-production of 'font-family': <family-name>
-// https://drafts.csswg.org/css-fonts-4/#family-name-syntax
-RefPtr<CSSValue> consumeFamilyName(CSSParserTokenRange&, CSS::PropertyParserState&);
 // Sub-production of 'font-family': <generic-family>
 // https://drafts.csswg.org/css-fonts-4/#generic-family-name-syntax
 NODELETE const AtomString& genericFontFamily(CSSValueID);
 NODELETE WebKitFontFamilyNames::FamilyNamesIndex genericFontFamilyIndex(CSSValueID);
 
-// MARK: 'font-size-adjust'
-// https://drafts.csswg.org/css-fonts-4/#font-size-adjust-prop
-RefPtr<CSSValue> consumeFontSizeAdjust(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: 'font-palette'
-// https://drafts.csswg.org/css-fonts-4/#propdef-font-palette
-std::optional<CSS::FontPalette> consumeFontPaletteUnresolved(CSSParserTokenRange&, CSS::PropertyParserState&);
-RefPtr<CSSValue> consumeFontPalette(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 // MARK: - @font-face descriptor consumers
 
 // MARK: @font-face 'src'
 // https://drafts.csswg.org/css-fonts-4/#src-desc
-RefPtr<CSSValueList> parseFontFaceSrc(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValueList> parseFontFaceSrc(StringView, ScriptExecutionContext&);
 RefPtr<CSSValueList> consumeFontFaceSrc(CSSParserTokenRange&, CSS::PropertyParserState&);
 // Sub-production of 'src: <font-tech>
 // https://drafts.csswg.org/css-fonts-4/#font-tech-values
@@ -142,49 +123,43 @@ String consumeFontFormat(CSSParserTokenRange&, CSS::PropertyParserState&, bool r
 
 // MARK: @font-face 'size-adjust'
 // https://drafts.csswg.org/css-fonts-5/#descdef-font-face-size-adjust
-RefPtr<CSSValue> parseFontFaceSizeAdjust(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceSizeAdjust(StringView, ScriptExecutionContext&);
 
 // MARK: @font-face 'unicode-range'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-unicode-range
-RefPtr<CSSValueList> parseFontFaceUnicodeRange(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValueList> parseFontFaceUnicodeRange(StringView, ScriptExecutionContext&);
 
 // MARK: @font-face 'font-display'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-display
-RefPtr<CSSValue> parseFontFaceDisplay(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceDisplay(StringView, ScriptExecutionContext&);
 
 // MARK: @font-face metric override descriptors
 // https://drafts.csswg.org/css-fonts-4/#font-metrics-override-desc
-RefPtr<CSSValue> parseFontFaceAscentOverride(StringView, ScriptExecutionContext&);
-RefPtr<CSSValue> parseFontFaceDescentOverride(StringView, ScriptExecutionContext&);
-RefPtr<CSSValue> parseFontFaceLineGapOverride(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceAscentOverride(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceDescentOverride(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceLineGapOverride(StringView, ScriptExecutionContext&);
 
 // MARK: @font-face 'font-style'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-style
-RefPtr<CSSValue> parseFontFaceFontStyle(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceFontStyle(StringView, ScriptExecutionContext&);
 RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
-std::optional<CSS::FontStyleRange> consumeUnresolvedFontFaceFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: @font-face 'font-feature-settings'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-feature-settings
-RefPtr<CSSValue> parseFontFaceFeatureSettings(StringView, ScriptExecutionContext&);
-// Sub-production of 'font-feature-settings': <feature-tag-value>
-// https://drafts.csswg.org/css-fonts-4/#feature-tag-value
-RefPtr<CSSValue> consumeFeatureTagValue(CSSParserTokenRange&, CSS::PropertyParserState&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceFeatureSettings(StringView, ScriptExecutionContext&);
 
 // MARK: @font-face 'font-variation-settings'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-variation-settings
 #if ENABLE(VARIATION_FONTS)
-// Sub-production of 'font-variation-settings': <variation-tag-value>
-RefPtr<CSSValue> consumeVariationTagValue(CSSParserTokenRange&, CSS::PropertyParserState&);
 #endif
 
 // MARK: @font-face 'font-width'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-width
-RefPtr<CSSValue> parseFontFaceFontWidth(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceFontWidth(StringView, ScriptExecutionContext&);
 
 // MARK: @font-face 'font-weight'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-weight
-RefPtr<CSSValue> parseFontFaceFontWeight(StringView, ScriptExecutionContext&);
+WEBCORE_EXPORT RefPtr<CSSValue> parseFontFaceFontWeight(StringView, ScriptExecutionContext&);
 
 // MARK: - @font-feature-values descriptor consumers
 

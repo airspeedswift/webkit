@@ -90,6 +90,8 @@
 #include <libxslt/xslt.h>
 #endif
 
+#include "WebCore-Swift.h"
+
 namespace WebCore {
 
 #if ENABLE(XSLT)
@@ -1287,7 +1289,7 @@ static size_t convertUTF16EntityToUTF8(std::span<const char16_t> utf16Entity, st
 
 static xmlEntityPtr getXHTMLEntity(const xmlChar* name)
 {
-    auto decodedEntity = decodeNamedHTMLEntityForXMLParser(byteCast<char>(name));
+    auto decodedEntity = decodeNamedHTMLEntityForXMLParser(byteCast<Latin1Character>(unsafeSpan(byteCast<char>(name))));
     if (decodedEntity.failed())
         return nullptr;
 

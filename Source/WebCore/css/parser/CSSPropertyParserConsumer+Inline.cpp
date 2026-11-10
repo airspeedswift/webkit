@@ -32,55 +32,14 @@
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSValueKeywords.h"
 #include "CSSValuePair.h"
+#include "CSSPropertyConsumerSwiftBuilders.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
 
-static RefPtr<CSSValue> consumeTextEdge(CSSParserTokenRange& range)
+RefPtr<CSSValue> consumeTextBoxEdge(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
-    // <text-edge> = [ text | cap | ex | ideographic | ideographic-ink ]
-    //               [ text | alphabetic | ideographic | ideographic-ink ]?
-    // https://drafts.csswg.org/css-inline-3/#typedef-text-edge
-
-    auto firstValue = consumeIdent<CSSValueID::Text, CSSValueID::Cap, CSSValueID::Ex, CSSValueID::Ideographic, CSSValueID::IdeographicInk>(range);
-    if (!firstValue)
-        return nullptr;
-
-    auto secondValue = consumeIdent<CSSValueID::Text, CSSValueID::Alphabetic, CSSValueID::Ideographic, CSSValueID::IdeographicInk>(range);
-
-    // https://drafts.csswg.org/css-inline-3/#text-edges
-    // "If only one value is specified, both edges are assigned that same keyword if possible; else text is assumed as the missing value."
-    auto shouldSerializeSecondValue = [&]() {
-        if (!secondValue)
-            return false;
-        if (firstValue->valueID() == CSSValueID::Cap || firstValue->valueID() == CSSValueID::Ex)
-            return secondValue->valueID() != CSSValueID::Text;
-        return firstValue->valueID() != secondValue->valueID();
-    }();
-    if (!shouldSerializeSecondValue)
-        return firstValue;
-
-    return CSSValuePair::create(firstValue.releaseNonNull(), secondValue.releaseNonNull());
-}
-
-RefPtr<CSSValue> consumeLineFitEdge(CSSParserTokenRange& range, CSS::PropertyParserState&)
-{
-    // <'line-fit-edge'> = leading | <text-edge>
-    // https://drafts.csswg.org/css-inline-3/#propdef-line-fit-edge
-
-    if (range.peek().id() == CSSValueID::Leading)
-        return consumeIdent(range);
-    return consumeTextEdge(range);
-}
-
-RefPtr<CSSValue> consumeTextBoxEdge(CSSParserTokenRange& range, CSS::PropertyParserState&)
-{
-    // <'text-box-edge'> = auto | <text-edge>
-    // https://drafts.csswg.org/css-inline-3/#propdef-text-box-edge
-
-    if (range.peek().id() == CSSValueID::Auto)
-        return consumeIdent(range);
-    return consumeTextEdge(range);
+    return consumePropertyWithSwift(range, state, std::to_underlying(CSSPropertyConsumerSwiftConsumer::TextBoxEdge));
 }
 
 } // namespace CSSPropertyParserHelpers

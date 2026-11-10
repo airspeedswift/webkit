@@ -37,9 +37,5 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
-// MARK: <calc-size()> consuming
-// https://drafts.csswg.org/css-values-5/#calc-size
-RefPtr<CSSValue> consumeCalcSize(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

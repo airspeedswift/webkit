@@ -46,13 +46,6 @@ struct Transform;
 
 namespace CSSPropertyParserHelpers {
 
-// MARK: <rotate3d()> consuming (CSSValue)
-RefPtr<CSSValue> consumeRotate3dFunction(CSSParserTokenRange&, CSS::PropertyParserState&);
-// MARK: <translate()> consuming (CSSValue)
-RefPtr<CSSValue> consumeTranslateFunction(CSSParserTokenRange&, CSS::PropertyParserState&);
-// MARK: <translate3d()> consuming (CSSValue)
-RefPtr<CSSValue> consumeTranslate3dFunction(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 // MARK: <'translate'> consuming (CSSValue)
 RefPtr<CSSValue> consumeTranslate(CSSParserTokenRange&, CSS::PropertyParserState&);
 // MARK: <'scale'> consuming (CSSValue)
