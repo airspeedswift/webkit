@@ -33,6 +33,7 @@ namespace WebCore {
 class BlendingKeyframes;
 class GraphicsLayerAnimation;
 class LegacyRenderSVGResourceClipper;
+class PaintInfoView;
 class RenderLayer;
 class RenderSVGResourceClipper;
 class RenderSVGResourceFilter;
@@ -67,6 +68,8 @@ class RenderLayerModelObject : public RenderElement {
     WTF_MAKE_TZONE_ALLOCATED(RenderLayerModelObject);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderLayerModelObject);
 public:
+    using PaintPhases = OptionSet<PaintPhase>;
+
     virtual ~RenderLayerModelObject();
 
     SWIFT_UNSAFE void destroyLayer();

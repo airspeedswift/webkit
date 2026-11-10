@@ -472,6 +472,11 @@ inline bool ComputedStyle::displayIsNoneForSwift() const
     return display() == DisplayType::None;
 }
 
+inline bool ComputedStyle::scrollbarWidthIsNoneForSwift() const
+{
+    return scrollbarWidth() == Style::ScrollbarWidth::None;
+}
+
 // MARK: - Logical getters
 
 // MARK: logical inset value aliases

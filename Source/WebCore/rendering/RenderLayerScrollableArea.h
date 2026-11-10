@@ -46,6 +46,7 @@
 
 #include <WebCore/RenderLayer.h>
 #include <WebCore/ScrollableArea.h>
+#include <WebCore/ScrollbarTheme.h>
 #include <wtf/Platform.h>
 #include <wtf/TZoneMalloc.h>
 
@@ -135,6 +136,9 @@ public:
 
     int verticalScrollbarWidth(OverlayScrollbarSizeRelevancy = OverlayScrollbarSizeRelevancy::IgnoreOverlayScrollbarSize, bool isHorizontalWritingMode = true) const;
     int horizontalScrollbarHeight(OverlayScrollbarSizeRelevancy = OverlayScrollbarSizeRelevancy::IgnoreOverlayScrollbarSize, bool isHorizontalWritingMode = true) const;
+
+    static int themeScrollbarThickness(ScrollbarWidth width) { return ScrollbarTheme::theme().scrollbarThickness(width); }
+    static bool themeUsesOverlayScrollbars() { return ScrollbarTheme::theme().usesOverlayScrollbars(); }
 
     bool LEGACY_NODELETE hasOverflowControls() const;
     bool hitTestOverflowControls(HitTestResult&, const IntPoint& localPoint);

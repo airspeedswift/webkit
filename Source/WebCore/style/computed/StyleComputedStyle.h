@@ -62,6 +62,7 @@ public:
     inline bool hasBorderRadiusForSwift() const SWIFT_NAME(hasBorderRadius());
     inline bool hasResizeForSwift() const SWIFT_NAME(hasResize());
     inline bool displayIsNoneForSwift() const SWIFT_NAME(displayIsNone());
+    inline bool scrollbarWidthIsNoneForSwift() const SWIFT_NAME(scrollbarWidthIsNone());
 
     explicit ComputedStyle(CreateDefaultStyleTag);
     ComputedStyle(const ComputedStyle&, CloneTag);

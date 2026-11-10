@@ -94,6 +94,8 @@ struct PaintInfo {
         return *std::bit_cast<GraphicsContext*>(m_context);
     }
 
+    bool paintingDisabled() const { return context().paintingDisabled(); }
+
     void setContext(GraphicsContext& context)
     {
         m_context = std::bit_cast<uintptr_t>(&context);
@@ -152,6 +154,7 @@ struct PaintInfo {
     }
 
     EventRegionContext* eventRegionContext() { return dynamicDowncast<EventRegionContext>(regionContext); }
+    EventRegionContext* eventRegionContextForSwift() const { return dynamicDowncast<EventRegionContext>(regionContext); }
     inline AccessibilityRegionContext* accessibilityRegionContext();
 #if ENABLE(AX_CUSTOM_COLOR_MODE)
     inline AXCustomColorBackdropContext* axCustomColorBackdropContext();
@@ -172,6 +175,21 @@ private:
     uintptr_t m_outlineObjects;
     uintptr_t m_overlapTestRequests;
     uintptr_t m_context;
+} SWIFT_VIEW;
+
+// A PaintInfo that a C++ caller lends to Swift for the duration of one call.
+class PaintInfoView {
+public:
+    PaintInfoView(PaintInfo& paintInfo LIFETIME_BOUND)
+        : m_paintInfo(std::bit_cast<uintptr_t>(&paintInfo))
+    {
+    }
+
+    PaintInfo& operator*() const LIFETIME_BOUND { return *std::bit_cast<PaintInfo*>(m_paintInfo); }
+
+private:
+    // An integer, as in GraphicsContextView: Swift does not import a pointer to a view type.
+    uintptr_t m_paintInfo;
 } SWIFT_VIEW;
 
 } // namespace WebCore
