@@ -344,9 +344,9 @@ void RenderWidget::paintContents(PaintInfo& paintInfo, const LayoutPoint& paintO
 
     if (RefPtr frameView = dynamicDowncast<LocalFrameView>(m_widget)) {
         bool runOverlapTests = !frameView->useSlowRepaintsIfNotOverlapped();
-        if (paintInfo.overlapTestRequests && runOverlapTests) {
-            ASSERT(!paintInfo.overlapTestRequests->contains(this) || (paintInfo.overlapTestRequests->get(this) == protect(m_widget)->frameRect()));
-            paintInfo.overlapTestRequests->set(this, protect(m_widget)->frameRect());
+        if (paintInfo.overlapTestRequests() && runOverlapTests) {
+            ASSERT(!paintInfo.overlapTestRequests()->contains(this) || (paintInfo.overlapTestRequests()->get(this) == protect(m_widget)->frameRect()));
+            paintInfo.overlapTestRequests()->set(this, protect(m_widget)->frameRect());
         }
         if (paintInfo.paintBehavior & PaintBehavior::DefaultAsynchronousImageDecode)
             frameView->setPaintBehavior(oldBehavior);

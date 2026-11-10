@@ -141,6 +141,7 @@ public:
     bool hitTestResizerInFragments(const LayerFragments&, const HitTestLocation&, LayoutPoint& pointInFragment) const;
 
     void paintOverflowControls(GraphicsContext&, OptionSet<PaintBehavior>, const IntPoint&, const IntRect& damageRect, bool paintingOverlayControls = false);
+    void paintOverflowControls(NOESCAPE GraphicsContextView context, OptionSet<PaintBehavior> paintBehavior, IntPoint paintOffset, IntRect damageRect, bool paintingOverlayControls) { paintOverflowControls(*context, paintBehavior, paintOffset, damageRect, paintingOverlayControls); }
     void paintScrollCorner(GraphicsContext&, const IntPoint&, const IntRect& scrollCornerRect, const IntRect& damageRect);
     void paintResizer(GraphicsContext&, const LayoutPoint&, const IntRect& resizerRect, const LayoutRect& damageRect);
     void paintOverlayScrollbars(GraphicsContext&, const LayoutRect& damageRect, OptionSet<PaintBehavior>, RenderObject* subtreePaintRoot = nullptr);

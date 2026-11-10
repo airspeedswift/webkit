@@ -587,7 +587,7 @@ void RenderLayer::paintNonLayerChildForFragmentsForSVG(RenderElement& childRende
         if (collectingEventRegion)
             paintInfo.regionContext = paintingInfo.regionContext;
         if (phase == PaintPhase::Foreground)
-            paintInfo.overlapTestRequests = paintingInfo.overlapTestRequests();
+            paintingInfo.applyOverlapTestRequests(paintInfo);
         paintInfo.updateSubtreePaintRootForChildren(&renderer());
 
         auto containerPaintOffset = paintOffsetForRenderer(fragment, paintingInfo);

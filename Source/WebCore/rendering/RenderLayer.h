@@ -1108,7 +1108,16 @@ public:
             , m_overlapTestRequests(std::bit_cast<uintptr_t>(inOverlapTestRequests))
         { }
 
+        // The painting info of a layer painted as its own root, with no overlap test requests or region context.
+        __attribute__((swift_attr("@_lifetime(immortal)"))) static LayerPaintingInfo forRootLayer(RenderLayer* rootLayer, LayoutRect dirtyRect, OptionSet<PaintBehavior> paintBehavior, LayoutSize subpixelOffset)
+        {
+            return LayerPaintingInfo(rootLayer, dirtyRect, paintBehavior, subpixelOffset);
+        }
+
         OverlapTestRequestMap* overlapTestRequests() const { return std::bit_cast<OverlapTestRequestMap*>(m_overlapTestRequests); } // May be null.
+        void applyOverlapTestRequests(NOESCAPE PaintInfo& paintInfo) const { paintInfo.setOverlapTestRequests(overlapTestRequests()); }
+        // Swift stores a reference type at +1 into a field, and C++ does not release it.
+        void setRootLayer(RenderLayer* layer) { rootLayer = layer; }
 
         RenderLayer* rootLayer { nullptr };
         RenderObject* subtreePaintRoot { nullptr }; // Only paint descendants of this object.
@@ -1382,7 +1391,7 @@ private:
     void paintList(LayerList, GraphicsContext&, const LayerPaintingInfo&, OptionSet<PaintLayerFlag>);
 
     void updatePaintingInfoForFragments(LayerFragments&, const LayerPaintingInfo&, OptionSet<PaintLayerFlag>, bool shouldPaintContent, const LayoutSize& offsetFromRoot);
-    void paintContentForRenderer(PaintInfo&, const LayoutPoint& paintOffset);
+    void paintContentForRenderer(NOESCAPE PaintInfo&, const LayoutPoint& paintOffset);
     bool hitTestContentForRenderer(const HitTestRequest&, HitTestResult&, const HitTestLocation&, const LayoutPoint& accumulatedOffset, HitTestFilter) const;
     void paintBackgroundForFragments(const LayerFragments&, GraphicsContext&, GraphicsContext& transparencyLayerContext,
         const LayoutRect& transparencyPaintDirtyRect, bool haveTransparency, const LayerPaintingInfo&, OptionSet<PaintBehavior>, RenderObject* paintingRootForRenderer);

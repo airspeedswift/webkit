@@ -73,7 +73,7 @@ void InlineBoxPainter::paint()
             return;
 
         ASSERT(renderer().isInlineBox());
-        m_paintInfo.outlineObjects->add(renderer());
+        m_paintInfo.outlineObjects()->add(renderer());
 
         return;
     }

@@ -207,6 +207,7 @@ public:
 
     // paintOffset is the offset from the origin of the GraphicsContext at which to paint the current object.
     virtual void paint(PaintInfo&, const LayoutPoint& paintOffset) = 0;
+    void paintForSwift(NOESCAPE PaintInfo& paintInfo, LayoutPoint paintOffset) { paint(paintInfo, paintOffset); }
 
     // inline-block elements paint all phases atomically. This function ensures that. Certain other elements
     // (grid items, flex items) require this behavior as well, and this function exists as a helper for them.

@@ -4478,7 +4478,7 @@ void RenderLayer::paintTransformedLayerIntoFragments(GraphicsContext& context, c
     }
 }
 
-void RenderLayer::paintContentForRenderer(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
+void RenderLayer::paintContentForRenderer(NOESCAPE PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
     if (renderer().isInlineBox()) {
         // An inline box has no box of its own to paint. Its fragments are part of the containing block's inline content.
@@ -4599,7 +4599,7 @@ void RenderLayer::paintForegroundForFragmentsWithPhase(PaintPhase phase, const L
 
         PaintInfo paintInfo(context, fragment.dirtyForegroundRect().rect(), phase, paintBehavior, subtreePaintRootForRenderer, nullptr, nullptr, &localPaintingInfo.rootLayer->renderer(), this, localPaintingInfo.requireSecurityOriginAccessForWidgets);
         if (phase == PaintPhase::Foreground)
-            paintInfo.overlapTestRequests = localPaintingInfo.overlapTestRequests();
+            localPaintingInfo.applyOverlapTestRequests(paintInfo);
         paintContentForRenderer(paintInfo, paintOffsetForRenderer(fragment, localPaintingInfo));
     }
 }

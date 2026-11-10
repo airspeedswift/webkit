@@ -31,6 +31,7 @@
 #include <WebCore/IntRect.h>
 #include <WebCore/LayoutRect.h>
 #include <WebCore/PaintPhase.h>
+#include <bit>
 #include <limits>
 #include <wtf/HashMap.h>
 #include <wtf/OptionSet.h>
@@ -58,7 +59,7 @@ enum class StateSavedByCaller : bool { No, Yes };
  * (tx|ty) is the calculated position of the parent
  */
 struct PaintInfo {
-    PaintInfo(GraphicsContext& newContext, const LayoutRect& newRect, PaintPhase newPhase, OptionSet<PaintBehavior> newPaintBehavior,
+    SWIFT_UNAVAILABLE_IN_SWIFT __attribute__((swift_attr("@_lifetime(immortal)"))) PaintInfo(GraphicsContext& newContext, const LayoutRect& newRect, PaintPhase newPhase, OptionSet<PaintBehavior> newPaintBehavior,
         RenderObject* newSubtreePaintRoot = nullptr, SingleThreadWeakListHashSet<RenderBoxModelObject>* newOutlineObjects = nullptr,
         OverlapTestRequestMap* overlapTestRequests = nullptr, const RenderLayerModelObject* newPaintContainer = nullptr,
         const RenderLayer* enclosingSelfPaintingLayer = nullptr, bool newRequireSecurityOriginAccessForWidgets = false)
@@ -67,24 +68,46 @@ struct PaintInfo {
             , requireSecurityOriginAccessForWidgets(newRequireSecurityOriginAccessForWidgets)
             , paintBehavior(newPaintBehavior)
             , subtreePaintRoot(newSubtreePaintRoot)
-            , outlineObjects(newOutlineObjects)
-            , overlapTestRequests(overlapTestRequests)
             , paintContainer(newPaintContainer)
             , m_enclosingSelfPaintingLayer(enclosingSelfPaintingLayer)
-            , m_context(&newContext)
+            , m_outlineObjects(std::bit_cast<uintptr_t>(newOutlineObjects))
+            , m_overlapTestRequests(std::bit_cast<uintptr_t>(overlapTestRequests))
+            , m_context(std::bit_cast<uintptr_t>(&newContext))
+    {
+    }
+
+    // Not trivially copyable, so that Swift copies and destroys a PaintInfo as C++ does: the renderers and the
+    // layer it points to are not references a PaintInfo owns.
+    PaintInfo(const PaintInfo&) = default;
+    PaintInfo& operator=(const PaintInfo&) = default;
+    ~PaintInfo() { }
+
+    PaintInfo(GraphicsContextView newContext LIFETIME_BOUND, const LayoutRect& newRect, PaintPhase newPhase, OptionSet<PaintBehavior> newPaintBehavior,
+        RenderObject* newSubtreePaintRoot, const RenderLayerModelObject* newPaintContainer, const RenderLayer* enclosingSelfPaintingLayer, bool newRequireSecurityOriginAccessForWidgets)
+            : PaintInfo(*newContext, newRect, newPhase, newPaintBehavior, newSubtreePaintRoot, nullptr, nullptr, newPaintContainer, enclosingSelfPaintingLayer, newRequireSecurityOriginAccessForWidgets)
     {
     }
 
     GraphicsContext& context() const LIFETIME_BOUND
     {
         ASSERT(m_context);
-        return *m_context;
+        return *std::bit_cast<GraphicsContext*>(m_context);
     }
 
     void setContext(GraphicsContext& context)
     {
-        m_context = &context;
+        m_context = std::bit_cast<uintptr_t>(&context);
     }
+
+    // Swift stores a reference type at +1 into a field, and C++ does not release it.
+    void setRegionContext(RegionContext* context) { regionContext = context; }
+
+    // Used to list outlines that should be painted by a block with inline children.
+    SingleThreadWeakListHashSet<RenderBoxModelObject>* outlineObjects() const { return std::bit_cast<SingleThreadWeakListHashSet<RenderBoxModelObject>*>(m_outlineObjects); }
+    void setOutlineObjects(SingleThreadWeakListHashSet<RenderBoxModelObject>* outlineObjects) { m_outlineObjects = std::bit_cast<uintptr_t>(outlineObjects); }
+
+    OverlapTestRequestMap* overlapTestRequests() const { return std::bit_cast<OverlapTestRequestMap*>(m_overlapTestRequests); }
+    void setOverlapTestRequests(OverlapTestRequestMap* overlapTestRequests) { m_overlapTestRequests = std::bit_cast<uintptr_t>(overlapTestRequests); }
 
     void updateSubtreePaintRootForChildren(const RenderObject* renderer)
     {
@@ -140,14 +163,15 @@ struct PaintInfo {
     StateSavedByCaller stateSavedByCaller { StateSavedByCaller::No };
     OptionSet<PaintBehavior> paintBehavior;
     SUPPRESS_FORWARD_DECL_MEMBER RenderObject* subtreePaintRoot; // used to draw just one element and its visual children
-    SingleThreadWeakListHashSet<RenderBoxModelObject>* outlineObjects; // used to list outlines that should be painted by a block with inline children
-    OverlapTestRequestMap* overlapTestRequests;
     SUPPRESS_FORWARD_DECL_MEMBER const RenderLayerModelObject* paintContainer; // the layer object that originates the current painting
     SUPPRESS_FORWARD_DECL_MEMBER const RenderLayer* m_enclosingSelfPaintingLayer { nullptr };
     RegionContext* regionContext { nullptr }; // For PaintPhase::EventRegion and PaintPhase::Accessibility.
 
 private:
-    GraphicsContext* m_context;
-};
+    // Integers, so that Swift imports the struct as a view: it cannot track pointers to these.
+    uintptr_t m_outlineObjects;
+    uintptr_t m_overlapTestRequests;
+    uintptr_t m_context;
+} SWIFT_VIEW;
 
 } // namespace WebCore

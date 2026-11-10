@@ -113,7 +113,7 @@ void InlineContentPainter::paintDisplayBox(const InlineDisplay::Box& box)
 
         auto inlineBoxPaintInfo = PaintInfo { m_paintInfo };
         inlineBoxPaintInfo.phase = m_paintInfo.phase == PaintPhase::ChildOutlines ? PaintPhase::Outline : m_paintInfo.phase;
-        inlineBoxPaintInfo.outlineObjects = &m_outlineObjects;
+        inlineBoxPaintInfo.setOutlineObjects(&m_outlineObjects);
 
         InlineBoxPainter { m_inlineContent, box, inlineBoxPaintInfo, m_paintOffset }.paint();
         return;

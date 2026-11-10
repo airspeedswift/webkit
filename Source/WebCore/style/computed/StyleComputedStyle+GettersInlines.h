@@ -467,6 +467,11 @@ inline bool ComputedStyle::hasResizeForSwift() const
     return resize() != Resize::None;
 }
 
+inline bool ComputedStyle::displayIsNoneForSwift() const
+{
+    return display() == DisplayType::None;
+}
+
 // MARK: - Logical getters
 
 // MARK: logical inset value aliases
