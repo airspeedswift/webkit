@@ -462,6 +462,11 @@ inline bool ComputedStyle::hasBorderRadiusForSwift() const
     return border().hasBorderRadius();
 }
 
+inline bool ComputedStyle::hasResizeForSwift() const
+{
+    return resize() != Resize::None;
+}
+
 // MARK: - Logical getters
 
 // MARK: logical inset value aliases

@@ -58,7 +58,7 @@ protected:
     Vector<AffineTransform> m_transformStack;
     Vector<IntRect> m_clipStack;
 
-}; // class RegionContext
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT; // class RegionContext
 
 class RegionContextStateSaver {
 public:

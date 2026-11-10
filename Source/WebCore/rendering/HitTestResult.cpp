@@ -204,6 +204,11 @@ void HitTestResult::setScrollbar(RefPtr<Scrollbar>&& scrollbar)
     m_scrollbar = WTF::move(scrollbar);
 }
 
+void HitTestResult::setScrollbarForSwift(Scrollbar* scrollbar)
+{
+    setScrollbar(scrollbar);
+}
+
 LocalFrame* HitTestResult::innerNodeFrame() const
 {
     if (m_innerNonSharedNode)

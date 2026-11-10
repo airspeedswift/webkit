@@ -1098,25 +1098,30 @@ public:
     bool ancestorLayerIsDOMParent(const RenderLayer* ancestor) const;
 
     struct LayerPaintingInfo {
-        LayerPaintingInfo(RenderLayer* inRootLayer, const LayoutRect& inDirtyRect, OptionSet<PaintBehavior> inPaintBehavior, const LayoutSize& inSubpixelOffset, RenderObject* inSubtreePaintRoot = nullptr, OverlapTestRequestMap* inOverlapTestRequests = nullptr, bool inRequireSecurityOriginAccessForWidgets = false)
+        SWIFT_UNAVAILABLE_IN_SWIFT __attribute__((swift_attr("@_lifetime(immortal)"))) LayerPaintingInfo(RenderLayer* inRootLayer, const LayoutRect& inDirtyRect, OptionSet<PaintBehavior> inPaintBehavior, const LayoutSize& inSubpixelOffset, RenderObject* inSubtreePaintRoot = nullptr, OverlapTestRequestMap* inOverlapTestRequests = nullptr, bool inRequireSecurityOriginAccessForWidgets = false)
             : rootLayer(inRootLayer)
             , subtreePaintRoot(inSubtreePaintRoot)
             , paintDirtyRect(inDirtyRect)
             , subpixelOffset(inSubpixelOffset)
-            , overlapTestRequests(inOverlapTestRequests)
             , paintBehavior(inPaintBehavior)
             , requireSecurityOriginAccessForWidgets(inRequireSecurityOriginAccessForWidgets)
+            , m_overlapTestRequests(std::bit_cast<uintptr_t>(inOverlapTestRequests))
         { }
+
+        OverlapTestRequestMap* overlapTestRequests() const { return std::bit_cast<OverlapTestRequestMap*>(m_overlapTestRequests); } // May be null.
 
         RenderLayer* rootLayer { nullptr };
         RenderObject* subtreePaintRoot { nullptr }; // Only paint descendants of this object.
         LayoutRect paintDirtyRect; // Relative to rootLayer;
         LayoutSize subpixelOffset;
-        OverlapTestRequestMap* overlapTestRequests { nullptr }; // May be null.
         OptionSet<PaintBehavior> paintBehavior;
         bool requireSecurityOriginAccessForWidgets { false };
         CheckedPtr<RegionContext> regionContext;
-    };
+
+    private:
+        // An integer, so that Swift imports the struct as a view: it cannot track a pointer to the map.
+        uintptr_t m_overlapTestRequests { 0 };
+    } SWIFT_VIEW;
 
 private:
     enum class RepaintRectsUpdate : bool { Recompute, Discard };
@@ -1504,6 +1509,7 @@ private:
 
     void removeClipperClientIfNeeded() const;
 
+public:
     struct OverflowControlRects {
         IntRect horizontalScrollbar;
         IntRect verticalScrollbar;
@@ -1524,6 +1530,7 @@ private:
             return { };
         }
     };
+private:
     OverflowControlRects overflowControlsRects() const;
 
     OptionSet<Compositing> m_compositingDirtyBits;

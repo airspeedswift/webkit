@@ -307,6 +307,7 @@ public:
     void multiplyForSwift(const TransformationMatrix& matrix) SWIFT_NAME(multiplyBy(_:)) { multiply(matrix); }
     void scaleNonUniformForSwift(double sx, double sy) SWIFT_NAME(scaleBy(_:_:)) { scaleNonUniform(sx, sy); }
     void translateForSwift(double tx, double ty) SWIFT_NAME(translateBy(_:_:)) { translate(tx, ty); }
+    void translateRightForSwift(double tx, double ty) SWIFT_NAME(translateRightBy(_:_:)) { translateRight(tx, ty); }
     FloatPoint projectPointForSwift(const FloatPoint&) const SWIFT_NAME(projectPoint(_:));
     FloatQuad projectQuadForSwift(const FloatQuad&) const SWIFT_NAME(projectQuad(_:));
     void translate3dForSwift(double tx, double ty, double tz) SWIFT_NAME(translateBy(_:_:_:)) { translate3d(tx, ty, tz); }

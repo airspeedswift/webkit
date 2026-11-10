@@ -75,6 +75,7 @@ public:
     Element* URLElement() const { return m_innerURLElement.get(); }
 
     void setScrollbar(RefPtr<Scrollbar>&&);
+    void setScrollbarForSwift(Scrollbar*);
     Scrollbar* scrollbar() const { return m_scrollbar.get(); }
 
     bool isOverWidget() const { return m_isOverWidget; }

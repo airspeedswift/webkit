@@ -828,6 +828,21 @@ const RenderReplica* RenderObject::asRenderReplica() const
     return dynamicDowncast<RenderReplica>(*this);
 }
 
+const RenderBlock* RenderObject::asRenderBlock() const
+{
+    return dynamicDowncast<RenderBlock>(*this);
+}
+
+bool RenderObject::frameIsMainFrameForSwift() const
+{
+    return frame().isMainFrame();
+}
+
+bool RenderObject::hasEnclosingFragmentedFlowForSwift() const
+{
+    return enclosingFragmentedFlow();
+}
+
 RenderBlock* RenderObject::containingBlock() const
 {
     // FIXME: See https://bugs.webkit.org/show_bug.cgi?id=270977 for RenderLineBreak special treatment.

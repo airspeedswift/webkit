@@ -841,6 +841,9 @@ public:
     const RenderImage* asRenderImage() const;
     const RenderMultiColumnFlow* asRenderMultiColumnFlow() const;
     const RenderReplica* asRenderReplica() const;
+    const RenderBlock* asRenderBlock() const;
+    bool frameIsMainFrameForSwift() const;
+    bool hasEnclosingFragmentedFlowForSwift() const;
     // Swift compares renderers here: it has no identity comparison of its own for them.
     static bool isSameRenderer(const RenderObject* a, const RenderObject* b) { return a == b; }
     static RenderBlock* containingBlockForPositionType(PositionType, const RenderObject&);

@@ -341,7 +341,7 @@ private:
     std::unique_ptr<RenderMarquee> m_marquee;
 
     const std::unique_ptr<ScrollAnchoringController> m_scrollAnchoringController;
-} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT SWIFT_PRIVATE_FILEID("WebCore/RenderLayerTree.swift");
 
 } // namespace WebCore
 
