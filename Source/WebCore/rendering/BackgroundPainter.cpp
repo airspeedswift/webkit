@@ -546,7 +546,7 @@ template<typename Layer> void BackgroundPainter::paintFillLayerImpl(const Color&
         // Multiline inline boxes paint like the image was one long strip spanning lines. The backgroundImageStrip is this fictional rectangle.
         auto imageRect = backgroundImageStrip.isEmpty() ? scrolledPaintRect : backgroundImageStrip;
         auto paintOffset = backgroundImageStrip.isEmpty() ? rect.location() : backgroundImageStrip.location();
-        auto geometry = calculateFillLayerImageGeometry(m_renderer, m_paintInfo.paintContainer, layer.layer, layer.zoom, paintOffset, imageRect, m_overrideOrigin);
+        auto geometry = calculateFillLayerImageGeometry(m_renderer, m_paintInfo.paintContainer(), layer.layer, layer.zoom, paintOffset, imageRect, m_overrideOrigin);
 
         auto& clientForBackgroundImage = backgroundObject ? *backgroundObject : m_renderer;
 

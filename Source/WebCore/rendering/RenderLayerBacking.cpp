@@ -4539,7 +4539,7 @@ void RenderLayerBacking::paintIntoLayer(const GraphicsLayer* graphicsLayer, Grap
         }
 
         RenderLayer::LayerPaintingInfo paintingInfo(&m_owningLayer, paintDirtyRect, paintBehavior, -m_subpixelOffsetFromRenderer);
-        paintingInfo.regionContext = regionContext;
+        paintingInfo.setRegionContext(regionContext);
 
         if (&layer == &m_owningLayer) {
             // Limit the owning SVG layer's DOM-order child walk to the part of the flat list this GraphicsLayer

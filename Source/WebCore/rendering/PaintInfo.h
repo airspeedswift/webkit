@@ -67,20 +67,14 @@ struct PaintInfo {
             , phase(newPhase)
             , requireSecurityOriginAccessForWidgets(newRequireSecurityOriginAccessForWidgets)
             , paintBehavior(newPaintBehavior)
-            , subtreePaintRoot(newSubtreePaintRoot)
-            , paintContainer(newPaintContainer)
-            , m_enclosingSelfPaintingLayer(enclosingSelfPaintingLayer)
+            , m_subtreePaintRoot(std::bit_cast<uintptr_t>(newSubtreePaintRoot))
+            , m_paintContainer(std::bit_cast<uintptr_t>(newPaintContainer))
+            , m_enclosingSelfPaintingLayer(std::bit_cast<uintptr_t>(enclosingSelfPaintingLayer))
             , m_outlineObjects(std::bit_cast<uintptr_t>(newOutlineObjects))
             , m_overlapTestRequests(std::bit_cast<uintptr_t>(overlapTestRequests))
             , m_context(std::bit_cast<uintptr_t>(&newContext))
     {
     }
-
-    // Not trivially copyable, so that Swift copies and destroys a PaintInfo as C++ does: the renderers and the
-    // layer it points to are not references a PaintInfo owns.
-    PaintInfo(const PaintInfo&) = default;
-    PaintInfo& operator=(const PaintInfo&) = default;
-    ~PaintInfo() { }
 
     PaintInfo(GraphicsContextView newContext LIFETIME_BOUND, const LayoutRect& newRect, PaintPhase newPhase, OptionSet<PaintBehavior> newPaintBehavior,
         RenderObject* newSubtreePaintRoot, const RenderLayerModelObject* newPaintContainer, const RenderLayer* enclosingSelfPaintingLayer, bool newRequireSecurityOriginAccessForWidgets)
@@ -101,8 +95,11 @@ struct PaintInfo {
         m_context = std::bit_cast<uintptr_t>(&context);
     }
 
-    // Swift stores a reference type at +1 into a field, and C++ does not release it.
-    void setRegionContext(RegionContext* context) { regionContext = context; }
+    RenderObject* subtreePaintRoot() const { return std::bit_cast<RenderObject*>(m_subtreePaintRoot); }
+    const RenderLayerModelObject* paintContainer() const { return std::bit_cast<const RenderLayerModelObject*>(m_paintContainer); }
+
+    RegionContext* regionContext() const { return std::bit_cast<RegionContext*>(m_regionContext); }
+    void setRegionContext(RegionContext* context) { m_regionContext = std::bit_cast<uintptr_t>(context); }
 
     // Used to list outlines that should be painted by a block with inline children.
     SingleThreadWeakListHashSet<RenderBoxModelObject>* outlineObjects() const { return std::bit_cast<SingleThreadWeakListHashSet<RenderBoxModelObject>*>(m_outlineObjects); }
@@ -113,19 +110,19 @@ struct PaintInfo {
 
     void updateSubtreePaintRootForChildren(const RenderObject* renderer)
     {
-        if (!subtreePaintRoot)
+        if (!m_subtreePaintRoot)
             return;
 
         // If we're the painting root, kids draw normally, and see root of nullptr.
-        if (subtreePaintRoot == renderer) {
-            subtreePaintRoot = nullptr;
+        if (subtreePaintRoot() == renderer) {
+            m_subtreePaintRoot = 0;
             return;
         }
     }
 
     bool shouldPaintWithinRoot(const RenderObject& renderer) const
     {
-        return !subtreePaintRoot || subtreePaintRoot == &renderer;
+        return !m_subtreePaintRoot || subtreePaintRoot() == &renderer;
     }
 
     bool forceTextColor() const { return forceBlackText() || forceWhiteText(); }
@@ -136,7 +133,7 @@ struct PaintInfo {
     bool skipRootBackground() const { return paintBehavior.contains(PaintBehavior::SkipRootBackground); }
     bool paintRootBackgroundOnly() const { return paintBehavior.contains(PaintBehavior::RootBackgroundOnly); }
 
-    const RenderLayer* enclosingSelfPaintingLayer() const { return m_enclosingSelfPaintingLayer; }
+    const RenderLayer* enclosingSelfPaintingLayer() const { return std::bit_cast<const RenderLayer*>(m_enclosingSelfPaintingLayer); }
 
     void applyTransform(const AffineTransform& localToAncestorTransform)
     {
@@ -153,8 +150,8 @@ struct PaintInfo {
         rect.setSize(LayoutSize(tranformedRect.size()));
     }
 
-    EventRegionContext* eventRegionContext() { return dynamicDowncast<EventRegionContext>(regionContext); }
-    EventRegionContext* eventRegionContextForSwift() const { return dynamicDowncast<EventRegionContext>(regionContext); }
+    EventRegionContext* eventRegionContext() { return dynamicDowncast<EventRegionContext>(regionContext()); }
+    EventRegionContext* eventRegionContextForSwift() const { return dynamicDowncast<EventRegionContext>(regionContext()); }
     inline AccessibilityRegionContext* accessibilityRegionContext();
 #if ENABLE(AX_CUSTOM_COLOR_MODE)
     inline AXCustomColorBackdropContext* axCustomColorBackdropContext();
@@ -165,13 +162,13 @@ struct PaintInfo {
     bool requireSecurityOriginAccessForWidgets { false };
     StateSavedByCaller stateSavedByCaller { StateSavedByCaller::No };
     OptionSet<PaintBehavior> paintBehavior;
-    SUPPRESS_FORWARD_DECL_MEMBER RenderObject* subtreePaintRoot; // used to draw just one element and its visual children
-    SUPPRESS_FORWARD_DECL_MEMBER const RenderLayerModelObject* paintContainer; // the layer object that originates the current painting
-    SUPPRESS_FORWARD_DECL_MEMBER const RenderLayer* m_enclosingSelfPaintingLayer { nullptr };
-    RegionContext* regionContext { nullptr }; // For PaintPhase::EventRegion and PaintPhase::Accessibility.
 
 private:
-    // Integers, so that Swift imports the struct as a view: it cannot track pointers to these.
+    // Integers, so that the struct is trivially copyable and Swift imports it as a view that refers to none of these.
+    uintptr_t m_subtreePaintRoot; // used to draw just one element and its visual children
+    uintptr_t m_paintContainer; // the layer object that originates the current painting
+    uintptr_t m_enclosingSelfPaintingLayer { 0 };
+    uintptr_t m_regionContext { 0 }; // For PaintPhase::EventRegion and PaintPhase::Accessibility.
     uintptr_t m_outlineObjects;
     uintptr_t m_overlapTestRequests;
     uintptr_t m_context;

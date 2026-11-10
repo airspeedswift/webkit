@@ -39,7 +39,11 @@ class RegionContext : public CanMakeCheckedPtr<RegionContext, WTF::DefaultedOper
     WTF_MAKE_TZONE_ALLOCATED(RegionContext);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RegionContext);
 public:
-    virtual ~RegionContext() = default;
+    virtual ~RegionContext()
+    {
+        // A region context lives on its creator's stack, so a counted reference to it must not outlive it.
+        RELEASE_ASSERT(!checkedPtrCountWithoutThreadCheck());
+    }
 
     void pushTransform(const AffineTransform&);
     void LEGACY_NODELETE popTransform();

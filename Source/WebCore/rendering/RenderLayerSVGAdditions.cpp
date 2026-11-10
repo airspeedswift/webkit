@@ -84,7 +84,7 @@ public:
         m_offsetFromRoot = *offsetFromRoot;
 
         if (child.hasClipPath())
-            m_clipScope.emplace(context, paintingInfo.regionContext, *svgChild, *offsetFromRoot, LayoutSize(), LayoutRect(), isCollectingEventRegion, ClipPathPaintScope::CoordinateMode::NonLayerPaint, stateSavedByCaller);
+            m_clipScope.emplace(context, paintingInfo.regionContext(), *svgChild, *offsetFromRoot, LayoutSize(), LayoutRect(), isCollectingEventRegion, ClipPathPaintScope::CoordinateMode::NonLayerPaint, stateSavedByCaller);
 
         // The mask, and a clip that can't be a path, composite over the foreground, so they need a
         // painting context. While only the event region is collected there is nothing to composite.
@@ -130,7 +130,7 @@ public:
 private:
     void paintPhase(RenderLayerModelObject& renderer, PaintPhase phase, const LayoutPoint& paintOffset)
     {
-        PaintInfo paintInfo(m_context, m_paintingInfo.paintDirtyRect, phase, m_paintBehavior, m_subtreePaintRoot.get(), nullptr, nullptr, &m_paintingInfo.rootLayer->renderer(), m_hostLayer.ptr());
+        PaintInfo paintInfo(m_context, m_paintingInfo.paintDirtyRect, phase, m_paintBehavior, m_subtreePaintRoot.get(), nullptr, nullptr, &m_paintingInfo.rootLayer()->renderer(), m_hostLayer.ptr());
         renderer.paint(paintInfo, paintOffset);
     }
 
@@ -576,16 +576,16 @@ void RenderLayer::paintNonLayerChildForFragmentsForSVG(RenderElement& childRende
         std::optional<RegionContextStateSaver> regionContextStateSaver;
         if (!sharedClipApplied) {
             stateSaver.emplace(context, false);
-            regionContextStateSaver.emplace(paintingInfo.regionContext);
+            regionContextStateSaver.emplace(paintingInfo.regionContext());
             clipToRect(context, *stateSaver, *regionContextStateSaver, paintingInfo, paintBehavior, fragment.dirtyForegroundRect());
         }
 
         PaintInfo paintInfo(context, fragment.dirtyForegroundRect().rect(),
             phase, paintBehavior, subtreePaintRootForRenderer,
-            nullptr, nullptr, &paintingInfo.rootLayer->renderer(), this,
+            nullptr, nullptr, &paintingInfo.rootLayer()->renderer(), this,
             paintingInfo.requireSecurityOriginAccessForWidgets);
         if (collectingEventRegion)
-            paintInfo.regionContext = paintingInfo.regionContext;
+            paintInfo.setRegionContext(paintingInfo.regionContext());
         if (phase == PaintPhase::Foreground)
             paintingInfo.applyOverlapTestRequests(paintInfo);
         paintInfo.updateSubtreePaintRootForChildren(&renderer());
@@ -641,7 +641,7 @@ void RenderLayer::paintChildrenInDOMOrderForSVG(GraphicsContext& context, const 
     // paintLayer call, which carries no range, so it cannot leak into the child's flat list.
     size_t beginIndex = 0;
     size_t endIndex = allChildren.size();
-    if (svgPaintOrderItemRange && paintingInfo.rootLayer == this) {
+    if (svgPaintOrderItemRange && paintingInfo.rootLayer() == this) {
         ASSERT(svgPaintOrderItemRange->end() <= allChildren.size());
         beginIndex = svgPaintOrderItemRange->begin();
         endIndex = std::min<size_t>(svgPaintOrderItemRange->end(), allChildren.size());
@@ -661,7 +661,7 @@ void RenderLayer::paintChildrenInDOMOrderForSVG(GraphicsContext& context, const 
         auto dirtyForegroundRect = layerFragments[0].dirtyForegroundRect();
         if (!dirtyForegroundRect.isEmpty()) {
             sharedClipSaver.emplace(context, false);
-            sharedRegionSaver.emplace(paintingInfo.regionContext);
+            sharedRegionSaver.emplace(paintingInfo.regionContext());
             clipToRect(context, *sharedClipSaver, *sharedRegionSaver, paintingInfo, paintBehavior, dirtyForegroundRect);
         }
     }
@@ -702,7 +702,7 @@ void RenderLayer::paintChildrenInDOMOrderForSVG(GraphicsContext& context, const 
             // only transformed renderers reaching this recursion are leaves and the anonymous outermost
             // viewport container, so no layer descendant ever needs the inverse correction.
             LayoutSize nominalCorrection;
-            if (this == paintingInfo.rootLayer && !isPaintingResourceLayerForSVG() && renderer().isSVGLayerAwareRenderer() && !renderer().isRenderSVGRoot())
+            if (this == paintingInfo.rootLayer() && !isPaintingResourceLayerForSVG() && renderer().isSVGLayerAwareRenderer() && !renderer().isRenderSVGRoot())
                 nominalCorrection = toLayoutSize(renderer().nominalSVGLayoutLocation());
 
             for (const auto& fragment : layerFragments) {
@@ -714,7 +714,7 @@ void RenderLayer::paintChildrenInDOMOrderForSVG(GraphicsContext& context, const 
                 std::optional<RegionContextStateSaver> regionContextStateSaver;
                 if (!sharedClipSaver) {
                     stateSaver.emplace(context, false);
-                    regionContextStateSaver.emplace(paintingInfo.regionContext);
+                    regionContextStateSaver.emplace(paintingInfo.regionContext());
                     clipToRect(context, *stateSaver, *regionContextStateSaver, paintingInfo, paintBehavior, fragment.dirtyForegroundRect());
                 }
 
@@ -862,7 +862,7 @@ void RenderLayer::paintRendererByApplyingTransformForSVG(GraphicsContext& contex
         auto& transformedPaintingInfo = scope.transformedPaintingInfo();
         auto paintInScope = [&](PaintPhase phase, const LayoutPoint& offset, StateSavedByCaller rendererStateSavedByCaller = StateSavedByCaller::No) {
             PaintInfo paintInfo(context, transformedPaintingInfo.paintDirtyRect, phase, paintBehavior, subtreePaintRoot,
-                nullptr, nullptr, &transformedPaintingInfo.rootLayer->renderer(), this,
+                nullptr, nullptr, &transformedPaintingInfo.rootLayer()->renderer(), this,
                 transformedPaintingInfo.requireSecurityOriginAccessForWidgets);
             paintInfo.stateSavedByCaller = rendererStateSavedByCaller;
             rendererToPaint->paint(paintInfo, offset);
@@ -976,13 +976,13 @@ void RenderLayer::paintSubtreeWithinTransformScopeForSVG(GraphicsContext& contex
                 paintSubtreeWithinTransformScopeForSVG(context, child.get(), adjustedPaintOffset, paintingInfo, paintFlags, paintBehavior, subtreePaintRoot);
 
                 PaintInfo outlinePaintInfo(context, paintingInfo.paintDirtyRect, PaintPhase::SelfOutline, paintBehavior, subtreePaintRoot,
-                    nullptr, nullptr, &paintingInfo.rootLayer->renderer(), this,
+                    nullptr, nullptr, &paintingInfo.rootLayer()->renderer(), this,
                     paintingInfo.requireSecurityOriginAccessForWidgets);
                 child->paint(outlinePaintInfo, paintOffset);
             } else {
                 LayoutRect dirtyRect = paintingInfo.paintDirtyRect;
                 PaintInfo paintInfo(context, dirtyRect, PaintPhase::Foreground, paintBehavior, subtreePaintRoot,
-                    nullptr, nullptr, &paintingInfo.rootLayer->renderer(), this,
+                    nullptr, nullptr, &paintingInfo.rootLayer()->renderer(), this,
                     paintingInfo.requireSecurityOriginAccessForWidgets);
                 child->paint(paintInfo, paintOffset);
 

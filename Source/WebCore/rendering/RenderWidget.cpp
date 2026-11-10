@@ -327,17 +327,17 @@ void RenderWidget::paintContents(PaintInfo& paintInfo, const LayoutPoint& paintO
         paintRect.move(-widgetPaintOffset.width(), -widgetPaintOffset.height());
     }
 
-    if (paintInfo.regionContext) {
+    if (paintInfo.regionContext()) {
         AffineTransform transform;
         transform.translate(snappedPaintOffset);
-        paintInfo.regionContext->pushTransform(transform);
+        paintInfo.regionContext()->pushTransform(transform);
     }
 
     // FIXME: Remove repaintrect enclosing/integral snapping when RenderWidget becomes device pixel snapped.
-    protect(m_widget)->paint(paintInfo.context(), enclosingIntRect(paintRect), paintInfo.requireSecurityOriginAccessForWidgets ? Widget::SecurityOriginPaintPolicy::AccessibleOriginOnly : Widget::SecurityOriginPaintPolicy::AnyOrigin, paintInfo.regionContext);
+    protect(m_widget)->paint(paintInfo.context(), enclosingIntRect(paintRect), paintInfo.requireSecurityOriginAccessForWidgets ? Widget::SecurityOriginPaintPolicy::AccessibleOriginOnly : Widget::SecurityOriginPaintPolicy::AnyOrigin, paintInfo.regionContext());
 
-    if (paintInfo.regionContext)
-        paintInfo.regionContext->popTransform();
+    if (paintInfo.regionContext())
+        paintInfo.regionContext()->popTransform();
 
     if (!widgetPaintOffset.isZero())
         paintInfo.context().translate(-widgetPaintOffset);

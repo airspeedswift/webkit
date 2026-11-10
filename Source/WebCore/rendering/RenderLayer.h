@@ -1099,36 +1099,41 @@ public:
 
     struct LayerPaintingInfo {
         SWIFT_UNAVAILABLE_IN_SWIFT __attribute__((swift_attr("@_lifetime(immortal)"))) LayerPaintingInfo(RenderLayer* inRootLayer, const LayoutRect& inDirtyRect, OptionSet<PaintBehavior> inPaintBehavior, const LayoutSize& inSubpixelOffset, RenderObject* inSubtreePaintRoot = nullptr, OverlapTestRequestMap* inOverlapTestRequests = nullptr, bool inRequireSecurityOriginAccessForWidgets = false)
-            : rootLayer(inRootLayer)
-            , subtreePaintRoot(inSubtreePaintRoot)
-            , paintDirtyRect(inDirtyRect)
+            : paintDirtyRect(inDirtyRect)
             , subpixelOffset(inSubpixelOffset)
             , paintBehavior(inPaintBehavior)
             , requireSecurityOriginAccessForWidgets(inRequireSecurityOriginAccessForWidgets)
+            , m_rootLayer(std::bit_cast<uintptr_t>(inRootLayer))
+            , m_subtreePaintRoot(std::bit_cast<uintptr_t>(inSubtreePaintRoot))
             , m_overlapTestRequests(std::bit_cast<uintptr_t>(inOverlapTestRequests))
         { }
 
-        // The painting info of a layer painted as its own root, with no overlap test requests or region context.
-        __attribute__((swift_attr("@_lifetime(immortal)"))) static LayerPaintingInfo forRootLayer(RenderLayer* rootLayer, LayoutRect dirtyRect, OptionSet<PaintBehavior> paintBehavior, LayoutSize subpixelOffset)
+        // The painting info of a layer painted as its own root within this painting, with no overlap test requests or
+        // region context.
+        LayerPaintingInfo forRootLayer(RenderLayer* rootLayer, LayoutRect dirtyRect, OptionSet<PaintBehavior> paintBehavior, LayoutSize subpixelOffset) const LIFETIME_BOUND
         {
             return LayerPaintingInfo(rootLayer, dirtyRect, paintBehavior, subpixelOffset);
         }
 
         OverlapTestRequestMap* overlapTestRequests() const { return std::bit_cast<OverlapTestRequestMap*>(m_overlapTestRequests); } // May be null.
         void applyOverlapTestRequests(NOESCAPE PaintInfo& paintInfo) const { paintInfo.setOverlapTestRequests(overlapTestRequests()); }
-        // Swift stores a reference type at +1 into a field, and C++ does not release it.
-        void setRootLayer(RenderLayer* layer) { rootLayer = layer; }
 
-        RenderLayer* rootLayer { nullptr };
-        RenderObject* subtreePaintRoot { nullptr }; // Only paint descendants of this object.
+        RenderLayer* rootLayer() const { return std::bit_cast<RenderLayer*>(m_rootLayer); }
+        void setRootLayer(RenderLayer* layer) { m_rootLayer = std::bit_cast<uintptr_t>(layer); }
+        RenderObject* subtreePaintRoot() const { return std::bit_cast<RenderObject*>(m_subtreePaintRoot); } // Only paint descendants of this object.
+        RegionContext* regionContext() const { return std::bit_cast<RegionContext*>(m_regionContext); }
+        void setRegionContext(RegionContext* context) { m_regionContext = std::bit_cast<uintptr_t>(context); }
+
         LayoutRect paintDirtyRect; // Relative to rootLayer;
         LayoutSize subpixelOffset;
         OptionSet<PaintBehavior> paintBehavior;
         bool requireSecurityOriginAccessForWidgets { false };
-        CheckedPtr<RegionContext> regionContext;
 
     private:
-        // An integer, so that Swift imports the struct as a view: it cannot track a pointer to the map.
+        // Integers, so that the struct is trivially copyable and Swift imports it as a view that refers to none of these.
+        uintptr_t m_rootLayer { 0 };
+        uintptr_t m_subtreePaintRoot { 0 };
+        uintptr_t m_regionContext { 0 };
         uintptr_t m_overlapTestRequests { 0 };
     } SWIFT_VIEW;
 
