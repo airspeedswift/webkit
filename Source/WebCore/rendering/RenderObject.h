@@ -844,6 +844,9 @@ public:
     const RenderBlock* asRenderBlock() const;
     bool frameIsMainFrameForSwift() const;
     bool hasEnclosingFragmentedFlowForSwift() const;
+    // The renderer of the document's fullscreen element, when it has a layer model renderer.
+    RenderLayerModelObject* fullscreenElementRendererForSwift() const;
+    bool documentHasActiveViewTransitionForSwift() const;
     // Swift compares renderers here: it has no identity comparison of its own for them.
     static bool isSameRenderer(const RenderObject* a, const RenderObject* b) { return a == b; }
     static RenderBlock* containingBlockForPositionType(PositionType, const RenderObject&);

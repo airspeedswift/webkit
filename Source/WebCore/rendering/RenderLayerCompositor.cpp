@@ -310,14 +310,6 @@ struct RenderLayerCompositor::UpdateBackingTraversalState {
     To debug sharing behavior, enable the "Compositing" log channel and look for the P/p in the hierarchy output.
  */
 
-enum class BackingSharingSequenceIdentifierType { };
-using BackingSharingSequenceIdentifier = ObjectIdentifier<BackingSharingSequenceIdentifierType>;
-
-struct RenderLayerCompositor::BackingSharingSnapshot {
-    BackingSharingSequenceIdentifier sequenceIdentifier;
-    size_t providerCount { 0 };
-};
-
 class RenderLayerCompositor::BackingSharingState {
     WTF_MAKE_NONCOPYABLE(BackingSharingState);
 public:
@@ -3290,8 +3282,9 @@ bool RenderLayerCompositor::has3DContent() const
     return layerHas3DContent(rootRenderLayer());
 }
 
-bool RenderLayerCompositor::needsToBeComposited(const RenderLayer& layer, RequiresCompositingData& queryData) const
+bool RenderLayerCompositor::needsToBeComposited(const RenderLayer& layer, NOESCAPE RequiresCompositingDataView queryDataView) const
 {
+    auto& queryData = *queryDataView;
     if (!canBeComposited(layer))
         return false;
 
@@ -3301,8 +3294,9 @@ bool RenderLayerCompositor::needsToBeComposited(const RenderLayer& layer, Requir
 // Note: this specifies whether the RL needs a compositing layer for intrinsic reasons.
 // Use needsToBeComposited() to determine if a RL actually needs a compositing layer.
 // FIXME: is clipsCompositingDescendants() an intrinsic reason?
-bool RenderLayerCompositor::requiresCompositingLayer(const RenderLayer& layer, RequiresCompositingData& queryData) const
+bool RenderLayerCompositor::requiresCompositingLayer(const RenderLayer& layer, NOESCAPE RequiresCompositingDataView queryDataView) const
 {
+    auto& queryData = *queryDataView;
     auto& renderer = rendererForCompositingTests(layer);
 
     if (!renderer.layer()) {
@@ -3386,7 +3380,7 @@ static FullScreenDescendant isDescendantOfFullScreenLayer(const RenderLayer& lay
 }
 #endif
 
-bool RenderLayerCompositor::requiresOwnBackingStore(const RenderLayer& layer, const RenderLayer* compositingAncestorLayer, const LayoutRect& layerCompositedBoundsInAncestor, const LayoutRect& ancestorCompositedBounds) const
+bool RenderLayerCompositor::requiresOwnBackingStore(const RenderLayer& layer, const RenderLayer* compositingAncestorLayer, LayoutRect layerCompositedBoundsInAncestor, LayoutRect ancestorCompositedBounds) const
 {
     auto& renderer = layer.renderer();
 
@@ -4133,8 +4127,9 @@ bool RenderLayerCompositor::requiresCompositingForScrollableFrame(RequiresCompos
     return m_renderView.frameView().isScrollable();
 }
 
-bool RenderLayerCompositor::requiresCompositingForPosition(RenderLayerModelObject& renderer, const RenderLayer& layer, RequiresCompositingData& queryData) const
+bool RenderLayerCompositor::requiresCompositingForPosition(RenderLayerModelObject& renderer, const RenderLayer& layer, NOESCAPE RequiresCompositingDataView queryDataView) const
 {
+    auto& queryData = *queryDataView;
     // position:fixed elements that create their own stacking context (e.g. have an explicit z-index,
     // opacity, transform) can get their own composited layer. A stacking context is required otherwise
     // z-index and clipping will be broken.

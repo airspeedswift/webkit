@@ -417,6 +417,16 @@ inline bool ComputedStyle::willChangeCanBeBackdropRootForSwift() const
     return willChange().canBeBackdropRoot();
 }
 
+inline bool ComputedStyle::willChangeCanTriggerCompositingForSwift() const
+{
+    return willChange().canTriggerCompositing();
+}
+
+inline bool ComputedStyle::willChangeCanTriggerCompositingOnInlineForSwift() const
+{
+    return willChange().canTriggerCompositingOnInline();
+}
+
 inline bool ComputedStyle::opacityIsTransparentForSwift() const
 {
     return opacity().isTransparent();

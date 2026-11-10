@@ -696,6 +696,7 @@ public:
 
     // Returns true if this layer has visible content (ignoring any child layers).
     bool isVisuallyNonEmpty(PaintedContentRequest* = nullptr) const;
+    bool isVisuallyNonEmptyForSwift() const { return isVisuallyNonEmpty(); }
     // True if this layer container renderers that paint.
     void determineNonLayerDescendantsPaintedContent(PaintedContentRequest&) const;
 #if HAVE(SUPPORT_HDR_DISPLAY)
@@ -806,6 +807,7 @@ public:
     static constexpr OptionSet<ClipRectsOption> clipRectDefaultOptions = { ClipRectsOption::RespectOverflowClip };
     static constexpr OptionSet<ClipRectsOption> clipRectTemporaryOptions = { ClipRectsOption::RespectOverflowClip, ClipRectsOption::Temporary };
     static constexpr ClipRectsOptions clipRectDefaultOptionsForSwift() { return clipRectDefaultOptions; }
+    static constexpr ClipRectsOptions clipRectTemporaryOptionsForSwift() { return clipRectTemporaryOptions; }
 
     struct SWIFT_UNAVAILABLE_IN_SWIFT ClipRectsContext {
         ClipRectsContext(const RenderLayer* inRootLayer, ClipRectsType inClipRectsType, OptionSet<ClipRectsOption> inOptions = clipRectDefaultOptions)

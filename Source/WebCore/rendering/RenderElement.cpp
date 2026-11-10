@@ -2766,6 +2766,12 @@ SingleThreadWeakPtr<RenderBlockFlow> RenderElement::pseudoElementRenderer(Pseudo
     return rareData().pseudoElementRenderers[pseudoElementRendererIndex(type)];
 }
 
+bool RenderElement::hasBackdropRendererForSwift(const RenderObject& renderer) const
+{
+    auto backdropRenderer = pseudoElementRenderer(PseudoElementType::Backdrop);
+    return backdropRenderer && backdropRenderer.get() == &renderer;
+}
+
 void RenderElement::setPseudoElementRenderer(PseudoElementType type, RenderBlockFlow& renderer)
 {
     ensureRareData().pseudoElementRenderers[pseudoElementRendererIndex(type)] = renderer;

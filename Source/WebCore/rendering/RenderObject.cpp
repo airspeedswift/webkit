@@ -31,6 +31,7 @@
 #include "AXUtilities.h"
 #include "BoundaryPointInlines.h"
 #include "ContainerNodeInlines.h"
+#include "DocumentFullscreen.h"
 #include "DocumentView.h"
 #include "EditingInlines.h"
 #include "Editor.h"
@@ -841,6 +842,26 @@ bool RenderObject::frameIsMainFrameForSwift() const
 bool RenderObject::hasEnclosingFragmentedFlowForSwift() const
 {
     return enclosingFragmentedFlow();
+}
+
+RenderLayerModelObject* RenderObject::fullscreenElementRendererForSwift() const
+{
+#if ENABLE(FULLSCREEN_API)
+    RefPtr documentFullscreen = document().fullscreenIfExists();
+    if (!documentFullscreen)
+        return nullptr;
+    RefPtr fullscreenElement = documentFullscreen->fullscreenElement();
+    if (!fullscreenElement)
+        return nullptr;
+    return dynamicDowncast<RenderLayerModelObject>(fullscreenElement->renderer());
+#else
+    return nullptr;
+#endif
+}
+
+bool RenderObject::documentHasActiveViewTransitionForSwift() const
+{
+    return document().activeViewTransition();
 }
 
 RenderBlock* RenderObject::containingBlock() const

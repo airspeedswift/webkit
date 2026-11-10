@@ -33,6 +33,7 @@
 #include <wtf/CheckedPtr.h>
 #include <wtf/HashMap.h>
 #include <wtf/InlineWeakPtr.h>
+#include <wtf/ObjectIdentifier.h>
 #include <wtf/OptionSet.h>
 #include <wtf/Platform.h>
 #include <wtf/TZoneMalloc.h>
@@ -53,6 +54,9 @@ class TiledBacking;
 
 enum class CompositingPolicy : bool;
 enum class ScrollingNodeType : uint8_t;
+
+enum class BackingSharingSequenceIdentifierType { };
+using BackingSharingSequenceIdentifier = ObjectIdentifier<BackingSharingSequenceIdentifierType>;
 
 enum class CompositingUpdateType {
     AfterStyleChange,
@@ -231,6 +235,34 @@ public:
         bool intrinsic { false };
     };
 
+    // A RequiresCompositingData that a C++ caller lends to Swift for the duration of one call.
+    class RequiresCompositingDataView {
+    public:
+        RequiresCompositingDataView(RequiresCompositingData& data LIFETIME_BOUND)
+            : m_data(std::bit_cast<uintptr_t>(&data))
+        {
+        }
+
+        RequiresCompositingData& operator*() const LIFETIME_BOUND { return *std::bit_cast<RequiresCompositingData*>(m_data); }
+
+    private:
+        // An integer, as in PaintInfoView: Swift does not import a pointer to a view type.
+        uintptr_t m_data;
+    } SWIFT_VIEW;
+
+    // ChromeClient's compositing triggers, which Swift cannot name through the abstract ChromeClient.
+    enum class CompositingTrigger : unsigned {
+        ThreeDTransform = ChromeClient::ThreeDTransformTrigger,
+        Video = ChromeClient::VideoTrigger,
+        Plugin = ChromeClient::PluginTrigger,
+        Canvas = ChromeClient::CanvasTrigger,
+        Animation = ChromeClient::AnimationTrigger,
+        Filter = ChromeClient::FilterTrigger,
+        ScrollableNonMainFrame = ChromeClient::ScrollableNonMainFrameTrigger,
+        AnimatedOpacity = ChromeClient::AnimatedOpacityTrigger,
+    };
+    bool hasCompositingTrigger(CompositingTrigger trigger) const { return m_compositingTriggers & static_cast<unsigned>(trigger); }
+
     // Whether layer's backing needs a graphics layer to do clipping by an ancestor (non-stacking-context parent with overflow).
     bool clippedByAncestor(RenderLayer&, const RenderLayer* compositingAncestor) const;
 
@@ -280,7 +312,7 @@ public:
     void repaintCompositedLayers();
 
     // Returns true if the given layer needs it own backing store.
-    bool requiresOwnBackingStore(const RenderLayer&, const RenderLayer* compositingAncestorLayer, const LayoutRect& layerCompositedBoundsInAncestor, const LayoutRect& ancestorCompositedBounds) const;
+    bool requiresOwnBackingStore(const RenderLayer&, const RenderLayer* compositingAncestorLayer, LayoutRect layerCompositedBoundsInAncestor, LayoutRect ancestorCompositedBounds) const;
 
     WEBCORE_EXPORT RenderLayer& LEGACY_NODELETE rootRenderLayer() const;
     GraphicsLayer* LEGACY_NODELETE rootGraphicsLayer() const;
@@ -421,7 +453,8 @@ public:
 
     bool hasNonMainLayersWithTiledBacking() const { return m_layersWithTiledBackingCount; }
 
-    OptionSet<CompositingReason> reasonsForCompositing(const RenderLayer&) const;
+    using CompositingReasons = OptionSet<CompositingReason>;
+    CompositingReasons reasonsForCompositing(const RenderLayer&) const;
     
     void didPaintBacking(RenderLayerBacking*);
 
@@ -463,9 +496,9 @@ private:
     void cacheAcceleratedCompositingFlagsAfterLayout();
 
     // Whether the given RL needs a compositing layer.
-    bool needsToBeComposited(const RenderLayer&, RequiresCompositingData&) const;
+    bool needsToBeComposited(const RenderLayer&, NOESCAPE RequiresCompositingDataView) const;
     // Whether the layer has an intrinsic need for compositing layer.
-    bool requiresCompositingLayer(const RenderLayer&, RequiresCompositingData&) const;
+    bool requiresCompositingLayer(const RenderLayer&, NOESCAPE RequiresCompositingDataView) const;
     // Whether the layer could ever be composited.
     bool canBeComposited(const RenderLayer&) const;
 
@@ -489,7 +522,10 @@ private:
     void updateOverlapMap(LayerOverlapMap&, const RenderLayer&, OverlapExtent&, bool didPushContainer, bool addLayerToOverlap, bool addDescendantsToOverlap = false) const;
     bool layerOverlaps(const LayerOverlapMap&, const RenderLayer&, OverlapExtent&) const;
 
-    struct BackingSharingSnapshot;
+    struct BackingSharingSnapshot {
+        BackingSharingSequenceIdentifier sequenceIdentifier;
+        size_t providerCount { 0 };
+    };
 
     std::optional<BackingSharingSnapshot> updateBackingSharingBeforeDescendantTraversal(BackingSharingState&, unsigned depth, const LayerOverlapMap&, RenderLayer&, OverlapExtent&, bool willBeComposited, RenderLayer* stackingContextAncestor);
     void updateBackingSharingAfterDescendantTraversal(BackingSharingState&, unsigned depth, const LayerOverlapMap&, RenderLayer&, OverlapExtent&, RenderLayer* stackingContextAncestor, const std::optional<BackingSharingSnapshot>&);
@@ -568,7 +604,7 @@ private:
     bool requiresCompositingForPlugin(RenderLayerModelObject&, RequiresCompositingData&) const;
     bool requiresCompositingForFrame(RenderLayerModelObject&, RequiresCompositingData&) const;
     bool requiresCompositingForScrollableFrame(RequiresCompositingData&) const;
-    bool requiresCompositingForPosition(RenderLayerModelObject&, const RenderLayer&, RequiresCompositingData&) const;
+    bool requiresCompositingForPosition(RenderLayerModelObject&, const RenderLayer&, NOESCAPE RequiresCompositingDataView) const;
     bool requiresCompositingForOverflowScrolling(const RenderLayer&, RequiresCompositingData&) const;
     bool LEGACY_NODELETE requiresCompositingForAnchorPositioning(const RenderLayer&) const;
     IndirectCompositingReason computeIndirectCompositingReason(const RenderLayer&, bool hasCompositedDescendants, bool has3DTransformedDescendants, bool paintsIntoProvidedBacking) const;
@@ -633,6 +669,7 @@ private:
 
     // FIXME: make the coordinated/async terminology consistent.
     bool isAsyncScrollableStickyLayer(const RenderLayer&, const RenderLayer** enclosingAcceleratedOverflowLayer = nullptr) const;
+    bool isAsyncScrollableStickyLayerForSwift(const RenderLayer& layer) const { return isAsyncScrollableStickyLayer(layer); }
 
     bool shouldCompositeOverflowControls() const;
 
@@ -719,7 +756,7 @@ private:
 #if PLATFORM(IOS_FAMILY)
     const std::unique_ptr<LegacyWebKitScrollingLayerCoordinator> m_legacyScrollingLayerCoordinator;
 #endif
-} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT;
+} SWIFT_SHARED_REFERENCE(.incrementCheckedPtrCount, .decrementCheckedPtrCount) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT SWIFT_PRIVATE_FILEID("WebCore/RenderLayerCompositor.swift");
 
 void paintScrollbar(Scrollbar*, GraphicsContext&, const IntRect& clip, const Color& backgroundColor = Color());
 

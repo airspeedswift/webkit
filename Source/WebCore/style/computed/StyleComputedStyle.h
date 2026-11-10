@@ -50,6 +50,8 @@ public:
     inline bool usedZIndexIsAutoForSwift() const SWIFT_NAME(usedZIndexIsAuto());
     inline bool willChangeCanCreateStackingContextForSwift() const SWIFT_NAME(willChangeCanCreateStackingContext());
     inline bool willChangeCanBeBackdropRootForSwift() const SWIFT_NAME(willChangeCanBeBackdropRoot());
+    inline bool willChangeCanTriggerCompositingForSwift() const SWIFT_NAME(willChangeCanTriggerCompositing());
+    inline bool willChangeCanTriggerCompositingOnInlineForSwift() const SWIFT_NAME(willChangeCanTriggerCompositingOnInline());
     inline bool opacityIsTransparentForSwift() const SWIFT_NAME(opacityIsTransparent());
     float opacityValueForSwift() const SWIFT_NAME(opacityValue());
     inline Visibility visibilityForSwift() const SWIFT_NAME(visibility());
