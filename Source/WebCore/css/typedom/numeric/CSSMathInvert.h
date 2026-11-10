@@ -32,11 +32,11 @@ namespace WebCore {
 class CSSMathInvert final : public CSSMathValue {
     WTF_MAKE_TZONE_ALLOCATED(CSSMathInvert);
 public:
-    NODELETE static Ref<CSSMathInvert> create(CSSNumberish&&);
+    NODELETE WEBCORE_EXPORT static Ref<CSSMathInvert> create(CSSNumberish&&);
     CSSNumericValue& value() { return m_value.get(); }
     const CSSNumericValue& value() const { return m_value.get(); }
 
-    std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+    const CSSNumericValue* mathOperand(size_t index) const final { return index ? nullptr : m_value.ptr(); }
 
 private:
     CSSMathOperator getOperator() const final { return CSSMathOperator::Invert; }

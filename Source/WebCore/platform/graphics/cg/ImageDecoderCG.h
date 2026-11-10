@@ -34,11 +34,13 @@
 namespace WebCore {
 
 class SharedBuffer;
+class AnyCGImageDecoder; // Swift (ImageDecodingCG.swift); complete only in ImageDecoderCG.cpp.
 
 class ImageDecoderCG final : public ImageDecoder {
     WTF_MAKE_TZONE_ALLOCATED(ImageDecoderCG);
 public:
     ImageDecoderCG(FragmentedSharedBuffer& data, AlphaOption, GammaAndColorProfileOption);
+    ~ImageDecoderCG();
 
     static Ref<ImageDecoderCG> create(FragmentedSharedBuffer& data, AlphaOption alphaOption, GammaAndColorProfileOption gammaAndColorProfileOption)
     {
@@ -56,7 +58,7 @@ public:
     size_t frameCount() const final;
     size_t primaryFrameIndex() const final;
     RepetitionCount repetitionCount() const final;
-    String uti() const final { return m_uti; }
+    String uti() const final;
     String filenameExtension() const final;
     String accessibilityDescription() const final;
     std::optional<IntPoint> hotSpot() const final;
@@ -76,7 +78,7 @@ public:
     PlatformImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingOptions(DecodingMode::Synchronous)) final;
 
     void setData(const FragmentedSharedBuffer&, bool allDataReceived) final;
-    bool isAllDataReceived() const final { return m_isAllDataReceived; }
+    bool isAllDataReceived() const final;
     void clearFrameBufferCache(size_t) final { }
 
     static String decodeUTI(CGImageSourceRef, const SharedBuffer&);
@@ -98,10 +100,9 @@ private:
     std::optional<SpatialImageEyeProperties> spatialEyePropertiesAtIndex(unsigned) const;
 #endif
 
-    bool m_isAllDataReceived { false };
     std::atomic<bool> m_isXBitmapImage { false };
-    mutable EncodedDataStatus m_encodedDataStatus { EncodedDataStatus::Unknown };
-    String m_uti;
+    // Owns the data, UTI and encoded-data status; shares m_nativeDecoder (see ImageDecoderCG.cpp).
+    const std::unique_ptr<AnyCGImageDecoder> m_swiftDecoder;
     const RetainPtr<CGImageSourceRef> m_nativeDecoder;
 };
 

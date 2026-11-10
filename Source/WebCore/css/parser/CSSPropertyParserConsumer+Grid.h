@@ -53,59 +53,17 @@ namespace CSSPropertyParserHelpers {
 
 // https://drafts.csswg.org/css-grid/
 
-// <'grid-template-areas'> = none | <string>+
-// https://drafts.csswg.org/css-grid/#propdef-grid-template-areas
-std::optional<CSS::GridTemplateAreas> consumeUnresolvedGridTemplateAreas(CSSParserTokenRange&, CSS::PropertyParserState&);
-RefPtr<CSSValue> consumeGridTemplateAreas(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// <'grid-row-start'>/<'grid-column-start'>/<'grid-row-end'>/<'grid-column-end'> = <grid-line>
-// https://drafts.csswg.org/css-grid/#propdef-grid-row-start
-// https://drafts.csswg.org/css-grid/#propdef-grid-column-start
-// https://drafts.csswg.org/css-grid/#propdef-grid-row-end
-// https://drafts.csswg.org/css-grid/#propdef-grid-column-end
-std::optional<CSS::GridLine> consumeUnresolvedGridLine(CSSParserTokenRange&, CSS::PropertyParserState&);
-RefPtr<CSSValue> consumeGridLine(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 // <'grid-template-columns'/'grid-template-rows'> = none | <track-list> | <auto-track-list> | subgrid <line-name-list>?
 // https://drafts.csswg.org/css-grid/#propdef-grid-template-columns
 // https://drafts.csswg.org/css-grid/#propdef-grid-template-rows
-std::optional<CSS::GridTemplateList> consumeUnresolvedGridTemplateList(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeGridTemplateList(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // <'grid-auto-columns'>/<'grid-auto-rows'> = <track-size>+
 // https://drafts.csswg.org/css-grid/#propdef-grid-auto-columns
 // https://drafts.csswg.org/css-grid/#propdef-grid-auto-rows
-std::optional<CSS::GridTrackSizes> consumeUnresolvedGridTrackSizes(CSSParserTokenRange&, CSS::PropertyParserState&);
 RefPtr<CSSValue> consumeGridTrackSizes(CSSParserTokenRange&, CSS::PropertyParserState&);
 
-// <'grid-auto-flow'> = normal | [ [ row | column ] || dense ]
-// FIXME: `normal` is not specified in the link below. Figure out where `normal` comes from and add link.
-// https://drafts.csswg.org/css-grid/#propdef-grid-auto-flow
-std::optional<CSS::GridAutoFlow> consumeUnresolvedGridAutoFlow(CSSParserTokenRange&, CSS::PropertyParserState&);
-RefPtr<CSSValue> consumeGridAutoFlow(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-
 // MARK: - Shorthand Parser Utilities
-
-// Parses a single <string> token from a <'grid-template-areas'> production.
-// https://drafts.csswg.org/css-grid/#valdef-grid-template-areas-string
-// NOTE: Exposed for use by shorthand parsers.
-std::optional<CSS::GridNamedAreaMapRow> consumeUnresolvedGridTemplateAreasRow(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// <line-names> = '[' <custom-ident excluding=span,auto>* ']'
-// https://drafts.csswg.org/css-grid/#typedef-line-names
-// NOTE: Exposed for use by shorthand parsers.
-std::optional<CSS::GridLineNames> consumeUnresolvedGridLineNames(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// <track-size> = <track-breadth> | minmax( <inflexible-breadth> , <track-breadth> ) | fit-content( <length-percentage [0,∞]> )
-// https://drafts.csswg.org/css-grid/#typedef-track-size
-// NOTE: Exposed for use by shorthand parsers.
-std::optional<CSS::GridTrackSize> consumeUnresolvedGridTrackSize(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// <explicit-track-list> = [ <line-names>? <track-size> ]+ <line-names>?
-// https://drafts.csswg.org/css-grid-2/#typedef-explicit-track-list
-// NOTE: Exposed for use by shorthand parsers.
-std::optional<CSS::GridTrackList> consumeUnresolvedGridExplicitTrackList(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

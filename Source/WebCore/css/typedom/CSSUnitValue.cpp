@@ -411,9 +411,9 @@ RefPtr<CSSValue> CSSUnitValue::toCSSValueWithProperty(CSSPropertyID propertyID) 
     if (isValueOutOfRangeForProperty(propertyID, m_value, m_unit)) {
         // Wrap out of range values with a calc.
 
-        auto node = toCalcTreeNode();
-        ASSERT(node);
-        auto type = CSSCalc::getType(*node);
+        auto tree = toCalcTree(true);
+        RELEASE_ASSERT(tree);
+        auto type = tree->type;
 
         auto range = rangeForProperty(propertyID, m_unit);
         auto category = calculationCategoryForProperty(propertyID, m_unit);
@@ -423,22 +423,9 @@ RefPtr<CSSValue> CSSUnitValue::toCSSValueWithProperty(CSSPropertyID propertyID) 
             return nullptr;
         }
 
-        Vector<CSSCalc::Child> sumChildren;
-        sumChildren.append(WTF::move(*node));
-        auto sum = CSSCalc::makeChild(CSSCalc::Sum { .children = WTF::move(sumChildren) }, type);
-
-        return CSSPrimitiveValue::create(CSSCalc::Value::create(category, range, CSSCalc::Tree {
-            .root = WTF::move(sum),
-            .type = type,
-            .stage = CSSCalc::Stage::Specified,
-        }));
+        return CSSPrimitiveValue::create(CSSCalc::Value::create(category, range, WTF::move(*tree)));
     }
     return toCSSValue();
-}
-
-std::optional<CSSCalc::Child> CSSUnitValue::toCalcTreeNode() const
-{
-    return CSSCalc::makeNumeric(m_value, m_unit);
 }
 
 } // namespace WebCore

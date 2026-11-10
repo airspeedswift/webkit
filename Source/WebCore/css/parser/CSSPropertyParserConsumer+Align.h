@@ -38,29 +38,5 @@ struct PropertyParserState;
 
 namespace CSSPropertyParserHelpers {
 
-// MARK: <'align-content'>
-// https://drafts.csswg.org/css-align/#propdef-align-content
-RefPtr<CSSValue> consumeAlignContent(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: <'justify-content'>
-// https://drafts.csswg.org/css-align/#propdef-justify-content
-RefPtr<CSSValue> consumeJustifyContent(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: <'align-self'>
-// https://drafts.csswg.org/css-align/#propdef-align-self
-RefPtr<CSSValue> consumeAlignSelf(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: <'justify-self'>
-// https://drafts.csswg.org/css-align/#propdef-justify-self
-RefPtr<CSSValue> consumeJustifySelf(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: <'align-items'>
-// https://drafts.csswg.org/css-align/#propdef-align-items
-RefPtr<CSSValue> consumeAlignItems(CSSParserTokenRange&, CSS::PropertyParserState&);
-
-// MARK: <'justify-items'>
-// https://drafts.csswg.org/css-align/#propdef-justify-items
-RefPtr<CSSValue> consumeJustifyItems(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

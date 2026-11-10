@@ -30,110 +30,11 @@
 namespace WebCore {
 namespace CSSCalc {
 
-static auto copy(const Random::Sharing&) -> Random::Sharing;
-static auto copy(const CSSValueID&) -> CSSValueID;
-static auto copy(const CSS::Keyword::None&) -> CSS::Keyword::None;
-static auto copy(const CalcMix::Item&) -> CalcMix::Item;
-static auto copy(const Vector<CalcMix::Item>&) -> Vector<CalcMix::Item>;
-static auto copy(const std::optional<Child>& root) -> std::optional<Child>;
-static auto copy(const ChildOrNone&) -> ChildOrNone;
-static auto copy(const Children&) -> Children;
-static auto copy(const Child&) -> Child;
-template<Leaf Op> NODELETE Child copy(const Op&);
-template<typename Op> static auto copy(const IndirectNode<Op>&) -> Child;
-static auto copy(const IndirectNode<Anchor>&) -> Child;
-static auto copy(const IndirectNode<AnchorSize>&) -> Child;
-
-// MARK: Copying
-
-Random::Sharing copy(const Random::Sharing& root)
-{
-    return root;
-}
-
-NODELETE CSSValueID copy(const CSSValueID& root)
-{
-    return root;
-}
-
-NODELETE CSS::Keyword::None copy(const CSS::Keyword::None& root)
-{
-    return root;
-}
-
-CalcMix::Item copy(const CalcMix::Item& root)
-{
-    return { .value = copy(root.value), .weight = root.weight };
-}
-
-Vector<CalcMix::Item> copy(const Vector<CalcMix::Item>& root)
-{
-    return WTF::map(root, [&](const auto& item) { return copy(item); });
-}
-
-std::optional<Child> copy(const std::optional<Child>& root)
-{
-    if (root)
-        return copy(*root);
-    return std::nullopt;
-}
-
-ChildOrNone copy(const ChildOrNone& root)
-{
-    return WTF::switchOn(root, [&](const auto& root) { return ChildOrNone { copy(root) }; });
-}
-
-Children copy(const Children& children)
-{
-    return WTF::map(children, [&](const auto& child) { return copy(child); });
-}
-
-Child copy(const Child& root)
-{
-    return WTF::switchOn(root, [&](const auto& root) { return copy(root); });
-}
-
-template<Leaf Op> NODELETE Child copy(const Op& root)
-{
-    return { root };
-}
-
-template<typename Op> Child copy(const IndirectNode<Op>& root)
-{
-    return makeChild(WTF::apply([](const auto& ...x) { return Op { copy(x)... }; } , *root), root.type);
-}
-
-AnchorSide copy(const AnchorSide& root)
-{
-    return WTF::switchOn(root, [&](const auto& root) { return AnchorSide { copy(root) }; });
-}
-
-Child copy(const IndirectNode<Anchor>& anchor)
-{
-    return makeChild(Anchor { .elementName = anchor->elementName, .side = copy(anchor->side), .fallback = copy(anchor->fallback) }, anchor.type);
-}
-
-Child copy(const IndirectNode<AnchorSize>& anchorSize)
-{
-    AnchorSize copyAnchorSize {
-        .elementName = anchorSize->elementName,
-        .dimension = anchorSize->dimension,
-        .fallback = copy(anchorSize->fallback)
-    };
-
-    return makeChild(WTF::move(copyAnchorSize), anchorSize.type);
-}
-
 // MARK: Exposed functions
 
 Tree copy(const Tree& tree)
 {
-    return Tree {
-        .root = copy(tree.root),
-        .type = tree.type,
-        .stage = tree.stage,
-        .requiresConversionData = tree.requiresConversionData
-    };
+    return tree;
 }
 
 } // namespace CSSCalc

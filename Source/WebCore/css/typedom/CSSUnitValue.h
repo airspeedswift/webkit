@@ -37,7 +37,7 @@ enum class CSSUnitType : uint8_t;
 class CSSUnitValue final : public CSSNumericValue {
     WTF_MAKE_TZONE_ALLOCATED(CSSUnitValue);
 public:
-    static ExceptionOr<Ref<CSSUnitValue>> create(double value, const String& unit);
+    WEBCORE_EXPORT static ExceptionOr<Ref<CSSUnitValue>> create(double value, const String& unit);
     static Ref<CSSUnitValue> create(double value, CSSUnitType unit) { return adoptRef(*new CSSUnitValue(value, unit)); }
     static ExceptionOr<Ref<CSSUnitValue>> reifyValue(Document&, const CSSValue&);
 
@@ -54,7 +54,8 @@ public:
 
     RefPtr<CSSValue> toCSSValue() const final;
     RefPtr<CSSValue> toCSSValueWithProperty(CSSPropertyID) const final;
-    std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+    double unitValue() const final { return m_value; }
+    CSSUnitType unitType() const final { return m_unit; }
 
 private:
     CSSUnitValue(double, CSSUnitType);

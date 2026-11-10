@@ -100,6 +100,12 @@ public:
 
     bool selfClosing() const;
     const AttributeList& attributes() const LIFETIME_BOUND;
+    size_t attributeCount() const { return m_attributes.size(); }
+    std::span<const char16_t> attributeName(size_t i) const LIFETIME_BOUND { return m_attributes[i].name.span(); }
+    std::span<const char16_t> attributeValue(size_t i) const LIFETIME_BOUND { return m_attributes[i].value.span(); }
+    // The characters, the comment, a processing instruction's data, or a DOCTYPE's name.
+    std::span<const char16_t> data() const LIFETIME_BOUND { return m_data.span(); }
+    String dataString() const { return m_data8BitCheck <= 0xFF ? String::make8Bit(m_data.span()) : String(m_data.span()); }
 
     void beginStartTag(Latin1Character);
 
@@ -143,7 +149,6 @@ public:
 
     void beginComment();
     void appendToComment(char);
-    void appendToComment(ASCIILiteral);
     void appendToComment(std::span<const Latin1Character>);
     void appendToComment(char16_t);
 
@@ -154,6 +159,7 @@ public:
     using TargetVector = Vector<Latin1Character, 16>;
 
     const TargetVector& processingInstructionTarget() const LIFETIME_BOUND;
+    std::span<const Latin1Character> processingInstructionTargetCharacters() const LIFETIME_BOUND { return m_processingInstructionTarget ? m_processingInstructionTarget->span() : std::span<const Latin1Character> { }; }
     const DataVector& processingInstructionData() const LIFETIME_BOUND;
 
     void beginProcessingInstruction();
@@ -186,6 +192,20 @@ private:
 };
 
 const HTMLToken::Attribute* findAttribute(const Vector<HTMLToken::Attribute>&, StringView name);
+
+#if OS(WINDOWS)
+// FIXME: With the MSVC standard library, Swift does not import a member function of this class that returns a
+// std::span, LIFETIME_BOUND or not ("may return an interior pointer"). It does import these, which take the token
+// LIFETIME_BOUND, with a Span overload whose lifetime depends on the token; HTMLTokenizer.swift calls them through
+// the members' names.
+inline std::span<const Latin1Character> htmlTokenProcessingInstructionTargetCharacters(const HTMLToken& token LIFETIME_BOUND) { return token.processingInstructionTargetCharacters(); }
+#endif
+
+#if OS(WINDOWS)
+// FIXME: As htmlTokenProcessingInstructionTargetCharacters.
+inline std::span<const char16_t> htmlTokenAttributeName(const HTMLToken& token LIFETIME_BOUND, size_t i) { return token.attributeName(i); }
+inline std::span<const char16_t> htmlTokenAttributeValue(const HTMLToken& token LIFETIME_BOUND, size_t i) { return token.attributeValue(i); }
+#endif
 
 inline void HTMLToken::clear()
 {
@@ -478,12 +498,6 @@ inline void HTMLToken::appendToComment(char character)
     ASSERT(character);
     ASSERT(m_type == Type::Comment);
     m_data.append(character);
-}
-
-inline void HTMLToken::appendToComment(ASCIILiteral literal)
-{
-    ASSERT(m_type == Type::Comment);
-    m_data.append(literal.span8());
 }
 
 inline void HTMLToken::appendToComment(std::span<const Latin1Character> characters)

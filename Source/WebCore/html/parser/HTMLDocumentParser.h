@@ -42,37 +42,57 @@ class HTMLDocument;
 class HTMLParserScheduler;
 class HTMLPreloadScanner;
 class HTMLScriptRunner;
-class HTMLTreeBuilder;
 class HTMLResourcePreloader;
 class PumpSession;
+struct HTMLTreeBuilderHolder;
+class JSCustomElementInterface;
+class Text;
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(HTMLDocumentParser);
 class HTMLDocumentParser : public ScriptableDocumentParser, private HTMLScriptRunnerHost, private PendingScriptClient, public CanMakeCheckedPtr<HTMLDocumentParser> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(HTMLDocumentParser, HTMLDocumentParser);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(HTMLDocumentParser);
 public:
-    static Ref<HTMLDocumentParser> create(HTMLDocument&, OptionSet<ParserContentPolicy> = DefaultParserContentPolicy);
+    SWIFT_UNSAFE static Ref<HTMLDocumentParser> create(HTMLDocument&, OptionSet<ParserContentPolicy> = DefaultParserContentPolicy);
     virtual ~HTMLDocumentParser();
 
     // CheckedPtr interface
     uint32_t checkedPtrCount() const final { return CanMakeCheckedPtr::checkedPtrCount(); }
     uint32_t checkedPtrCountWithoutThreadCheck() const final { return CanMakeCheckedPtr::checkedPtrCountWithoutThreadCheck(); }
-    void incrementCheckedPtrCount() const final { CanMakeCheckedPtr::incrementCheckedPtrCount(); }
-    void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
-    void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
+    SWIFT_UNSAFE void incrementCheckedPtrCount() const final { CanMakeCheckedPtr::incrementCheckedPtrCount(); }
+    SWIFT_UNSAFE void decrementCheckedPtrCount() const final { CanMakeCheckedPtr::decrementCheckedPtrCount(); }
+    SWIFT_UNSAFE void setDidBeginCheckedPtrDeletion() final { CanMakeCheckedPtr::setDidBeginCheckedPtrDeletion(); }
 
     HTMLDocumentParser* asHTMLDocumentParser() final { return this; }
 
     static void parseDocumentFragment(const String&, DocumentFragment&, Element& contextElement, OptionSet<ParserContentPolicy> = { ParserContentPolicy::AllowScriptingContent }, CustomElementRegistry* = nullptr);
 
-    // For HTMLParserScheduler.
-    void resumeParsingAfterYield();
+    // For HTMLParserScheduler. Its preconditions are checked only in debug builds, so it is unsafe in Swift.
+    SWIFT_UNSAFE void resumeParsingAfterYield();
 
     // For HTMLTreeBuilder.
     HTMLTokenizer& tokenizer() LIFETIME_BOUND;
     TextPosition textPosition() const final;
 
     NODELETE bool isOnStackOfOpenElements(Element&) const;
+
+    // For HTMLTreeBuilder.swift's token loop: the checks pumpTokenizer makes before each token, then the next token.
+    enum class PumpStep : uint8_t { Token, NoToken, Yield, Stop };
+    PumpStep nextTokenForTreeBuilder(HTMLTokenAttributes&);
+
+    // For HTMLTreeBuilder.swift, between tokens.
+    void setTokenizerDataState() { m_tokenizer.setDataState(); }
+    void setTokenizerPLAINTEXTState() { m_tokenizer.setPLAINTEXTState(); }
+    void setTokenizerRAWTEXTState() { m_tokenizer.setRAWTEXTState(); }
+    void setTokenizerRCDATAState() { m_tokenizer.setRCDATAState(); }
+    void setTokenizerScriptDataState() { m_tokenizer.setScriptDataState(); }
+    void setTokenizerShouldAllowCDATA(bool value) { m_tokenizer.setShouldAllowCDATA(value); }
+    void setTokenizerForceNullCharacterReplacement(bool value) { m_tokenizer.setForceNullCharacterReplacement(value); }
+    void setScriptToProcess(Element&, TextPosition scriptStartPosition);
+    // The tree builder keeps the start tag's attributes.
+    void setCustomElementToConstruct(JSCustomElementInterface&, CustomElementRegistry&, const AtomString& name);
+    // Appends the first length characters to the parser's last text node, starting its buffer again for a new node.
+    void appendToTextNode(Text&, const String& characters, unsigned length, bool isNewTextNode);
 
 protected:
     explicit HTMLDocumentParser(HTMLDocument&, OptionSet<ParserContentPolicy> = DefaultParserContentPolicy);
@@ -82,7 +102,7 @@ protected:
     void appendSynchronously(RefPtr<StringImpl>&&) override;
     void finish() override;
 
-    HTMLTreeBuilder& treeBuilder() LIFETIME_BOUND { return m_treeBuilder; }
+    void insertTextDocumentFakeElements();
 
 private:
     HTMLDocumentParser(DocumentFragment&, Element& contextElement, OptionSet<ParserContentPolicy>, CustomElementRegistry*);
@@ -108,7 +128,7 @@ private:
     void stopWatchingForLoad(PendingScript&) final;
     HTMLInputStream& inputStream() LIFETIME_BOUND final;
     bool hasPreloadScanner() const final;
-    void appendCurrentInputStreamToPreloadScannerAndScan() final;
+    SWIFT_UNSAFE void appendCurrentInputStreamToPreloadScannerAndScan() final;
 
     // PendingScriptClient
     void notifyFinished(PendingScript&) final;
@@ -119,9 +139,7 @@ private:
     void append(RefPtr<StringImpl>&&, SynchronousMode);
 
     void pumpTokenizer(SynchronousMode);
-    bool pumpTokenizerLoop(SynchronousMode, bool parsingFragment, PumpSession&);
     void pumpTokenizerIfPossible(SynchronousMode);
-    void constructTreeFromHTMLToken(HTMLTokenizer::TokenPtr&);
 
     void runScriptsForPausedTreeBuilder();
     void resumeParsingAfterScriptExecution();
@@ -144,7 +162,10 @@ private:
 
     HTMLTokenizer m_tokenizer;
     const std::unique_ptr<HTMLScriptRunner> m_scriptRunner;
-    const UniqueRef<HTMLTreeBuilder> m_treeBuilder;
+    const UniqueRef<HTMLTreeBuilderHolder> m_treeBuilder;
+    // What pumpTokenizer's token loop keeps for the pump in progress, for nextTokenForTreeBuilder.
+    struct TokenLoop;
+    TokenLoop* m_tokenLoop { nullptr };
     std::unique_ptr<HTMLPreloadScanner> m_preloadScanner;
     std::unique_ptr<HTMLPreloadScanner> m_insertionPreloadScanner;
     RefPtr<HTMLParserScheduler> m_parserScheduler;

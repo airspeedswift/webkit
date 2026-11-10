@@ -47,11 +47,7 @@ Vector<std::pair<CSSValueID, CSS::Percentage<>>> consumeKeyframeKeyList(CSSParse
 
 // MARK: <keyframe-selector> parsing
 // https://drafts.csswg.org/css-animations-1/#typedef-keyframe-selector
-Vector<std::pair<CSSValueID, CSS::Percentage<>>> parseKeyframeKeyList(StringView, const CSSParserContext&);
-
-// MARK: <keyframes-name> consuming
-// https://drafts.csswg.org/css-animations/#typedef-keyframes-name
-RefPtr<CSSValue> consumeKeyframesName(CSSParserTokenRange&, CSS::PropertyParserState&);
+WEBCORE_EXPORT Vector<std::pair<CSSValueID, CSS::Percentage<>>> parseKeyframeKeyList(StringView, const CSSParserContext&);
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

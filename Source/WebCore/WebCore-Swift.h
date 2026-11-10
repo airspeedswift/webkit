@@ -41,4 +41,40 @@
 // If Swift function parameters or return types depend on C++ types, the
 // relevant headers must be included here.
 
+#include "ContainerNode.h"
+#include "Document.h"
+#include "Element.h"
+#include "HTMLFastPathParserTypes.h"
+
+#include "HTMLEntityParser.h"
+#include "HTMLTokenizer.h"
+#include "SegmentedString.h"
+
+#include "CSSTokenizerSwiftTypes.h"
+
+#include "CSSParserFastPathsSwiftTypes.h"
+
+#include "CSSCalcSwiftTypes.h"
+
+#include "CSSNumericValueSwiftTypes.h"
+
+#include "CSSPropertyConsumerSwiftTypes.h"
+
+#include "CustomElementRegistry.h"
+#include "DocumentFragment.h"
+#include "HTMLDocument.h"
+#include "HTMLDocumentParser.h"
+#include "HTMLParserOptions.h"
+#include "HTMLTreeBuilderSwiftSupport.h"
+
+#include "Document.h"
+#include "HTMLPreloadScanner.h"
+
+// The GIF, BMP and ICO decoders are Swift where they are built: the CMake ports that do not decode through ImageIO.
+#if !PLATFORM(COCOA)
+#include "ImageDecoderSwiftTypes.h"
+#endif
+
+#include "TransformationMatrix.h"
+
 #include "WebCoreSwift-Generated.h"

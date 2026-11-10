@@ -34,6 +34,7 @@
 #include "CSSPropertyParserConsumer+List.h"
 #include "CSSPropertyParserState.h"
 #include "CSSPropertyParsing.h"
+#include "CSSPropertyConsumerSwiftTypes.h"
 #include "CSSScrollValue.h"
 #include "CSSValuePair.h"
 #include "CSSViewValue.h"
@@ -59,13 +60,6 @@ bool isTimelineRangeName(CSSValueID id)
         CSSValueID::ExitCrossing,
         CSSValueID::Scroll
     >(id);
-}
-
-static RefPtr<CSSValue> consumeTimelineRangeName(CSSParserTokenRange& range)
-{
-    if (isTimelineRangeName(range.peek().id()))
-        return CSSKeywordValue::create(CSS::Keyword { range.consumeIncludingWhitespace().id() });
-    return nullptr;
 }
 
 std::optional<Style::SingleAnimationRangeName> parseTimelineRangeNameRaw(StringView rangeString)
@@ -197,39 +191,7 @@ std::optional<Style::ViewTimelineInsetItem> parseAbsoluteSingleViewTimelineInset
     return Style::toStyleFromCSSValue<Style::ViewTimelineInsetItem>(*CheckedPtr { dummyState.ptr() }, *parsedValue);
 }
 
-RefPtr<CSSValue> consumeSingleAnimationRange(CSSParserTokenRange& range, CSS::PropertyParserState& state, Style::SingleAnimationRangeType type)
-{
-    // <'animation-range-{start|end}'> = normal | <length-percentage> | <timeline-range-name> <length-percentage>?
-    // https://drafts.csswg.org/scroll-animations-1/#propdef-animation-range-start
-
-    auto isDefault = [](const auto& primitiveValue, auto type) {
-        return WTF::switchOn(primitiveValue,
-            [](const CSSPrimitiveValue::Calc&) {
-                return false;
-            },
-            [type](const CSSPrimitiveValue::Raw& raw) {
-                if (raw.unit != CSSUnitType::Percentage)
-                    return false;
-                if (type == Style::SingleAnimationRangeType::Start)
-                    return raw.value == 0;
-                return raw.value == 100;
-            }
-        );
-    };
-
-    if (auto normal = consumeIdent<CSSValueID::Normal>(range))
-        return normal;
-
-    if (auto name = consumeTimelineRangeName(range)) {
-        if (auto offset = CSSPrimitiveValueResolver<CSS::LengthPercentage<>>::consumeAndResolve(range, state)) {
-            if (isDefault(*offset, type))
-                return name;
-            return CSSValuePair::createNoncoalescing(name.releaseNonNull(), offset.releaseNonNull());
-        }
-        return name;
-    }
-    return CSSPrimitiveValueResolver<CSS::LengthPercentage<>>::consumeAndResolve(range, state);
-}
+RefPtr<CSSValue> consumeSingleAnimationRange(CSSParserTokenRange& range, CSS::PropertyParserState& state, Style::SingleAnimationRangeType type) { return consumePropertyWithSwift(range, state, std::to_underlying(type == Style::SingleAnimationRangeType::Start ? CSSPropertyID::AnimationRangeStart : CSSPropertyID::AnimationRangeEnd)); }
 
 RefPtr<CSSValue> consumeSingleAnimationRangeStart(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {

@@ -47,7 +47,7 @@ RefPtr<CSSValue> consumeParamFunction(CSSParserTokenRange&, CSS::PropertyParserS
 
 // The parameters of a URL's fragment directive.
 // https://drafts.csswg.org/css-link-params/#url-frag
-Vector<CSS::ParamFunction> parseLinkParametersFromFragmentDirective(StringView, const CSSParserContext&);
+WEBCORE_EXPORT Vector<CSS::ParamFunction> parseLinkParametersFromFragmentDirective(StringView, const CSSParserContext&);
 
 } // namespace CSSPropertyParserHelpers
 } // namespace WebCore

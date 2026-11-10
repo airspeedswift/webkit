@@ -187,7 +187,7 @@ CSSCalc::Value& UnevaluatedCalcBase::leakRef()
 
 bool UnevaluatedCalcBase::operator==(const UnevaluatedCalcBase& other) const
 {
-    return calcValue().tree().root == other.calcValue().tree().root;
+    return calcValue().tree().storage == other.calcValue().tree().storage;
 }
 
 Category UnevaluatedCalcBase::runtimeCategory() const
@@ -221,13 +221,13 @@ CSSUnitType UnevaluatedCalcBase::primitiveType() const
     case Category::LengthPercentage:
         if (!calcValue().tree().type.percentHint)
             return CSSUnitType::Px;
-        if (WTF::holdsAlternative<CSSCalc::Percentage>(calcValue().tree().root))
+        if (calcValue().tree().rootIsPercentage())
             return CSSUnitType::Percentage;
         return CSSUnitType::CalcPercentageWithLength;
     case Category::AnglePercentage:
         if (!calcValue().tree().type.percentHint)
             return CSSUnitType::Deg;
-        if (WTF::holdsAlternative<CSSCalc::Percentage>(calcValue().tree().root))
+        if (calcValue().tree().rootIsPercentage())
             return CSSUnitType::Percentage;
         return CSSUnitType::CalcPercentageWithAngle;
     }
@@ -238,7 +238,7 @@ CSSUnitType UnevaluatedCalcBase::primitiveType() const
 
 bool UnevaluatedCalcBase::rootNodeIsPercentage() const
 {
-    return WTF::holdsAlternative<CSSCalc::Percentage>(calcValue().tree().root);
+    return calcValue().tree().rootIsPercentage();
 }
 
 bool UnevaluatedCalcBase::requiresConversionData() const

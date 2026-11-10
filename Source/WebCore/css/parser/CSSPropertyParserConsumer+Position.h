@@ -55,9 +55,6 @@ RefPtr<CSSValue> consumePositionY(CSSParserTokenRange&, CSS::PropertyParserState
 // MARK: <position> (unresolved)
 std::optional<CSS::Position> consumePositionUnresolved(CSSParserTokenRange&, CSS::PropertyParserState&);
 
-// MARK: <bg-position> (unresolved)
-std::optional<CSS::Position> consumeBackgroundPositionUnresolved(CSSParserTokenRange&, CSS::PropertyParserState&);
-
 // MARK: <position-x> (unresolved)
 std::optional<CSS::PositionX> consumePositionXUnresolved(CSSParserTokenRange&, CSS::PropertyParserState&);
 
@@ -66,9 +63,6 @@ std::optional<CSS::PositionY> consumePositionYUnresolved(CSSParserTokenRange&, C
 
 
 // MARK: Subset / Special case parsers.
-
-// NOTE: This is only used by the `<-webkit-radial-gradient()>` and `<transform-origin>` parsers.
-std::optional<CSS::Position> consumeOneOrTwoComponentPositionUnresolved(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // NOTE: This is only used by the `<horizontal-line-command>` parser
 std::optional<CSS::TwoComponentPositionHorizontal> consumeTwoComponentPositionHorizontalUnresolved(CSSParserTokenRange&, CSS::PropertyParserState&);

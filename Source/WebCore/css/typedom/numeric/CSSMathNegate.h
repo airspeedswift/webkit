@@ -39,7 +39,7 @@ public:
     CSSNumericValue& value() { return m_value.get(); }
     const CSSNumericValue& value() const { return m_value.get(); }
 
-    std::optional<CSSCalc::Child> toCalcTreeNode() const final;
+    const CSSNumericValue* mathOperand(size_t index) const final { return index ? nullptr : m_value.ptr(); }
 
 private:
     CSSMathOperator getOperator() const final { return CSSMathOperator::Negate; }

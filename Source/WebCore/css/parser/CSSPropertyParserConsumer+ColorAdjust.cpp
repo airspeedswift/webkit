@@ -34,6 +34,7 @@
 #include "CSSPropertyParserConsumer+Ident.h"
 #include "CSSPropertyParserState.h"
 #include "CSSValueKeywords.h"
+#include "CSSPropertyConsumerSwiftBuilders.h"
 
 namespace WebCore {
 namespace CSSPropertyParserHelpers {
@@ -42,72 +43,7 @@ namespace CSSPropertyParserHelpers {
 
 std::optional<CSS::ColorScheme> consumeUnresolvedColorScheme(CSSParserTokenRange& range, CSS::PropertyParserState& state)
 {
-    // <'color-scheme'> = normal | [ light | dark | <custom-ident> ]+ && only?
-    // https://drafts.csswg.org/css-color-adjust/#propdef-color-scheme
-
-    if (range.peek().id() == CSSValueID::Normal) {
-        range.consumeIncludingWhitespace();
-
-        // NOTE: `normal` is represented in CSS::ColorScheme as an empty list of schemes.
-        return CSS::ColorScheme {
-            .schemes = { },
-            .only = { }
-        };
-    }
-
-    std::optional<CSS::ColorScheme> result = CSS::ColorScheme {
-        .schemes = { },
-        .only = { }
-    };
-
-    if (range.peek().id() == CSSValueID::Only) {
-        range.consumeIncludingWhitespace();
-
-        result->only = CSS::Keyword::Only { };
-    }
-
-    while (!range.atEnd()) {
-        if (range.peek().type() == IdentToken) {
-            switch (CSSValueID id = range.peek().id()) {
-            case CSSValueID::Normal:
-                // `normal` is only allowed as a single value, and was handled earlier.
-                // Don't allow it in the list.
-                return { };
-
-            case CSSValueID::Only:
-                // `only` can either appear first, handled before the loop, or last,
-                // handled here.
-
-                if (result->only)
-                    return { };
-                range.consumeIncludingWhitespace();
-                result->only = CSS::Keyword::Only { };
-
-                if (!range.atEnd())
-                    return { };
-
-                break;
-
-            default:
-                if (!isValidCustomIdentifier(id))
-                    return { };
-
-                result->schemes.value.append(CSS::CustomIdent { range.consumeIncludingWhitespace().value().toAtomString() });
-                break;
-            }
-        } else {
-            auto customIdent = consumeUnresolvedCustomIdentExcluding(range, state, { CSSValueID::Normal, CSSValueID::Only });
-            if (!customIdent)
-                return { };
-
-            result->schemes.value.append(WTF::move(*customIdent));
-        }
-    }
-
-    if (result->schemes.isEmpty())
-        return { };
-
-    return result;
+    return consumeUnresolvedWithSwift<CSS::ColorScheme>(range, state, CSSPropertyConsumerSwiftConsumer::ColorScheme);
 }
 
 std::optional<CSS::ColorScheme> parseUnresolvedColorScheme(StringView string, const CSSParserContext& context)
@@ -141,4 +77,20 @@ RefPtr<CSSValue> consumeColorScheme(CSSParserTokenRange& range, CSS::PropertyPar
 #endif // ENABLE(DARK_MODE_CSS)
 
 } // namespace CSSPropertyParserHelpers
+
+#if ENABLE(DARK_MODE_CSS)
+CSS::ColorScheme makeColorScheme(const CSSPropertyConsumerSwiftValue& value, uint32_t start, uint32_t end, bool only)
+{
+    auto tokens = static_cast<const CSSPropertyConsumerSwiftValueState&>(value).tokens;
+    RELEASE_ASSERT(start <= end && end <= tokens.size());
+    CSS::ColorScheme result { .schemes = { }, .only = { } };
+    for (auto& token : tokens.subspan(start, end - start)) {
+        if (token.type() == IdentToken)
+            result.schemes.value.append(CSS::CustomIdent { token.value().toAtomString() });
+    }
+    if (only)
+        result.only = CSS::Keyword::Only { };
+    return result;
+}
+#endif
 } // namespace WebCore

@@ -1453,6 +1453,13 @@
 		86704B8A12DBA33700A9FE7B /* YarrPattern.h in Headers */ = {isa = PBXBuildFile; fileRef = 86704B8312DBA33700A9FE7B /* YarrPattern.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		868916B0155F286300CB2B9A /* PrivateName.h in Headers */ = {isa = PBXBuildFile; fileRef = 868916A9155F285400CB2B9A /* PrivateName.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		868921C21F9C0CB7001159F6 /* JSBigInt.h in Headers */ = {isa = PBXBuildFile; fileRef = 868921C11F9C0CB7001159F6 /* JSBigInt.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		B16D00010000000000000004 /* JSBigIntSwiftDigits.h in Headers */ = {isa = PBXBuildFile; fileRef = B16D00010000000000000001 /* JSBigIntSwiftDigits.h */; };
+		B16D00010000000000000006 /* JSBigIntDigits.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16D00010000000000000003 /* JSBigIntDigits.swift */; };
+		B16D00010000000000000012 /* JSBigIntDigitsAddSub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16D00010000000000000011 /* JSBigIntDigitsAddSub.swift */; };
+		B16D00010000000000000014 /* JSBigIntDigitsDivide.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16D00010000000000000013 /* JSBigIntDigitsDivide.swift */; };
+		B16D0001000000000000001A /* JSBigIntDigitsFFT.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16D00010000000000000019 /* JSBigIntDigitsFFT.swift */; };
+		B16D00010000000000000016 /* JSBigIntDigitsMultiply.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16D00010000000000000015 /* JSBigIntDigitsMultiply.swift */; };
+		B16D00010000000000000018 /* JSBigIntDigitsPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16D00010000000000000017 /* JSBigIntDigitsPrimitives.swift */; };
 		86976E5E1FA3E8B600E7C4E1 /* BigIntPrototype.h in Headers */ = {isa = PBXBuildFile; fileRef = 86976E5A1FA3758A00E7C4E1 /* BigIntPrototype.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		86976E5F1FA3E8BC00E7C4E1 /* BigIntConstructor.h in Headers */ = {isa = PBXBuildFile; fileRef = 86976E571FA3754000E7C4E1 /* BigIntConstructor.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		869EBCB70E8C6D4A008722CC /* ResultType.h in Headers */ = {isa = PBXBuildFile; fileRef = 869EBCB60E8C6D4A008722CC /* ResultType.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -1769,6 +1776,9 @@
 		A7D9A29817A0BC7400EE2618 /* DFGLICMPhase.h in Headers */ = {isa = PBXBuildFile; fileRef = A7D9A29317A0BC7400EE2618 /* DFGLICMPhase.h */; };
 		A7DCB97312E5193F00911940 /* WriteBarrier.h in Headers */ = {isa = PBXBuildFile; fileRef = A7DCB77912E3D90500911940 /* WriteBarrier.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		A7E2EA6B0FB460CF00601F06 /* LiteralParser.h in Headers */ = {isa = PBXBuildFile; fileRef = A7E2EA690FB460CF00601F06 /* LiteralParser.h */; };
+		A20771A48C1FCDC7B3E7443D /* LiteralParserSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 6A2E371885174327623F0235 /* LiteralParserSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		64511C588C8CAC615A91A1E6 /* LiteralParserSwiftFacade.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 211A39312E7FFD60F660439C /* LiteralParserSwiftFacade.cpp */; };
+		647BC1488A9E180741120884 /* LiteralParserSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610BBE6327462B6DC5EE68CF /* LiteralParserSwift.swift */; };
 		A7E5A3A81797432D00E893C0 /* CompilationResult.h in Headers */ = {isa = PBXBuildFile; fileRef = A7E5A3A61797432D00E893C0 /* CompilationResult.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		A7F2996C17A0BB670010417A /* FTLFail.h in Headers */ = {isa = PBXBuildFile; fileRef = A7F2996A17A0BB670010417A /* FTLFail.h */; };
 		A7F9935F0FD7325100A0B2D0 /* JSONObject.h in Headers */ = {isa = PBXBuildFile; fileRef = A7F9935D0FD7325100A0B2D0 /* JSONObject.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -5208,6 +5218,13 @@
 		868916A9155F285400CB2B9A /* PrivateName.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PrivateName.h; sourceTree = "<group>"; };
 		868921C11F9C0CB7001159F6 /* JSBigInt.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSBigInt.h; sourceTree = "<group>"; };
 		868921C31F9C2947001159F6 /* JSBigInt.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSBigInt.cpp; sourceTree = "<group>"; };
+		B16D00010000000000000003 /* JSBigIntDigits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSBigIntDigits.swift; sourceTree = "<group>"; };
+		B16D00010000000000000011 /* JSBigIntDigitsAddSub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSBigIntDigitsAddSub.swift; sourceTree = "<group>"; };
+		B16D00010000000000000013 /* JSBigIntDigitsDivide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSBigIntDigitsDivide.swift; sourceTree = "<group>"; };
+		B16D00010000000000000019 /* JSBigIntDigitsFFT.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSBigIntDigitsFFT.swift; sourceTree = "<group>"; };
+		B16D00010000000000000015 /* JSBigIntDigitsMultiply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSBigIntDigitsMultiply.swift; sourceTree = "<group>"; };
+		B16D00010000000000000017 /* JSBigIntDigitsPrimitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSBigIntDigitsPrimitives.swift; sourceTree = "<group>"; };
+		B16D00010000000000000001 /* JSBigIntSwiftDigits.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = JSBigIntSwiftDigits.h; sourceTree = "<group>"; };
 		86976E571FA3754000E7C4E1 /* BigIntConstructor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BigIntConstructor.h; sourceTree = "<group>"; };
 		86976E581FA3756D00E7C4E1 /* BigIntConstructor.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BigIntConstructor.cpp; sourceTree = "<group>"; };
 		86976E5A1FA3758A00E7C4E1 /* BigIntPrototype.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BigIntPrototype.h; sourceTree = "<group>"; };
@@ -5763,6 +5780,9 @@
 		A7DCB77912E3D90500911940 /* WriteBarrier.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WriteBarrier.h; sourceTree = "<group>"; };
 		A7E2EA690FB460CF00601F06 /* LiteralParser.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LiteralParser.h; sourceTree = "<group>"; };
 		A7E2EA6A0FB460CF00601F06 /* LiteralParser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = LiteralParser.cpp; sourceTree = "<group>"; };
+		610BBE6327462B6DC5EE68CF /* LiteralParserSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteralParserSwift.swift; sourceTree = "<group>"; };
+		211A39312E7FFD60F660439C /* LiteralParserSwiftFacade.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = LiteralParserSwiftFacade.cpp; sourceTree = "<group>"; };
+		6A2E371885174327623F0235 /* LiteralParserSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LiteralParserSwiftTypes.h; sourceTree = "<group>"; };
 		A7E5A3A51797432D00E893C0 /* CompilationResult.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CompilationResult.cpp; sourceTree = "<group>"; };
 		A7E5A3A61797432D00E893C0 /* CompilationResult.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CompilationResult.h; sourceTree = "<group>"; };
 		A7E5AB361799E4B200D2833D /* X86Disassembler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = X86Disassembler.cpp; path = disassembler/X86Disassembler.cpp; sourceTree = "<group>"; };
@@ -9274,6 +9294,13 @@
 				868921C31F9C2947001159F6 /* JSBigInt.cpp */,
 				868921C11F9C0CB7001159F6 /* JSBigInt.h */,
 				CDBF70742EBC872F00F6D00B /* JSBigIntInlines.h */,
+				B16D00010000000000000003 /* JSBigIntDigits.swift */,
+				B16D00010000000000000011 /* JSBigIntDigitsAddSub.swift */,
+				B16D00010000000000000013 /* JSBigIntDigitsDivide.swift */,
+				B16D00010000000000000019 /* JSBigIntDigitsFFT.swift */,
+				B16D00010000000000000015 /* JSBigIntDigitsMultiply.swift */,
+				B16D00010000000000000017 /* JSBigIntDigitsPrimitives.swift */,
+				B16D00010000000000000001 /* JSBigIntSwiftDigits.h */,
 				86FA9E8F142BBB2D001773B7 /* JSBoundFunction.cpp */,
 				86FA9E90142BBB2E001773B7 /* JSBoundFunction.h */,
 				276B39022A71D2B300252F4E /* JSBoundFunctionInlines.h */,
@@ -9525,6 +9552,9 @@
 				148B1417225DD1D700D6E998 /* LeafExecutable.h */,
 				A7E2EA6A0FB460CF00601F06 /* LiteralParser.cpp */,
 				A7E2EA690FB460CF00601F06 /* LiteralParser.h */,
+				610BBE6327462B6DC5EE68CF /* LiteralParserSwift.swift */,
+				211A39312E7FFD60F660439C /* LiteralParserSwiftFacade.cpp */,
+				6A2E371885174327623F0235 /* LiteralParserSwiftTypes.h */,
 				F692A8680255597D01FF60F7 /* Lookup.cpp */,
 				F692A8690255597D01FF60F7 /* Lookup.h */,
 				28806E21155E478A93FA7B02 /* MachineContext.h */,
@@ -12342,6 +12372,7 @@
 				140D17D70E8AD4A9000CD17D /* JSBasePrivate.h in Headers */,
 				868921C21F9C0CB7001159F6 /* JSBigInt.h in Headers */,
 				CDBF70752EBC872F00F6D00B /* JSBigIntInlines.h in Headers */,
+				B16D00010000000000000004 /* JSBigIntSwiftDigits.h in Headers */,
 				86FA9E92142BBB2E001773B7 /* JSBoundFunction.h in Headers */,
 				276B391A2A71D2B600252F4E /* JSBoundFunctionInlines.h in Headers */,
 				BC18C4190E16F5CD00B34460 /* JSCallbackConstructor.h in Headers */,
@@ -12591,6 +12622,7 @@
 				86D3B3C310159D7F002865E7 /* LinkBuffer.h in Headers */,
 				E3637EE9236E56B00096BD0A /* LinkTimeConstant.h in Headers */,
 				A7E2EA6B0FB460CF00601F06 /* LiteralParser.h in Headers */,
+				A20771A48C1FCDC7B3E7443D /* LiteralParserSwiftTypes.h in Headers */,
 				FE20CE9E15F04A9500DF3430 /* LLIntCLoop.h in Headers */,
 				0F4680CA14BBB16C00BFE272 /* LLIntCommon.h in Headers */,
 				0F4680D314BBD16700BFE272 /* LLIntData.h in Headers */,
@@ -14460,6 +14492,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B16D00010000000000000006 /* JSBigIntDigits.swift in Sources */,
+				B16D00010000000000000012 /* JSBigIntDigitsAddSub.swift in Sources */,
+				B16D00010000000000000014 /* JSBigIntDigitsDivide.swift in Sources */,
+				B16D0001000000000000001A /* JSBigIntDigitsFFT.swift in Sources */,
+				B16D00010000000000000016 /* JSBigIntDigitsMultiply.swift in Sources */,
+				B16D00010000000000000018 /* JSBigIntDigitsPrimitives.swift in Sources */,
 				E39440542F276A4A0055F0DB /* Binja.c in Sources */,
 				5333BBDC2110F7D9007618EC /* DFGSpeculativeJIT.cpp in Sources */,
 				5333BBDD2110F7E1007618EC /* DFGSpeculativeJIT64.cpp in Sources */,
@@ -14695,6 +14733,8 @@
 			files = (
 				077B97302FD2BBE10042BC77 /* JavaScriptCore.swift in Sources */,
 				44F93E0E2AE71FBD00FFA37C /* JavaScriptCoreFramework.cpp in Sources */,
+				64511C588C8CAC615A91A1E6 /* LiteralParserSwiftFacade.cpp in Sources */,
+				647BC1488A9E180741120884 /* LiteralParserSwift.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

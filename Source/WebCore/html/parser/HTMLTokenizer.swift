@@ -1,0 +1,4071 @@
+// Copyright (C) 2026 Apple Inc. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+//
+// THIS SOFTWARE IS PROVIDED BY APPLE INC. AND ITS CONTRIBUTORS ``AS IS''
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL APPLE INC. OR ITS CONTRIBUTORS
+// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+// THE POSSIBILITY OF SUCH DAMAGE.
+
+internal import WebCore_Private.Core.SegmentedString
+internal import WebCore_Private.Core.HTMLToken
+internal import WebCore_Private.Core.HTMLTokenizer
+internal import WebCore_Private.Core.HTMLEntityParser
+internal import WebCore_Private.Core.HTMLEntityTable
+internal import WebCore_Private.Core.CSSTokenizerInputStream // kEndOfFileMarker
+// Operators that WebCore's headers declare use these JavaScriptCore and WTF types. Without their definitions, ==, !,
+// << and * do not typecheck in this file.
+#if canImport(JavaScriptCore_Private) // Not a module outside Apple platforms, where the headers are textual.
+internal import JavaScriptCore_Private.Cxx.Snippet
+internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
+internal import JavaScriptCore_Private.Cxx.WasmInstanceAnchor
+internal import JavaScriptCore_Private.Cxx.WasmCalleeGroup
+internal import JavaScriptCore_Private.Cxx.WasmModule
+internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
+#endif
+internal import wtf.Core.Stopwatch
+internal import WebCore_Private.Core.Attribute
+internal import WebCore_Private.Core.HTMLNameCache
+internal import WebCore_Private.Core.QualifiedName
+internal import WebCore_Private.Core.HTMLPreloadScanner
+
+#if os(Windows)
+// FIXME: With the MSVC standard library, Swift does not import SegmentedString's span accessors (SegmentedString.h),
+// so these give its free-function forms the members' names.
+extension WebCore.SegmentedString {
+    @_lifetime(borrow self)
+    func currentSubstringBytes8() -> Span<UInt8> {
+        WebCore.segmentedStringCurrentSubstringBytes8(self)
+    }
+
+    @_lifetime(borrow self)
+    func currentSubstringSpan16() -> Span<UInt16> {
+        WebCore.segmentedStringCurrentSubstringSpan16(self)
+    }
+}
+
+// FIXME: The same for HTMLToken's span accessors (HTMLToken.h).
+extension WebCore.HTMLToken {
+    @_lifetime(borrow self)
+    func processingInstructionTargetCharacters() -> Span<WTF.Latin1Character> {
+        WebCore.htmlTokenProcessingInstructionTargetCharacters(self)
+    }
+
+    @_lifetime(borrow self)
+    func attributeName(_ i: Int) -> Span<UInt16> {
+        WebCore.htmlTokenAttributeName(self, i)
+    }
+
+    @_lifetime(borrow self)
+    func attributeValue(_ i: Int) -> Span<UInt16> {
+        WebCore.htmlTokenAttributeValue(self, i)
+    }
+}
+#endif
+
+/// Runs HTMLTokenizer::processToken on `tokenizer` and `source`.
+///
+/// Tokenizes `source` until the token is complete or `source` runs out. Returns true if the token is ready.
+///
+/// HTMLTokenizer::processToken passes `*this` as `tokenizer`, and as `source` the SegmentedString its caller passed
+/// in: HTMLDocumentParser's input stream, or a local of the preload scanner, the meta charset parser or another
+/// user of HTMLTokenizer. Nothing else may change either of them until this returns. The C++ called from here:
+/// - HTMLToken's append and begin functions, setSelfClosing, clear, makeEndOfFile and makeReplacedNullCharacter, and
+///   their Vector growth, and processingInstructionTargetCharacters;
+/// - the tokenizer's m_appropriateEndTagName, m_bufferedEndTagName and m_temporaryBuffer, which are Vectors;
+/// - InputStreamPreprocessor's peek and advance functions;
+/// - SegmentedString's advance functions, pushBack, currentSubstringBytes8, currentSubstringSpan16,
+///   advancePastMultiple, advancePastMultiple8 and advancePastMultiple16;
+/// - the static entity table, and String's constructor from a span.
+///
+/// For tag names and attributes, also:
+/// - HTMLToken's attributeCount, attributeName and attributeValue;
+/// - HTMLTokenizer::setTokenTagName, which calls findTagName and AtomString's constructor from a span;
+/// - HTMLTokenizer's reserveTokenAttributes, tokenAttributesContainLocalName, appendTokenAttribute and
+///   setTokenHasDuplicateAttribute, which reach the HTMLDocumentParser's HTMLTokenAttributes through
+///   s_tokenAttributes, and grow its Vector of Attribute;
+/// - HTMLNameCache's makeAttributeQualifiedName and makeAttributeValue, for 8-bit and 16-bit characters, which reach
+///   the name cache's arrays, WTF::equal, AtomStringImpl::add, QualifiedName's constructor, nullAtom and emptyAtom;
+/// - Attribute's constructor, and the destructors of QualifiedName, AtomString and Attribute, and of the cache
+///   entries they replace: StringImpl::destroy, AtomStringImpl::remove, QualifiedName::QualifiedNameImpl's
+///   destructor and fastFree.
+///
+/// For text and doctype tokens, also:
+/// - HTMLToken's data, and dataString, which calls String::make8Bit or String's constructor from a span;
+/// - HTMLTokenizer::setTokenText, and setTokenDoctype, which destroys the token's DoctypeData and calls
+///   StringImpl::create8BitIfPossible; both write the same HTMLTokenAttributes.
+///
+/// None of these reaches the tokenizer or the source except through what this file passes it, runs script or a
+/// callback, or uses another thread. Only setTokenTagName, the four attribute functions, setTokenText and setTokenDoctype reach the parser: they
+/// write HTMLDocumentParser::m_tokenAttributes, which is neither the tokenizer nor the input stream and which the
+/// parser reads after this returns. Scripts run from the tree builder, after this returns.
+@_expose(Cxx)
+func processHTMLTokenizerToken(
+    _ tokenizer: inout WebCore.HTMLTokenizer,
+    _ source: inout WebCore.SegmentedString,
+    _ additionalAllowedCharacter: UInt16
+) -> Bool {
+    // With no end tag to flush and nothing to read, the preprocessor's peek fails without changing anything.
+    if !tokenizer.hasBufferedEndTag && source.isEmpty() {
+        return tokenizer.haveBufferedCharacterToken
+    }
+    return processToken(&tokenizer, &source, additionalAllowedCharacter)
+}
+
+/// The body of HTMLTokenizer::processToken.
+///
+/// It takes the tokenizer as an argument so that processHTMLTokenizerToken saves no registers before its check.
+@inline(never)
+private func processToken(
+    _ tokenizer: inout WebCore.HTMLTokenizer,
+    _ source: inout WebCore.SegmentedString,
+    _ additionalAllowedCharacter: UInt16
+) -> Bool {
+    tokenizer.processTokenMakingAttributes(from: &source, additionalAllowedCharacter: additionalAllowedCharacter)
+}
+
+// FIXME: Internal for the reason HTMLFastPathCodeUnit (HTMLFastPathParser.swift) is: private declarations do not link
+// under ThinLTO on Windows.
+/// HTMLTokenizer::State, in the same order, which HTMLTokenizer::processToken checks with a static_assert.
+internal enum TokenizerState: UInt32 {
+    case data
+    case characterReferenceInData
+    case rcdata
+    case characterReferenceInRCDATA
+    case rawtext
+    case scriptData
+    case plaintext
+    case tagOpen
+    case endTagOpen
+    case tagName
+    case rcdataLessThanSign
+    case rcdataEndTagOpen
+    case rcdataEndTagName
+    case rawtextLessThanSign
+    case rawtextEndTagOpen
+    case rawtextEndTagName
+    case scriptDataLessThanSign
+    case scriptDataEndTagOpen
+    case scriptDataEndTagName
+    case scriptDataEscapeStart
+    case scriptDataEscapeStartDash
+    case scriptDataEscaped
+    case scriptDataEscapedDash
+    case scriptDataEscapedDashDash
+    case scriptDataEscapedLessThanSign
+    case scriptDataEscapedEndTagOpen
+    case scriptDataEscapedEndTagName
+    case scriptDataDoubleEscapeStart
+    case scriptDataDoubleEscaped
+    case scriptDataDoubleEscapedDash
+    case scriptDataDoubleEscapedDashDash
+    case scriptDataDoubleEscapedLessThanSign
+    case scriptDataDoubleEscapeEnd
+    case beforeAttributeName
+    case attributeName
+    case afterAttributeName
+    case beforeAttributeValue
+    case attributeValueDoubleQuoted
+    case attributeValueSingleQuoted
+    case attributeValueUnquoted
+    case characterReferenceInAttributeValue
+    case afterAttributeValueQuoted
+    case selfClosingStartTag
+    case processingInstructionOpen
+    case processingInstructionTarget
+    case afterProcessingInstructionTarget
+    case processingInstructionData
+    case processingInstructionQuestionMark
+    case bogusComment
+    case continueBogusComment
+    case markupDeclarationOpen
+    case commentStart
+    case commentStartDash
+    case comment
+    case commentEndDash
+    case commentEnd
+    case commentEndBang
+    case doctype
+    case beforeDOCTYPEName
+    case doctypeName
+    case afterDOCTYPEName
+    case afterDOCTYPEPublicKeyword
+    case beforeDOCTYPEPublicIdentifier
+    case doctypePublicIdentifierDoubleQuoted
+    case doctypePublicIdentifierSingleQuoted
+    case afterDOCTYPEPublicIdentifier
+    case betweenDOCTYPEPublicAndSystemIdentifiers
+    case afterDOCTYPESystemKeyword
+    case beforeDOCTYPESystemIdentifier
+    case doctypeSystemIdentifierDoubleQuoted
+    case doctypeSystemIdentifierSingleQuoted
+    case afterDOCTYPESystemIdentifier
+    case bogusDOCTYPE
+    case cdataSection
+    case cdataSectionRightSquareBracket
+    case cdataSectionDoubleRightSquareBracket
+
+    var isEndTagBuffering: Bool {
+        switch self {
+        case .rcdataEndTagOpen, .rcdataEndTagName, .rawtextEndTagOpen, .rawtextEndTagName, .scriptDataEndTagOpen,
+            .scriptDataEndTagName, .scriptDataEscapedEndTagOpen, .scriptDataEscapedEndTagName:
+            true
+        default:
+            false
+        }
+    }
+}
+
+private var endOfFileMarker: UInt16 { UInt16(WebCore.kEndOfFileMarker.value) }
+private let characterTabulation: UInt16 = 0x09
+private let newlineCharacter: UInt16 = 0x0A
+private let formFeed: UInt16 = 0x0C
+private let carriageReturn: UInt16 = 0x0D
+private let space: UInt16 = 0x20
+private let exclamationMark: UInt16 = 0x21
+private let quotationMark: UInt16 = 0x22
+private let ampersand: UInt16 = 0x26
+private let apostrophe: UInt16 = 0x27
+private let hyphenMinus: UInt16 = 0x2D
+private let solidus: UInt16 = 0x2F
+private let lessThanSign: UInt16 = 0x3C
+private let equalsSign: UInt16 = 0x3D
+private let greaterThanSign: UInt16 = 0x3E
+private let questionMark: UInt16 = 0x3F
+private let leftSquareBracket: UInt16 = 0x5B
+private let rightSquareBracket: UInt16 = 0x5D
+private let lowLine: UInt16 = 0x5F
+private let replacementCharacter: UInt16 = 0xFFFD
+
+// MarkupTokenizerInlines.h's isTokenizerWhitespace, which is not in a module Swift can import.
+private func isTokenizerWhitespace(_ character: UInt16) -> Bool {
+    character == space || character == newlineCharacter || character == characterTabulation || character == formFeed
+}
+
+/// HTMLTokenizer.cpp's isReplacedNullCharacter: whether `character`, the current character of `source` as the input
+/// stream preprocessor reads it, is the U+FFFD that it reads for a '\0'.
+@inline(always)
+private func isReplacedNullCharacter(_ source: inout WebCore.SegmentedString, _ character: UInt16) -> Bool {
+    character == replacementCharacter && source.currentCharacter() == 0
+}
+
+private func isASCIIAlpha(_ character: UInt16) -> Bool {
+    // Wraps on purpose: anything below 'a' becomes too large.
+    (character | 0x20) &- 0x61 < 26
+}
+
+private func isASCIIAlphanumeric(_ character: UInt16) -> Bool {
+    // Wraps on purpose: anything below '0' becomes too large.
+    character &- 0x30 < 10 || isASCIIAlpha(character)
+}
+
+private func isASCIIUpper(_ character: UInt16) -> Bool {
+    // Wraps on purpose: anything below 'A' becomes too large.
+    character &- 0x41 < 26
+}
+
+private func toASCIILower(_ character: UInt16) -> UInt16 {
+    isASCIIUpper(character) ? character | 0x20 : character
+}
+
+/// The lowercase form of an ASCII letter.
+private func convertASCIIAlphaToLower(_ character: UInt16) -> UInt8 {
+    UInt8(truncatingIfNeeded: character | 0x20)
+}
+
+// https://html.spec.whatwg.org/multipage/parsing.html#data-state
+// In the Data state, '<' switches to TagOpenState, '&' switches to a character
+// reference, and '\0' is a parse error. '\r' and '\n' require special handling
+// for line counting and newline normalization in the input stream preprocessor.
+// Everything else is plain text that can be emitted as-is.
+private func isDataStateSpecialCharacter(_ character: UInt8) -> Bool {
+    character == 0x3C || character == 0x26 || character == 0x0D || character == 0x0A || character == 0
+}
+
+// https://html.spec.whatwg.org/multipage/parsing.html#attribute-value-(double-quoted)-state
+// https://html.spec.whatwg.org/multipage/parsing.html#attribute-value-(single-quoted)-state
+// In quoted attribute value states, the closing quote ends the value, '&' starts
+// a character reference, and '\0' is a parse error. '\r' and '\n' require special
+// handling for line counting and newline normalization. Everything else is plain
+// text that can be appended to the attribute value as-is.
+private func isQuotedAttributeValueSpecialCharacter(_ character: UInt8, quote: UInt8) -> Bool {
+    character == quote || character == 0x26 || character == 0x0D || character == 0x0A || character == 0
+}
+
+// In the RAWTEXT and script data states, '<' may start an end tag and '\0' is a parse error. '\r' and '\n' require
+// special handling for line counting and newline normalization. Everything else is plain text. The RCDATA state also
+// stops at '&', as the data state does.
+private func isRawTextSpecialCharacter(_ character: UInt8) -> Bool {
+    character == 0x3C || character == 0x0D || character == 0x0A || character == 0
+}
+
+// The script data escaped and double escaped states also stop at '-', which may end the escape.
+private func isScriptDataEscapedSpecialCharacter(_ character: UInt8) -> Bool {
+    character == 0x2D || isRawTextSpecialCharacter(character)
+}
+
+// https://html.spec.whatwg.org/multipage/parsing.html#attribute-value-(unquoted)-state
+// In the unquoted attribute value state, whitespace and '>' end the value, '&' starts a character reference, and '\0'
+// is a parse error. '\r' requires special handling for newline normalization. Everything else, including the parse
+// errors '"', '\'', '<', '=' and '`', is plain text that can be appended to the attribute value as-is.
+private func isAttributeValueUnquotedSpecialCharacter(_ character: UInt8) -> Bool {
+    isTokenizerWhitespace(UInt16(character)) || character == 0x26 || character == 0x3E || character == 0x0D || character == 0
+}
+
+// https://html.spec.whatwg.org/multipage/parsing.html#attribute-name-state
+// In the attribute name state, whitespace, '/', '=' and '>' end the name, and so does '<' with the pre-HTML5 parser
+// quirks. '\0' is a parse error or the end of the input, and '\r' requires special handling for newline normalization.
+// Everything else, including the parse errors '"' and '\'', is appended to the name, lowercased if an ASCII letter.
+// '<' is special here with or without the quirks, so that the state decides.
+private func isAttributeNameSpecialCharacter(_ character: UInt8) -> Bool {
+    isTokenizerWhitespace(UInt16(character)) || character == 0x2F || character == 0x3D || character == 0x3E
+        || character == 0x3C || character == 0x0D || character == 0
+}
+
+// In the comment, bogus comment, CDATA section and DOCTYPE identifier states, '\0' is a parse error or the end of the
+// input, and '\r' and '\n' require special handling for line counting and newline normalization. Each state also stops
+// at the characters that can end it: '-' in a comment, '>' in a bogus comment, ']' in a CDATA section, and the quote
+// and '>' in a DOCTYPE identifier.
+private func isNewlineOrNullCharacter(_ character: UInt8) -> Bool {
+    character == 0x0D || character == 0x0A || character == 0
+}
+
+private func isCommentSpecialCharacter(_ character: UInt8) -> Bool {
+    character == 0x2D || isNewlineOrNullCharacter(character)
+}
+
+private func isBogusCommentSpecialCharacter(_ character: UInt8) -> Bool {
+    character == 0x3E || isNewlineOrNullCharacter(character)
+}
+
+private func isCDATASectionSpecialCharacter(_ character: UInt8) -> Bool {
+    character == 0x5D || isNewlineOrNullCharacter(character)
+}
+
+private func isDOCTYPEIdentifierSpecialCharacter(_ character: UInt8, quote: UInt8) -> Bool {
+    character == quote || character == 0x3E || isNewlineOrNullCharacter(character)
+}
+
+// The characters that end a run in plainTextLength, each in the lane its low four bits select, for tableMatchNibbles.
+// The other lanes hold values that no character matches.
+
+/// isDataStateSpecialCharacter as a table.
+///
+/// NUL, '&', '\n', '<' and '\r'. Also the characters that end a run in RCDATA.
+private var dataStateSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x26, 0xFF, 0xFF, 0xFF, 0x0A, 0xFF, 0x3C, 0x0D, 0xFF, 0x00)
+}
+
+/// isQuotedAttributeValueSpecialCharacter with '"': NUL, '"', '&', '\n' and '\r'.
+private var doubleQuotedAttributeValueSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0x22, 0xFF, 0xFF, 0xFF, 0x26, 0xFF, 0xFF, 0xFF, 0x0A, 0xFF, 0xFF, 0x0D, 0xFF, 0x00)
+}
+
+/// isQuotedAttributeValueSpecialCharacter with '\'': NUL, '&', '\'', '\n' and '\r'.
+private var singleQuotedAttributeValueSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x26, 0x27, 0xFF, 0xFF, 0x0A, 0xFF, 0xFF, 0x0D, 0xFF, 0x00)
+}
+
+/// isRawTextSpecialCharacter: NUL, '\n', '<' and '\r'.
+private var rawTextSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0A, 0xFF, 0x3C, 0x0D, 0xFF, 0x00)
+}
+
+/// A hyphen-minus, whose low four bits are those of a carriage return.
+///
+/// With rawTextSpecialCharacters, for isScriptDataEscapedSpecialCharacter.
+private var hyphenMinusCharacter: SIMD16<UInt8> {
+    SIMD16(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x2D, 0xFF, 0x00)
+}
+
+/// isAttributeValueUnquotedSpecialCharacter but ' ': NUL, '\t', '\n', '\f', '\r', '&' and '>'.
+private var unquotedAttributeValueSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x26, 0xFF, 0xFF, 0x09, 0x0A, 0xFF, 0x0C, 0x0D, 0x3E, 0x00)
+}
+
+/// The space character, whose low four bits are those of NUL.
+///
+/// With unquotedAttributeValueSpecialCharacters, for isAttributeValueUnquotedSpecialCharacter.
+private var spaceCharacter: SIMD16<UInt8> {
+    SIMD16(0x20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x00)
+}
+
+/// isAttributeNameSpecialCharacter without the space, less-than sign and equals sign.
+///
+/// NUL, '\t', '\n', '\f', '\r', '>' and '/'.
+private var attributeNameSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x09, 0x0A, 0xFF, 0x0C, 0x0D, 0x3E, 0x2F)
+}
+
+/// The space, less-than sign and equals sign, whose low four bits are those of NUL, form feed and carriage return.
+///
+/// With attributeNameSpecialCharacters, for isAttributeNameSpecialCharacter.
+private var attributeNameAdditionalSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x3C, 0x3D, 0xFF, 0x00)
+}
+
+/// isNewlineOrNullCharacter as a table.
+///
+/// NUL, '\n' and '\r'. With hyphenMinusCharacter, isCommentSpecialCharacter; with rightSquareBracketCharacter,
+/// isCDATASectionSpecialCharacter.
+private var newlineAndNullCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0A, 0xFF, 0xFF, 0x0D, 0xFF, 0x00)
+}
+
+/// isBogusCommentSpecialCharacter: NUL, '\n', '\r' and '>'.
+private var bogusCommentSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0A, 0xFF, 0xFF, 0x0D, 0x3E, 0x00)
+}
+
+/// isDOCTYPEIdentifierSpecialCharacter with '"': NUL, '"', '\n', '\r' and '>'.
+private var doubleQuotedDOCTYPEIdentifierSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0x22, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x0A, 0xFF, 0xFF, 0x0D, 0x3E, 0x00)
+}
+
+/// isDOCTYPEIdentifierSpecialCharacter with '\'': NUL, '\'', '\n', '\r' and '>'.
+private var singleQuotedDOCTYPEIdentifierSpecialCharacters: SIMD16<UInt8> {
+    SIMD16(0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x27, 0xFF, 0xFF, 0x0A, 0xFF, 0xFF, 0x0D, 0x3E, 0x00)
+}
+
+/// A right square bracket, whose low four bits are those of a carriage return.
+///
+/// With newlineAndNullCharacters, for isCDATASectionSpecialCharacter.
+private var rightSquareBracketCharacter: SIMD16<UInt8> {
+    SIMD16(0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x5D, 0xFF, 0x00)
+}
+
+// FIXME: Internal for the reason HTMLFastPathCodeUnit (HTMLFastPathParser.swift) is: private declarations do not link
+// under ThinLTO on Windows.
+/// The second table that a run also ends at, for characters whose low four bits are those of a special character.
+///
+/// None, '-', ' ', ']', or the ' ', '<' and '=' of an attribute name.
+internal enum AdditionalSpecialCharacters {
+    case none
+    case hyphenMinus
+    case space
+    case rightSquareBracket
+    case attributeName
+
+    @inline(always)
+    var table: SIMD16<UInt8>? {
+        switch self {
+        case .none: nil
+        case .hyphenMinus: hyphenMinusCharacter
+        case .space: spaceCharacter
+        case .rightSquareBracket: rightSquareBracketCharacter
+        case .attributeName: attributeNameAdditionalSpecialCharacters
+        }
+    }
+}
+
+// FIXME: Internal, with its conformances' members, for the reason HTMLFastPathCodeUnit (HTMLFastPathParser.swift)
+// is: private declarations do not link under ThinLTO on Windows.
+/// A code unit of a SegmentedString substring, as plainTextLength reads it.
+internal protocol PlainTextCodeUnit: FixedWidthInteger, UnsignedInteger {
+    /// tableMatchNibbles of code units `offset` to `offset + 15` of `characters` against `specialCharacters`, and
+    /// against `additionalSpecialCharacters`. A code unit above 0xFF matches neither.
+    static func specialCharacterMatches(
+        _ characters: Span<Self>,
+        at offset: Int,
+        _ specialCharacters: SIMD16<UInt8>,
+        or additionalSpecialCharacters: AdditionalSpecialCharacters
+    ) -> UInt64
+}
+
+extension UInt8: PlainTextCodeUnit {
+    @inline(always)
+    static func specialCharacterMatches(
+        _ characters: Span<UInt8>,
+        at offset: Int,
+        _ specialCharacters: SIMD16<UInt8>,
+        or additionalSpecialCharacters: AdditionalSpecialCharacters
+    ) -> UInt64 {
+        let block = load16(characters, at: offset)
+        let matches = tableMatchNibbles(lowBytes: block, highBytes: SIMD16(), specialCharacters)
+        guard let table = additionalSpecialCharacters.table else {
+            return matches
+        }
+        return matches | tableMatchNibbles(lowBytes: block, highBytes: SIMD16(), table)
+    }
+}
+
+extension UInt16: PlainTextCodeUnit {
+    @inline(always)
+    static func specialCharacterMatches(
+        _ characters: Span<UInt16>,
+        at offset: Int,
+        _ specialCharacters: SIMD16<UInt8>,
+        or additionalSpecialCharacters: AdditionalSpecialCharacters
+    ) -> UInt64 {
+        let matches = matchNibbles(characters, at: offset, specialCharacters)
+        guard let table = additionalSpecialCharacters.table else {
+            return matches
+        }
+        return matches | matchNibbles(characters, at: offset, table)
+    }
+}
+
+/// The length of the run of characters that `isPlain` accepts in `characters`, a SegmentedString's current substring.
+///
+/// The run starts after the current character and ends before the substring's last character, which
+/// advancePastMultiple8 and advancePastMultiple16 need to remain. It is empty if the substring is too short, or after
+/// a '\r', whose '\n' the preprocessor has yet to check for. Characters above 0xFF are plain. `specialCharacters` and
+/// `additionalSpecialCharacters` are the characters `isPlain` rejects.
+@inline(always)
+private func plainTextLength<CodeUnit: PlainTextCodeUnit>(
+    in characters: Span<CodeUnit>,
+    _ skipNextNewLine: Bool,
+    _ specialCharacters: SIMD16<UInt8>,
+    or additionalSpecialCharacters: AdditionalSpecialCharacters = .none,
+    while isPlain: (UInt8) -> Bool
+) -> Int {
+    guard characters.count > 2 && !skipNextNewLine else {
+        return 0
+    }
+    // A run often ends at once, at the character after the current one: test it before the scan.
+    if characters[1] <= 0xFF && !isPlain(UInt8(truncatingIfNeeded: characters[1])) {
+        return 0
+    }
+    let end = characters.count - 1
+    guard end > 16 else {
+        var index = 1
+        while index < end && (characters[index] > 0xFF || isPlain(UInt8(truncatingIfNeeded: characters[index]))) {
+            index += 1
+        }
+        return index - 1
+    }
+    let firstMatches = blockSpecialCharacterMatches(characters, at: 1, specialCharacters, or: additionalSpecialCharacters)
+    if firstMatches != 0 {
+        return firstMatches.trailingZeroBitCount / 4
+    }
+    if end - 17 >= 16 {
+        let remainder = characters.extracting(17..<end)
+        let offset =
+            switch additionalSpecialCharacters {
+            case .none: firstSpecialCharacterOffset(in: remainder, specialCharacters)
+            case .hyphenMinus: firstSpecialCharacterOrHyphenMinusOffset(in: remainder, specialCharacters)
+            case .space: firstSpecialCharacterOrSpaceOffset(in: remainder, specialCharacters)
+            case .rightSquareBracket: firstSpecialCharacterOrRightSquareBracketOffset(in: remainder, specialCharacters)
+            case .attributeName: firstAttributeNameSpecialCharacterOffset(in: remainder, specialCharacters)
+            }
+        // Cannot overflow: the offset is at most the count of `remainder`.
+        return 16 &+ offset
+    }
+    // The last sixteen characters, overlapping the first sixteen, which have no match.
+    let lastBlock = end - 16
+    let lastMatches = blockSpecialCharacterMatches(characters, at: lastBlock, specialCharacters, or: additionalSpecialCharacters)
+    if lastMatches != 0 {
+        return lastBlock - 1 + lastMatches.trailingZeroBitCount / 4
+    }
+    return end - 1
+}
+
+/// specialCharacterMatches for plainTextLength's first and last blocks.
+///
+/// Out of line on Windows. plainTextLength is inlined into processToken in many states, and the vectors of an inlined
+/// block check are live across processToken's calls into C++. The Windows x64 calling convention keeps xmm6-xmm15
+/// callee-saved, so processToken would save and restore them on every call, once per token.
+#if os(Windows)
+@inline(never)
+#else
+@inline(always)
+#endif
+private func blockSpecialCharacterMatches<CodeUnit: PlainTextCodeUnit>(
+    _ characters: Span<CodeUnit>,
+    at offset: Int,
+    _ specialCharacters: SIMD16<UInt8>,
+    or additionalSpecialCharacters: AdditionalSpecialCharacters
+) -> UInt64 {
+    CodeUnit.specialCharacterMatches(characters, at: offset, specialCharacters, or: additionalSpecialCharacters)
+}
+
+/// The offset of the first character of `characters` that the tables match, or its count if none does.
+///
+/// Reads sixteen characters at a time with tableMatchNibbles; `characters` has at least sixteen.
+@inline(always)
+private func firstMatchOffset<CodeUnit: PlainTextCodeUnit>(
+    in characters: Span<CodeUnit>,
+    _ specialCharacters: SIMD16<UInt8>,
+    or additionalSpecialCharacters: AdditionalSpecialCharacters
+) -> Int {
+    @inline(always)
+    func matches(at offset: Int) -> UInt64 {
+        CodeUnit.specialCharacterMatches(characters, at: offset, specialCharacters, or: additionalSpecialCharacters)
+    }
+
+    let lastBlock = characters.count - 16
+    var offset = 0
+    while offset < lastBlock {
+        let blockMatches = matches(at: offset)
+        if blockMatches != 0 {
+            return offset + blockMatches.trailingZeroBitCount / 4
+        }
+        offset += 16
+    }
+    // The last sixteen characters, overlapping the block before when the count is not a multiple of sixteen.
+    let blockMatches = matches(at: lastBlock)
+    if blockMatches != 0 {
+        return lastBlock + blockMatches.trailingZeroBitCount / 4
+    }
+    return characters.count
+}
+
+/// firstMatchOffset with no second table.
+@inline(never)
+private func firstSpecialCharacterOffset<CodeUnit: PlainTextCodeUnit>(
+    in characters: Span<CodeUnit>,
+    _ specialCharacters: SIMD16<UInt8>
+) -> Int {
+    firstMatchOffset(in: characters, specialCharacters, or: .none)
+}
+
+/// firstMatchOffset with the hyphen-minus table.
+@inline(never)
+private func firstSpecialCharacterOrHyphenMinusOffset<CodeUnit: PlainTextCodeUnit>(
+    in characters: Span<CodeUnit>,
+    _ specialCharacters: SIMD16<UInt8>
+) -> Int {
+    firstMatchOffset(in: characters, specialCharacters, or: .hyphenMinus)
+}
+
+/// firstMatchOffset with the space table.
+@inline(never)
+private func firstSpecialCharacterOrSpaceOffset<CodeUnit: PlainTextCodeUnit>(
+    in characters: Span<CodeUnit>,
+    _ specialCharacters: SIMD16<UInt8>
+) -> Int {
+    firstMatchOffset(in: characters, specialCharacters, or: .space)
+}
+
+/// firstMatchOffset with the right square bracket table.
+@inline(never)
+private func firstSpecialCharacterOrRightSquareBracketOffset<CodeUnit: PlainTextCodeUnit>(
+    in characters: Span<CodeUnit>,
+    _ specialCharacters: SIMD16<UInt8>
+) -> Int {
+    firstMatchOffset(in: characters, specialCharacters, or: .rightSquareBracket)
+}
+
+/// firstMatchOffset with the attribute name's second table.
+@inline(never)
+private func firstAttributeNameSpecialCharacterOffset<CodeUnit: PlainTextCodeUnit>(
+    in characters: Span<CodeUnit>,
+    _ specialCharacters: SIMD16<UInt8>
+) -> Int {
+    firstMatchOffset(in: characters, specialCharacters, or: .attributeName)
+}
+
+/// The number of ASCII letters at the start of `characters`, the current substring of a SegmentedString, whose first
+/// character is a letter; 0 if the letters reach its last character, or it is empty.
+private func endTagNameLength(in characters: Span<UInt8>) -> Int {
+    for index in 1..<max(characters.count, 1) where !isASCIIAlpha(UInt16(characters[index])) {
+        return index
+    }
+    return 0
+}
+
+/// What consumeEndTagName found after the start of an end tag and a letter.
+private enum EndTagNameResult {
+    /// The name or the character after it is not in the current 8-bit substring; nothing was consumed.
+    case notInCurrentSubstring
+    /// Not an appropriate end tag: "</" and the name were buffered as characters.
+    case notAppropriateEndTag
+    /// An appropriate end tag, if the character after the name ends it: the name is in the temporary buffer and the
+    /// buffered end tag name.
+    case possibleAppropriateEndTag
+}
+
+/// What appendPlainText appends a run to.
+private enum PlainTextDestination {
+    case characters
+    case attributeValue
+    case attributeName
+    case comment
+    case publicIdentifier
+    case systemIdentifier
+}
+
+private enum AdvancePastResult {
+    case didNotMatch
+    case didMatch
+    case notEnoughCharacters
+}
+
+/// SegmentedString::advancePast and advancePastLettersIgnoringASCIICase.
+///
+/// Consumes `literal` if `source` starts with it, ignoring the case of letters if `ignoringCase` is true. The literal
+/// has no '\n'.
+private func advancePast<let length: Int>(
+    _ literal: [length of UInt8],
+    ignoringCase: Bool,
+    in source: inout WebCore.SegmentedString
+) -> AdvancePastResult {
+    func mismatch(_ character: UInt16, _ literalCharacter: UInt8) -> Bool {
+        ignoringCase ? (character | 0x20) != UInt16(literalCharacter) : character != UInt16(literalCharacter)
+    }
+
+    // Whether the current substring starts with the literal, when it is 8-bit and longer than the literal plus one
+    // character.
+    let matchesCurrentSubstring: Bool? = {
+        let characters: Span<UInt8> = source.currentSubstringBytes8()
+        guard length + 1 < characters.count else {
+            return nil
+        }
+        for index in 0..<length where mismatch(UInt16(characters[index]), literal[index]) {
+            return false
+        }
+        return true
+    }()
+    if let matchesCurrentSubstring {
+        guard matchesCurrentSubstring else {
+            return .didNotMatch
+        }
+        source.advancePastMultiple(UInt32(truncatingIfNeeded: length))
+        return .didMatch
+    }
+
+    if length > Int(source.length()) {
+        return .notEnoughCharacters
+    }
+    var consumedCharacters = InlineArray<length, UInt16>(repeating: 0)
+    for index in 0..<length {
+        let character = source.currentCharacter()
+        if mismatch(character, literal[index]) {
+            if index > 0 {
+                let consumed: Span<UInt16> = consumedCharacters.span.extracting(0..<index)
+                source.pushBack(consuming: WTF.String(consumed))
+            }
+            return .didNotMatch
+        }
+        source.advancePastNonNewline()
+        consumedCharacters[index] = character
+    }
+    return .didMatch
+}
+
+/// HTMLTokenizer::makesTokenAttributesBit, which HTMLTokenizer.cpp checks with a static_assert.
+private let makesTokenAttributesBit: UInt16 = 0x8000
+
+/// The shortest tag emitTagInCurrentSubstring emits: "<a>".
+private let shortestTagLength = 3
+
+private let latinCapitalLetterZ: UInt16 = 0x5A
+
+private let graveAccent: UInt16 = 0x60
+
+extension WebCore.HTMLTokenizer {
+    /// Runs processToken, and makes the tag name and attributes of a tag token when `additionalAllowedCharacter`
+    /// has makesTokenAttributesBit.
+    @inline(always)
+    fileprivate mutating func processTokenMakingAttributes(
+        from source: inout WebCore.SegmentedString,
+        additionalAllowedCharacter: UInt16
+    ) -> Bool {
+        let makesAttributes = additionalAllowedCharacter & makesTokenAttributesBit != 0
+        if makesAttributes && startsTagInDataState(&source) && emitTagInCurrentSubstring(&source) {
+            return true
+        }
+        let character = additionalAllowedCharacter & ~makesTokenAttributesBit
+        guard processToken(from: &source, additionalAllowedCharacter: character) else {
+            return false
+        }
+        if makesAttributes {
+            makeTokenAttributes()
+            if m_token.type() == .DOCTYPE {
+                setTokenDoctype()
+            }
+        }
+        return true
+    }
+
+    /// AtomHTMLToken's tag name and initializeAttributes on m_token's attributes, for a tag token.
+    private func makeTokenAttributes() {
+        let type = m_token.type()
+        guard type == .StartTag || type == .EndTag else {
+            makeTokenText(type)
+            return
+        }
+        setTokenTagName()
+        let count = m_token.attributeCount()
+        guard count != 0 else {
+            return
+        }
+        // As AtomHTMLToken::initializeAttributes, which keeps the size in an unsigned.
+        Self.reserveTokenAttributes(UInt32(truncatingIfNeeded: count))
+        var index = 0
+        while index < count {
+            let name: Span<UInt16> = m_token.attributeName(index)
+            if !name.isEmpty {
+                let qualifiedName = WebCore.HTMLNameCache.makeAttributeQualifiedName(name)
+                if Self.tokenAttributesContainLocalName(qualifiedName) {
+                    Self.setTokenHasDuplicateAttribute()
+                } else {
+                    let value: Span<UInt16> = m_token.attributeValue(index)
+                    Self.appendTokenAttribute(
+                        consuming: WebCore.Attribute(
+                            consuming: consume qualifiedName,
+                            consuming: WebCore.HTMLNameCache.makeAttributeValue(value)
+                        )
+                    )
+                }
+            }
+            index += 1
+        }
+    }
+
+    /// The rest of a token that is not a tag, for the tree builder, but for a DOCTYPE's setTokenDoctype.
+    @inline(never)
+    private func makeTokenText(_ type: WebCore.HTMLToken.`Type`) {
+        let data: Span<UInt16> = m_token.data()
+        switch type {
+        case .Character:
+            Self.setTokenText(consuming: WTF.AtomString(), consuming: m_token.dataString(), m_token.isReplacedNullCharacter())
+        case .Comment:
+            Self.setTokenText(consuming: WTF.AtomString(), consuming: m_token.dataString(), false)
+        case .ProcessingInstruction:
+            let targetCharacters: Span<WTF.Latin1Character> = m_token.processingInstructionTargetCharacters()
+            let target = WebCore.HTMLNameCache.makeAttributeValue(targetCharacters)
+            var instruction = WebCore.HTMLNameCache.makeAttributeValue(data)
+            Self.setTokenText(consuming: target, consuming: instruction.releaseString(), false)
+        case .DOCTYPE:
+            Self.setTokenText(consuming: WebCore.HTMLNameCache.makeAttributeValue(data), consuming: WTF.String(), false)
+        default:
+            break
+        }
+    }
+
+    /// Whether the next token starts with a less-than sign in the data state, with nothing buffered.
+    ///
+    /// The sign starts an 8-bit substring long enough for the shortest tag.
+    @inline(always)
+    private func startsTagInDataState(_ source: inout WebCore.SegmentedString) -> Bool {
+        guard m_state.rawValue == TokenizerState.data.rawValue && m_token.type() == .Uninitialized else {
+            return false
+        }
+        let characters: Span<UInt8> = source.currentSubstringBytes8()
+        guard characters.count >= shortestTagLength else {
+            return false
+        }
+        return UInt16(characters[0]) == lessThanSign
+    }
+
+    /// Emits the tag that starts at the current character, if it can be tokenized without the state machine.
+    ///
+    /// That needs the whole tag in the current substring, with no character references, '\0', '\r' or parse errors,
+    /// and no '<', which ends a tag when usePreHTML5ParserQuirks is set. Makes the tag name and attributes as
+    /// makeTokenAttributes does, from the source's characters, and leaves the tokenizer and the source as processToken
+    /// would after the tag. Returns false, having changed nothing, for any other input.
+    @inline(never)
+    private mutating func emitTagInCurrentSubstring(_ source: inout WebCore.SegmentedString) -> Bool {
+        if hasBufferedEndTag {
+            return false
+        }
+        let scannedTag: ScannedTag?
+        do {
+            let characters: Span<UInt8> = source.currentSubstringBytes8()
+            scannedTag = scanTagName(characters)
+            if let tag = scannedTag, !tag.nameEndsAtWhitespace {
+                makeTagName(characters, tag)
+            }
+        }
+        guard let tag = scannedTag else {
+            return false
+        }
+        if tag.nameEndsAtWhitespace {
+            return emitTagWithAttributesInCurrentSubstring(&source, tag)
+        }
+        return emitScannedTag(&source, tag)
+    }
+
+    /// emitTagInCurrentSubstring for a tag whose name scanTagName found to end at a whitespace character.
+    @inline(never)
+    private mutating func emitTagWithAttributesInCurrentSubstring(
+        _ source: inout WebCore.SegmentedString,
+        _ scannedTag: ScannedTag
+    ) -> Bool {
+        var tag = scannedTag
+        // One for each bit of ScannedTag's foldedNames.
+        var attributes = [16 of ScannedAttribute](repeating: ScannedAttribute())
+        do {
+            let characters: Span<UInt8> = source.currentSubstringBytes8()
+            do {
+                var attributeSpan = attributes.mutableSpan
+                guard scanAttributes(characters, &tag, &attributeSpan) else {
+                    return false
+                }
+            }
+            makeTag(characters, tag, attributes.span)
+        }
+        return emitScannedTag(&source, tag)
+    }
+
+    /// Advances `source` past the tag that scanTagName or scanAttributes found, as processToken does.
+    @inline(always)
+    private mutating func emitScannedTag(_ source: inout WebCore.SegmentedString, _ tag: ScannedTag) -> Bool {
+        // The '>' is before the end of the current substring, which the scan checked.
+        var length = tag.greaterThanSignOffset
+        if tag.containsNewline {
+            length = advancePastNewlines(&source, length)
+        }
+        source.advancePastMultiple(UInt32(truncatingIfNeeded: length))
+        _ = m_preprocessor.peek(&source, false)
+        return emitAndResumeInDataState(&source)
+    }
+
+    /// What processToken and makeTokenAttributes do for the tag that scanAttributes found in `characters`.
+    @inline(always)
+    private mutating func makeTag(
+        _ characters: Span<UInt8>,
+        _ tag: ScannedTag,
+        _ attributes: Span<ScannedAttribute>
+    ) {
+        makeTagName(characters, tag)
+        guard tag.attributeCount != 0 else {
+            return
+        }
+        // At most the 16 that emitTagWithAttributesInCurrentSubstring has room for.
+        Self.reserveTokenAttributes(UInt32(truncatingIfNeeded: tag.attributeCount))
+        var index = 0
+        while index < tag.attributeCount {
+            let attribute = attributes[index]
+            let name = characters.extracting(Int(attribute.nameStart)..<Int(attribute.nameEnd))
+            let foldsName = tag.foldedNames & 1 << index != 0
+            let qualifiedName =
+                foldsName
+                ? makeFoldedAttributeName(name)
+                : WebCore.HTMLNameCache.makeAttributeQualifiedName(WTF.latin1CharactersOfBytes(name))
+            if Self.tokenAttributesContainLocalName(qualifiedName) {
+                Self.setTokenHasDuplicateAttribute()
+            } else {
+                Self.appendTokenAttribute(
+                    consuming: WebCore.Attribute(
+                        consuming: consume qualifiedName,
+                        consuming: WebCore.HTMLNameCache.makeAttributeValue(
+                            WTF.latin1CharactersOfBytes(
+                                characters.extracting(Int(attribute.valueStart)..<Int(attribute.valueEnd))
+                            )
+                        )
+                    )
+                )
+            }
+            index += 1
+        }
+    }
+
+    /// The tag name part of makeTag.
+    @inline(always)
+    private mutating func makeTagName(_ characters: Span<UInt8>, _ tag: ScannedTag) {
+        let nameStart = tag.isEndTag ? 2 : 1
+        let firstCharacter = convertASCIIAlphaToLower(UInt16(characters[nameStart]))
+        if tag.isEndTag {
+            m_token.beginEndTag(WTF.Latin1Character(firstCharacter))
+            m_appropriateEndTagName.clear()
+        } else {
+            m_token.beginStartTag(WTF.Latin1Character(firstCharacter))
+            m_appropriateEndTagName.shrink(0)
+            m_appropriateEndTagName.append(consuming: UInt16(firstCharacter))
+        }
+        var index = nameStart + 1
+        while index < tag.nameEnd {
+            let lowercaseCharacter = toASCIILower(UInt16(characters[index]))
+            m_token.appendToName(lowercaseCharacter)
+            if !tag.isEndTag {
+                m_appropriateEndTagName.append(consuming: lowercaseCharacter)
+            }
+            index += 1
+        }
+        if tag.selfClosing {
+            m_token.setSelfClosing()
+        }
+
+        setTokenTagName()
+    }
+}
+
+/// The longest attribute name with ASCII upper case letters that emitTagInCurrentSubstring emits.
+private let maximumFoldedAttributeNameLength = 32
+
+/// An attribute that scanAttributes found: offsets into the characters it scanned, which a substring's length,
+/// at most StringImpl::MaxLength, bounds.
+private struct ScannedAttribute {
+    var nameStart: Int32 = 0
+    var nameEnd: Int32 = 0
+    var valueStart: Int32 = 0
+    var valueEnd: Int32 = 0
+}
+
+/// A tag that scanTagName or scanAttributes found, as offsets from its less-than sign in the characters scanned.
+private struct ScannedTag {
+    var isEndTag = false
+    var nameEnd = 0
+    var selfClosing = false
+    var greaterThanSignOffset = 0
+    var attributeCount = 0
+    var containsNewline = false
+    /// The name ends at the whitespace character at nameEnd, and scanAttributes scans the rest of the tag.
+    var nameEndsAtWhitespace = false
+    /// Bit i is set when the name of attribute i has ASCII upper case letters.
+    ///
+    /// One bit for each of the 16 attributes emitTagWithAttributesInCurrentSubstring has room for.
+    var foldedNames: UInt16 = 0
+}
+
+/// Advances `source` past each '\n' in its first `length` characters, which are in the current 8-bit substring and
+/// start with a character other than '\n', and returns the number of those characters left after the last '\n'.
+/// advancePastMultiple8 starts a new line as advance does only for a '\n' it starts at, so each advance after the
+/// first starts at a '\n'.
+@inline(never)
+private func advancePastNewlines(_ source: inout WebCore.SegmentedString, _ length: Int) -> Int {
+    var remaining = length
+    var offset = newlineOffset(in: source.currentSubstringBytes8(), before: remaining)
+    while offset < remaining {
+        source.advancePastMultiple(UInt32(truncatingIfNeeded: offset))
+        // Cannot overflow: newlineOffset returned an offset of at least 1 and less than remaining.
+        remaining &-= offset
+        offset = newlineOffset(in: source.currentSubstringBytes8(), before: remaining)
+    }
+    return remaining
+}
+
+/// The offset of the first '\n' in `characters` after the first character and before `length`, or `length`.
+@inline(always)
+private func newlineOffset(in characters: Span<UInt8>, before length: Int) -> Int {
+    var offset = 1
+    while offset < length && UInt16(characters[offset]) != newlineCharacter {
+        offset += 1
+    }
+    return offset
+}
+
+private enum ScanState {
+    case beforeAttributeName
+    case afterAttributeName
+    case beforeAttributeValue
+    case afterAttributeValueQuoted
+    case selfClosingStartTag
+}
+
+/// isTokenizerWhitespace, noting a '\n' in `containsNewline` for emitScannedTag's line count.
+@inline(always)
+private func isScannedWhitespace(_ character: UInt16, _ containsNewline: inout Bool) -> Bool {
+    if character == space {
+        return true
+    }
+    if character > formFeed {
+        return false
+    }
+    containsNewline = containsNewline || character == newlineCharacter
+    return character == newlineCharacter || character == characterTabulation || character == formFeed
+}
+
+/// Whether `character` ends a scan wherever it is.
+///
+/// '\0' is also the end of file marker, the preprocessor handles '\r', and '<' ends a tag when
+/// usePreHTML5ParserQuirks is set.
+@inline(always)
+private func endsScan(_ character: UInt16) -> Bool {
+    character == 0 || character == carriageReturn || character == lessThanSign
+}
+
+/// Scans the name of the tag that starts at `characters[0]`.
+///
+/// `characters[0]` is a '<'. Follows the tag open, end tag open and tag name states. Gives the tag when its name
+/// ends with '>' or "/>" in `characters`, or with nameEndsAtWhitespace set when it ends at a whitespace character.
+/// Returns nil for any other input, which the state machine tokenizes.
+@inline(always)
+private func scanTagName(_ characters: Span<UInt8>) -> ScannedTag? {
+    let count = characters.count
+    guard count >= shortestTagLength else {
+        return nil
+    }
+    var tag = ScannedTag()
+    var index = 1
+    if UInt16(characters[index]) == solidus {
+        tag.isEndTag = true
+        index = 2
+    }
+    let firstCharacter = UInt16(characters[index])
+    guard isASCIIAlpha(firstCharacter) else {
+        return nil
+    }
+    index += 1
+    while index < count {
+        let character = UInt16(characters[index])
+        // Every character that ends the name or the scan is at most '>'.
+        if character > greaterThanSign {
+            index += 1
+            continue
+        }
+        if character == greaterThanSign {
+            tag.nameEnd = index
+            tag.greaterThanSignOffset = index
+            return tag
+        }
+        if character == solidus {
+            // The self-closing start tag state, which only a '>' leaves for the data state.
+            let next = index + 1
+            guard next < count && UInt16(characters[next]) == greaterThanSign else {
+                return nil
+            }
+            tag.nameEnd = index
+            tag.selfClosing = true
+            tag.greaterThanSignOffset = next
+            return tag
+        }
+        var containsNewline = false
+        if isScannedWhitespace(character, &containsNewline) {
+            tag.nameEnd = index
+            tag.containsNewline = containsNewline
+            tag.nameEndsAtWhitespace = true
+            return tag
+        }
+        if endsScan(character) {
+            return nil
+        }
+        index += 1
+    }
+    return nil
+}
+
+/// Finds the attributes of the tag that starts at `characters[0]`, from the whitespace character at `tag.nameEnd`.
+///
+/// Follows the tokenizer's tag states, and returns false unless the whole tag is in `characters` and needs none of
+/// the processing emitTagInCurrentSubstring leaves to the state machine.
+private func scanAttributes(
+    _ characters: Span<UInt8>,
+    _ tag: inout ScannedTag,
+    _ attributes: inout MutableSpan<ScannedAttribute>
+) -> Bool {
+    let count = characters.count
+    // Cannot overflow: nameEnd is the offset of a character in `characters`.
+    var index = tag.nameEnd &+ 1
+    var state = ScanState.beforeAttributeName
+    var attributeCount = 0
+    var containsNewline = tag.containsNewline
+    while index < count {
+        var character = UInt16(characters[index])
+        switch state {
+        case .beforeAttributeName, .afterAttributeName:
+            if isScannedWhitespace(character, &containsNewline) {
+                break
+            }
+            if character == solidus {
+                state = .selfClosingStartTag
+                break
+            }
+            if character == greaterThanSign {
+                tag.greaterThanSignOffset = index
+                tag.attributeCount = attributeCount
+                tag.containsNewline = containsNewline
+                return true
+            }
+            if character == equalsSign && state == .afterAttributeName {
+                state = .beforeAttributeValue
+                break
+            }
+            if endsScan(character) || character == quotationMark || character == apostrophe || character == equalsSign {
+                return false
+            }
+            guard attributeCount < attributes.count else {
+                return false
+            }
+            // The attribute name state.
+            let nameStart = index
+            var foldsName = isASCIIUpper(character)
+            while true {
+                index += 1
+                guard index < count else {
+                    return false
+                }
+                character = UInt16(characters[index])
+                // Every character that ends the name or the scan is below the ASCII letters.
+                if character > latinCapitalLetterZ {
+                    continue
+                }
+                if character > greaterThanSign {
+                    foldsName = foldsName || isASCIIUpper(character)
+                    continue
+                }
+                if isScannedWhitespace(character, &containsNewline) || character == solidus
+                    || character == equalsSign || character == greaterThanSign
+                {
+                    break
+                }
+                if endsScan(character) || character == quotationMark || character == apostrophe {
+                    return false
+                }
+            }
+            if foldsName && index - nameStart > maximumFoldedAttributeNameLength {
+                return false
+            }
+            // A substring is at most StringImpl::MaxLength characters, which Int32 holds.
+            let nameEnd = Int32(truncatingIfNeeded: index)
+            attributes[attributeCount] = ScannedAttribute(
+                nameStart: Int32(truncatingIfNeeded: nameStart),
+                nameEnd: nameEnd,
+                valueStart: nameEnd,
+                valueEnd: nameEnd
+            )
+            if foldsName {
+                tag.foldedNames |= 1 << attributeCount
+            }
+            attributeCount += 1
+            if character == greaterThanSign {
+                tag.greaterThanSignOffset = index
+                tag.attributeCount = attributeCount
+                tag.containsNewline = containsNewline
+                return true
+            }
+            state =
+                character == solidus
+                ? .selfClosingStartTag : character == equalsSign ? .beforeAttributeValue : .afterAttributeName
+
+        case .beforeAttributeValue:
+            if isScannedWhitespace(character, &containsNewline) {
+                break
+            }
+            if character == greaterThanSign {
+                tag.greaterThanSignOffset = index
+                tag.attributeCount = attributeCount
+                tag.containsNewline = containsNewline
+                return true
+            }
+            let valueStart: Int
+            if character == quotationMark || character == apostrophe {
+                // The attribute value (double-quoted) and (single-quoted) states.
+                let quote = character
+                index += 1
+                valueStart = index
+                let specialCharacters =
+                    quote == quotationMark
+                    ? doubleQuotedAttributeValueSpecialCharacters : singleQuotedAttributeValueSpecialCharacters
+                while true {
+                    // Sixteen characters at a time to the next one the loop below has to look at. index is at
+                    // most count; testing that as load16 does, unsigned, lets the compiler drop load16's check.
+                    // Cannot overflow: index is at most count.
+                    if UInt(bitPattern: index) <= UInt(bitPattern: count) && count &- index >= 16 {
+                        let matches = tableMatchNibbles(
+                            lowBytes: load16(characters, at: index),
+                            highBytes: SIMD16(),
+                            specialCharacters
+                        )
+                        // Cannot overflow: index + 16 is at most count.
+                        if matches == 0 {
+                            index &+= 16
+                            continue
+                        }
+                        // Cannot overflow: trailingZeroBitCount / 4 is below 16, and index + 16 is at most count.
+                        index &+= matches.trailingZeroBitCount / 4
+                    }
+                    guard UInt(bitPattern: index) < UInt(bitPattern: count) else {
+                        return false
+                    }
+                    character = UInt16(characters[index])
+                    if character == quote {
+                        break
+                    }
+                    // '\0', '\n', '\r' and '&' are below the other characters a value has.
+                    if character <= ampersand {
+                        if character == 0 || character == carriageReturn || character == ampersand {
+                            return false
+                        }
+                        containsNewline = containsNewline || character == newlineCharacter
+                    }
+                    index += 1
+                }
+                state = .afterAttributeValueQuoted
+            } else {
+                if endsScan(character) || character == ampersand || character == equalsSign || character == graveAccent {
+                    return false
+                }
+                // The attribute value (unquoted) state.
+                valueStart = index
+                while true {
+                    index += 1
+                    guard index < count else {
+                        return false
+                    }
+                    character = UInt16(characters[index])
+                    if isScannedWhitespace(character, &containsNewline) || character == greaterThanSign {
+                        break
+                    }
+                    if endsScan(character) || character == ampersand || character == quotationMark
+                        || character == apostrophe || character == equalsSign || character == graveAccent
+                    {
+                        return false
+                    }
+                }
+                state = .beforeAttributeName
+            }
+            // Cannot overflow: this state follows an attribute name, which attributeCount counts.
+            let attributeIndex = attributeCount &- 1
+            // A substring is at most StringImpl::MaxLength characters, which Int32 holds.
+            attributes[attributeIndex].valueStart = Int32(truncatingIfNeeded: valueStart)
+            attributes[attributeIndex].valueEnd = Int32(truncatingIfNeeded: index)
+            if character == greaterThanSign {
+                tag.greaterThanSignOffset = index
+                tag.attributeCount = attributeCount
+                tag.containsNewline = containsNewline
+                return true
+            }
+
+        case .afterAttributeValueQuoted:
+            if isScannedWhitespace(character, &containsNewline) {
+                state = .beforeAttributeName
+                break
+            }
+            if character == solidus {
+                state = .selfClosingStartTag
+                break
+            }
+            if character == greaterThanSign {
+                tag.greaterThanSignOffset = index
+                tag.attributeCount = attributeCount
+                tag.containsNewline = containsNewline
+                return true
+            }
+            return false
+
+        case .selfClosingStartTag:
+            guard character == greaterThanSign else {
+                return false
+            }
+            tag.selfClosing = true
+            tag.greaterThanSignOffset = index
+            tag.attributeCount = attributeCount
+            tag.containsNewline = containsNewline
+            return true
+        }
+        index += 1
+    }
+    return false
+}
+
+/// HTMLNameCache's name for `name`, at most maximumFoldedAttributeNameLength characters, in ASCII lower case.
+@inline(never)
+private func makeFoldedAttributeName(_ name: Span<UInt8>) -> WebCore.QualifiedName {
+    // maximumFoldedAttributeNameLength characters.
+    var folded = [32 of UInt8](repeating: 0)
+    do {
+        var foldedSpan = folded.mutableSpan
+        var index = 0
+        while index < name.count {
+            let character = name[index]
+            foldedSpan[index] = UInt8(truncatingIfNeeded: toASCIILower(UInt16(character)))
+            index += 1
+        }
+    }
+    return WebCore.HTMLNameCache.makeAttributeQualifiedName(
+        WTF.latin1CharactersOfBytes(folded.span.extracting(0..<name.count))
+    )
+}
+
+// HTMLTokenizer.h gives this file access to the tokenizer's private members, inside extensions of it.
+extension WebCore.HTMLTokenizer {
+    fileprivate var haveBufferedCharacterToken: Bool {
+        m_token.type() == .Character
+    }
+
+    fileprivate var hasBufferedEndTag: Bool {
+        !m_bufferedEndTagName.isEmpty()
+    }
+
+    private func shouldSkipNullCharacters(_ state: TokenizerState) -> Bool {
+        state == .data && !m_forceNullCharacterReplacement
+    }
+
+    // The three ways to move to the next state: advance past the current character, advance past it knowing it is
+    // not a newline, or stay at the current character of the source after consuming characters some other way. Each
+    // sets `state` and reads the next character into `character`, and returns false if the source has run out.
+
+    @inline(always)
+    private mutating func advance(
+        to newState: TokenizerState,
+        _ state: inout TokenizerState,
+        _ character: inout UInt16,
+        _ source: inout WebCore.SegmentedString
+    ) -> Bool {
+        state = newState
+        guard m_preprocessor.advance(&source, shouldSkipNullCharacters(newState)) else {
+            return false
+        }
+        character = m_preprocessor.nextInputCharacter()
+        return true
+    }
+
+    @inline(always)
+    private mutating func advancePastNonNewline(
+        to newState: TokenizerState,
+        _ state: inout TokenizerState,
+        _ character: inout UInt16,
+        _ source: inout WebCore.SegmentedString
+    ) -> Bool {
+        state = newState
+        guard m_preprocessor.advancePastNonNewline(&source, shouldSkipNullCharacters(newState)) else {
+            return false
+        }
+        character = m_preprocessor.nextInputCharacter()
+        return true
+    }
+
+    @inline(always)
+    private mutating func switchTo(
+        _ newState: TokenizerState,
+        _ state: inout TokenizerState,
+        _ character: inout UInt16,
+        _ source: inout WebCore.SegmentedString
+    ) -> Bool {
+        state = newState
+        guard m_preprocessor.peek(&source, shouldSkipNullCharacters(newState)) else {
+            return false
+        }
+        character = m_preprocessor.nextInputCharacter()
+        return true
+    }
+
+    @inline(always)
+    private mutating func bufferASCIICharacter(_ character: UInt16) {
+        m_token.appendToCharacter(WTF.Latin1Character(character))
+    }
+
+    private mutating func bufferCharacter(_ character: UInt16) {
+        m_token.appendToCharacter(character)
+    }
+
+    /// Appends the run of characters after the current one that plainTextLength finds to `destination`.
+    ///
+    /// Advances past the current character, already appended, and the run. Returns false, consuming nothing, if there
+    /// is no run.
+    /// If `continuesAcrossNewlines`, the state appends a '\n' as it does a plain character and stays in the same
+    /// state, so a run that ends at a '\n' goes on with the '\n' and the run after it, while there is one.
+    @inline(always)
+    private mutating func appendPlainText(
+        _ source: inout WebCore.SegmentedString,
+        to destination: PlainTextDestination,
+        _ specialCharacters: SIMD16<UInt8>,
+        or additionalSpecialCharacters: AdditionalSpecialCharacters = .none,
+        continuesAcrossNewlines: Bool = true,
+        while isPlain: (UInt8) -> Bool
+    ) -> Bool {
+        let skipNextNewLine = m_preprocessor.skipNextNewLine()
+        let is8Bit: Bool
+        let length: Int
+        do {
+            let characters: Span<UInt8> = source.currentSubstringBytes8()
+            is8Bit = !characters.isEmpty
+            length = plainTextLength(in: characters, skipNextNewLine, specialCharacters, or: additionalSpecialCharacters, while: isPlain)
+        }
+        if is8Bit {
+            guard length > 0 else {
+                return false
+            }
+            do {
+                let characters: Span<UInt8> = source.currentSubstringBytes8()
+                append(characters.extracting(1..<length + 1), to: destination)
+            }
+            // +1 to also advance past the current character.
+            source.advancePastMultiple(UInt32(truncatingIfNeeded: length + 1))
+            // Each run after a '\n' starts at the '\n', so that advancePastMultiple8 starts a new line as advance
+            // would. The character before the '\n' was plain, so there is no '\r' to skip a '\n' after.
+            while continuesAcrossNewlines {
+                var runLength = 0
+                do {
+                    let characters: Span<UInt8> = source.currentSubstringBytes8()
+                    // plainTextLength returns 0 for fewer than three characters.
+                    if !characters.isEmpty, UInt16(characters[0]) == newlineCharacter {
+                        runLength = plainTextLength(
+                            in: characters,
+                            false,
+                            specialCharacters,
+                            or: additionalSpecialCharacters,
+                            while: isPlain
+                        )
+                        if runLength > 0 {
+                            append(characters.extracting(0..<runLength + 1), to: destination)
+                        }
+                    }
+                }
+                guard runLength > 0 else {
+                    break
+                }
+                // +1 for the '\n'.
+                source.advancePastMultiple(UInt32(truncatingIfNeeded: runLength + 1))
+            }
+            return true
+        }
+        let length16: Int
+        do {
+            let characters: Span<UInt16> = source.currentSubstringSpan16()
+            length16 = plainTextLength(in: characters, skipNextNewLine, specialCharacters, or: additionalSpecialCharacters, while: isPlain)
+        }
+        guard length16 > 0 else {
+            return false
+        }
+        do {
+            let characters: Span<UInt16> = source.currentSubstringSpan16()
+            append(characters.extracting(1..<length16 + 1), to: destination)
+        }
+        source.advancePastMultiple(UInt32(truncatingIfNeeded: length16 + 1))
+        // As above; advancePastMultiple16 starts the new line as advance does for a 16-bit substring.
+        while continuesAcrossNewlines {
+            var runLength = 0
+            do {
+                let characters: Span<UInt16> = source.currentSubstringSpan16()
+                // plainTextLength returns 0 for fewer than three characters.
+                if !characters.isEmpty, characters[0] == newlineCharacter {
+                    runLength = plainTextLength(in: characters, false, specialCharacters, or: additionalSpecialCharacters, while: isPlain)
+                    if runLength > 0 {
+                        append(characters.extracting(0..<runLength + 1), to: destination)
+                    }
+                }
+            }
+            guard runLength > 0 else {
+                break
+            }
+            // +1 for the '\n'.
+            source.advancePastMultiple(UInt32(truncatingIfNeeded: runLength + 1))
+        }
+        return true
+    }
+
+    /// Appends `characters` to `destination` as the state appending them one at a time would.
+    @inline(always)
+    private mutating func append(_ characters: Span<UInt8>, to destination: PlainTextDestination) {
+        switch destination {
+        case .characters:
+            m_token.appendToCharacter(WTF.latin1CharactersOfBytes(characters))
+        case .attributeValue:
+            m_token.appendToAttributeValue(WTF.latin1CharactersOfBytes(characters))
+        case .attributeName:
+            for index in characters.indices {
+                m_token.appendToAttributeName(toASCIILower(UInt16(characters[index])))
+            }
+        case .comment:
+            for index in characters.indices {
+                m_token.appendToComment(UInt16(characters[index]))
+            }
+        case .publicIdentifier:
+            for index in characters.indices {
+                m_token.appendToPublicIdentifier(UInt16(characters[index]))
+            }
+        case .systemIdentifier:
+            for index in characters.indices {
+                m_token.appendToSystemIdentifier(UInt16(characters[index]))
+            }
+        }
+    }
+
+    @inline(always)
+    private mutating func append(_ characters: Span<UInt16>, to destination: PlainTextDestination) {
+        switch destination {
+        case .characters:
+            m_token.appendToCharacter(characters)
+        case .attributeValue:
+            m_token.appendToAttributeValue(characters)
+        case .attributeName:
+            for index in characters.indices {
+                m_token.appendToAttributeName(toASCIILower(characters[index]))
+            }
+        case .comment:
+            for index in characters.indices {
+                m_token.appendToComment(characters[index])
+            }
+        case .publicIdentifier:
+            for index in characters.indices {
+                m_token.appendToPublicIdentifier(characters[index])
+            }
+        case .systemIdentifier:
+            for index in characters.indices {
+                m_token.appendToSystemIdentifier(characters[index])
+            }
+        }
+    }
+
+    /// appendPlainText to the character token.
+    @inline(always)
+    private mutating func bufferPlainText(
+        _ source: inout WebCore.SegmentedString,
+        _ specialCharacters: SIMD16<UInt8>,
+        or additionalSpecialCharacters: AdditionalSpecialCharacters = .none,
+        while isPlain: (UInt8) -> Bool
+    ) -> Bool {
+        appendPlainText(&source, to: .characters, specialCharacters, or: additionalSpecialCharacters, while: isPlain)
+    }
+
+    /// appendPlainText to the current attribute's value.
+    @inline(always)
+    private mutating func appendPlainTextToAttributeValue(
+        _ source: inout WebCore.SegmentedString,
+        _ specialCharacters: SIMD16<UInt8>,
+        or additionalSpecialCharacters: AdditionalSpecialCharacters = .none,
+        continuesAcrossNewlines: Bool = true,
+        while isPlain: (UInt8) -> Bool
+    ) -> Bool {
+        appendPlainText(
+            &source,
+            to: .attributeValue,
+            specialCharacters,
+            or: additionalSpecialCharacters,
+            continuesAcrossNewlines: continuesAcrossNewlines,
+            while: isPlain
+        )
+    }
+
+    /// Buffers a less-than sign and a solidus.
+    @inline(always)
+    private mutating func bufferLessThanSignSolidus() {
+        m_token.appendToCharacter(WTF.Latin1Character(lessThanSign))
+        m_token.appendToCharacter(WTF.Latin1Character(solidus))
+    }
+
+    // The helpers that end a token leave setting the state to their caller, which keeps it in a local.
+
+    private mutating func emitAndResumeInDataState(_ source: inout WebCore.SegmentedString) -> Bool {
+        source.advancePastNonNewline()
+        return true
+    }
+
+    /// Emits the processing instruction, whose '>' is the current character.
+    private mutating func emitProcessingInstruction(_ source: inout WebCore.SegmentedString) -> Bool {
+        source.advancePastNonNewline()
+        return true
+    }
+
+    /// Emits the U+FFFD that replaced a '\0' as a character token of its own, after the characters already buffered.
+    private mutating func emitReplacedNullCharacter(_ source: inout WebCore.SegmentedString) -> Bool {
+        if haveBufferedCharacterToken {
+            return true
+        }
+        m_token.makeReplacedNullCharacter()
+        source.advancePastNonNewline()
+        return true
+    }
+
+    /// Turns the processing instruction being tokenized back into the bogus comment that this input produced before
+    /// processing instructions were parsed, from the target characters already collected in the token.
+    private mutating func rewindToBogusCommentForProcessingInstructionTarget() {
+        var target: [UInt8] = []
+        do {
+            let characters: Span<WTF.Latin1Character> = m_token.processingInstructionTargetCharacters()
+            target.reserveCapacity(characters.count)
+            for index in characters.indices {
+                target.append(characters[index].value)
+            }
+        }
+        m_token.clear()
+        m_token.beginComment()
+        m_token.appendToComment(CChar(questionMark))
+        // The target is ASCII, so appending it a character at a time makes the same comment as appending it at once.
+        for character in target {
+            m_token.appendToComment(CChar(truncatingIfNeeded: character))
+        }
+    }
+
+    /// Whether the processing instruction's target is "xml" or "xml-stylesheet", ignoring ASCII case.
+    private func processingInstructionTargetIsXMLDeclaration() -> Bool {
+        let target: Span<WTF.Latin1Character> = m_token.processingInstructionTargetCharacters()
+        let xmlStylesheet: [14 of UInt8] = [0x78, 0x6D, 0x6C, 0x2D, 0x73, 0x74, 0x79, 0x6C, 0x65, 0x73, 0x68, 0x65, 0x65, 0x74]
+        guard target.count == 3 || target.count == 14 else {
+            return false
+        }
+        // As equalLettersIgnoringASCIICase, which compares each character with its 0x20 bit set.
+        for index in target.indices where target[index].value | 0x20 != xmlStylesheet[index] {
+            return false
+        }
+        return true
+    }
+
+    private mutating func emitEndOfFile(_ source: inout WebCore.SegmentedString) -> Bool {
+        if haveBufferedCharacterToken {
+            return true
+        }
+        source.advance()
+        m_token.clear()
+        m_token.makeEndOfFile()
+        return true
+    }
+
+    /// Returns false if the source ran out before the character reference could be decided.
+    private mutating func processEntity(_ source: inout WebCore.SegmentedString) -> Bool {
+        let decodedEntity = consumeHTMLEntity(&source)
+        if decodedEntity.notEnoughCharacters() {
+            return false
+        }
+        if decodedEntity.failed() {
+            bufferASCIICharacter(ampersand)
+        } else {
+            let characters: Span<UInt16> = decodedEntity.span()
+            for index in characters.indices {
+                bufferCharacter(characters[index])
+            }
+        }
+        return true
+    }
+
+    private mutating func flushBufferedEndTag() {
+        m_token.beginEndTag(m_bufferedEndTagName)
+        m_bufferedEndTagName.clear()
+        m_appropriateEndTagName.clear()
+        m_temporaryBuffer.clear()
+    }
+
+    /// Returns true, leaving the end tag buffered, if a character token is to be emitted first.
+    private mutating func commitToPartialEndTag(_ source: inout WebCore.SegmentedString, _ character: UInt16) -> Bool {
+        appendToTemporaryBuffer(character)
+        source.advance()
+
+        if haveBufferedCharacterToken {
+            // Emit the buffered character token.
+            // The next call to processToken will flush the buffered end tag and continue parsing it.
+            return true
+        }
+
+        flushBufferedEndTag()
+        return false
+    }
+
+    private mutating func commitToCompleteEndTag(_ source: inout WebCore.SegmentedString) -> Bool {
+        appendToTemporaryBuffer(greaterThanSign)
+        source.advancePastNonNewline()
+
+        if haveBufferedCharacterToken {
+            // Emit the character token we already have.
+            // The next call to processToken will flush the buffered end tag and emit it.
+            return true
+        }
+
+        flushBufferedEndTag()
+        return true
+    }
+
+    /// Emits the less-than sign, solidus and temporary buffer as characters, after a possible end tag that was not one.
+    private mutating func flushTemporaryBufferAsCharacters() {
+        bufferLessThanSignSolidus()
+        m_token.appendToCharacter(m_temporaryBuffer)
+        m_bufferedEndTagName.clear()
+        m_temporaryBuffer.clear()
+    }
+
+    private mutating func appendToTemporaryBuffer(_ character: UInt16) {
+        m_temporaryBuffer.append(consuming: WTF.Latin1Character(character))
+    }
+
+    private func temporaryBufferIsScript() -> Bool {
+        let script: [6 of UInt8] = [0x73, 0x63, 0x72, 0x69, 0x70, 0x74]
+        guard m_temporaryBuffer.size() == 6 else {
+            return false
+        }
+        for index in 0..<6 where m_temporaryBuffer[index].value != script[index] {
+            return false
+        }
+        return true
+    }
+
+    private mutating func appendToPossibleEndTag(_ character: UInt8) {
+        m_bufferedEndTagName.append(consuming: WTF.Latin1Character(character))
+    }
+
+    private func isAppropriateEndTag() -> Bool {
+        let count = m_bufferedEndTagName.size()
+        guard count == m_appropriateEndTagName.size() else {
+            return false
+        }
+        for index in 0..<count where UInt16(m_bufferedEndTagName[index].value) != m_appropriateEndTagName[index] {
+            return false
+        }
+        return true
+    }
+
+    /// In an end tag open state, at an ASCII letter: consumes the whole tag name when it and the character after it
+    /// are in the current 8-bit substring, as the end tag open and end tag name states would one letter at a time.
+    /// When the character after the name is one that could end an appropriate end tag, the name goes into the
+    /// temporary buffer and the buffered end tag name and the end tag name state decides; otherwise "</" and the name
+    /// are buffered as characters, as that state does when the end tag is not appropriate, and the next character is
+    /// reconsumed in the text state.
+    @inline(always)
+    private mutating func consumeEndTagName(_ source: inout WebCore.SegmentedString) -> EndTagNameResult {
+        guard m_temporaryBuffer.isEmpty() && m_bufferedEndTagName.isEmpty() else {
+            return .notInCurrentSubstring
+        }
+        let length: Int
+        let next: UInt16
+        do {
+            let characters: Span<UInt8> = source.currentSubstringBytes8()
+            length = endTagNameLength(in: characters)
+            next = length > 0 ? UInt16(characters[length]) : 0
+        }
+        guard length > 0 else {
+            return .notInCurrentSubstring
+        }
+        // The preprocessor reads '\r' as '\n'.
+        var isAppropriate = isTokenizerWhitespace(next) || next == carriageReturn || next == solidus || next == greaterThanSign
+        let result: EndTagNameResult
+        do {
+            let characters: Span<UInt8> = source.currentSubstringBytes8()
+            // isAppropriateEndTag, for the letters compared ignoring case.
+            if UInt(bitPattern: length) != m_appropriateEndTagName.size() {
+                isAppropriate = false
+            }
+            var index = 0
+            while isAppropriate && index < length {
+                isAppropriate = UInt16(characters[index] | 0x20) == m_appropriateEndTagName[index]
+                index += 1
+            }
+            if isAppropriate {
+                for index in 0..<length {
+                    appendToTemporaryBuffer(UInt16(characters[index]))
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(UInt16(characters[index])))
+                }
+                result = .possibleAppropriateEndTag
+            } else {
+                bufferLessThanSignSolidus()
+                m_token.appendToCharacter(WTF.latin1CharactersOfBytes(characters.extracting(0..<length)))
+                result = .notAppropriateEndTag
+            }
+        }
+        source.advancePastMultiple(UInt32(truncatingIfNeeded: length))
+        return result
+    }
+
+    /// The state machine of HTMLTokenizer::processToken.
+    ///
+    /// `additionalAllowedCharacter` is m_additionalAllowedCharacter. The loop reads this copy and writes both.
+    @inline(always)
+    fileprivate mutating func processToken(
+        from source: inout WebCore.SegmentedString,
+        additionalAllowedCharacter: UInt16
+    ) -> Bool {
+        var additionalAllowedCharacter = additionalAllowedCharacter
+        // TokenizerState lists the states in State's order, so m_state is its raw value, whatever State's raw type (int
+        // under MSVC, with no negative value). No case handles an m_state outside State.
+        guard var state = TokenizerState(rawValue: TokenizerState.RawValue(truncatingIfNeeded: m_state.rawValue)) else {
+            return false
+        }
+        defer {
+            // State's raw type is the C++ enum's underlying type: unsigned on Apple platforms, int under MSVC.
+            m_state = State(rawValue: State.RawValue(state.rawValue))
+        }
+
+        if !m_bufferedEndTagName.isEmpty() && !state.isEndTagBuffering {
+            // We are back here after emitting a character token that came just before an end tag.
+            // To continue parsing the end tag we need to move the buffered tag name into the token.
+            flushBufferedEndTag()
+
+            // If we are in the data state, the end tag is already complete and we should emit it
+            // now, otherwise, we want to resume parsing the partial end tag.
+            if state == .data {
+                return true
+            }
+        }
+
+        guard m_preprocessor.peek(&source, shouldSkipNullCharacters(state)) else {
+            return haveBufferedCharacterToken
+        }
+        var character = m_preprocessor.nextInputCharacter()
+
+        // https://html.spec.whatwg.org/#tokenization
+        // Each state either returns, or sets `state` and continues: "reconsume in" keeps `character`, the
+        // transitions that consume read the next one. Each transition sets a constant state, so that it can branch
+        // straight to that state's case.
+        while true {
+            switch state {
+            case .data:
+                // Most characters are above '<', the largest of the special ones.
+                if character <= lessThanSign {
+                    if character == ampersand {
+                        guard advancePastNonNewline(to: .characterReferenceInData, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                    if character == lessThanSign {
+                        if haveBufferedCharacterToken {
+                            return true
+                        }
+                        guard advancePastNonNewline(to: .tagOpen, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                    if character == endOfFileMarker {
+                        return emitEndOfFile(&source)
+                    }
+                }
+                if isReplacedNullCharacter(&source, character) {
+                    return emitReplacedNullCharacter(&source)
+                }
+                bufferCharacter(character)
+                // Optimization: scan ahead for a run of plain-text characters in the
+                // current substring and buffer them all at once, avoiding the
+                // per-character overhead of the main tokenizer loop.
+                if bufferPlainText(
+                    &source,
+                    dataStateSpecialCharacters,
+                    while: {
+                        !isDataStateSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.data, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .data, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .characterReferenceInData:
+                if !processEntity(&source) {
+                    return haveBufferedCharacterToken
+                }
+                guard switchTo(.data, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .rcdata:
+                if character == ampersand {
+                    guard advancePastNonNewline(to: .characterReferenceInRCDATA, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == lessThanSign {
+                    guard advancePastNonNewline(to: .rcdataLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                if bufferPlainText(
+                    &source,
+                    dataStateSpecialCharacters,
+                    while: {
+                        !isDataStateSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.rcdata, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .rcdata, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .characterReferenceInRCDATA:
+                if !processEntity(&source) {
+                    return haveBufferedCharacterToken
+                }
+                guard switchTo(.rcdata, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .rawtext:
+                if character == lessThanSign {
+                    guard advancePastNonNewline(to: .rawtextLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                if bufferPlainText(
+                    &source,
+                    rawTextSpecialCharacters,
+                    while: {
+                        !isRawTextSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.rawtext, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .rawtext, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .scriptData:
+                if character == lessThanSign {
+                    guard advancePastNonNewline(to: .scriptDataLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                if bufferPlainText(
+                    &source,
+                    rawTextSpecialCharacters,
+                    while: {
+                        !isRawTextSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.scriptData, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .scriptData, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .plaintext:
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                guard advance(to: .plaintext, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .tagOpen:
+                if character == exclamationMark {
+                    guard advancePastNonNewline(to: .markupDeclarationOpen, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == solidus {
+                    guard advancePastNonNewline(to: .endTagOpen, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isASCIIAlpha(character) {
+                    let lowercaseCharacter = convertASCIIAlphaToLower(character)
+                    m_token.beginStartTag(WTF.Latin1Character(lowercaseCharacter))
+                    m_appropriateEndTagName.shrink(0)
+                    m_appropriateEndTagName.append(consuming: UInt16(lowercaseCharacter))
+                    guard advancePastNonNewline(to: .tagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == questionMark {
+                    if m_options.processingInstruction {
+                        guard advancePastNonNewline(to: .processingInstructionOpen, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                    // The spec consumes the current character before switching
+                    // to the bogus comment state, but it's easier to implement
+                    // if we reconsume the current character.
+                    state = .bogusComment
+                    continue
+                }
+                bufferASCIICharacter(lessThanSign)
+                state = .data
+                continue
+
+            case .endTagOpen:
+                if isASCIIAlpha(character) {
+                    m_token.beginEndTag(WTF.Latin1Character(convertASCIIAlphaToLower(character)))
+                    m_appropriateEndTagName.clear()
+                    guard advancePastNonNewline(to: .tagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    guard advancePastNonNewline(to: .data, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    bufferLessThanSignSolidus()
+                    state = .data
+                    continue
+                }
+                state = .bogusComment
+                continue
+
+            case .tagName:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeAttributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == solidus {
+                    guard advancePastNonNewline(to: .selfClosingStartTag, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if m_options.usePreHTML5ParserQuirks && character == lessThanSign {
+                    state = .data
+                    return true
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                let lowercaseCharacter = toASCIILower(character)
+                m_token.appendToName(lowercaseCharacter)
+                if m_token.type() == .StartTag {
+                    m_appropriateEndTagName.append(consuming: lowercaseCharacter)
+                }
+                guard advancePastNonNewline(to: .tagName, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .rcdataLessThanSign:
+                if character == solidus {
+                    m_temporaryBuffer.clear()
+                    guard advancePastNonNewline(to: .rcdataEndTagOpen, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferASCIICharacter(lessThanSign)
+                state = .rcdata
+                continue
+
+            case .rcdataEndTagOpen:
+                if isASCIIAlpha(character) {
+                    switch consumeEndTagName(&source) {
+                    case .notAppropriateEndTag:
+                        guard switchTo(.rcdata, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .possibleAppropriateEndTag:
+                        guard switchTo(.rcdataEndTagName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notInCurrentSubstring:
+                        break
+                    }
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .rcdataEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferLessThanSignSolidus()
+                state = .rcdata
+                continue
+
+            case .rcdataEndTagName:
+                if isASCIIAlpha(character) {
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .rcdataEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isTokenizerWhitespace(character) {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, character) {
+                            state = .beforeAttributeName
+                            return true
+                        }
+                        guard switchTo(.beforeAttributeName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == solidus {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, solidus) {
+                            state = .selfClosingStartTag
+                            return true
+                        }
+                        guard switchTo(.selfClosingStartTag, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == greaterThanSign {
+                    if isAppropriateEndTag() {
+                        state = .data
+                        return commitToCompleteEndTag(&source)
+                    }
+                }
+                flushTemporaryBufferAsCharacters()
+                state = .rcdata
+                continue
+
+            case .rawtextLessThanSign:
+                if character == solidus {
+                    m_temporaryBuffer.clear()
+                    guard advancePastNonNewline(to: .rawtextEndTagOpen, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferASCIICharacter(lessThanSign)
+                state = .rawtext
+                continue
+
+            case .rawtextEndTagOpen:
+                if isASCIIAlpha(character) {
+                    switch consumeEndTagName(&source) {
+                    case .notAppropriateEndTag:
+                        guard switchTo(.rawtext, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .possibleAppropriateEndTag:
+                        guard switchTo(.rawtextEndTagName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notInCurrentSubstring:
+                        break
+                    }
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .rawtextEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferLessThanSignSolidus()
+                state = .rawtext
+                continue
+
+            case .rawtextEndTagName:
+                if isASCIIAlpha(character) {
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .rawtextEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isTokenizerWhitespace(character) {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, character) {
+                            state = .beforeAttributeName
+                            return true
+                        }
+                        guard switchTo(.beforeAttributeName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == solidus {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, solidus) {
+                            state = .selfClosingStartTag
+                            return true
+                        }
+                        guard switchTo(.selfClosingStartTag, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == greaterThanSign {
+                    if isAppropriateEndTag() {
+                        state = .data
+                        return commitToCompleteEndTag(&source)
+                    }
+                }
+                flushTemporaryBufferAsCharacters()
+                state = .rawtext
+                continue
+
+            case .scriptDataLessThanSign:
+                if character == solidus {
+                    m_temporaryBuffer.clear()
+                    guard advancePastNonNewline(to: .scriptDataEndTagOpen, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == exclamationMark {
+                    bufferASCIICharacter(lessThanSign)
+                    bufferASCIICharacter(exclamationMark)
+                    guard advancePastNonNewline(to: .scriptDataEscapeStart, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferASCIICharacter(lessThanSign)
+                state = .scriptData
+                continue
+
+            case .scriptDataEndTagOpen:
+                if isASCIIAlpha(character) {
+                    switch consumeEndTagName(&source) {
+                    case .notAppropriateEndTag:
+                        guard switchTo(.scriptData, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .possibleAppropriateEndTag:
+                        guard switchTo(.scriptDataEndTagName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notInCurrentSubstring:
+                        break
+                    }
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .scriptDataEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferLessThanSignSolidus()
+                state = .scriptData
+                continue
+
+            case .scriptDataEndTagName:
+                if isASCIIAlpha(character) {
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .scriptDataEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isTokenizerWhitespace(character) {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, character) {
+                            state = .beforeAttributeName
+                            return true
+                        }
+                        guard switchTo(.beforeAttributeName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == solidus {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, solidus) {
+                            state = .selfClosingStartTag
+                            return true
+                        }
+                        guard switchTo(.selfClosingStartTag, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == greaterThanSign {
+                    if isAppropriateEndTag() {
+                        state = .data
+                        return commitToCompleteEndTag(&source)
+                    }
+                }
+                flushTemporaryBufferAsCharacters()
+                state = .scriptData
+                continue
+
+            case .scriptDataEscapeStart:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataEscapeStartDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                state = .scriptData
+                continue
+
+            case .scriptDataEscapeStartDash:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataEscapedDashDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                state = .scriptData
+                continue
+
+            case .scriptDataEscaped:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataEscapedDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == lessThanSign {
+                    guard advancePastNonNewline(to: .scriptDataEscapedLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                if bufferPlainText(
+                    &source,
+                    rawTextSpecialCharacters,
+                    or: .hyphenMinus,
+                    while: {
+                        !isScriptDataEscapedSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.scriptDataEscaped, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .scriptDataEscaped, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .scriptDataEscapedDash:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataEscapedDashDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == lessThanSign {
+                    guard advancePastNonNewline(to: .scriptDataEscapedLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                guard advance(to: .scriptDataEscaped, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .scriptDataEscapedDashDash:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataEscapedDashDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == lessThanSign {
+                    guard advancePastNonNewline(to: .scriptDataEscapedLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    bufferASCIICharacter(greaterThanSign)
+                    guard advancePastNonNewline(to: .scriptData, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                guard advance(to: .scriptDataEscaped, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .scriptDataEscapedLessThanSign:
+                if character == solidus {
+                    m_temporaryBuffer.clear()
+                    guard advancePastNonNewline(to: .scriptDataEscapedEndTagOpen, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isASCIIAlpha(character) {
+                    bufferASCIICharacter(lessThanSign)
+                    bufferASCIICharacter(character)
+                    m_temporaryBuffer.clear()
+                    appendToTemporaryBuffer(UInt16(convertASCIIAlphaToLower(character)))
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapeStart, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferASCIICharacter(lessThanSign)
+                state = .scriptDataEscaped
+                continue
+
+            case .scriptDataEscapedEndTagOpen:
+                if isASCIIAlpha(character) {
+                    switch consumeEndTagName(&source) {
+                    case .notAppropriateEndTag:
+                        guard switchTo(.scriptDataEscaped, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .possibleAppropriateEndTag:
+                        guard switchTo(.scriptDataEscapedEndTagName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notInCurrentSubstring:
+                        break
+                    }
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .scriptDataEscapedEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferLessThanSignSolidus()
+                state = .scriptDataEscaped
+                continue
+
+            case .scriptDataEscapedEndTagName:
+                if isASCIIAlpha(character) {
+                    appendToTemporaryBuffer(character)
+                    appendToPossibleEndTag(convertASCIIAlphaToLower(character))
+                    guard advancePastNonNewline(to: .scriptDataEscapedEndTagName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isTokenizerWhitespace(character) {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, character) {
+                            state = .beforeAttributeName
+                            return true
+                        }
+                        guard switchTo(.beforeAttributeName, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == solidus {
+                    if isAppropriateEndTag() {
+                        if commitToPartialEndTag(&source, solidus) {
+                            state = .selfClosingStartTag
+                            return true
+                        }
+                        guard switchTo(.selfClosingStartTag, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                } else if character == greaterThanSign {
+                    if isAppropriateEndTag() {
+                        state = .data
+                        return commitToCompleteEndTag(&source)
+                    }
+                }
+                flushTemporaryBufferAsCharacters()
+                state = .scriptDataEscaped
+                continue
+
+            case .scriptDataDoubleEscapeStart:
+                if isTokenizerWhitespace(character) || character == solidus || character == greaterThanSign {
+                    bufferASCIICharacter(character)
+                    if temporaryBufferIsScript() {
+                        guard advance(to: .scriptDataDoubleEscaped, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                    guard advance(to: .scriptDataEscaped, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isASCIIAlpha(character) {
+                    bufferASCIICharacter(character)
+                    appendToTemporaryBuffer(UInt16(convertASCIIAlphaToLower(character)))
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapeStart, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                state = .scriptDataEscaped
+                continue
+
+            case .scriptDataDoubleEscaped:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapedDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == lessThanSign {
+                    bufferASCIICharacter(lessThanSign)
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapedLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                if bufferPlainText(
+                    &source,
+                    rawTextSpecialCharacters,
+                    or: .hyphenMinus,
+                    while: {
+                        !isScriptDataEscapedSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.scriptDataDoubleEscaped, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .scriptDataDoubleEscaped, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .scriptDataDoubleEscapedDash:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapedDashDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == lessThanSign {
+                    bufferASCIICharacter(lessThanSign)
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapedLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                guard advance(to: .scriptDataDoubleEscaped, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .scriptDataDoubleEscapedDashDash:
+                if character == hyphenMinus {
+                    bufferASCIICharacter(hyphenMinus)
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapedDashDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == lessThanSign {
+                    bufferASCIICharacter(lessThanSign)
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapedLessThanSign, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    bufferASCIICharacter(greaterThanSign)
+                    guard advancePastNonNewline(to: .scriptData, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                bufferCharacter(character)
+                guard advance(to: .scriptDataDoubleEscaped, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .scriptDataDoubleEscapedLessThanSign:
+                if character == solidus {
+                    bufferASCIICharacter(solidus)
+                    m_temporaryBuffer.clear()
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapeEnd, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                state = .scriptDataDoubleEscaped
+                continue
+
+            case .scriptDataDoubleEscapeEnd:
+                if isTokenizerWhitespace(character) || character == solidus || character == greaterThanSign {
+                    bufferASCIICharacter(character)
+                    if temporaryBufferIsScript() {
+                        guard advance(to: .scriptDataEscaped, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    }
+                    guard advance(to: .scriptDataDoubleEscaped, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if isASCIIAlpha(character) {
+                    bufferASCIICharacter(character)
+                    appendToTemporaryBuffer(UInt16(convertASCIIAlphaToLower(character)))
+                    guard advancePastNonNewline(to: .scriptDataDoubleEscapeEnd, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                state = .scriptDataDoubleEscaped
+                continue
+
+            case .beforeAttributeName:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeAttributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == solidus {
+                    guard advancePastNonNewline(to: .selfClosingStartTag, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if m_options.usePreHTML5ParserQuirks && character == lessThanSign {
+                    state = .data
+                    return true
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                m_token.beginAttribute()
+                m_token.appendToAttributeName(toASCIILower(character))
+                if appendPlainText(
+                    &source,
+                    to: .attributeName,
+                    attributeNameSpecialCharacters,
+                    or: .attributeName,
+                    continuesAcrossNewlines: false,
+                    while: { !isAttributeNameSpecialCharacter($0) }
+                ) {
+                    guard switchTo(.attributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advancePastNonNewline(to: .attributeName, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .attributeName:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .afterAttributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == solidus {
+                    guard advancePastNonNewline(to: .selfClosingStartTag, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == equalsSign {
+                    guard advancePastNonNewline(to: .beforeAttributeValue, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if m_options.usePreHTML5ParserQuirks && character == lessThanSign {
+                    state = .data
+                    return true
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                m_token.appendToAttributeName(toASCIILower(character))
+                // A '\n' ends the name, so the run stops there.
+                if appendPlainText(
+                    &source,
+                    to: .attributeName,
+                    attributeNameSpecialCharacters,
+                    or: .attributeName,
+                    continuesAcrossNewlines: false,
+                    while: { !isAttributeNameSpecialCharacter($0) }
+                ) {
+                    guard switchTo(.attributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advancePastNonNewline(to: .attributeName, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .afterAttributeName:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .afterAttributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == solidus {
+                    guard advancePastNonNewline(to: .selfClosingStartTag, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == equalsSign {
+                    guard advancePastNonNewline(to: .beforeAttributeValue, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if m_options.usePreHTML5ParserQuirks && character == lessThanSign {
+                    state = .data
+                    return true
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                m_token.beginAttribute()
+                m_token.appendToAttributeName(toASCIILower(character))
+                if appendPlainText(
+                    &source,
+                    to: .attributeName,
+                    attributeNameSpecialCharacters,
+                    or: .attributeName,
+                    continuesAcrossNewlines: false,
+                    while: { !isAttributeNameSpecialCharacter($0) }
+                ) {
+                    guard switchTo(.attributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advancePastNonNewline(to: .attributeName, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .beforeAttributeValue:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeAttributeValue, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == quotationMark {
+                    guard advancePastNonNewline(to: .attributeValueDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == ampersand {
+                    state = .attributeValueUnquoted
+                    continue
+                }
+                if character == apostrophe {
+                    guard advancePastNonNewline(to: .attributeValueSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                m_token.appendToAttributeValue(character)
+                guard advancePastNonNewline(to: .attributeValueUnquoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .attributeValueDoubleQuoted:
+                if character == quotationMark {
+                    m_token.endAttribute()
+                    guard advancePastNonNewline(to: .afterAttributeValueQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == ampersand {
+                    m_additionalAllowedCharacter = quotationMark
+                    additionalAllowedCharacter = quotationMark
+                    guard advancePastNonNewline(to: .characterReferenceInAttributeValue, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    m_token.endAttribute()
+                    state = .data
+                    continue
+                }
+                m_token.appendToAttributeValue(character)
+                if appendPlainTextToAttributeValue(
+                    &source,
+                    doubleQuotedAttributeValueSpecialCharacters,
+                    while: {
+                        !isQuotedAttributeValueSpecialCharacter($0, quote: 0x22)
+                    }
+                ) {
+                    guard switchTo(.attributeValueDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .attributeValueDoubleQuoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .attributeValueSingleQuoted:
+                if character == apostrophe {
+                    m_token.endAttribute()
+                    guard advancePastNonNewline(to: .afterAttributeValueQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == ampersand {
+                    m_additionalAllowedCharacter = apostrophe
+                    additionalAllowedCharacter = apostrophe
+                    guard advancePastNonNewline(to: .characterReferenceInAttributeValue, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    m_token.endAttribute()
+                    state = .data
+                    continue
+                }
+                m_token.appendToAttributeValue(character)
+                if appendPlainTextToAttributeValue(
+                    &source,
+                    singleQuotedAttributeValueSpecialCharacters,
+                    while: {
+                        !isQuotedAttributeValueSpecialCharacter($0, quote: 0x27)
+                    }
+                ) {
+                    guard switchTo(.attributeValueSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .attributeValueSingleQuoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .attributeValueUnquoted:
+                if isTokenizerWhitespace(character) {
+                    m_token.endAttribute()
+                    guard advance(to: .beforeAttributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == ampersand {
+                    m_additionalAllowedCharacter = greaterThanSign
+                    additionalAllowedCharacter = greaterThanSign
+                    guard advancePastNonNewline(to: .characterReferenceInAttributeValue, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.endAttribute()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.endAttribute()
+                    state = .data
+                    continue
+                }
+                m_token.appendToAttributeValue(character)
+                // A '\n' ends the value, so the run stops there.
+                if appendPlainTextToAttributeValue(
+                    &source,
+                    unquotedAttributeValueSpecialCharacters,
+                    or: .space,
+                    continuesAcrossNewlines: false,
+                    while: { !isAttributeValueUnquotedSpecialCharacter($0) }
+                ) {
+                    guard switchTo(.attributeValueUnquoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advancePastNonNewline(to: .attributeValueUnquoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .characterReferenceInAttributeValue:
+                let decodedEntity = consumeHTMLEntity(&source, additionalAllowedCharacter)
+                if decodedEntity.notEnoughCharacters() {
+                    return haveBufferedCharacterToken
+                }
+                if decodedEntity.failed() {
+                    m_token.appendToAttributeValue(ampersand)
+                } else {
+                    let characters: Span<UInt16> = decodedEntity.span()
+                    for index in characters.indices {
+                        m_token.appendToAttributeValue(characters[index])
+                    }
+                }
+                // We're supposed to switch back to the attribute value state that
+                // we were in when we were switched into this state. Rather than
+                // keeping track of this explicitly, we observe that the previous
+                // state can be determined by m_additionalAllowedCharacter.
+                if additionalAllowedCharacter == quotationMark {
+                    guard switchTo(.attributeValueDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if additionalAllowedCharacter == apostrophe {
+                    guard switchTo(.attributeValueSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard switchTo(.attributeValueUnquoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .afterAttributeValueQuoted:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeAttributeName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == solidus {
+                    guard advancePastNonNewline(to: .selfClosingStartTag, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if m_options.usePreHTML5ParserQuirks && character == lessThanSign {
+                    state = .data
+                    return true
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                state = .beforeAttributeName
+                continue
+
+            case .selfClosingStartTag:
+                if character == greaterThanSign {
+                    m_token.setSelfClosing()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                state = .beforeAttributeName
+                continue
+
+            case .processingInstructionOpen:
+                if character == lowLine || isASCIIAlpha(character) {
+                    m_token.beginProcessingInstruction()
+                    state = .processingInstructionTarget
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return emitEndOfFile(&source)
+                }
+                m_token.beginComment()
+                m_token.appendToComment(CChar(questionMark))
+                state = .continueBogusComment
+                continue
+
+            case .processingInstructionTarget:
+                if character == endOfFileMarker {
+                    state = .data
+                    return emitEndOfFile(&source)
+                }
+                if character == hyphenMinus || character == lowLine || isASCIIAlphanumeric(character) {
+                    m_token.appendToProcessingInstructionTarget(WTF.Latin1Character(character))
+                    guard advance(to: .processingInstructionTarget, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if !(isTokenizerWhitespace(character) || character == greaterThanSign || character == questionMark) {
+                    rewindToBogusCommentForProcessingInstructionTarget()
+                    state = .continueBogusComment
+                    continue
+                }
+                // `<?xml` and `<?xml-stylesheet` stay bogus comments, as they were before
+                // processing instructions were parsed at all.
+                if processingInstructionTargetIsXMLDeclaration() {
+                    rewindToBogusCommentForProcessingInstructionTarget()
+                    state = .continueBogusComment
+                    continue
+                }
+                state = .afterProcessingInstructionTarget
+                continue
+
+            case .afterProcessingInstructionTarget:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .afterProcessingInstructionTarget, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == questionMark {
+                    guard advancePastNonNewline(to: .processingInstructionQuestionMark, &state, &character, &source)
+                    else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitProcessingInstruction(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return emitEndOfFile(&source)
+                }
+                state = .processingInstructionData
+                continue
+
+            case .processingInstructionData:
+                if character == questionMark {
+                    guard advancePastNonNewline(to: .processingInstructionQuestionMark, &state, &character, &source)
+                    else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitProcessingInstruction(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return emitEndOfFile(&source)
+                }
+                m_token.appendToProcessingInstructionData(character)
+                guard advance(to: .processingInstructionData, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .processingInstructionQuestionMark:
+                if character == greaterThanSign {
+                    state = .data
+                    return emitProcessingInstruction(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return emitEndOfFile(&source)
+                }
+                m_token.appendToProcessingInstructionData(questionMark)
+                state = .processingInstructionData
+                continue
+
+            case .bogusComment:
+                m_token.beginComment()
+                state = .continueBogusComment
+                continue
+
+            case .continueBogusComment:
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                m_token.appendToComment(character)
+                if appendPlainText(
+                    &source,
+                    to: .comment,
+                    bogusCommentSpecialCharacters,
+                    while: {
+                        !isBogusCommentSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.continueBogusComment, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .continueBogusComment, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .markupDeclarationOpen:
+                if character == hyphenMinus {
+                    switch advancePast([0x2D, 0x2D], ignoringCase: false, in: &source) {
+                    case .didMatch:
+                        m_token.beginComment()
+                        guard switchTo(.commentStart, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notEnoughCharacters:
+                        return haveBufferedCharacterToken
+                    case .didNotMatch:
+                        break
+                    }
+                } else if (character | 0x20) == 0x64 {
+                    // "doctype"
+                    switch advancePast([0x64, 0x6F, 0x63, 0x74, 0x79, 0x70, 0x65], ignoringCase: true, in: &source) {
+                    case .didMatch:
+                        guard switchTo(.doctype, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notEnoughCharacters:
+                        return haveBufferedCharacterToken
+                    case .didNotMatch:
+                        break
+                    }
+                } else if character == leftSquareBracket && m_shouldAllowCDATA {
+                    // "[CDATA["
+                    switch advancePast([0x5B, 0x43, 0x44, 0x41, 0x54, 0x41, 0x5B], ignoringCase: false, in: &source) {
+                    case .didMatch:
+                        guard switchTo(.cdataSection, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notEnoughCharacters:
+                        return haveBufferedCharacterToken
+                    case .didNotMatch:
+                        break
+                    }
+                }
+                state = .bogusComment
+                continue
+
+            case .commentStart:
+                if character == hyphenMinus {
+                    guard advancePastNonNewline(to: .commentStartDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                m_token.appendToComment(character)
+                guard advance(to: .comment, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .commentStartDash:
+                if character == hyphenMinus {
+                    guard advancePastNonNewline(to: .commentEnd, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                m_token.appendToComment(CChar(hyphenMinus))
+                m_token.appendToComment(character)
+                guard advance(to: .comment, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .comment:
+                if character == hyphenMinus {
+                    guard advancePastNonNewline(to: .commentEndDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                m_token.appendToComment(character)
+                if appendPlainText(
+                    &source,
+                    to: .comment,
+                    newlineAndNullCharacters,
+                    or: .hyphenMinus,
+                    while: {
+                        !isCommentSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.comment, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .comment, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .commentEndDash:
+                if character == hyphenMinus {
+                    guard advancePastNonNewline(to: .commentEnd, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                m_token.appendToComment(CChar(hyphenMinus))
+                m_token.appendToComment(character)
+                guard advance(to: .comment, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .commentEnd:
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == exclamationMark {
+                    guard advancePastNonNewline(to: .commentEndBang, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == hyphenMinus {
+                    m_token.appendToComment(CChar(hyphenMinus))
+                    guard advancePastNonNewline(to: .commentEnd, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                m_token.appendToComment(CChar(hyphenMinus))
+                m_token.appendToComment(CChar(hyphenMinus))
+                m_token.appendToComment(character)
+                guard advance(to: .comment, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .commentEndBang:
+                if character == hyphenMinus {
+                    m_token.appendToComment(CChar(hyphenMinus))
+                    m_token.appendToComment(CChar(hyphenMinus))
+                    m_token.appendToComment(CChar(exclamationMark))
+                    guard advancePastNonNewline(to: .commentEndDash, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                m_token.appendToComment(CChar(hyphenMinus))
+                m_token.appendToComment(CChar(hyphenMinus))
+                m_token.appendToComment(CChar(exclamationMark))
+                m_token.appendToComment(character)
+                guard advance(to: .comment, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .doctype:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeDOCTYPEName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    m_token.beginDOCTYPE()
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                state = .beforeDOCTYPEName
+                continue
+
+            case .beforeDOCTYPEName:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeDOCTYPEName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.beginDOCTYPE()
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.beginDOCTYPE()
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.beginDOCTYPE(toASCIILower(character))
+                guard advancePastNonNewline(to: .doctypeName, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .doctypeName:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .afterDOCTYPEName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.appendToName(toASCIILower(character))
+                guard advancePastNonNewline(to: .doctypeName, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .afterDOCTYPEName:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .afterDOCTYPEName, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                if (character | 0x20) == 0x70 {
+                    // "public"
+                    switch advancePast([0x70, 0x75, 0x62, 0x6C, 0x69, 0x63], ignoringCase: true, in: &source) {
+                    case .didMatch:
+                        guard switchTo(.afterDOCTYPEPublicKeyword, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notEnoughCharacters:
+                        return haveBufferedCharacterToken
+                    case .didNotMatch:
+                        break
+                    }
+                } else if (character | 0x20) == 0x73 {
+                    // "system"
+                    switch advancePast([0x73, 0x79, 0x73, 0x74, 0x65, 0x6D], ignoringCase: true, in: &source) {
+                    case .didMatch:
+                        guard switchTo(.afterDOCTYPESystemKeyword, &state, &character, &source) else {
+                            return haveBufferedCharacterToken
+                        }
+                        continue
+                    case .notEnoughCharacters:
+                        return haveBufferedCharacterToken
+                    case .didNotMatch:
+                        break
+                    }
+                }
+                m_token.setForceQuirks()
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .afterDOCTYPEPublicKeyword:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeDOCTYPEPublicIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == quotationMark {
+                    m_token.setPublicIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypePublicIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == apostrophe {
+                    m_token.setPublicIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypePublicIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.setForceQuirks()
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .beforeDOCTYPEPublicIdentifier:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeDOCTYPEPublicIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == quotationMark {
+                    m_token.setPublicIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypePublicIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == apostrophe {
+                    m_token.setPublicIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypePublicIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.setForceQuirks()
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .doctypePublicIdentifierDoubleQuoted:
+                if character == quotationMark {
+                    guard advancePastNonNewline(to: .afterDOCTYPEPublicIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.appendToPublicIdentifier(character)
+                if appendPlainText(
+                    &source,
+                    to: .publicIdentifier,
+                    doubleQuotedDOCTYPEIdentifierSpecialCharacters,
+                    while: {
+                        !isDOCTYPEIdentifierSpecialCharacter($0, quote: 0x22)
+                    }
+                ) {
+                    guard switchTo(.doctypePublicIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .doctypePublicIdentifierDoubleQuoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .doctypePublicIdentifierSingleQuoted:
+                if character == apostrophe {
+                    guard advancePastNonNewline(to: .afterDOCTYPEPublicIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.appendToPublicIdentifier(character)
+                if appendPlainText(
+                    &source,
+                    to: .publicIdentifier,
+                    singleQuotedDOCTYPEIdentifierSpecialCharacters,
+                    while: {
+                        !isDOCTYPEIdentifierSpecialCharacter($0, quote: 0x27)
+                    }
+                ) {
+                    guard switchTo(.doctypePublicIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .doctypePublicIdentifierSingleQuoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .afterDOCTYPEPublicIdentifier:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .betweenDOCTYPEPublicAndSystemIdentifiers, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == quotationMark {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == apostrophe {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.setForceQuirks()
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .betweenDOCTYPEPublicAndSystemIdentifiers:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .betweenDOCTYPEPublicAndSystemIdentifiers, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == quotationMark {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == apostrophe {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.setForceQuirks()
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .afterDOCTYPESystemKeyword:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeDOCTYPESystemIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == quotationMark {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == apostrophe {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.setForceQuirks()
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .beforeDOCTYPESystemIdentifier:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .beforeDOCTYPESystemIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == quotationMark {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == apostrophe {
+                    m_token.setSystemIdentifierToEmptyString()
+                    guard advancePastNonNewline(to: .doctypeSystemIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.setForceQuirks()
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .doctypeSystemIdentifierDoubleQuoted:
+                if character == quotationMark {
+                    guard advancePastNonNewline(to: .afterDOCTYPESystemIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.appendToSystemIdentifier(character)
+                if appendPlainText(
+                    &source,
+                    to: .systemIdentifier,
+                    doubleQuotedDOCTYPEIdentifierSpecialCharacters,
+                    while: {
+                        !isDOCTYPEIdentifierSpecialCharacter($0, quote: 0x22)
+                    }
+                ) {
+                    guard switchTo(.doctypeSystemIdentifierDoubleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .doctypeSystemIdentifierDoubleQuoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .doctypeSystemIdentifierSingleQuoted:
+                if character == apostrophe {
+                    guard advancePastNonNewline(to: .afterDOCTYPESystemIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                m_token.appendToSystemIdentifier(character)
+                if appendPlainText(
+                    &source,
+                    to: .systemIdentifier,
+                    singleQuotedDOCTYPEIdentifierSpecialCharacters,
+                    while: {
+                        !isDOCTYPEIdentifierSpecialCharacter($0, quote: 0x27)
+                    }
+                ) {
+                    guard switchTo(.doctypeSystemIdentifierSingleQuoted, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .doctypeSystemIdentifierSingleQuoted, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .afterDOCTYPESystemIdentifier:
+                if isTokenizerWhitespace(character) {
+                    guard advance(to: .afterDOCTYPESystemIdentifier, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    m_token.setForceQuirks()
+                    state = .data
+                    return true
+                }
+                guard advancePastNonNewline(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .bogusDOCTYPE:
+                if character == greaterThanSign {
+                    state = .data
+                    return emitAndResumeInDataState(&source)
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    return true
+                }
+                guard advance(to: .bogusDOCTYPE, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .cdataSection:
+                if character == rightSquareBracket {
+                    guard advancePastNonNewline(to: .cdataSectionRightSquareBracket, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == endOfFileMarker {
+                    state = .data
+                    continue
+                }
+                if isReplacedNullCharacter(&source, character) {
+                    return emitReplacedNullCharacter(&source)
+                }
+                bufferCharacter(character)
+                if bufferPlainText(
+                    &source,
+                    newlineAndNullCharacters,
+                    or: .rightSquareBracket,
+                    while: {
+                        !isCDATASectionSpecialCharacter($0)
+                    }
+                ) {
+                    guard switchTo(.cdataSection, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                guard advance(to: .cdataSection, &state, &character, &source) else {
+                    return haveBufferedCharacterToken
+                }
+                continue
+
+            case .cdataSectionRightSquareBracket:
+                if character == rightSquareBracket {
+                    guard advancePastNonNewline(to: .cdataSectionDoubleRightSquareBracket, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferASCIICharacter(rightSquareBracket)
+                state = .cdataSection
+                continue
+
+            case .cdataSectionDoubleRightSquareBracket:
+                if character == rightSquareBracket {
+                    bufferCharacter(character)
+                    guard advance(to: .cdataSectionDoubleRightSquareBracket, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                if character == greaterThanSign {
+                    guard advancePastNonNewline(to: .data, &state, &character, &source) else {
+                        return haveBufferedCharacterToken
+                    }
+                    continue
+                }
+                bufferASCIICharacter(rightSquareBracket)
+                bufferASCIICharacter(rightSquareBracket)
+                state = .cdataSection
+                continue
+            }
+        }
+    }
+}
+
+extension WebCore.HTMLTokenizer {
+    /// HTMLTokenizer::nextToken for HTMLPreloadScanner.swift, which approximates the tree builder with
+    /// updateStateFor on each start tag before it scans the tag.
+    ///
+    /// Returns false if no token is ready. Otherwise runs `body` on the token and clears it.
+    @inline(always)
+    internal mutating func nextPreloadScannerToken(
+        _ source: inout WebCore.SegmentedString,
+        _ body: (borrowing WebCore.HTMLToken) -> Void
+    ) -> Bool {
+        let additionalAllowedCharacter = m_additionalAllowedCharacter
+        guard processHTMLTokenizerToken(&self, &source, additionalAllowedCharacter) else {
+            return false
+        }
+        if m_token.type() == .StartTag,
+            let state = stateForTagName(WebCore.htmlTokenName(m_token), scriptingFlag: m_options.scriptingFlag) {
+            m_state = State(rawValue: State.RawValue(state.rawValue))
+        }
+        body(m_token)
+        m_token.clear()
+        return true
+    }
+}

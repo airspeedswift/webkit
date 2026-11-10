@@ -168,7 +168,9 @@ CSSPrimitiveValue::~CSSPrimitiveValue()
         break;
     }
     if (m_hasCachedCSSText) {
-        ASSERT(isMainThread());
+        // The cache is the main thread's alone. A value whose text was cached there and whose last reference is
+        // released on another thread would remove its entry concurrently with the main thread's use of the map.
+        RELEASE_ASSERT(isMainThread());
         ASSERT(serializedPrimitiveValues().contains(this));
         serializedPrimitiveValues().remove(this);
     }
@@ -208,6 +210,10 @@ Ref<CSSPrimitiveValue> CSSPrimitiveValue::create(double value, CSSUnitType type)
             return result.releaseNonNull();
         break;
     default:
+        // The unit becomes the tag of m_value: Calc would make `value`'s bits a CSSCalc::Value pointer, and the
+        // 7-bit m_primitiveUnitType keeps only the low bits of a unit past the last enumerator.
+        static_assert(std::to_underlying(CSSUnitType::QuirkyEm) < 128);
+        RELEASE_ASSERT(std::to_underlying(type) <= std::to_underlying(CSSUnitType::QuirkyEm) && type != CSSUnitType::Calc);
         break;
     }
     return adoptRef(*new CSSPrimitiveValue(value, type));
