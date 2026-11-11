@@ -147,6 +147,17 @@ public:
         std::optional<unsigned> transformFunctionListPrefix;
     };
     WEBCORE_EXPORT size_t blendValues(Property, size_t from, size_t to, const BlendInputs&);
+    // Translate::computeSizeDependencies (Property::Translate) or the transform's (Property::Transform) as bits:
+    // isWidthDependent, then isHeightDependent; 0 for the other properties.
+    WEBCORE_EXPORT uint64_t valueSizeDependencies(Property, size_t index) const;
+    // Blending<Transform> as the interpolation of a registered custom property holding a transform list: the context's
+    // property is the custom property's name, not CSSPropertyID::Transform. The blended value is added as a transform,
+    // and its index returned.
+    WEBCORE_EXPORT size_t blendTransformsAsCustomProperty(size_t from, size_t to, const BlendInputs&);
+    // Blending<TransformFunction> of the function at fromFunction in the transform at from and the function at
+    // toFunction in the transform at to, as the interpolation of a value holding one function does; the blended
+    // function is added as a transform of one function, and its index returned.
+    WEBCORE_EXPORT size_t blendTransformFunctions(size_t from, size_t fromFunction, size_t to, size_t toFunction, const BlendInputs&);
 
 private:
     struct Values;

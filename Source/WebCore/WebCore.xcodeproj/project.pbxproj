@@ -5187,6 +5187,7 @@
 		BC22AABA2E371A4C009AC0C3 /* StyleWebKitBorderSpacing.h in Headers */ = {isa = PBXBuildFile; fileRef = BC22AAB92E371A4C009AC0C3 /* StyleWebKitBorderSpacing.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC22AAE42E37F534009AC0C3 /* StylePrimitiveNumericTypes+Evaluation.h in Headers */ = {isa = PBXBuildFile; fileRef = BCB271F42CC018F100265123 /* StylePrimitiveNumericTypes+Evaluation.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC22AAE52E37F567009AC0C3 /* StylePrimitiveNumericTypes+Calculation.h in Headers */ = {isa = PBXBuildFile; fileRef = BC05ACC82CEE5C9600750CB1 /* StylePrimitiveNumericTypes+Calculation.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		C227B5771D20B6B60D8F8187 /* StylePrimitiveNumericTypes+Blending.h in Headers */ = {isa = PBXBuildFile; fileRef = BCB271EF2CC0156E00265123 /* StylePrimitiveNumericTypes+Blending.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC22AB142E3944B4009AC0C3 /* StyleColumnWidth.h in Headers */ = {isa = PBXBuildFile; fileRef = BC22AB132E394476009AC0C3 /* StyleColumnWidth.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC22AB172E39485C009AC0C3 /* StyleColumnCount.h in Headers */ = {isa = PBXBuildFile; fileRef = BC22AB162E39485C009AC0C3 /* StyleColumnCount.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		BC22AB362E3ABBDC009AC0C3 /* StyleOpacity.h in Headers */ = {isa = PBXBuildFile; fileRef = BC22AB332E3A9B8E009AC0C3 /* StyleOpacity.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -49746,6 +49747,7 @@
 				BCE434662D4320400030D140 /* StylePrimitiveNumeric.h in Headers */,
 				BCD67C1C2D1F35840079EB9C /* StylePrimitiveNumericConcepts.h in Headers */,
 				BCE434672D4320630030D140 /* StylePrimitiveNumericOrKeyword.h in Headers */,
+				C227B5771D20B6B60D8F8187 /* StylePrimitiveNumericTypes+Blending.h in Headers */,
 				BC22AAE52E37F567009AC0C3 /* StylePrimitiveNumericTypes+Calculation.h in Headers */,
 				BC22AAE42E37F534009AC0C3 /* StylePrimitiveNumericTypes+Evaluation.h in Headers */,
 				BC6A708F2FDC6D3800872C12 /* StylePrimitiveNumericTypes+EvaluationMinimum.h in Headers */,

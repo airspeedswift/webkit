@@ -205,5 +205,12 @@ template<auto nR, auto pR, typename V> struct Blending<NumberOrPercentageResolve
     }
 };
 
+// The blending of the numeric types the transform functions hold, by name: Swift cannot spell a class template
+// specialization (Blending<Length<>>), and cannot call the Style::blend invoker.
+using BlendingLength = Blending<Length<>>;
+using BlendingLengthPercentage = Blending<LengthPercentage<>>;
+using BlendingAngle = Blending<Angle<>>;
+using BlendingNumberOrPercentageResolvedToNumber = Blending<NumberOrPercentageResolvedToNumber<>>;
+
 } // namespace Style
 } // namespace WebCore
