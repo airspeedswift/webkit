@@ -380,6 +380,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/StaticRangeValidity.cpp
         Tests/WebCore/StringWithDirection.cpp
         Tests/WebCore/StyleGradient.cpp
+        Tests/WebCore/StyleTransformsBench.cpp
         Tests/WebCore/TestPlatformStrategies.cpp
         Tests/WebCore/TextCodec.cpp
         Tests/WebCore/TextCodecUTF8Bench.cpp
