@@ -40,28 +40,12 @@ class PerspectiveTransformFunction final : public TransformFunctionBase {
 public:
     NODELETE static Ref<const PerspectiveTransformFunction> create(Perspective);
 
-    Ref<const TransformFunctionBase> clone() const override;
-    Ref<TransformOperation> toPlatform(const FloatSize&, ZoomFactor) const override;
-
     Perspective perspective() const { return m_p; }
-
-    bool isIdentity() const override { return m_p.isNone(); }
-    bool isAffectedByTransformOrigin() const override { return !isIdentity(); }
-    bool isRepresentableIn2D() const override { return false; }
-
-    bool operator==(const PerspectiveTransformFunction& other) const { return operator==(static_cast<const TransformFunctionBase&>(other)); }
-    bool operator==(const TransformFunctionBase&) const override;
-
-    void apply(TransformationMatrix&, const FloatSize& borderBoxSize, ZoomFactor) const override;
-
-    Ref<const TransformFunctionBase> blend(const TransformFunctionBase* from, const BlendingContext&, bool blendToIdentity = false) const override;
 
     void dump(WTF::TextStream&) const override;
 
 private:
     PerspectiveTransformFunction(Perspective);
-
-    std::optional<float> unresolvedFloatValue() const;
 
     Perspective m_p;
 };

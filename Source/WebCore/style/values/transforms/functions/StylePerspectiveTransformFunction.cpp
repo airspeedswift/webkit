@@ -27,12 +27,8 @@
 #include "config.h"
 #include "StylePerspectiveTransformFunction.h"
 
-#include "AnimationUtilities.h"
-#include "PerspectiveTransformOperation.h"
 #include "StyleKeyword+Logging.h"
-#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
-#include <wtf/MathExtras.h>
 
 namespace WebCore {
 namespace Style {
@@ -46,84 +42,6 @@ PerspectiveTransformFunction::PerspectiveTransformFunction(Perspective p)
 Ref<const PerspectiveTransformFunction> PerspectiveTransformFunction::create(Perspective p)
 {
     return adoptRef(*new PerspectiveTransformFunction(p));
-}
-
-Ref<const TransformFunctionBase> PerspectiveTransformFunction::clone() const
-{
-    return adoptRef(*new PerspectiveTransformFunction(m_p));
-}
-
-Ref<TransformOperation> PerspectiveTransformFunction::toPlatform(const FloatSize&, ZoomFactor zoom) const
-{
-    return WTF::switchOn(m_p,
-        [](const CSS::Keyword::None&) -> Ref<TransformOperation> {
-            return PerspectiveTransformOperation::create(std::nullopt);
-        },
-        [&](const Perspective::Length& value) -> Ref<TransformOperation> {
-            return PerspectiveTransformOperation::create(evaluate<float>(value, zoom));
-        }
-    );
-}
-
-bool PerspectiveTransformFunction::operator==(const TransformFunctionBase& other) const
-{
-    if (!isSameType(other))
-        return false;
-    auto& otherPerspective = downcast<PerspectiveTransformFunction>(other);
-    return m_p == otherPerspective.m_p;
-}
-
-void PerspectiveTransformFunction::apply(TransformationMatrix& transform, const FloatSize&, ZoomFactor zoom) const
-{
-    if (auto value = m_p.tryValue())
-        transform.applyPerspective(std::max(1.0f, evaluate<float>(*value, zoom)));
-}
-
-std::optional<float> PerspectiveTransformFunction::unresolvedFloatValue() const
-{
-    return WTF::switchOn(m_p,
-        [](const CSS::Keyword::None&) -> std::optional<float> {
-            return std::nullopt;
-        },
-        [](const Perspective::Length& value) -> std::optional<float> {
-            // From https://drafts.csswg.org/css-transforms-2/#perspective-property:
-            // "As very small <length> values can produce bizarre rendering results and stress the numerical accuracy of
-            // transform calculations, values less than 1px must be treated as 1px for rendering purposes. (This clamping
-            // does not affect the underlying value, so perspective: 0; in a stylesheet will still serialize back as 0.)"
-            return std::max(1.0f, value.unresolvedValue());
-        }
-    );
-}
-
-Ref<const TransformFunctionBase> PerspectiveTransformFunction::blend(const TransformFunctionBase* from, const BlendingContext& context, bool blendToIdentity) const
-{
-    if (!sharedPrimitiveType(from))
-        return *this;
-
-    // https://drafts.csswg.org/css-transforms-2/#interpolation-of-transform-functions
-    // says that we should run matrix decomposition and then run the rules for
-    // interpolation of matrices, but we know what those rules are going to
-    // yield, so just do that directly.
-    auto getInverse = [](const auto& operation) {
-        if (auto value = operation->unresolvedFloatValue())
-            return 1.0 / *value;
-        return 0.0;
-    };
-
-    double ourInverse = getInverse(this);
-    double fromPInverse, toPInverse;
-    if (blendToIdentity) {
-        fromPInverse = ourInverse;
-        toPInverse = 0.0;
-    } else {
-        fromPInverse = from ? getInverse(downcast<PerspectiveTransformFunction>(from)) : 0.0;
-        toPInverse = ourInverse;
-    }
-
-    double pInverse = WebCore::blend(fromPInverse, toPInverse, context);
-    if (pInverse > 0.0 && std::isnormal(pInverse))
-        return PerspectiveTransformFunction::create(Perspective::Length { static_cast<float>(1.0 / pInverse) });
-    return PerspectiveTransformFunction::create(CSS::Keyword::None { });
 }
 
 void PerspectiveTransformFunction::dump(TextStream& ts) const

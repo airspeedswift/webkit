@@ -31,6 +31,8 @@
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
 
+#include "WebCore-Swift.h"
+
 namespace WebCore {
 namespace Style {
 
@@ -39,7 +41,7 @@ using namespace CSS::Literals;
 void Rotate::apply(TransformationMatrix& transform, const FloatSize& size, ZoomFactor zoom) const
 {
     if (RefPtr protectedValue = value)
-        protectedValue->apply(transform, size, zoom);
+        styleTransformFunctionApply(TransformFunction { protectedValue.releaseNonNull() }, transform, size.width(), size.height(), zoom.value);
 }
 
 // MARK: - Conversion
@@ -101,39 +103,12 @@ auto CSSValueConversion<Rotate>::operator()(BuilderState& state, const CSSValue&
 
 // MARK: - Blending
 
+// styleRotateBlend() clamps a blended angle to the finite doubles, as Blending<Angle<>> does for this range.
+static_assert(Angle<>::range == CSS::All);
+
 auto Blending<Rotate>::blend(const Rotate& from, const Rotate& to, const BlendingContext& context) -> Rotate
 {
-    RefPtr fromRotate = from.value;
-    RefPtr toRotate = to.value;
-
-    if (!fromRotate && !toRotate)
-        return CSS::Keyword::None { };
-
-    auto identity = [&](const auto& other) {
-        return RotateTransformFunction::create(0_css_deg, other.type());
-    };
-
-    auto fromFunction = fromRotate ? Ref(*fromRotate) : identity(*toRotate);
-    auto toFunction = toRotate ? Ref(*toRotate) : identity(*fromRotate);
-
-    // Ensure the two transforms have the same type.
-    if (!fromFunction->isSameType(toFunction)) {
-        RefPtr<const RotateTransformFunction> normalizedFrom;
-        RefPtr<const RotateTransformFunction> normalizedTo;
-        if (fromFunction->is3DOperation() || toFunction->is3DOperation()) {
-            normalizedFrom = RotateTransformFunction::create(fromFunction->x(), fromFunction->y(), fromFunction->z(), fromFunction->angle(), TransformFunctionType::Rotate3D);
-            normalizedTo = RotateTransformFunction::create(toFunction->x(), toFunction->y(), toFunction->z(), toFunction->angle(), TransformFunctionType::Rotate3D);
-        } else {
-            normalizedFrom = RotateTransformFunction::create(fromFunction->angle(), TransformFunctionType::Rotate);
-            normalizedTo = RotateTransformFunction::create(toFunction->angle(), TransformFunctionType::Rotate);
-        }
-        return blend(Rotate { normalizedFrom.releaseNonNull() }, Rotate { normalizedTo.releaseNonNull() }, context);
-    }
-
-    if (auto blendedFunction = toFunction->blend(fromFunction.ptr(), context); RefPtr rotate = dynamicDowncast<RotateTransformFunction>(blendedFunction))
-        return RotateTransformFunction::create(rotate->x(), rotate->y(), rotate->z(), rotate->angle(), rotate->type());
-
-    return CSS::Keyword::None { };
+    return styleRotateBlend(from, to, context);
 }
 
 // MARK: - Platform
@@ -141,7 +116,7 @@ auto Blending<Rotate>::blend(const Rotate& from, const Rotate& to, const Blendin
 auto ToPlatform<Rotate>::operator()(const Rotate& value, const FloatSize& size, ZoomFactor zoom) -> RefPtr<TransformOperation>
 {
     if (RefPtr function = value.value)
-        return function->toPlatform(size, zoom);
+        return styleTransformFunctionToPlatform(TransformFunction { function.releaseNonNull() }, size.width(), size.height(), zoom.value);
     return nullptr;
 }
 

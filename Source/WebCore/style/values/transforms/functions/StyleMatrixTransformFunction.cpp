@@ -23,11 +23,8 @@
 #include "config.h"
 #include "StyleMatrixTransformFunction.h"
 
-#include "AnimationUtilities.h"
-#include "MatrixTransformOperation.h"
 #include "StyleKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
-#include <algorithm>
 
 namespace WebCore {
 namespace Style {
@@ -61,72 +58,6 @@ Ref<const MatrixTransformFunction> MatrixTransformFunction::create(Number<> a, N
 Ref<const MatrixTransformFunction> MatrixTransformFunction::create(const TransformationMatrix& matrix)
 {
     return adoptRef(*new MatrixTransformFunction(matrix));
-}
-
-Ref<const TransformFunctionBase> MatrixTransformFunction::clone() const
-{
-    return adoptRef(*new MatrixTransformFunction(m_a, m_b, m_c, m_d, m_e, m_f));
-}
-
-Ref<TransformOperation> MatrixTransformFunction::toPlatform(const FloatSize&, ZoomFactor zoom) const
-{
-    return MatrixTransformOperation::create(
-        m_a.value,
-        m_b.value,
-        m_c.value,
-        m_d.value,
-        m_e.value * zoom.value,
-        m_f.value * zoom.value
-    );
-}
-
-bool MatrixTransformFunction::operator==(const TransformFunctionBase& other) const
-{
-    if (!isSameType(other))
-        return false;
-
-    auto& otherMatrix = downcast<MatrixTransformFunction>(other);
-    return m_a == otherMatrix.m_a
-        && m_b == otherMatrix.m_b
-        && m_c == otherMatrix.m_c
-        && m_d == otherMatrix.m_d
-        && m_e == otherMatrix.m_e
-        && m_f == otherMatrix.m_f;
-}
-
-void MatrixTransformFunction::apply(TransformationMatrix& transform, const FloatSize&, ZoomFactor zoom) const
-{
-    transform.multiply(
-        TransformationMatrix(
-            m_a.value,
-            m_b.value,
-            m_c.value,
-            m_d.value,
-            m_e.value * zoom.value,
-            m_f.value * zoom.value
-        )
-    );
-}
-
-Ref<const TransformFunctionBase> MatrixTransformFunction::blend(const TransformFunctionBase* from, const BlendingContext& context, bool blendToIdentity) const
-{
-    auto createOperation = [](TransformationMatrix& to, TransformationMatrix& from, const BlendingContext& context) {
-        to.blend(from, context.progress, context.compositeOperation);
-        return MatrixTransformFunction::create(to);
-    };
-
-    if (!sharedPrimitiveType(from))
-        return *this;
-
-    // convert the TransformFunctions into matrices
-    TransformationMatrix toT = matrix();
-    TransformationMatrix fromT;
-    if (from)
-        fromT = downcast<MatrixTransformFunction>(*from).matrix();
-
-    if (blendToIdentity)
-        return createOperation(fromT, toT, context);
-    return createOperation(toT, fromT, context);
 }
 
 void MatrixTransformFunction::dump(TextStream& ts) const

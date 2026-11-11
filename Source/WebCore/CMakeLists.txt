@@ -3324,6 +3324,20 @@ foreach (_source IN LISTS _webcore_css_calc_swift_interop_sources)
 endforeach ()
 list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)HTMLPreloadScanner\\.cpp( |$)")
 list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)TransformationMatrix\\.cpp( |$)")
+# The transform sources that call style/values/transforms/*Swift.swift include WebCore-Swift.h, so they compile
+# in WebCore_SwiftInterop, after WebCore's Swift module.
+set(_webcore_style_transforms_swift_interop_sources
+    style/values/transforms/StyleRotate.cpp
+    style/values/transforms/StyleScale.cpp
+    style/values/transforms/StyleTransformFunction.cpp
+    style/values/transforms/StyleTransformList.cpp
+    style/values/transforms/StyleTranslate.cpp
+    style/values/transforms/functions/StyleTransformFunctionBase.cpp)
+foreach (_source IN LISTS _webcore_style_transforms_swift_interop_sources)
+    get_filename_component(_name "${_source}" NAME)
+    string(REPLACE "." "\\." _name "${_name}")
+    list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|/)${_name}( |$)")
+endforeach ()
 
 WEBKIT_COMPUTE_SOURCES(WebCore)
 
@@ -3456,6 +3470,8 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
         ${WEBCORE_DIR}/html/parser/HTMLPreloadScanner.swift
         ${WEBCORE_DIR}/html/parser/HTMLTokenizer.swift
         ${WEBCORE_DIR}/platform/graphics/transforms/TransformationMatrix.swift
+        ${WEBCORE_DIR}/style/values/transforms/StyleTransformFunctionSwift.swift
+        ${WEBCORE_DIR}/style/values/transforms/StyleTransformListSwift.swift
         ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyParsingSwift.swift
     )
 
@@ -3521,6 +3537,11 @@ elseif (WK_BUILD_WEBCORE_SWIFT)
     # TransformationMatrix.cpp calls TransformationMatrix.swift's entry points through WebCore-Swift.h.
     list(APPEND WebCore_SWIFT_INTEROP_SOURCES platform/graphics/transforms/TransformationMatrix.cpp)
     list(APPEND _webcore_swift_core_submodules platform/graphics/transforms/TransformationMatrix.h)
+
+    # The transform sources call style/values/transforms/*Swift.swift's entry points through WebCore-Swift.h.
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_style_transforms_swift_interop_sources})
+    list(APPEND _webcore_swift_core_submodules style/values/transforms/StyleTransformFunction.h
+        style/values/transforms/StyleTransformList.h style/values/transforms/StyleTransformSwiftTypes.h)
     target_sources(WebCore PRIVATE
         ${WEBCORE_DIR}/platform/image-decoders/ImageFrameBuffer.swift
         ${WEBCORE_DIR}/platform/image-decoders/bmp/BMPImageDecoder.swift

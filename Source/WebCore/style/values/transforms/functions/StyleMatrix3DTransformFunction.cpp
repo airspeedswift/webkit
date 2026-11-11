@@ -27,11 +27,8 @@
 #include "config.h"
 #include "StyleMatrix3DTransformFunction.h"
 
-#include "AnimationUtilities.h"
-#include "Matrix3DTransformOperation.h"
 #include "StyleKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
-#include <algorithm>
 
 namespace WebCore {
 namespace Style {
@@ -45,53 +42,6 @@ Matrix3DTransformFunction::Matrix3DTransformFunction(const TransformationMatrix&
 Ref<const Matrix3DTransformFunction> Matrix3DTransformFunction::create(const TransformationMatrix& matrix)
 {
     return adoptRef(*new Matrix3DTransformFunction(matrix));
-}
-
-Ref<const TransformFunctionBase> Matrix3DTransformFunction::clone() const
-{
-    return adoptRef(*new Matrix3DTransformFunction(m_matrix));
-}
-
-Ref<TransformOperation> Matrix3DTransformFunction::toPlatform(const FloatSize&, ZoomFactor zoom) const
-{
-    auto copy = m_matrix;
-    return Matrix3DTransformOperation::create(copy.zoom(zoom.value));
-}
-
-bool Matrix3DTransformFunction::operator==(const TransformFunctionBase& other) const
-{
-    if (!isSameType(other))
-        return false;
-
-    auto& otherMatrix3D = downcast<Matrix3DTransformFunction>(other);
-    return m_matrix == otherMatrix3D.m_matrix;
-}
-
-void Matrix3DTransformFunction::apply(TransformationMatrix& transform, const FloatSize&, ZoomFactor zoom) const
-{
-    auto copy = m_matrix;
-    transform.multiply(copy.zoom(zoom.value));
-}
-
-Ref<const TransformFunctionBase> Matrix3DTransformFunction::blend(const TransformFunctionBase* from, const BlendingContext& context, bool blendToIdentity) const
-{
-    auto createOperation = [](TransformationMatrix& to, TransformationMatrix& from, const BlendingContext& context) {
-        to.blend(from, context.progress, context.compositeOperation);
-        return Matrix3DTransformFunction::create(to);
-    };
-
-    if (!sharedPrimitiveType(from))
-        return *this;
-
-    // Convert the TransformFunctions into matrices
-    TransformationMatrix toT = matrix();
-    TransformationMatrix fromT;
-    if (from)
-        fromT = downcast<Matrix3DTransformFunction>(*from).matrix();
-
-    if (blendToIdentity)
-        return createOperation(fromT, toT, context);
-    return createOperation(toT, fromT, context);
 }
 
 void Matrix3DTransformFunction::dump(TextStream& ts) const

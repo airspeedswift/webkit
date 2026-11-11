@@ -42,21 +42,8 @@ class SkewTransformFunction final : public TransformFunctionBase {
 public:
     NODELETE static Ref<const SkewTransformFunction> create(Angle<>, Angle<>, TransformFunctionBase::Type);
 
-    Ref<const TransformFunctionBase> clone() const override;
-    Ref<TransformOperation> toPlatform(const FloatSize&, ZoomFactor) const override;
-
     Angle<> angleX() const { return m_angleX; }
     Angle<> angleY() const { return m_angleY; }
-
-    bool isIdentity() const override { return m_angleX.isZero() && m_angleY.isZero(); }
-    bool isAffectedByTransformOrigin() const override { return !isIdentity(); }
-
-    bool operator==(const SkewTransformFunction& other) const { return operator==(static_cast<const TransformFunctionBase&>(other)); }
-    bool operator==(const TransformFunctionBase&) const override;
-
-    void apply(TransformationMatrix&, const FloatSize& borderBoxSize, ZoomFactor) const override;
-
-    Ref<const TransformFunctionBase> blend(const TransformFunctionBase* from, const BlendingContext&, bool blendToIdentity = false) const override;
 
     void dump(WTF::TextStream&) const override;
 

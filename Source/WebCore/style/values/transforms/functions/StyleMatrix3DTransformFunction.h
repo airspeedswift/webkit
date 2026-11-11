@@ -40,26 +40,12 @@ class Matrix3DTransformFunction final : public TransformFunctionBase {
 public:
     NODELETE static Ref<const Matrix3DTransformFunction> create(const TransformationMatrix&);
 
-    Ref<const TransformFunctionBase> clone() const override;
-    Ref<TransformOperation> toPlatform(const FloatSize&, ZoomFactor) const override;
-
-    bool isIdentity() const override { return m_matrix.isIdentity(); }
-    bool isAffectedByTransformOrigin() const override { return !isIdentity(); }
-    bool isRepresentableIn2D() const override { return m_matrix.isAffine(); }
-
-    bool operator==(const Matrix3DTransformFunction& other) const { return operator==(static_cast<const TransformFunctionBase&>(other)); }
-    bool operator==(const TransformFunctionBase&) const override;
-
-    void apply(TransformationMatrix&, const FloatSize& borderBoxSize, ZoomFactor) const override;
-
-    Ref<const TransformFunctionBase> blend(const TransformFunctionBase* from, const BlendingContext&, bool blendToIdentity = false) const override;
-
     void dump(WTF::TextStream&) const override;
+
+    TransformationMatrix matrix() const { return m_matrix; }
 
 private:
     Matrix3DTransformFunction(const TransformationMatrix&);
-
-    TransformationMatrix matrix() const { return m_matrix; }
 
     TransformationMatrix m_matrix;
 };

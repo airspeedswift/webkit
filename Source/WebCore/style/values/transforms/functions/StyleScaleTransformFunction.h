@@ -45,25 +45,14 @@ public:
     NODELETE static Ref<const ScaleTransformFunction> create(NumberOrPercentageResolvedToNumber<>, NumberOrPercentageResolvedToNumber<>, TransformFunctionBase::Type);
     NODELETE static Ref<const ScaleTransformFunction> create(NumberOrPercentageResolvedToNumber<>, NumberOrPercentageResolvedToNumber<>, NumberOrPercentageResolvedToNumber<>, TransformFunctionBase::Type);
 
-    Ref<const TransformFunctionBase> clone() const override;
-    Ref<TransformOperation> toPlatform(const FloatSize&, ZoomFactor) const override;
-
     TransformFunctionBase::Type primitiveType() const override { return (type() == Type::ScaleZ || type() == Type::Scale3D) ? Type::Scale3D : Type::Scale; }
 
     NumberOrPercentageResolvedToNumber<> x() const { return m_x; }
     NumberOrPercentageResolvedToNumber<> y() const { return m_y; }
     NumberOrPercentageResolvedToNumber<> z() const { return m_z; }
 
-    bool isIdentity() const override { return m_x == 1 &&  m_y == 1 &&  m_z == 1; }
-    bool isRepresentableIn2D() const override { return m_z == 1; }
-    bool isAffectedByTransformOrigin() const override { return !isIdentity(); }
-
-    bool operator==(const ScaleTransformFunction& other) const { return operator==(static_cast<const TransformFunctionBase&>(other)); }
-    bool operator==(const TransformFunctionBase&) const override;
-
-    void apply(TransformationMatrix&, const FloatSize& borderBoxSize, ZoomFactor) const override;
-
-    Ref<const TransformFunctionBase> blend(const TransformFunctionBase* from, const BlendingContext&, bool blendToIdentity = false) const override;
+    bool isIdentity() const { return m_x == 1 &&  m_y == 1 &&  m_z == 1; }
+    bool isRepresentableIn2D() const { return m_z == 1; }
 
     void dump(WTF::TextStream&) const override;
 

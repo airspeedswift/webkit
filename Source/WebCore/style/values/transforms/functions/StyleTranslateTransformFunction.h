@@ -51,26 +51,15 @@ public:
     NODELETE static Ref<const TranslateTransformFunction> create(const X&, const Y&, TransformFunctionBase::Type);
     NODELETE static Ref<const TranslateTransformFunction> create(const X&, const Y&, const Z&, TransformFunctionBase::Type);
 
-    Ref<const TransformFunctionBase> clone() const override;
-    Ref<TransformOperation> toPlatform(const FloatSize&, ZoomFactor) const override;
-
     TransformFunctionBase::Type primitiveType() const override { return isRepresentableIn2D() ? Type::Translate : Type::Translate3D; }
 
     const X& x() const LIFETIME_BOUND { return m_x; }
     const Y& y() const LIFETIME_BOUND { return m_y; }
     Z z() const { return m_z; }
+    X xValue() const { return m_x; }
+    Y yValue() const { return m_y; }
 
-    bool isIdentity() const override { return m_x.isKnownZero() && m_y.isKnownZero() && m_z.isZero(); }
-    bool isRepresentableIn2D() const override { return m_z.isZero(); }
-
-    TransformFunctionSizeDependencies computeSizeDependencies() const override;
-
-    bool operator==(const TranslateTransformFunction& other) const { return operator==(static_cast<const TransformFunctionBase&>(other)); }
-    bool operator==(const TransformFunctionBase&) const override;
-
-    void apply(TransformationMatrix&, const FloatSize& borderBoxSize, ZoomFactor) const override;
-
-    Ref<const TransformFunctionBase> blend(const TransformFunctionBase* from, const BlendingContext&, bool blendToIdentity = false) const override;
+    bool isRepresentableIn2D() const { return m_z.isZero(); }
 
     void dump(WTF::TextStream&) const override;
 

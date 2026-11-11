@@ -3606,6 +3606,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     style/values/transforms/StyleTransform.h
     style/values/transforms/StyleTransformFunction.h
     style/values/transforms/StyleTransformList.h
+    style/values/transforms/StyleTransformSwiftTypes.h
     style/values/transforms/StyleTransformOrigin.h
     style/values/transforms/StyleTranslate.h
 

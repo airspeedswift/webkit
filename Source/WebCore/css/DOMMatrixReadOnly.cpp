@@ -254,8 +254,8 @@ ExceptionOr<DOMMatrixReadOnly::AbstractMatrix> DOMMatrixReadOnly::parseStringInt
         return Exception { ExceptionCode::SyntaxError };
 
     AbstractMatrix matrix;
+    transform->apply(matrix.matrix, { 0, 0 }, Style::ZoomFactor::none());
     for (auto& function : *transform) {
-        protect(function.function())->apply(matrix.matrix, { 0, 0 }, Style::ZoomFactor::none());
         if (function->is3DOperation())
             matrix.is2D = false;
     }

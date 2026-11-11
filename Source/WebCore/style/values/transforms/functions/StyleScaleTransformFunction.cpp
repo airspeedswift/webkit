@@ -23,10 +23,7 @@
 #include "config.h"
 #include "StyleScaleTransformFunction.h"
 
-#include "AnimationUtilities.h"
-#include "ScaleTransformOperation.h"
 #include "StyleKeyword+Logging.h"
-#include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
 namespace WebCore {
@@ -49,61 +46,6 @@ Ref<const ScaleTransformFunction> ScaleTransformFunction::create(NumberOrPercent
 Ref<const ScaleTransformFunction> ScaleTransformFunction::create(NumberOrPercentageResolvedToNumber<> x, NumberOrPercentageResolvedToNumber<> y, NumberOrPercentageResolvedToNumber<> z, TransformFunctionBase::Type type)
 {
     return adoptRef(*new ScaleTransformFunction(x, y, z, type));
-}
-
-Ref<const TransformFunctionBase> ScaleTransformFunction::clone() const
-{
-    return adoptRef(*new ScaleTransformFunction(m_x, m_y, m_z, type()));
-}
-
-Ref<TransformOperation> ScaleTransformFunction::toPlatform(const FloatSize&, ZoomFactor) const
-{
-    return ScaleTransformOperation::create(m_x.value.value, m_y.value.value, m_z.value.value, Style::toPlatform(type()));
-}
-
-bool ScaleTransformFunction::operator==(const TransformFunctionBase& other) const
-{
-    if (!isSameType(other))
-        return false;
-
-    auto& otherScale = downcast<ScaleTransformFunction>(other);
-    return m_x == otherScale.m_x && m_y == otherScale.m_y && m_z == otherScale.m_z;
-}
-
-void ScaleTransformFunction::apply(TransformationMatrix& transform, const FloatSize&, ZoomFactor) const
-{
-    transform.scale3d(m_x.value.value, m_y.value.value, m_z.value.value);
-}
-
-NODELETE static NumberOrPercentageResolvedToNumber<> blendScaleComponent(NumberOrPercentageResolvedToNumber<> from, NumberOrPercentageResolvedToNumber<> to, const BlendingContext& context)
-{
-    switch (context.compositeOperation) {
-    case CompositeOperation::Replace:
-        return Style::blend(from, to, context);
-    case CompositeOperation::Add:
-        ASSERT(context.progress == 1.0);
-        return NumberOrPercentageResolvedToNumber<> { from.value.value * to.value.value };
-    case CompositeOperation::Accumulate:
-        ASSERT(context.progress == 1.0);
-        return NumberOrPercentageResolvedToNumber<> { from.value.value + to.value.value - 1 };
-    }
-    RELEASE_ASSERT_NOT_REACHED();
-}
-
-Ref<const TransformFunctionBase> ScaleTransformFunction::blend(const TransformFunctionBase* from, const BlendingContext& context, bool blendToIdentity) const
-{
-    if (blendToIdentity)
-        return ScaleTransformFunction::create(blendScaleComponent(m_x, 1.0, context), blendScaleComponent(m_y, 1.0, context), blendScaleComponent(m_z, 1.0, context), type());
-
-    auto outputType = sharedPrimitiveType(from);
-    if (!outputType)
-        return *this;
-
-    auto* fromOp = downcast<ScaleTransformFunction>(from);
-    auto fromX = fromOp ? fromOp->m_x : NumberOrPercentageResolvedToNumber<> { 1.0 };
-    auto fromY = fromOp ? fromOp->m_y : NumberOrPercentageResolvedToNumber<> { 1.0 };
-    auto fromZ = fromOp ? fromOp->m_z : NumberOrPercentageResolvedToNumber<> { 1.0 };
-    return ScaleTransformFunction::create(blendScaleComponent(fromX, m_x, context), blendScaleComponent(fromY, m_y, context), blendScaleComponent(fromZ, m_z, context), *outputType);
 }
 
 void ScaleTransformFunction::dump(TextStream& ts) const

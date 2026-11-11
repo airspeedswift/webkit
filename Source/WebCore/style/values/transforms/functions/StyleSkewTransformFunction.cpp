@@ -23,10 +23,7 @@
 #include "config.h"
 #include "StyleSkewTransformFunction.h"
 
-#include "AnimationUtilities.h"
-#include "SkewTransformOperation.h"
 #include "StyleKeyword+Logging.h"
-#include "StylePrimitiveNumericTypes+Blending.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
 namespace WebCore {
@@ -43,45 +40,6 @@ SkewTransformFunction::SkewTransformFunction(Angle<> angleX, Angle<> angleY, Tra
 Ref<const SkewTransformFunction> SkewTransformFunction::create(Angle<> angleX, Angle<> angleY, TransformFunctionBase::Type type)
 {
     return adoptRef(*new SkewTransformFunction(angleX, angleY, type));
-}
-
-Ref<const TransformFunctionBase> SkewTransformFunction::clone() const
-{
-    return adoptRef(*new SkewTransformFunction(m_angleX, m_angleY, type()));
-}
-
-Ref<TransformOperation> SkewTransformFunction::toPlatform(const FloatSize&, ZoomFactor) const
-{
-    return SkewTransformOperation::create(m_angleX.value, m_angleY.value, Style::toPlatform(type()));
-}
-
-bool SkewTransformFunction::operator==(const TransformFunctionBase& other) const
-{
-    if (!isSameType(other))
-        return false;
-
-    auto& otherSkew = downcast<SkewTransformFunction>(other);
-    return m_angleX == otherSkew.m_angleX && m_angleY == otherSkew.m_angleY;
-}
-
-void SkewTransformFunction::apply(TransformationMatrix& transform, const FloatSize&, ZoomFactor) const
-{
-    transform.skew(m_angleX.value, m_angleY.value);
-}
-
-Ref<const TransformFunctionBase> SkewTransformFunction::blend(const TransformFunctionBase* from, const BlendingContext& context, bool blendToIdentity) const
-{
-    if (blendToIdentity)
-        return SkewTransformFunction::create(Style::blend(m_angleX, Angle<> { 0.0 }, context), Style::blend(m_angleY, Angle<> { 0.0 }, context), type());
-
-    auto outputType = sharedPrimitiveType(from);
-    if (!outputType)
-        return *this;
-
-    auto* fromOp = downcast<SkewTransformFunction>(from);
-    auto fromAngleX = fromOp ? fromOp->m_angleX : Angle<> { 0 };
-    auto fromAngleY = fromOp ? fromOp->m_angleY : Angle<> { 0 };
-    return SkewTransformFunction::create(Style::blend(fromAngleX, m_angleX, context), Style::blend(fromAngleY, m_angleY, context), *outputType);
 }
 
 void SkewTransformFunction::dump(TextStream& ts) const

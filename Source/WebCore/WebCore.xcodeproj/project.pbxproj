@@ -374,6 +374,9 @@
 		C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */; };
 		C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55A00000000000000000003 /* CSSTokenizerSwift.swift */; };
 		F4FD8A7220C64FDA7BA4884D /* TransformationMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = E726A6625648494E4377EAC9 /* TransformationMatrix.swift */; };
+		EE5716363D30463BB1D2F0A9 /* StyleTransformFunctionSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E4564400D54442CBC8FA29B /* StyleTransformFunctionSwift.swift */; };
+		D4AB6D265E6D4FC680B78613 /* StyleTransformListSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190DEC1E51EB40CA8859C6D8 /* StyleTransformListSwift.swift */; };
+		0130D7B99C2A45E4B32F6687 /* StyleTransformSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 17B52A75657E49F09B624888 /* StyleTransformSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
 		5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000007 /* SIMDHighBitMask.swift */; };
@@ -8288,6 +8291,9 @@
 		07E047C2305A9DB000DFCC4B /* SwiftStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftStub.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000001 /* SIMDHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHelpers.swift; sourceTree = "<group>"; };
 		E726A6625648494E4377EAC9 /* TransformationMatrix.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransformationMatrix.swift; sourceTree = "<group>"; };
+		7E4564400D54442CBC8FA29B /* StyleTransformFunctionSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleTransformFunctionSwift.swift; sourceTree = "<group>"; };
+		190DEC1E51EB40CA8859C6D8 /* StyleTransformListSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StyleTransformListSwift.swift; sourceTree = "<group>"; };
+		17B52A75657E49F09B624888 /* StyleTransformSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StyleTransformSwiftTypes.h; sourceTree = "<group>"; };
 		5A1E00000000000000000003 /* SIMDTableLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDTableLookup.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDSaturatingSubtract.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000007 /* SIMDHighBitMask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHighBitMask.swift; sourceTree = "<group>"; };
@@ -38178,8 +38184,11 @@
 				BC731F922E6CA6E000A6584F /* StyleTransform.h */,
 				BC4F32BA2E89C51400F6AEC1 /* StyleTransformFunction.cpp */,
 				BC4F32B92E89C51400F6AEC1 /* StyleTransformFunction.h */,
+				7E4564400D54442CBC8FA29B /* StyleTransformFunctionSwift.swift */,
 				BC731F9A2E6CBE3F00A6584F /* StyleTransformList.cpp */,
 				BC731F972E6CBA3B00A6584F /* StyleTransformList.h */,
+				190DEC1E51EB40CA8859C6D8 /* StyleTransformListSwift.swift */,
+				17B52A75657E49F09B624888 /* StyleTransformSwiftTypes.h */,
 				BCD9F1792E2045C500D1C3DF /* StyleTransformOrigin.h */,
 				BC3CC1F62DE4CBF40032971C /* StyleTranslate.cpp */,
 				BC3CC1F52DE4CBF40032971C /* StyleTranslate.h */,
@@ -49881,6 +49890,7 @@
 				BC4F32B02E89C4BE00F6AEC1 /* StyleTransformFunctionBase.h in Headers */,
 				BC4F32AD2E89C15C00F6AEC1 /* StyleTransformFunctionWrapper.h in Headers */,
 				BC731F982E6CBA3B00A6584F /* StyleTransformList.h in Headers */,
+				0130D7B99C2A45E4B32F6687 /* StyleTransformSwiftTypes.h in Headers */,
 				BCD9F17A2E2045C500D1C3DF /* StyleTransformOrigin.h in Headers */,
 				BC73200D2E73417400A6584F /* StyleTransition.h in Headers */,
 				BC7320352E7353B500A6584F /* StyleTransitions.h in Headers */,
@@ -51585,6 +51595,8 @@
 				C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */,
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
 				F4FD8A7220C64FDA7BA4884D /* TransformationMatrix.swift in Sources */,
+				EE5716363D30463BB1D2F0A9 /* StyleTransformFunctionSwift.swift in Sources */,
+				D4AB6D265E6D4FC680B78613 /* StyleTransformListSwift.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,
 				5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */,

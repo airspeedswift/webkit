@@ -31,6 +31,8 @@
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
 
+#include "WebCore-Swift.h"
+
 namespace WebCore {
 namespace Style {
 
@@ -39,14 +41,14 @@ using namespace CSS::Literals;
 TransformFunctionSizeDependencies Translate::computeSizeDependencies() const
 {
     if (RefPtr protectedValue = value)
-        return protectedValue->computeSizeDependencies();
+        return styleTransformFunctionSizeDependencies(TransformFunction { protectedValue.releaseNonNull() });
     return { };
 }
 
 void Translate::apply(TransformationMatrix& transform, const FloatSize& size, ZoomFactor zoom) const
 {
     if (RefPtr protectedValue = value)
-        protectedValue->apply(transform, size, zoom);
+        styleTransformFunctionApply(TransformFunction { protectedValue.releaseNonNull() }, transform, size.width(), size.height(), zoom.value);
 }
 
 // MARK: - Conversion
@@ -82,37 +84,7 @@ auto CSSValueConversion<Translate>::operator()(BuilderState& state, const CSSVal
 
 auto Blending<Translate>::blend(const Translate& from, const Translate& to, const BlendingContext& context) -> Translate
 {
-    RefPtr fromTranslate = from.value;
-    RefPtr toTranslate = to.value;
-
-    if (!fromTranslate && !toTranslate)
-        return CSS::Keyword::None { };
-
-    auto identity = [&](const auto& other) {
-        return TranslateTransformFunction::create(0_css_px, 0_css_px, 0_css_px, other.type());
-    };
-
-    auto fromFunction = fromTranslate ? Ref(*fromTranslate) : identity(*toTranslate);
-    auto toFunction = toTranslate ? Ref(*toTranslate) : identity(*fromTranslate);
-
-    // Ensure the two transforms have the same type.
-    if (!fromFunction->isSameType(toFunction)) {
-        RefPtr<const TranslateTransformFunction> normalizedFrom;
-        RefPtr<const TranslateTransformFunction> normalizedTo;
-        if (fromFunction->is3DOperation() || toFunction->is3DOperation()) {
-            normalizedFrom = TranslateTransformFunction::create(fromFunction->x(), fromFunction->y(), fromFunction->z(), TransformFunctionType::Translate3D);
-            normalizedTo = TranslateTransformFunction::create(toFunction->x(), toFunction->y(), toFunction->z(), TransformFunctionType::Translate3D);
-        } else {
-            normalizedFrom = TranslateTransformFunction::create(fromFunction->x(), fromFunction->y(), TransformFunctionType::Translate);
-            normalizedTo = TranslateTransformFunction::create(toFunction->x(), toFunction->y(), TransformFunctionType::Translate);
-        }
-        return blend(Translate { normalizedFrom.releaseNonNull() }, Translate { normalizedTo.releaseNonNull() }, context);
-    }
-
-    if (auto blendedFunction = toFunction->blend(fromFunction.ptr(), context); RefPtr translate = dynamicDowncast<TranslateTransformFunction>(blendedFunction))
-        return TranslateTransformFunction::create(translate->x(), translate->y(), translate->z(), translate->type());
-
-    return CSS::Keyword::None { };
+    return styleTranslateBlend(from, to, context);
 }
 
 // MARK: - Platform
@@ -120,7 +92,7 @@ auto Blending<Translate>::blend(const Translate& from, const Translate& to, cons
 auto ToPlatform<Translate>::operator()(const Translate& value, const FloatSize& size, ZoomFactor zoom) -> RefPtr<TransformOperation>
 {
     if (RefPtr function = value.value)
-        return function->toPlatform(size, zoom);
+        return styleTransformFunctionToPlatform(TransformFunction { function.releaseNonNull() }, size.width(), size.height(), zoom.value);
     return nullptr;
 }
 

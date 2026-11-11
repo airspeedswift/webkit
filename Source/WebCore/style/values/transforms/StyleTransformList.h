@@ -71,8 +71,9 @@ struct TransformList {
     bool isEmpty() const { return m_value.isEmpty(); }
     size_t size() const { return m_value.size(); }
     const TransformFunction& operator[](size_t i) const LIFETIME_BOUND { return m_value[i]; }
+    const TransformFunctionBase& function(size_t i) const { return m_value[i].value.get(); }
 
-    bool operator==(const TransformList&) const = default;
+    bool operator==(const TransformList&) const;
 
     template<TransformFunctionType>
     bool hasTransformOfType() const;

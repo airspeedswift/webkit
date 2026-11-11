@@ -31,8 +31,18 @@ internal import JavaScriptCore_Private.Cxx.WasmCalleeGroup
 internal import JavaScriptCore_Private.Cxx.WasmModule
 internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
 internal import wtf.Core.Stopwatch
+internal import wtf.Core.MathExtras
 #if arch(arm64) && canImport(simd)
 internal import func simd.fma
+#endif
+
+// The C library's math functions (<cmath>).
+#if canImport(Darwin)
+internal import Darwin
+#elseif canImport(ucrt)
+internal import ucrt
+#elseif canImport(Glibc)
+internal import Glibc
 #endif
 
 private typealias Matrix4 = WebCore.TransformationMatrix.Matrix4
@@ -156,16 +166,179 @@ func transformationMatrixMultiplyLinear(
     multiply(&matrix, m11, m12, m13, 0, m21, m22, m23, 0, m31, m32, m33, 0, 0, 0, 0, 1)
 }
 
-// skew().
+// skew(), with the angles in degrees.
 @_expose(Cxx)
-func transformationMatrixSkew(_ matrix: inout WebCore.TransformationMatrix, _ m12: Double, _ m21: Double) {
-    multiply(&matrix, 1, m12, 0, 0, m21, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+func transformationMatrixSkew(_ matrix: inout WebCore.TransformationMatrix, _ angleX: Double, _ angleY: Double) {
+    let tanY = tan(wtf.deg2rad(angleY))
+    let tanX = tan(wtf.deg2rad(angleX))
+    multiply(&matrix, 1, tanY, 0, 0, tanX, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 }
 
-// applyPerspective().
+// applyPerspective(). A distance of 0 applies no perspective.
 @_expose(Cxx)
-func transformationMatrixApplyPerspective(_ matrix: inout WebCore.TransformationMatrix, _ m34: Double) {
+func transformationMatrixApplyPerspective(_ matrix: inout WebCore.TransformationMatrix, _ distance: Double) {
+    let m34 = distance != 0 ? -1 / distance : 0.0
     multiply(&matrix, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, m34, 0, 0, 0, 1)
+}
+
+// sum + a * b, rounded once on ARM64 and twice elsewhere, like multiplyAdd().
+@inline(always)
+func contractedMultiplyAdd(_ sum: Double, _ a: Double, _ b: Double) -> Double {
+    #if arch(arm64)
+    sum.addingProduct(a, b)
+    #else
+    sum + a * b
+    #endif
+}
+
+// In rotate3d(), sin() and cos() stay separate calls, each out of line: side by side, the compiler merges sin(x) and
+// cos(x) into one sincos call, whose results can differ in the last bit from those of the two functions.
+@inline(never)
+private func sine(_ angle: Double) -> Double {
+    sin(angle)
+}
+
+@inline(never)
+private func cosine(_ angle: Double) -> Double {
+    cos(angle)
+}
+
+// Values within DBL_EPSILON of zero become zero, so that rotations by multiples of 90 degrees are exact.
+@inline(always)
+private func snapped(_ value: Double, _ snap: Bool) -> Double {
+    snap && -Double.ulpOfOne < value && value < Double.ulpOfOne ? 0.0 : value
+}
+
+// std::hypot(x, y, z) as libc++ computes it: the arguments are scaled when their squares could overflow or underflow.
+@inline(always)
+func transformationMatrixHypot(_ x: Double, _ y: Double, _ z: Double) -> Double {
+    let overflowThreshold = 0x1p512
+    let overflowScale = 0x1p-532
+    let maximum = Double.maximum(x.magnitude, Double.maximum(y.magnitude, z.magnitude))
+    var scale = 1.0
+    if maximum > overflowThreshold {
+        scale = overflowScale
+    } else if maximum < 1 / overflowThreshold {
+        scale = 1 / overflowScale
+    }
+    let scaledX = x * scale
+    let scaledY = y * scale
+    let scaledZ = z * scale
+    let sum = contractedMultiplyAdd(contractedMultiplyAdd(scaledY * scaledY, scaledX, scaledX), scaledZ, scaledZ)
+    return sum.squareRoot() / scale
+}
+
+// scaleNonUniform().
+@_expose(Cxx)
+func transformationMatrixScaleNonUniform(_ matrix: inout WebCore.TransformationMatrix, _ sx: Double, _ sy: Double) {
+    matrix.setM11(matrix.m11() * sx)
+    matrix.setM12(matrix.m12() * sx)
+    matrix.setM13(matrix.m13() * sx)
+    matrix.setM14(matrix.m14() * sx)
+    matrix.setM21(matrix.m21() * sy)
+    matrix.setM22(matrix.m22() * sy)
+    matrix.setM23(matrix.m23() * sy)
+    matrix.setM24(matrix.m24() * sy)
+}
+
+// scale3d().
+@_expose(Cxx)
+func transformationMatrixScale3d(_ matrix: inout WebCore.TransformationMatrix, _ sx: Double, _ sy: Double, _ sz: Double) {
+    transformationMatrixScaleNonUniform(&matrix, sx, sy)
+    matrix.setM31(matrix.m31() * sz)
+    matrix.setM32(matrix.m32() * sz)
+    matrix.setM33(matrix.m33() * sz)
+    matrix.setM34(matrix.m34() * sz)
+}
+
+// translate3d(): each element of the last row gains tx, ty and tz times the elements above it.
+@_expose(Cxx)
+func transformationMatrixTranslate3d(_ matrix: inout WebCore.TransformationMatrix, _ tx: Double, _ ty: Double, _ tz: Double) {
+    // tx * m1 + ty * m2 + tz * m3, as clang contracts it.
+    func offset(_ m1: Double, _ m2: Double, _ m3: Double) -> Double {
+        contractedMultiplyAdd(contractedMultiplyAdd(ty * m2, tx, m1), tz, m3)
+    }
+    matrix.setM41(matrix.m41() + offset(matrix.m11(), matrix.m21(), matrix.m31()))
+    matrix.setM42(matrix.m42() + offset(matrix.m12(), matrix.m22(), matrix.m32()))
+    matrix.setM43(matrix.m43() + offset(matrix.m13(), matrix.m23(), matrix.m33()))
+    matrix.setM44(matrix.m44() + offset(matrix.m14(), matrix.m24(), matrix.m34()))
+}
+
+// rotateRadians(), with the angle in radians. sin() and cos() sit side by side here, so they compile to one sincos
+// call; rotate3d() keeps them apart (sine()).
+@_expose(Cxx)
+func transformationMatrixRotateRadians(_ matrix: inout WebCore.TransformationMatrix, _ angle: Double, _ snap: Bool) {
+    let sinZ = snapped(sin(angle), snap)
+    let cosZ = snapped(cos(angle), snap)
+    transformationMatrixRotateZ(&matrix, sinZ, cosZ)
+}
+
+// rotate(), with the angle in degrees. A whole number of turns leaves the matrix unchanged.
+@_expose(Cxx)
+func transformationMatrixRotate(_ matrix: inout WebCore.TransformationMatrix, _ angle: Double, _ snap: Bool) {
+    if angle.truncatingRemainder(dividingBy: 360) == 0 {
+        return
+    }
+    transformationMatrixRotateRadians(&matrix, wtf.deg2rad(angle), snap)
+}
+
+// rotate3d() about the axis (x, y, z), with the angle in degrees. An axis of length 0 leaves the matrix unchanged.
+@_expose(Cxx)
+func transformationMatrixRotate3d(
+    _ matrix: inout WebCore.TransformationMatrix,
+    _ x: Double, _ y: Double, _ z: Double,
+    _ angle: Double,
+    _ snap: Bool
+) {
+    var x = x
+    var y = y
+    var z = z
+    let length = transformationMatrixHypot(x, y, z)
+    if length == 0 {
+        return
+    }
+    if length != 1 {
+        x /= length
+        y /= length
+        z /= length
+    }
+
+    let radians = wtf.deg2rad(angle)
+    let sinTheta = snapped(sine(radians), snap)
+    let cosTheta = snapped(cosine(radians), snap)
+
+    if x == 1.0 {
+        transformationMatrixRotateX(&matrix, sinTheta, cosTheta)
+    } else if y == 1.0 {
+        transformationMatrixRotateY(&matrix, sinTheta, cosTheta)
+    } else if z == 1.0 {
+        transformationMatrixRotateZ(&matrix, sinTheta, cosTheta)
+    } else {
+        let oneMinusCosTheta = 1 - cosTheta
+        transformationMatrixMultiplyLinear(
+            &matrix,
+            contractedMultiplyAdd(cosTheta, x * x, oneMinusCosTheta),
+            contractedMultiplyAdd(z * sinTheta, y * x, oneMinusCosTheta),
+            contractedMultiplyAdd(-(y * sinTheta), z * x, oneMinusCosTheta),
+            contractedMultiplyAdd(-(z * sinTheta), x * y, oneMinusCosTheta),
+            contractedMultiplyAdd(cosTheta, y * y, oneMinusCosTheta),
+            contractedMultiplyAdd(x * sinTheta, z * y, oneMinusCosTheta),
+            contractedMultiplyAdd(y * sinTheta, x * z, oneMinusCosTheta),
+            contractedMultiplyAdd(-(x * sinTheta), y * z, oneMinusCosTheta),
+            contractedMultiplyAdd(cosTheta, z * z, oneMinusCosTheta)
+        )
+    }
+}
+
+// zoom(): the perspective column divided by the zoom factor and the translation multiplied by it.
+@_expose(Cxx)
+func transformationMatrixZoom(_ matrix: inout WebCore.TransformationMatrix, _ zoomFactor: Double) {
+    matrix.setM14(matrix.m14() / zoomFactor)
+    matrix.setM24(matrix.m24() / zoomFactor)
+    matrix.setM34(matrix.m34() / zoomFactor)
+    matrix.setM41(matrix.m41() * zoomFactor)
+    matrix.setM42(matrix.m42() * zoomFactor)
+    matrix.setM43(matrix.m43() * zoomFactor)
 }
 
 // matrix = other * matrix, with the rows of `other` passed as values. Out of line on ARM64, where the eight vectors

@@ -29,38 +29,41 @@
 #include "RenderBox.h"
 #include "StyleInterpolationClient.h"
 #include "StyleInterpolationContext.h"
-#include "StyleMatrix3DTransformFunction.h"
-#include "TransformationMatrix.h"
+
+#include "WebCore-Swift.h"
 
 namespace WebCore {
 namespace Style {
 
+bool TransformList::operator==(const TransformList& other) const
+{
+    return styleTransformListEqual(*this, other);
+}
+
 void TransformList::apply(TransformationMatrix& matrix, const FloatSize& size, ZoomFactor zoom, unsigned start) const
 {
-    for (unsigned i = start; i < m_value.size(); ++i)
-        m_value[i]->apply(matrix, size, zoom);
+    styleTransformListApply(*this, matrix, size.width(), size.height(), zoom.value, start);
 }
 
 bool TransformList::has3DOperation() const
 {
-    return std::ranges::any_of(*this, [](auto& function) { return function->is3DOperation(); });
+    return styleTransformListHas3DOperation(*this);
 }
 
 bool TransformList::isRepresentableIn2D() const
 {
-    return std::ranges::all_of(*this, [](auto& function) { return function->isRepresentableIn2D(); });
+    return styleTransformListIsRepresentableIn2D(*this);
 }
 
 bool TransformList::affectedByTransformOrigin() const
 {
-    return std::ranges::any_of(*this, [](auto& function) { return function->isAffectedByTransformOrigin(); });
+    return styleTransformListAffectedByTransformOrigin(*this);
 }
 
 bool TransformList::isInvertible(const LayoutSize& size) const
 {
-    TransformationMatrix transform;
-    apply(transform, size, ZoomFactor::none());
-    return transform.isInvertible();
+    FloatSize floatSize = size;
+    return styleTransformListIsInvertible(*this, floatSize.width(), floatSize.height(), ZoomFactor::none().value);
 }
 
 bool TransformList::containsNonInvertibleMatrix(const LayoutSize& boxSize) const
@@ -70,83 +73,20 @@ bool TransformList::containsNonInvertibleMatrix(const LayoutSize& boxSize) const
 
 TransformFunctionSizeDependencies TransformList::computeSizeDependencies() const
 {
-    TransformFunctionSizeDependencies result { };
-    for (auto& function : m_value) {
-        auto [isWidthDependent, isHeightDependent] = function->computeSizeDependencies();
-        if (isWidthDependent)
-            result.isWidthDependent = true;
-        if (isHeightDependent)
-            result.isHeightDependent = true;
-    }
-    return result;
+    return styleTransformListSizeDependencies(*this);
 }
 
 // MARK: - Blending
 
-static bool shouldFallBackToDiscreteInterpolation(const TransformList& from, const TransformList& to, const LayoutSize& boxSize)
-{
-    return from.containsNonInvertibleMatrix(boxSize) || to.containsNonInvertibleMatrix(boxSize);
-}
-
 auto Blending<TransformList>::canBlend(const TransformList& from, const TransformList& to, CompositeOperation compositeOperation) -> bool
 {
-    if (compositeOperation == CompositeOperation::Replace)
-        return !shouldFallBackToDiscreteInterpolation(from, to, { });
-    return true;
+    return styleTransformListCanBlend(from, to, compositeOperation);
 }
 
 auto Blending<TransformList>::blend(const TransformList& from, const TransformList& to, const Interpolation::Context& context) -> TransformList
 {
-    unsigned fromLength = from.size();
-    unsigned toLength = to.size();
-    unsigned maxLength = std::max(fromLength, toLength);
-
-    if (context.compositeOperation == CompositeOperation::Add) {
-        ASSERT(context.progress == 1.0);
-
-        return TransformList::Container::createWithSizeFromGenerator(fromLength + toLength, [&](auto index) {
-            if (index < fromLength)
-                return from[index];
-            return to[index - fromLength];
-        });
-    }
-
     CheckedPtr renderBox = dynamicDowncast<RenderBox>(context.client.renderer());
-    auto boxSize = renderBox ? renderBox->borderBoxSize() : LayoutSize();
-
-    bool shouldFallBackToDiscrete = shouldFallBackToDiscreteInterpolation(from, to, boxSize);
-
-    auto createBlendedMatrixFunctionFromOperationsSuffix = [&](unsigned i) -> TransformFunction {
-        TransformationMatrix fromTransform;
-        from.apply(fromTransform, boxSize, ZoomFactor::none(), i);
-
-        TransformationMatrix toTransform;
-        to.apply(toTransform, boxSize, ZoomFactor::none(), i);
-
-        auto progress = context.progress;
-        auto compositeOperation = context.compositeOperation;
-        if (shouldFallBackToDiscrete) {
-            progress = progress < 0.5 ? 0 : 1;
-            compositeOperation = CompositeOperation::Replace;
-        }
-
-        toTransform.blend(fromTransform, progress, compositeOperation);
-        return TransformFunction { Matrix3DTransformFunction::create(toTransform) };
-    };
-
-    auto createBlendedFunction = [&](unsigned i) -> TransformFunction {
-        RefPtr<const TransformFunctionBase> fromFunction = (i < fromLength) ? from.m_value[i].value.ptr() : nullptr;
-        RefPtr<const TransformFunctionBase> toFunction = (i < toLength) ? to.m_value[i].value.ptr() : nullptr;
-
-        if (fromFunction && toFunction)
-            return TransformFunction { toFunction->blend(fromFunction.get(), context) };
-        if (!fromFunction)
-            return TransformFunction { toFunction->blend(nullptr, 1 - context.progress, true) };
-        return TransformFunction { fromFunction->blend(nullptr, context, true) };
-    };
-
-    if (shouldFallBackToDiscrete)
-        return TransformList { createBlendedMatrixFunctionFromOperationsSuffix(0) };
+    FloatSize boxSize = renderBox ? renderBox->borderBoxSize() : LayoutSize();
 
     auto prefixLengthFromContext = [&] -> std::optional<unsigned> {
         // We cannot use the pre-computed prefix when dealing with accumulation
@@ -161,35 +101,7 @@ auto Blending<TransformList>::blend(const TransformList& from, const TransformLi
         return context.client.transformFunctionListPrefix();
     }();
 
-    auto prefixLength = [&] -> std::optional<unsigned> {
-        // If either of the transform list is empty, then we should not attempt to do a matrix blend.
-        if (!fromLength || !toLength)
-            return { };
-
-        for (unsigned i = 0; i < maxLength; i++) {
-            if (prefixLengthFromContext && i >= *prefixLengthFromContext)
-                return i;
-
-            RefPtr<const TransformFunctionBase> fromFunction = (i < fromLength) ? from.m_value[i].value.ptr() : nullptr;
-            RefPtr<const TransformFunctionBase> toFunction = (i < toLength) ? to.m_value[i].value.ptr() : nullptr;
-            if (fromFunction && toFunction && !fromFunction->sharedPrimitiveType(toFunction.get()))
-                return i;
-        }
-
-        return { };
-    }();
-
-    if (prefixLength) {
-        return TransformList::Container::createWithSizeFromGenerator(*prefixLength + 1, [&](auto i) {
-            if (i == *prefixLength)
-                return createBlendedMatrixFunctionFromOperationsSuffix(i);
-            return createBlendedFunction(i);
-        });
-    }
-
-    return TransformList::Container::createWithSizeFromGenerator(maxLength, [&](auto i) {
-        return createBlendedFunction(i);
-    });
+    return styleTransformListBlend(from, to, context, boxSize.width(), boxSize.height(), prefixLengthFromContext.has_value(), prefixLengthFromContext.value_or(0));
 }
 
 } // namespace Style

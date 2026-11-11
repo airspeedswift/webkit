@@ -47,9 +47,6 @@ public:
     NODELETE static Ref<const RotateTransformFunction> create(Angle<>, TransformFunctionBase::Type);
     NODELETE static Ref<const RotateTransformFunction> create(Number<>, Number<>, Number<>, Angle<>, TransformFunctionBase::Type);
 
-    Ref<const TransformFunctionBase> clone() const override;
-    Ref<TransformOperation> toPlatform(const FloatSize&, ZoomFactor) const override;
-
     Number<> x() const { return m_x; }
     Number<> y() const { return m_y; }
     Number<> z() const { return m_z; }
@@ -57,16 +54,8 @@ public:
 
     TransformFunctionBase::Type primitiveType() const override { return type() == Type::Rotate ? Type::Rotate : Type::Rotate3D; }
 
-    bool operator==(const RotateTransformFunction& other) const { return operator==(static_cast<const TransformFunctionBase&>(other)); }
-    bool operator==(const TransformFunctionBase&) const override;
-
-    bool isIdentity() const override { return m_angle.isZero(); }
-    bool isRepresentableIn2D() const override { return (m_x.isZero() && m_y.isZero()) || m_angle.isZero(); }
-    bool isAffectedByTransformOrigin() const override { return !isIdentity(); }
-
-    void apply(TransformationMatrix&, const FloatSize& borderBoxSize, ZoomFactor) const override;
-
-    Ref<const TransformFunctionBase> blend(const TransformFunctionBase* from, const BlendingContext&, bool blendToIdentity = false) const override;
+    bool isIdentity() const { return m_angle.isZero(); }
+    bool isRepresentableIn2D() const { return (m_x.isZero() && m_y.isZero()) || m_angle.isZero(); }
 
     void dump(WTF::TextStream&) const override;
 

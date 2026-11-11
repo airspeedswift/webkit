@@ -55,6 +55,8 @@
 #include "StyleTranslateTransformFunction.h"
 #include <wtf/text/TextStream.h>
 
+#include "WebCore-Swift.h"
+
 namespace WebCore {
 namespace Style {
 
@@ -607,7 +609,7 @@ auto CSSValueCreation<TransformFunction>::operator()(CSSValuePool& pool, const S
     case TransformFunctionType::Matrix:
     case TransformFunctionType::Matrix3D: {
         TransformationMatrix transform;
-        function->apply(transform, { }, ZoomFactor::none());
+        styleTransformFunctionApply(function, transform, 0, 0, ZoomFactor::none().value);
         return createCSSValue(pool, style, transform);
     }
     }
@@ -812,7 +814,7 @@ void Serialize<TransformFunction>::operator()(StringBuilder& builder, const CSS:
     case TransformFunctionType::Matrix:
     case TransformFunctionType::Matrix3D: {
         TransformationMatrix transform;
-        function->apply(transform, { }, ZoomFactor::none());
+        styleTransformFunctionApply(function, transform, 0, 0, ZoomFactor::none().value);
         serializationForCSS(builder, context, style, transform);
         return;
     }
@@ -848,14 +850,14 @@ void Serialize<TransformationMatrix>::operator()(StringBuilder& builder, const C
 
 auto Blending<TransformFunction>::blend(const TransformFunction& from, const TransformFunction& to, const Interpolation::Context& context) -> TransformFunction
 {
-    return TransformFunction { protect(to.function())->blend(protect(&from.function()), context) };
+    return styleTransformFunctionBlend(from, to, context);
 }
 
 // MARK: - Platform
 
 auto ToPlatform<TransformFunction>::operator()(const TransformFunction& value, const FloatSize& size, ZoomFactor zoom) -> Ref<TransformOperation>
 {
-    return protect(value.value)->toPlatform(size, zoom);
+    return styleTransformFunctionToPlatform(value, size.width(), size.height(), zoom.value);
 }
 
 // MARK: - Logging

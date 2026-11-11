@@ -51,6 +51,7 @@ struct Scale {
 
     bool isNone() const { return !value; }
     bool isFunction() const { return !!value; }
+    const ScaleTransformFunction* function() const { return value.get(); }
 
     template<typename> bool holdsAlternative() const;
     template<typename... F> decltype(auto) switchOn(NOESCAPE F&&...) const;

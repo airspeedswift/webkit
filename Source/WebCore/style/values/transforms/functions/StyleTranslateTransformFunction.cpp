@@ -23,13 +23,8 @@
 #include "config.h"
 #include "StyleTranslateTransformFunction.h"
 
-#include "AnimationUtilities.h"
 #include "StyleKeyword+Logging.h"
-#include "StylePrimitiveNumericOrKeyword+Blending.h"
-#include "StylePrimitiveNumericTypes+Blending.h"
-#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
-#include "TranslateTransformOperation.h"
 
 namespace WebCore {
 namespace Style {
@@ -53,75 +48,6 @@ Ref<const TranslateTransformFunction> TranslateTransformFunction::create(const X
 Ref<const TranslateTransformFunction> TranslateTransformFunction::create(const X& x, const Y& y, const Z& z, TransformFunctionBase::Type type)
 {
     return adoptRef(*new TranslateTransformFunction(x, y, z, type));
-}
-
-Ref<const TransformFunctionBase> TranslateTransformFunction::clone() const
-{
-    return adoptRef(*new TranslateTransformFunction(m_x, m_y, m_z, type()));
-}
-
-Ref<TransformOperation> TranslateTransformFunction::toPlatform(const FloatSize& borderBoxSize, ZoomFactor zoom) const
-{
-    return TranslateTransformOperation::create(
-        evaluate<float>(m_x, borderBoxSize.width(), zoom),
-        evaluate<float>(m_y, borderBoxSize.height(), zoom),
-        evaluate<float>(m_z, zoom),
-        Style::toPlatform(type())
-    );
-}
-
-TransformFunctionSizeDependencies TranslateTransformFunction::computeSizeDependencies() const
-{
-    return {
-        .isWidthDependent = m_x.isPercent(),
-        .isHeightDependent = m_y.isPercent(),
-    };
-}
-
-bool TranslateTransformFunction::operator==(const TransformFunctionBase& other) const
-{
-    if (!isSameType(other))
-        return false;
-
-    auto& otherTranslate = downcast<TranslateTransformFunction>(other);
-    return m_x == otherTranslate.m_x && m_y == otherTranslate.m_y && m_z == otherTranslate.m_z;
-}
-
-void TranslateTransformFunction::apply(TransformationMatrix& transform, const FloatSize& borderBoxSize, ZoomFactor zoom) const
-{
-    transform.translate3d(
-        evaluate<float>(m_x, borderBoxSize.width(), zoom),
-        evaluate<float>(m_y, borderBoxSize.height(), zoom),
-        evaluate<float>(m_z, zoom)
-    );
-}
-
-Ref<const TransformFunctionBase> TranslateTransformFunction::blend(const TransformFunctionBase* from, const BlendingContext& context, bool blendToIdentity) const
-{
-    if (blendToIdentity) {
-        return TranslateTransformFunction::create(
-            Style::blend(m_x, X { 0_css_px }, context),
-            Style::blend(m_y, Y { 0_css_px }, context),
-            Style::blend(m_z, Z { 0_css_px }, context),
-            type()
-        );
-    }
-
-    auto outputType = sharedPrimitiveType(from);
-    if (!outputType)
-        return *this;
-
-    RefPtr fromOp = downcast<TranslateTransformFunction>(from);
-    auto fromX = fromOp ? fromOp->m_x : X { 0_css_px };
-    auto fromY = fromOp ? fromOp->m_y : Y { 0_css_px };
-    auto fromZ = fromOp ? fromOp->m_z : Z { 0_css_px };
-
-    return TranslateTransformFunction::create(
-        Style::blend(fromX, x(), context),
-        Style::blend(fromY, y(), context),
-        Style::blend(fromZ, z(), context),
-        *outputType
-    );
 }
 
 void TranslateTransformFunction::dump(TextStream& ts) const

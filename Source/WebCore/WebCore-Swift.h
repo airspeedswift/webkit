@@ -77,4 +77,8 @@
 
 #include "TransformationMatrix.h"
 
+#include "StyleTransformFunction.h"
+#include "StyleTransformList.h"
+#include "StyleTransformSwiftTypes.h"
+
 #include "WebCoreSwift-Generated.h"

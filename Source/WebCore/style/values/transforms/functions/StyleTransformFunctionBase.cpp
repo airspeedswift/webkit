@@ -27,6 +27,8 @@
 #include "config.h"
 #include "StyleTransformFunctionBase.h"
 
+#include "StyleTransformFunction.h"
+#include "WebCore-Swift.h"
 #include <wtf/text/TextStream.h>
 
 namespace WebCore {
@@ -66,6 +68,11 @@ TextStream& operator<<(TextStream& ts, const TransformFunctionBase& operation)
     return ts;
 }
 
+bool TransformFunctionBase::operator==(const TransformFunctionBase& other) const
+{
+    return styleTransformFunctionEqual(TransformFunction { *this }, TransformFunction { other });
+}
+
 std::optional<TransformFunctionBase::Type> TransformFunctionBase::sharedPrimitiveType(Type other) const
 {
     // https://drafts.csswg.org/css-transforms-2/#interpolation-of-transform-functions
@@ -85,47 +92,6 @@ std::optional<TransformFunctionBase::Type> TransformFunctionBase::sharedPrimitiv
             return typePair[1];
     }
     return std::nullopt;
-}
-
-std::optional<TransformFunctionBase::Type> TransformFunctionBase::sharedPrimitiveType(const TransformFunctionBase* other) const
-{
-    // Blending with a null operation is always supported via blending with identity.
-    if (!other)
-        return type();
-
-    // In case we have the same type, make sure to preserve it.
-    if (other->type() == type())
-        return type();
-
-    return sharedPrimitiveType(other->primitiveType());
-}
-
-auto ToPlatform<TransformFunctionType>::operator()(TransformFunctionType type) -> TransformOperationType
-{
-    switch (type) {
-    case TransformFunctionType::ScaleX:         return TransformOperationType::ScaleX;
-    case TransformFunctionType::ScaleY:         return TransformOperationType::ScaleY;
-    case TransformFunctionType::Scale:          return TransformOperationType::Scale;
-    case TransformFunctionType::TranslateX:     return TransformOperationType::TranslateX;
-    case TransformFunctionType::TranslateY:     return TransformOperationType::TranslateY;
-    case TransformFunctionType::Translate:      return TransformOperationType::Translate;
-    case TransformFunctionType::RotateX:        return TransformOperationType::RotateX;
-    case TransformFunctionType::RotateY:        return TransformOperationType::RotateY;
-    case TransformFunctionType::Rotate:         return TransformOperationType::Rotate;
-    case TransformFunctionType::SkewX:          return TransformOperationType::SkewX;
-    case TransformFunctionType::SkewY:          return TransformOperationType::SkewY;
-    case TransformFunctionType::Skew:           return TransformOperationType::Skew;
-    case TransformFunctionType::Matrix:         return TransformOperationType::Matrix;
-    case TransformFunctionType::ScaleZ:         return TransformOperationType::ScaleZ;
-    case TransformFunctionType::Scale3D:        return TransformOperationType::Scale3D;
-    case TransformFunctionType::TranslateZ:     return TransformOperationType::TranslateZ;
-    case TransformFunctionType::Translate3D:    return TransformOperationType::Translate3D;
-    case TransformFunctionType::RotateZ:        return TransformOperationType::RotateZ;
-    case TransformFunctionType::Rotate3D:       return TransformOperationType::Rotate3D;
-    case TransformFunctionType::Matrix3D:       return TransformOperationType::Matrix3D;
-    case TransformFunctionType::Perspective:    return TransformOperationType::Perspective;
-    }
-    RELEASE_ASSERT_NOT_REACHED();
 }
 
 } // namespace Style

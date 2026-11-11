@@ -31,6 +31,8 @@
 #include "StylePrimitiveNumericTypes+CSSValueConversion.h"
 #include "StylePrimitiveNumericTypes+CSSValueCreation.h"
 
+#include "WebCore-Swift.h"
+
 namespace WebCore {
 namespace Style {
 
@@ -39,7 +41,7 @@ using namespace CSS::Literals;
 void Scale::apply(TransformationMatrix& transform, const FloatSize& size, ZoomFactor zoom) const
 {
     if (RefPtr protectedValue = value)
-        protectedValue->apply(transform, size, zoom);
+        styleTransformFunctionApply(TransformFunction { protectedValue.releaseNonNull() }, transform, size.width(), size.height(), zoom.value);
 }
 
 // MARK: - Conversion
@@ -72,39 +74,13 @@ auto CSSValueConversion<Scale>::operator()(BuilderState& state, const CSSValue& 
 
 // MARK: - Blending
 
+// styleScaleBlend() clamps a blended factor to the finite doubles, as Blending<NumberOrPercentageResolvedToNumber<>>
+// does for this range.
+static_assert(NumberOrPercentageResolvedToNumber<>::Number::range == CSS::All);
+
 auto Blending<Scale>::blend(const Scale& from, const Scale& to, const BlendingContext& context) -> Scale
 {
-    RefPtr fromScale = from.value;
-    RefPtr toScale = to.value;
-
-    if (!fromScale && !toScale)
-        return CSS::Keyword::None { };
-
-    auto identity = [&](const auto& other) {
-        return ScaleTransformFunction::create(1_css_number, 1_css_number, 1_css_number, other.type());
-    };
-
-    auto fromFunction = fromScale ? Ref(*fromScale) : identity(*toScale);
-    auto toFunction = toScale ? Ref(*toScale) : identity(*fromScale);
-
-    // Ensure the two transforms have the same type.
-    if (!fromFunction->isSameType(toFunction)) {
-        RefPtr<const ScaleTransformFunction> normalizedFrom;
-        RefPtr<const ScaleTransformFunction> normalizedTo;
-        if (fromFunction->is3DOperation() || toFunction->is3DOperation()) {
-            normalizedFrom = ScaleTransformFunction::create(fromFunction->x(), fromFunction->y(), fromFunction->z(), TransformFunctionType::Scale3D);
-            normalizedTo = ScaleTransformFunction::create(toFunction->x(), toFunction->y(), toFunction->z(), TransformFunctionType::Scale3D);
-        } else {
-            normalizedFrom = ScaleTransformFunction::create(fromFunction->x(), fromFunction->y(), TransformFunctionType::Scale);
-            normalizedTo = ScaleTransformFunction::create(toFunction->x(), toFunction->y(), TransformFunctionType::Scale);
-        }
-        return blend(Scale { normalizedFrom.releaseNonNull() }, Scale { normalizedTo.releaseNonNull() }, context);
-    }
-
-    if (auto blendedFunction = toFunction->blend(fromFunction.ptr(), context); RefPtr scale = dynamicDowncast<ScaleTransformFunction>(blendedFunction))
-        return ScaleTransformFunction::create(scale->x(), scale->y(), scale->z(), scale->type());
-
-    return CSS::Keyword::None { };
+    return styleScaleBlend(from, to, context);
 }
 
 // MARK: - Platform
@@ -112,7 +88,7 @@ auto Blending<Scale>::blend(const Scale& from, const Scale& to, const BlendingCo
 auto ToPlatform<Scale>::operator()(const Scale& value, const FloatSize& size, ZoomFactor zoom) -> RefPtr<TransformOperation>
 {
     if (RefPtr function = value.value)
-        return function->toPlatform(size, zoom);
+        return styleTransformFunctionToPlatform(TransformFunction { function.releaseNonNull() }, size.width(), size.height(), zoom.value);
     return nullptr;
 }
 

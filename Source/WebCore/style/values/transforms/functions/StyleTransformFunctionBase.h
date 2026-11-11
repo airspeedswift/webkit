@@ -78,28 +78,13 @@ public:
 
     virtual ~TransformFunctionBase() = default;
 
-    virtual Ref<const TransformFunctionBase> clone() const = 0;
-
-    virtual Ref<TransformOperation> toPlatform(const FloatSize& borderBoxSize, ZoomFactor) const = 0;
-
-    virtual bool operator==(const TransformFunctionBase&) const = 0;
-
-    virtual void apply(TransformationMatrix&, const FloatSize& borderBoxSize, ZoomFactor) const = 0;
-
-    virtual Ref<const TransformFunctionBase> blend(const TransformFunctionBase* from, const BlendingContext&, bool blendToIdentity = false) const = 0;
+    bool operator==(const TransformFunctionBase&) const;
 
     Type type() const { return m_type; }
     bool isSameType(const TransformFunctionBase& other) const { return type() == other.type(); }
 
     virtual Type primitiveType() const { return m_type; }
     std::optional<Type> sharedPrimitiveType(Type other) const;
-    std::optional<Type> sharedPrimitiveType(const TransformFunctionBase* other) const;
-
-    virtual bool isIdentity() const = 0;
-    virtual bool isAffectedByTransformOrigin() const { return false; }
-    virtual bool isRepresentableIn2D() const { return true; }
-
-    virtual TransformFunctionSizeDependencies computeSizeDependencies() const { return { }; }
 
     bool is3DOperation() const
     {
@@ -157,10 +142,6 @@ private:
 
 WTF::TextStream& operator<<(WTF::TextStream&, TransformFunctionBase::Type);
 WTF::TextStream& operator<<(WTF::TextStream&, const TransformFunctionBase&);
-
-// MARK: - Platform
-
-template<> struct ToPlatform<TransformFunctionType> { NODELETE TransformOperationType operator()(TransformFunctionType); };
 
 } // namespace Style
 } // namespace WebCore

@@ -46,8 +46,8 @@
 
 #include "WebCore-Swift.h"
 
-// The functions below that multiply by a matrix with constant entries (a rotation about an axis, a skew, a perspective)
-// call a Swift entry point for each shape, in which the constant entries fold.
+// scaleNonUniform(), scale3d(), rotate(), rotate3d(), rotateRadians(), translate3d(), skew(), applyPerspective() and
+// zoom() each call a Swift entry point. Where one multiplies by a matrix with constant entries, the entries fold there.
 
 namespace WebCore {
 
@@ -612,26 +612,13 @@ FloatQuad TransformationMatrix::mapQuad(const FloatQuad& q) const
 
 TransformationMatrix& TransformationMatrix::scaleNonUniform(double sx, double sy)
 {
-    m_matrix[0][0] *= sx;
-    m_matrix[0][1] *= sx;
-    m_matrix[0][2] *= sx;
-    m_matrix[0][3] *= sx;
-
-    m_matrix[1][0] *= sy;
-    m_matrix[1][1] *= sy;
-    m_matrix[1][2] *= sy;
-    m_matrix[1][3] *= sy;
+    transformationMatrixScaleNonUniform(*this, sx, sy);
     return *this;
 }
 
 TransformationMatrix& TransformationMatrix::scale3d(double sx, double sy, double sz)
 {
-    scaleNonUniform(sx, sy);
-
-    m_matrix[2][0] *= sz;
-    m_matrix[2][1] *= sz;
-    m_matrix[2][2] *= sz;
-    m_matrix[2][3] *= sz;
+    transformationMatrixScale3d(*this, sx, sy, sz);
     return *this;
 }
 
@@ -644,52 +631,19 @@ NODELETE static double roundEpsilonToZero(double val)
 
 TransformationMatrix& TransformationMatrix::rotate3d(double x, double y, double z, double angle, RotationSnapping snapping)
 {
-    // Normalize the axis of rotation
-    double length = std::hypot(x, y, z);
-    if (length == 0) {
-        // A direction vector that cannot be normalized, such as [0, 0, 0], will cause the rotation to not be applied.
-        return *this;
-    } else if (length != 1) {
-        x /= length;
-        y /= length;
-        z /= length;
-    }
-
-    // Angles are in degrees. Switch to radians.
-    angle = deg2rad(angle);
-
-    double sinTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(angle)) : sin(angle);
-    double cosTheta = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(angle)) : cos(angle);
-
-    if (x == 1.0)
-        transformationMatrixRotateX(*this, sinTheta, cosTheta);
-    else if (y == 1.0)
-        transformationMatrixRotateY(*this, sinTheta, cosTheta);
-    else if (z == 1.0)
-        transformationMatrixRotateZ(*this, sinTheta, cosTheta);
-    else {
-        double oneMinusCosTheta = 1 - cosTheta;
-        transformationMatrixMultiplyLinear(*this,
-            cosTheta + x * x * oneMinusCosTheta, y * x * oneMinusCosTheta + z * sinTheta, z * x * oneMinusCosTheta - y * sinTheta,
-            x * y * oneMinusCosTheta - z * sinTheta, cosTheta + y * y * oneMinusCosTheta, z * y * oneMinusCosTheta + x * sinTheta,
-            x * z * oneMinusCosTheta + y * sinTheta, y * z * oneMinusCosTheta - x * sinTheta, cosTheta + z * z * oneMinusCosTheta);
-    }
+    transformationMatrixRotate3d(*this, x, y, z, angle, snapping == RotationSnapping::Snap90degRotations);
     return *this;
 }
 
 TransformationMatrix& TransformationMatrix::rotate(double angle, RotationSnapping snapping)
 {
-    if (!std::fmod(angle, 360))
-        return *this;
-
-    return rotateRadians(deg2rad(angle), snapping);
+    transformationMatrixRotate(*this, angle, snapping == RotationSnapping::Snap90degRotations);
+    return *this;
 }
 
 TransformationMatrix& TransformationMatrix::rotateRadians(double angle, RotationSnapping snapping)
 {
-    double sinZ = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(sin(angle)) : sin(angle);
-    double cosZ = snapping == RotationSnapping::Snap90degRotations ? roundEpsilonToZero(cos(angle)) : cos(angle);
-    transformationMatrixRotateZ(*this, sinZ, cosZ);
+    transformationMatrixRotateRadians(*this, angle, snapping == RotationSnapping::Snap90degRotations);
     return *this;
 }
 
@@ -745,10 +699,7 @@ TransformationMatrix& TransformationMatrix::translate(double tx, double ty)
 
 TransformationMatrix& TransformationMatrix::translate3d(double tx, double ty, double tz)
 {
-    m_matrix[3][0] += tx * m_matrix[0][0] + ty * m_matrix[1][0] + tz * m_matrix[2][0];
-    m_matrix[3][1] += tx * m_matrix[0][1] + ty * m_matrix[1][1] + tz * m_matrix[2][1];
-    m_matrix[3][2] += tx * m_matrix[0][2] + ty * m_matrix[1][2] + tz * m_matrix[2][2];
-    m_matrix[3][3] += tx * m_matrix[0][3] + ty * m_matrix[1][3] + tz * m_matrix[2][3];
+    transformationMatrixTranslate3d(*this, tx, ty, tz);
     return *this;
 }
 
@@ -786,19 +737,13 @@ TransformationMatrix& TransformationMatrix::translateRight3d(double tx, double t
 
 TransformationMatrix& TransformationMatrix::skew(double sx, double sy)
 {
-    // angles are in degrees. Switch to radians
-    sx = deg2rad(sx);
-    sy = deg2rad(sy);
-
-    double tanY = tan(sy);
-    double tanX = tan(sx);
-    transformationMatrixSkew(*this, tanY, tanX);
+    transformationMatrixSkew(*this, sx, sy);
     return *this;
 }
 
 TransformationMatrix& TransformationMatrix::applyPerspective(double p)
 {
-    transformationMatrixApplyPerspective(*this, p != 0 ? -1 / p : 0.0);
+    transformationMatrixApplyPerspective(*this, p);
     return *this;
 }
 
@@ -814,12 +759,7 @@ TransformationMatrix TransformationMatrix::rectToRect(const FloatRect& from, con
 
 TransformationMatrix& TransformationMatrix::zoom(double zoomFactor)
 {
-    m_matrix[0][3] /= zoomFactor;
-    m_matrix[1][3] /= zoomFactor;
-    m_matrix[2][3] /= zoomFactor;
-    m_matrix[3][0] *= zoomFactor;
-    m_matrix[3][1] *= zoomFactor;
-    m_matrix[3][2] *= zoomFactor;
+    transformationMatrixZoom(*this, zoomFactor);
     return *this;
 }
 
