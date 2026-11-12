@@ -96,6 +96,17 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
+		15CCB1E31A874E39BB48DD12 /* ISO8601.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FE089980A2C4ABEBB4613A2 /* ISO8601.swift */; };
+		3D1DEA4916E54F2781FCE2FF /* ISO8601Parser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43A1C0A060A9475D89A621F1 /* ISO8601Parser.swift */; };
+		3BE69551E9DD4F64993B439F /* TemporalSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30C8C7829054C5597AE7AC1 /* TemporalSupport.swift */; };
+		D0BBA46A160743A08363CA02 /* CalendarFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467062F0AEBF4DE08A4A5B38 /* CalendarFields.swift */; };
+		3A119EB4B02A4E588619C43C /* DurationArithmetic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775FE4C17DA7475A95A2B099 /* DurationArithmetic.swift */; };
+		71CE7341FD484F1CADDBD5A9 /* ISOArithmetic.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43068D0EB3F54828BABE39F4 /* ISOArithmetic.swift */; };
+		ACA53CD27F6D4632BAD3C563 /* InstantCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45CF0971E18A4EBF949A31B0 /* InstantCore.swift */; };
+		C3E5BD5F1AE142FFB82F93E4 /* PlainDateTimeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30C8EE3D4F4448E19D598DCB /* PlainDateTimeCore.swift */; };
+		F2BBFE2748744374B280C50A /* Rounding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CFDADB3BFA741378A73B6D6 /* Rounding.swift */; };
+		E529E27FC77148A88E4D23B1 /* ZonedDateTimeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17D8DBAFBB64C05B2CB4647 /* ZonedDateTimeCore.swift */; };
+		17592F0111CE4D5DB49198C0 /* TemporalSwiftBoundary.h in Headers */ = {isa = PBXBuildFile; fileRef = 8F859CB89DDF43F0A3CCCCEE /* TemporalSwiftBoundary.h */; };
 		071D163C2FD290A800249B59 /* testapi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071D163B2FD290A800249B59 /* testapi.swift */; };
 		072F534D2E3BEAFE00389E15 /* ParserFunctionInfo.h in Headers */ = {isa = PBXBuildFile; fileRef = 9B4954E81A6640DB002815A6 /* ParserFunctionInfo.h */; };
 		072F534E2E3C0B7100389E15 /* CachedCall.h in Headers */ = {isa = PBXBuildFile; fileRef = A7F8690E0F9584A100558697 /* CachedCall.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -2974,6 +2985,17 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		8FE089980A2C4ABEBB4613A2 /* ISO8601.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601.swift; sourceTree = "<group>"; };
+		43A1C0A060A9475D89A621F1 /* ISO8601Parser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601Parser.swift; sourceTree = "<group>"; };
+		D30C8C7829054C5597AE7AC1 /* TemporalSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TemporalSupport.swift; sourceTree = "<group>"; };
+		467062F0AEBF4DE08A4A5B38 /* CalendarFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarFields.swift; sourceTree = "<group>"; };
+		775FE4C17DA7475A95A2B099 /* DurationArithmetic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DurationArithmetic.swift; sourceTree = "<group>"; };
+		43068D0EB3F54828BABE39F4 /* ISOArithmetic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISOArithmetic.swift; sourceTree = "<group>"; };
+		45CF0971E18A4EBF949A31B0 /* InstantCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstantCore.swift; sourceTree = "<group>"; };
+		30C8EE3D4F4448E19D598DCB /* PlainDateTimeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainDateTimeCore.swift; sourceTree = "<group>"; };
+		2CFDADB3BFA741378A73B6D6 /* Rounding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rounding.swift; sourceTree = "<group>"; };
+		A17D8DBAFBB64C05B2CB4647 /* ZonedDateTimeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonedDateTimeCore.swift; sourceTree = "<group>"; };
+		8F859CB89DDF43F0A3CCCCEE /* TemporalSwiftBoundary.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = TemporalSwiftBoundary.h; sourceTree = "<group>"; };
 		000BEAF0DF604481AF6AB68C /* ModuleScopeData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ModuleScopeData.h; sourceTree = "<group>"; };
 		05517C9F2C74004600ED0CD5 /* JSIterator.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSIterator.cpp; sourceTree = "<group>"; };
 		05517CA02C74004700ED0CD5 /* JSIteratorConstructor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSIteratorConstructor.h; sourceTree = "<group>"; };
@@ -6722,7 +6744,6 @@
 		FF62739D2FAD56220098B5A3 /* CalendarArithmetic.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CalendarArithmetic.h; sourceTree = "<group>"; };
 		FF62739E2FAD56220098B5A3 /* CalendarArithmetic.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CalendarArithmetic.cpp; sourceTree = "<group>"; };
 		FF62739F2FAD56220098B5A3 /* InstantCore.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InstantCore.h; sourceTree = "<group>"; };
-		FF6273A02FAD56220098B5A3 /* InstantCore.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = InstantCore.cpp; sourceTree = "<group>"; };
 		FF6273A12FAD56220098B5A3 /* ISOArithmetic.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ISOArithmetic.h; sourceTree = "<group>"; };
 		FF6273A22FAD56220098B5A3 /* ISOArithmetic.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ISOArithmetic.cpp; sourceTree = "<group>"; };
 		FF6273A32FAD56220098B5A3 /* Rounding.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Rounding.h; sourceTree = "<group>"; };
@@ -9231,6 +9252,10 @@
 				86BF642A148DB2B5004DE36A /* Intrinsic.h */,
 				A38CA59B26DD84DE00C8D84C /* ISO8601.cpp */,
 				A38CA59C26DD84DE00C8D84C /* ISO8601.h */,
+				8FE089980A2C4ABEBB4613A2 /* ISO8601.swift */,
+				43A1C0A060A9475D89A621F1 /* ISO8601Parser.swift */,
+				D30C8C7829054C5597AE7AC1 /* TemporalSupport.swift */,
+				8F859CB89DDF43F0A3CCCCEE /* TemporalSwiftBoundary.h */,
 				8B9F6D551D5912FA001C739F /* IterationKind.h */,
 				70113D491A8DB093003848C4 /* IteratorOperations.cpp */,
 				70113D4A1A8DB093003848C4 /* IteratorOperations.h */,
@@ -11156,24 +11181,30 @@
 				FF62739D2FAD56220098B5A3 /* CalendarArithmetic.h */,
 				FFF79F932FB2F1B2003FF02A /* CalendarFields.cpp */,
 				FFF79F922FB2F1B2003FF02A /* CalendarFields.h */,
+				467062F0AEBF4DE08A4A5B38 /* CalendarFields.swift */,
 				FF629D9C2FAE9B500098B5A3 /* CalendarICUBridge.cpp */,
 				FF629D9B2FAE9B500098B5A3 /* CalendarICUBridge.h */,
 				FFF79F952FB2F1B2003FF02A /* DurationArithmetic.cpp */,
 				FFF79F942FB2F1B2003FF02A /* DurationArithmetic.h */,
-				FF6273A02FAD56220098B5A3 /* InstantCore.cpp */,
+				775FE4C17DA7475A95A2B099 /* DurationArithmetic.swift */,
 				FF62739F2FAD56220098B5A3 /* InstantCore.h */,
+				45CF0971E18A4EBF949A31B0 /* InstantCore.swift */,
 				FF6273A22FAD56220098B5A3 /* ISOArithmetic.cpp */,
 				FF6273A12FAD56220098B5A3 /* ISOArithmetic.h */,
+				43068D0EB3F54828BABE39F4 /* ISOArithmetic.swift */,
 				FFF79F972FB2F1B2003FF02A /* PlainDateTimeCore.cpp */,
 				FFF79F962FB2F1B2003FF02A /* PlainDateTimeCore.h */,
+				30C8EE3D4F4448E19D598DCB /* PlainDateTimeCore.swift */,
 				FF6273A42FAD56220098B5A3 /* Rounding.cpp */,
 				FF6273A32FAD56220098B5A3 /* Rounding.h */,
+				2CFDADB3BFA741378A73B6D6 /* Rounding.swift */,
 				FF356CF32FA9832600213929 /* TemporalCoreTypes.h */,
 				FF356CF42FA9832600213929 /* TemporalEnums.h */,
 				FF629D9F2FAE9B500098B5A3 /* TimeZoneICUBridge.cpp */,
 				FF629D9E2FAE9B500098B5A3 /* TimeZoneICUBridge.h */,
 				FFF79F992FB2F1B2003FF02A /* ZonedDateTimeCore.cpp */,
 				FFF79F982FB2F1B2003FF02A /* ZonedDateTimeCore.h */,
+				A17D8DBAFBB64C05B2CB4647 /* ZonedDateTimeCore.swift */,
 			);
 			path = core;
 			sourceTree = "<group>";
@@ -12251,6 +12282,7 @@
 				860BD801148EA6F200112B2F /* Intrinsic.h in Headers */,
 				534E03541E53BD2900213F64 /* IntrinsicGetterAccessCase.h in Headers */,
 				A38CA59E26DD84DE00C8D84C /* ISO8601.h in Headers */,
+				17592F0111CE4D5DB49198C0 /* TemporalSwiftBoundary.h in Headers */,
 				FF6273A72FAD56220098B5A3 /* ISOArithmetic.h in Headers */,
 				0FB467801FDDA6F1003FCB09 /* IsoCellSet.h in Headers */,
 				0FB467811FDDA6F7003FCB09 /* IsoCellSetInlines.h in Headers */,
@@ -14454,6 +14486,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				15CCB1E31A874E39BB48DD12 /* ISO8601.swift in Sources */,
+				3D1DEA4916E54F2781FCE2FF /* ISO8601Parser.swift in Sources */,
+				3BE69551E9DD4F64993B439F /* TemporalSupport.swift in Sources */,
+				D0BBA46A160743A08363CA02 /* CalendarFields.swift in Sources */,
+				3A119EB4B02A4E588619C43C /* DurationArithmetic.swift in Sources */,
+				71CE7341FD484F1CADDBD5A9 /* ISOArithmetic.swift in Sources */,
+				ACA53CD27F6D4632BAD3C563 /* InstantCore.swift in Sources */,
+				C3E5BD5F1AE142FFB82F93E4 /* PlainDateTimeCore.swift in Sources */,
+				F2BBFE2748744374B280C50A /* Rounding.swift in Sources */,
+				E529E27FC77148A88E4D23B1 /* ZonedDateTimeCore.swift in Sources */,
 				E39440542F276A4A0055F0DB /* Binja.c in Sources */,
 				5333BBDC2110F7D9007618EC /* DFGSpeculativeJIT.cpp in Sources */,
 				5333BBDD2110F7E1007618EC /* DFGSpeculativeJIT64.cpp in Sources */,
