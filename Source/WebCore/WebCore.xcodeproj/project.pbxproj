@@ -2356,7 +2356,7 @@
 		5273CCB32564576F00850007 /* JSFakeXRRigidTransformInit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5273CCAE2564576D00850007 /* JSFakeXRRigidTransformInit.cpp */; };
 		5273CCB42564576F00850007 /* JSFakeXRViewInit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5273CCAF2564576E00850007 /* JSFakeXRViewInit.cpp */; };
 		52A0BE6627C227E10046611E /* JSFakeXRJointStateInit.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52A0BE6527C227E00046611E /* JSFakeXRJointStateInit.cpp */; };
-		52B07441284680CA00511B65 /* AuthenticationExtensionsClientInputs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52B07440284680C900511B65 /* AuthenticationExtensionsClientInputs.cpp */; settings = {COMPILER_FLAGS = "-DRELEASE_WITHOUT_OPTIMIZATIONS -O0"; }; };
+		52B07441284680CA00511B65 /* AuthenticationExtensionsClientInputs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52B07440284680C900511B65 /* AuthenticationExtensionsClientInputs.cpp */; };
 		52B074432846810A00511B65 /* AuthenticationExtensionsClientOutputs.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 52B074422846810A00511B65 /* AuthenticationExtensionsClientOutputs.cpp */; };
 		52B0D4C21C57FF910077CE53 /* VideoPresentationInterfaceMac.h in Headers */ = {isa = PBXBuildFile; fileRef = 52B0D4C11C57FF910077CE53 /* VideoPresentationInterfaceMac.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		52D5A1A71C57489D00DE34A3 /* VideoPresentationModel.h in Headers */ = {isa = PBXBuildFile; fileRef = 52D5A1A41C57488900DE34A3 /* VideoPresentationModel.h */; settings = {ATTRIBUTES = (Private, ); }; };
