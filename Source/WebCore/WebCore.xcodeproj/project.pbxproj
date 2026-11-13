@@ -3450,7 +3450,7 @@
 		839A095D2524F37F00EEF328 /* WorkerOrWorkletScriptController.h in Headers */ = {isa = PBXBuildFile; fileRef = 839A095B2524F37600EEF328 /* WorkerOrWorkletScriptController.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		839AAFED1A0C0C8D00605F99 /* HTMLWBRElement.h in Headers */ = {isa = PBXBuildFile; fileRef = 839AAFEB1A0C0C8D00605F99 /* HTMLWBRElement.h */; };
 		839B297B463A43FE0B6E9D57 /* UnifiedSource74-header-RenderStyleGetters.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 41FF206D0243146B78FDD0FB /* UnifiedSource74-header-RenderStyleGetters.cpp */; };
-		839BE6D524F58762004DF50F /* IIRFilter.h in Headers */ = {isa = PBXBuildFile; fileRef = 839BE6D224F58755004DF50F /* IIRFilter.h */; };
+		839BE6D524F58762004DF50F /* IIRFilter.h in Headers */ = {isa = PBXBuildFile; fileRef = 839BE6D224F58755004DF50F /* IIRFilter.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		839C69D02810D11D00E69BAD /* CommonAtomStrings.h in Headers */ = {isa = PBXBuildFile; fileRef = 839C69CE2810D11C00E69BAD /* CommonAtomStrings.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		83A2ABDB24D86DE000E2D73D /* DelayOptions.h in Headers */ = {isa = PBXBuildFile; fileRef = 83A2ABD824D86DC600E2D73D /* DelayOptions.h */; };
 		83A8AC401FABBFE5002064AC /* ServiceWorkerIdentifier.h in Headers */ = {isa = PBXBuildFile; fileRef = 83A8AC3E1FABBFD1002064AC /* ServiceWorkerIdentifier.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -7369,7 +7369,7 @@
 		FC54D05816A7676E00575E4D /* JSCSSSupportsRule.h in Headers */ = {isa = PBXBuildFile; fileRef = FC84802E167AB444008CD100 /* JSCSSSupportsRule.h */; };
 		FC9A0F75164094CF003D6B8D /* DOMCSSNamespace.h in Headers */ = {isa = PBXBuildFile; fileRef = FC9A0F72164094CF003D6B8D /* DOMCSSNamespace.h */; };
 		FC9E0E4D16419C1E00392BE3 /* JSDOMCSSNamespace.h in Headers */ = {isa = PBXBuildFile; fileRef = FC9E0E4B16419C1E00392BE3 /* JSDOMCSSNamespace.h */; };
-		FD00D7A514A3F61900734011 /* SincResampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD00D7A314A3F61900734011 /* SincResampler.h */; };
+		FD00D7A514A3F61900734011 /* SincResampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD00D7A314A3F61900734011 /* SincResampler.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD06DFA6134A4DEF006F5D7D /* DefaultAudioDestinationNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD06DFA4134A4DEF006F5D7D /* DefaultAudioDestinationNode.h */; };
 		FD1762E0176686D900D836A8 /* UpSampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD1762DE176686D900D836A8 /* UpSampler.h */; };
 		FD1762E4176686EA00D836A8 /* DownSampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD1762E2176686EA00D836A8 /* DownSampler.h */; };
@@ -7412,7 +7412,8 @@
 		FD31608812B026F700C1A359 /* AudioResamplerKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605212B026F700C1A359 /* AudioResamplerKernel.h */; };
 		FD31608912B026F700C1A359 /* AudioSourceProvider.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605312B026F700C1A359 /* AudioSourceProvider.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608B12B026F700C1A359 /* AudioUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605512B026F700C1A359 /* AudioUtilities.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FD31608D12B026F700C1A359 /* Biquad.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605712B026F700C1A359 /* Biquad.h */; };
+		4DDD6D23C4B6441BBEB5B07E /* StereoPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = E7FBE7C424EC36F300A18E62 /* StereoPanner.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		FD31608D12B026F700C1A359 /* Biquad.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605712B026F700C1A359 /* Biquad.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608F12B026F700C1A359 /* Cone.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605912B026F700C1A359 /* Cone.h */; };
 		FD31609112B026F700C1A359 /* Distance.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605B12B026F700C1A359 /* Distance.h */; };
 		FD31609312B026F700C1A359 /* EqualPowerPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605D12B026F700C1A359 /* EqualPowerPanner.h */; };
@@ -7429,15 +7430,15 @@
 		FD3160A912B026F700C1A359 /* ReverbConvolver.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607312B026F700C1A359 /* ReverbConvolver.h */; };
 		FD3160AB12B026F700C1A359 /* ReverbConvolverStage.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607512B026F700C1A359 /* ReverbConvolverStage.h */; };
 		FD3160AD12B026F700C1A359 /* ReverbInputBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607712B026F700C1A359 /* ReverbInputBuffer.h */; };
-		FD3160AF12B026F700C1A359 /* VectorMath.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607912B026F700C1A359 /* VectorMath.h */; };
+		FD3160AF12B026F700C1A359 /* VectorMath.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31607912B026F700C1A359 /* VectorMath.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD359190138DB22000E1EBEC /* AudioParamTimeline.h in Headers */ = {isa = PBXBuildFile; fileRef = FD35918E138DB22000E1EBEC /* AudioParamTimeline.h */; };
 		FD45A94F175D3F3E00C21EC8 /* LayoutShape.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A87F175D3926002CD360 /* LayoutShape.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD45A952175D3F3E00C21EC8 /* ShapeOutsideInfo.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A887175D3926002CD360 /* ShapeOutsideInfo.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD45A957175D414C00C21EC8 /* PolygonLayoutShape.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A87B175D3926002CD360 /* PolygonLayoutShape.h */; };
 		FD45A958175D414C00C21EC8 /* RectangleLayoutShape.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A87D175D3926002CD360 /* RectangleLayoutShape.h */; };
 		FD45A95B175D41EE00C21EC8 /* ShapeInterval.h in Headers */ = {isa = PBXBuildFile; fileRef = FD08A885175D3926002CD360 /* ShapeInterval.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FD537353137B651800008DCE /* ZeroPole.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537351137B651800008DCE /* ZeroPole.h */; };
-		FD537357137B653B00008DCE /* DynamicsCompressorKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537355137B653B00008DCE /* DynamicsCompressorKernel.h */; };
+		FD537353137B651800008DCE /* ZeroPole.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537351137B651800008DCE /* ZeroPole.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		FD537357137B653B00008DCE /* DynamicsCompressorKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD537355137B653B00008DCE /* DynamicsCompressorKernel.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD5686CA13AC180200B69C68 /* AsyncAudioDecoder.h in Headers */ = {isa = PBXBuildFile; fileRef = FD5686C813AC180200B69C68 /* AsyncAudioDecoder.h */; };
 		FD5686CC13AC181400B69C68 /* AudioBufferCallback.h in Headers */ = {isa = PBXBuildFile; fileRef = FD5686CB13AC181400B69C68 /* AudioBufferCallback.h */; };
 		FD581FAF1520F91F003A7A75 /* OscillatorNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD581FAC1520F91F003A7A75 /* OscillatorNode.h */; };
@@ -7446,7 +7447,7 @@
 		FD62F52E145898D80094B0ED /* AudioSourceProviderClient.h in Headers */ = {isa = PBXBuildFile; fileRef = FD62F52D145898D80094B0ED /* AudioSourceProviderClient.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD671A78159BB07000197559 /* MediaStreamAudioSourceNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD671A75159BB07000197559 /* MediaStreamAudioSourceNode.h */; };
 		FD6ED2C4136B8E42003CF072 /* DynamicsCompressorNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6ED2C2136B8E42003CF072 /* DynamicsCompressorNode.h */; };
-		FD6ED2C8136B8E66003CF072 /* DynamicsCompressor.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6ED2C6136B8E66003CF072 /* DynamicsCompressor.h */; };
+		FD6ED2C8136B8E66003CF072 /* DynamicsCompressor.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6ED2C6136B8E66003CF072 /* DynamicsCompressor.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD6F252D13F5EF0E0065165F /* MediaElementAudioSourceNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD6F252A13F5EF0E0065165F /* MediaElementAudioSourceNode.h */; };
 		FD7868BA136B999200D403DF /* JSDynamicsCompressorNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD7868B8136B999200D403DF /* JSDynamicsCompressorNode.h */; };
 		FD7F299213D4C0CB00AD9535 /* WaveShaperDSPKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD7F298B13D4C0CB00AD9535 /* WaveShaperDSPKernel.h */; };
@@ -44702,6 +44703,7 @@
 				22F021A02FFF3E3500B13642 /* BezierUtilities.h in Headers */,
 				2DD8714B265F4366005F997C /* BifurcatedGraphicsContext.h in Headers */,
 				FD31608D12B026F700C1A359 /* Biquad.h in Headers */,
+				4DDD6D23C4B6441BBEB5B07E /* StereoPanner.h in Headers */,
 				FD31602512B0267600C1A359 /* BiquadDSPKernel.h in Headers */,
 				FDC54F051399B0DA008D9117 /* BiquadFilterNode.h in Headers */,
 				83DB9E1024DA19570037B468 /* BiquadFilterOptions.h in Headers */,
