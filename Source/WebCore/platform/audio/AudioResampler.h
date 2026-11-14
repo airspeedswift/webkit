@@ -43,18 +43,20 @@ class AudioResampler final {
 public:
     AudioResampler();
     AudioResampler(unsigned numberOfChannels);
-    ~AudioResampler() = default;
+    // For callers outside WebCore, which must not depend on the size of the class.
+    WEBCORE_EXPORT static std::unique_ptr<AudioResampler> create(unsigned numberOfChannels);
+    WEBCORE_EXPORT ~AudioResampler();
     
     // Given an AudioSourceProvider, process() resamples the source stream into destinationBus.
-    void process(AudioSourceProvider*, AudioBus& destinationBus, size_t framesToProcess);
+    WEBCORE_EXPORT void process(AudioSourceProvider*, AudioBus& destinationBus, size_t framesToProcess);
 
     // Resets the processing state.
-    NODELETE void reset();
+    NODELETE WEBCORE_EXPORT void reset();
 
     void configureChannels(unsigned numberOfChannels);
 
     // 0 < rate <= MaxRate
-    NODELETE void setRate(double rate);
+    NODELETE WEBCORE_EXPORT void setRate(double rate);
     double rate() const { return m_rate; }
 
     static constexpr double MaxRate { 8 };

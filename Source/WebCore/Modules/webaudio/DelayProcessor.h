@@ -34,7 +34,7 @@ namespace WebCore {
 
 class AudioDSPKernel;
     
-class DelayProcessor final : public AudioDSPKernelProcessor {
+class WEBCORE_EXPORT DelayProcessor final : public AudioDSPKernelProcessor {
     WTF_MAKE_TZONE_ALLOCATED(DelayProcessor);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(DelayProcessor);
 public:

@@ -28,6 +28,40 @@ framework module WebCore_Private [system] {
         // on iOS, so it needs the definition of the class excluded above.
         exclude header "WebCoreView.h"
 
+        // Private for TestWebKitAPI's audio benchmarks only. Their classes declare
+        // reference counting and render-thread members that are not marked unsafe
+        // for Swift, so they stay out of the module.
+        exclude header "AudioContext.h"
+        exclude header "AudioContextState.h"
+        exclude header "AudioDestinationNode.h"
+        exclude header "AudioDSPKernel.h"
+        exclude header "AudioDSPKernelProcessor.h"
+        exclude header "AudioNode.h"
+        exclude header "AudioParam.h"
+        exclude header "AudioParamTimeline.h"
+        exclude header "AudioProcessor.h"
+        exclude header "AudioResampler.h"
+        exclude header "AudioResamplerKernel.h"
+        exclude header "AudioSinkInfo.h"
+        exclude header "AudioSinkOptions.h"
+        exclude header "AudioSinkType.h"
+        exclude header "AudioSummingJunction.h"
+        exclude header "AutomationRate.h"
+        exclude header "BaseAudioContext.h"
+        exclude header "BiquadProcessor.h"
+        exclude header "ChannelCountMode.h"
+        exclude header "ChannelInterpretation.h"
+        exclude header "DefaultAudioDestinationNode.h"
+        exclude header "DelayProcessor.h"
+        exclude header "IIRProcessor.h"
+        exclude header "MultiChannelResampler.h"
+        exclude header "NoiseInjectionPolicy.h"
+        exclude header "OfflineAudioContext.h"
+        exclude header "OfflineAudioDestinationNode.h"
+        exclude header "OscillatorType.h"
+        exclude header "PeriodicWaveConstraints.h"
+        exclude header "WaveShaperProcessor.h"
+
         module * {
             export *
         }

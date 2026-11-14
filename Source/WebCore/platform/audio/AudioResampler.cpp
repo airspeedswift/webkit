@@ -51,6 +51,13 @@ AudioResampler::AudioResampler(unsigned numberOfChannels)
 {
 }
 
+std::unique_ptr<AudioResampler> AudioResampler::create(unsigned numberOfChannels)
+{
+    return makeUnique<AudioResampler>(numberOfChannels);
+}
+
+AudioResampler::~AudioResampler() = default;
+
 void AudioResampler::configureChannels(unsigned numberOfChannels)
 {
     unsigned currentSize = m_kernels.size();

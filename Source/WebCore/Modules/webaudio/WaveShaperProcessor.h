@@ -36,7 +36,7 @@ namespace WebCore {
 
 // WaveShaperProcessor is an AudioDSPKernelProcessor which uses WaveShaperDSPKernel objects to implement non-linear distortion effects.
 
-class WaveShaperProcessor final : public AudioDSPKernelProcessor {
+class WEBCORE_EXPORT WaveShaperProcessor final : public AudioDSPKernelProcessor {
     WTF_MAKE_TZONE_ALLOCATED(WaveShaperProcessor);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(WaveShaperProcessor);
 public:

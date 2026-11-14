@@ -604,6 +604,31 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/web-locks/WebLockMode.h
     Modules/web-locks/WebLockRegistry.h
 
+    Modules/webaudio/AudioContext.h
+    Modules/webaudio/AudioContextState.h
+    Modules/webaudio/AudioDestinationNode.h
+    Modules/webaudio/AudioNode.h
+    Modules/webaudio/AudioParam.h
+    Modules/webaudio/AudioParamTimeline.h
+    Modules/webaudio/AudioSinkInfo.h
+    Modules/webaudio/AudioSinkOptions.h
+    Modules/webaudio/AudioSinkType.h
+    Modules/webaudio/AudioSummingJunction.h
+    Modules/webaudio/AutomationRate.h
+    Modules/webaudio/BaseAudioContext.h
+    Modules/webaudio/BiquadFilterType.h
+    Modules/webaudio/BiquadProcessor.h
+    Modules/webaudio/ChannelCountMode.h
+    Modules/webaudio/ChannelInterpretation.h
+    Modules/webaudio/DefaultAudioDestinationNode.h
+    Modules/webaudio/DelayProcessor.h
+    Modules/webaudio/IIRProcessor.h
+    Modules/webaudio/OfflineAudioContext.h
+    Modules/webaudio/OfflineAudioDestinationNode.h
+    Modules/webaudio/OscillatorType.h
+    Modules/webaudio/PeriodicWaveConstraints.h
+    Modules/webaudio/WaveShaperProcessor.h
+
     Modules/webauthn/AllAcceptedCredentialsOptions.h
     Modules/webauthn/AttestationConveyancePreference.h
     Modules/webauthn/AuthenticationExtensionsClientInputs.h
@@ -2200,6 +2225,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/MessageClientForTesting.h
     platform/MessageForTesting.h
     platform/MessageTargetForTesting.h
+    platform/NoiseInjectionPolicy.h
     platform/NonSerializedDataIdentifier.h
     platform/NotImplemented.h
     platform/NowPlayingManager.h
@@ -2358,14 +2384,23 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/audio/AudioChannel.h
     platform/audio/AudioDestination.h
     platform/audio/AudioDestinationResampler.h
+    platform/audio/AudioDSPKernel.h
+    platform/audio/AudioDSPKernelProcessor.h
     platform/audio/AudioHardwareListener.h
     platform/audio/AudioIOCallback.h
+    platform/audio/AudioProcessor.h
+    platform/audio/AudioResampler.h
+    platform/audio/AudioResamplerKernel.h
     platform/audio/AudioSession.h
     platform/audio/AudioSourceProvider.h
     platform/audio/AudioSourceProviderClient.h
     platform/audio/AudioStreamDescription.h
     platform/audio/AudioUtilities.h
+    platform/audio/Biquad.h
+    platform/audio/DynamicsCompressor.h
+    platform/audio/DynamicsCompressorKernel.h
     platform/audio/MediaSessionManagerInterface.h
+    platform/audio/MultiChannelResampler.h
     platform/audio/NowPlayingInfo.h
     platform/audio/NowPlayingMetadataObserver.h
     platform/audio/PlatformAudioData.h
@@ -2377,6 +2412,10 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/audio/PushPullFIFO.h
     platform/audio/RealtimeAudioThread.h
     platform/audio/SharedAudioDestination.h
+    platform/audio/SincResampler.h
+    platform/audio/StereoPanner.h
+    platform/audio/VectorMath.h
+    platform/audio/ZeroPole.h
 
     platform/encryptedmedia/CDMEncryptionScheme.h
     platform/encryptedmedia/CDMFactory.h

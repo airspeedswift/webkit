@@ -33,7 +33,7 @@ namespace WebCore {
 
 class IIRDSPKernel;
 
-class IIRProcessor final : public AudioDSPKernelProcessor {
+class WEBCORE_EXPORT IIRProcessor final : public AudioDSPKernelProcessor {
     WTF_MAKE_TZONE_ALLOCATED(IIRProcessor);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(IIRProcessor);
 public:

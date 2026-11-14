@@ -44,7 +44,7 @@ class AudioNodeOutput;
 
 enum class AutomationRateMode : bool { Fixed, Variable };
 
-class AudioParam final
+class WEBCORE_EXPORT AudioParam final
     : public AudioSummingJunction
     , public ThreadSafeRefCounted<AudioParam, WTF::DestructionThread::Main>
 #if !RELEASE_LOG_DISABLED

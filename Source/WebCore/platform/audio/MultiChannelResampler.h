@@ -44,9 +44,11 @@ class MultiChannelResampler final {
 public:   
     // requestFrames constrols the size of the buffer in frames when provideInput is called.
     MultiChannelResampler(double scaleFactor, unsigned numberOfChannels, unsigned requestFrames, Function<void(AudioBus&, size_t framesToProcess)>&& provideInput);
-    ~MultiChannelResampler();
+    // For callers outside WebCore, which must not depend on the size of the class.
+    WEBCORE_EXPORT static std::unique_ptr<MultiChannelResampler> create(double scaleFactor, unsigned numberOfChannels, unsigned requestFrames, Function<void(AudioBus&, size_t framesToProcess)>&& provideInput);
+    WEBCORE_EXPORT ~MultiChannelResampler();
 
-    void process(AudioBus& destination, size_t framesToProcess);
+    WEBCORE_EXPORT void process(AudioBus& destination, size_t framesToProcess);
 
 private:
     void provideInputForChannel(std::span<float> buffer, size_t framesToProcess, unsigned channelIndex);

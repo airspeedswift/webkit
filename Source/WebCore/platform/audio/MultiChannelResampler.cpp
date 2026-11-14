@@ -53,6 +53,11 @@ MultiChannelResampler::MultiChannelResampler(double scaleFactor, unsigned number
     });
 }
 
+std::unique_ptr<MultiChannelResampler> MultiChannelResampler::create(double scaleFactor, unsigned numberOfChannels, unsigned requestFrames, Function<void(AudioBus&, size_t framesToProcess)>&& provideInput)
+{
+    return makeUnique<MultiChannelResampler>(scaleFactor, numberOfChannels, requestFrames, WTF::move(provideInput));
+}
+
 MultiChannelResampler::~MultiChannelResampler() = default;
 
 void MultiChannelResampler::process(AudioBus& destination, size_t framesToProcess)
