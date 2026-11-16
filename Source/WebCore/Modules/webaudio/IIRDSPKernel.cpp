@@ -29,37 +29,45 @@
 #include "IIRDSPKernel.h"
 #include <wtf/TZoneMallocInlines.h>
 
+#include "IIRFilter.h"
+#include "WebCore-Swift.h"
+#include <limits>
+
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(IIRDSPKernel);
 
-IIRDSPKernel::IIRDSPKernel(IIRProcessor& processor)
+// The Swift ring buffers have 32 entries.
+static_assert(IIRFilter::maxOrder < 32);
+
+IIRDSPKernel::IIRDSPKernel(IIRProcessor& processor, const IIRDSPKernel* tailTimeSource)
     : AudioDSPKernel(&processor)
-    , m_iirFilter(processor.feedforward(), processor.feedback())
-    , m_tailTime(m_iirFilter.tailTime(processor.sampleRate(), processor.isFilterStable()))
 {
+    // NaN asks makeIIRKernel to compute the tail time itself.
+    double knownTailTime = tailTimeSource ? tailTimeSource->tailTime() : std::numeric_limits<double>::quiet_NaN();
+    m_swift = makeUnique<AudioDSPSwiftState<IIRKernel>>(makeIIRKernel(processor.feedforward().span(), processor.feedback().span(), processor.sampleRate(), processor.isFilterStable(), knownTailTime));
 }
+
+IIRDSPKernel::~IIRDSPKernel() = default;
 
 void IIRDSPKernel::getFrequencyResponse(std::span<const float> frequencyHz, std::span<float> magResponse, std::span<float> phaseResponse)
 {
-    ASSERT(frequencyHz.data());
-    ASSERT(magResponse.data());
-    ASSERT(phaseResponse.data());
-
-    m_iirFilter.getFrequencyResponse(frequencyHz, magResponse, phaseResponse, nyquist());
+    iirFrequencyResponse(m_swift->kernel, frequencyHz, magResponse, phaseResponse, nyquist());
 }
 
 void IIRDSPKernel::process(std::span<const float> source, std::span<float> destination)
 {
-    ASSERT(source.data());
-    ASSERT(destination.data());
-
-    m_iirFilter.process(source, destination);
+    iirProcess(m_swift->kernel, inputUnlessOutput(source, destination), destination, source.size());
 }
 
 void IIRDSPKernel::reset()
 {
-    m_iirFilter.reset();
+    iirReset(m_swift->kernel);
+}
+
+double IIRDSPKernel::tailTime() const
+{
+    return iirTailTime(m_swift->kernel);
 }
 
 bool IIRDSPKernel::requiresTailProcessing() const

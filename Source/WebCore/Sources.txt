@@ -2611,13 +2611,10 @@ platform/audio/AudioDSPKernelProcessor.cpp
 platform/audio/AudioDestinationResampler.cpp
 platform/audio/AudioHardwareListener.cpp
 platform/audio/AudioResampler.cpp
-platform/audio/AudioResamplerKernel.cpp
 platform/audio/AudioUtilities.cpp
-platform/audio/Biquad.cpp
 platform/audio/Cone.cpp
 platform/audio/DirectConvolver.cpp
 platform/audio/Distance.cpp
-platform/audio/DownSampler.cpp
 platform/audio/DynamicsCompressor.cpp
 platform/audio/DynamicsCompressorKernel.cpp
 platform/audio/EqualPowerPanner.cpp
@@ -2628,7 +2625,6 @@ platform/audio/HRTFDatabaseLoader.cpp
 platform/audio/HRTFElevation.cpp
 platform/audio/HRTFKernel.cpp
 platform/audio/HRTFPanner.cpp
-platform/audio/IIRFilter.cpp
 platform/audio/MediaSessionManagerInterface.cpp
 platform/audio/MultiChannelResampler.cpp
 platform/audio/NowPlayingInfo.cpp
@@ -2647,7 +2643,6 @@ platform/audio/ReverbInputBuffer.cpp
 platform/audio/SharedAudioDestination.cpp
 platform/audio/SincResampler.cpp
 platform/audio/StereoPanner.cpp
-platform/audio/UpSampler.cpp
 platform/audio/VectorMath.cpp
 platform/audio/ZeroPole.cpp
 platform/encryptedmedia/CDMFactory.cpp

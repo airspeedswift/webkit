@@ -3295,7 +3295,55 @@ list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/NodeName.cpp)
 GENERATE_DOM_NAME_ENUM(Namespace)
 list(APPEND WebCore_SOURCES ${WebCore_DERIVED_SOURCES_DIR}/Namespace.cpp)
 
+set(WebCore_SIMD_SWIFT_SOURCES
+    SIMDHelpers.swift
+    SIMDHighBitMask.swift
+    SIMDSaturatingSubtract.swift
+    SIMDTableLookup.swift
+)
+set(WebCore_AUDIO_DSP_SWIFT_SOURCES
+    AudioDSP.swift
+
+    Modules/webaudio/BiquadKernel.swift
+    Modules/webaudio/CompressorKernel.swift
+    Modules/webaudio/DelayKernel.swift
+    Modules/webaudio/IIRKernel.swift
+    Modules/webaudio/WaveShaperKernel.swift
+
+    platform/audio/AudioResampler.swift
+    platform/audio/PannerGeometry.swift
+)
+set(WebCore_AUDIO_DSP_INTEROP_SOURCES
+    Modules/webaudio/BiquadDSPKernel.cpp
+    Modules/webaudio/DelayDSPKernel.cpp
+    Modules/webaudio/IIRDSPKernel.cpp
+    Modules/webaudio/WaveShaperDSPKernel.cpp
+
+    platform/audio/AudioResampler.cpp
+    platform/audio/Cone.cpp
+    platform/audio/DirectConvolver.cpp
+    platform/audio/Distance.cpp
+    platform/audio/DynamicsCompressor.cpp
+    platform/audio/DynamicsCompressorKernel.cpp
+    platform/audio/EqualPowerPanner.cpp
+    platform/audio/SincResampler.cpp
+    platform/audio/StereoPanner.cpp
+    platform/audio/VectorMath.cpp
+    platform/audio/ZeroPole.cpp
+)
+# The audio DSP is Swift on every port with Web Audio (there is no C++ for it), so Web Audio requires Swift
+# (WebKitFeatures.cmake). Its interop .cpp files include WebCoreSwift-Generated.h and build in the interop subtarget.
+if (ENABLE_WEB_AUDIO)
+    foreach (_f IN LISTS WebCore_AUDIO_DSP_INTEROP_SOURCES)
+        cmake_path(GET _f FILENAME _fn)
+        list(APPEND WebCore_UNIFIED_SOURCE_EXCLUDES "(^|[/\\\\])${_fn}( |$)")
+    endforeach ()
+endif ()
+
 WEBKIT_COMPUTE_SOURCES(WebCore)
+if (ENABLE_WEB_AUDIO)
+    list(REMOVE_ITEM WebCore_SOURCES ${WebCore_AUDIO_DSP_INTEROP_SOURCES})
+endif ()
 
 WEBKIT_DEFINE_SUBTARGET_WITH_PREFIX(WebCore WebCoreJSBindings
     PREFIX WebCoreJSBindingsPrefix.h
@@ -3376,7 +3424,19 @@ if (SWIFT_REQUIRED AND APPLE)
 
     # C++ sources that include WebCoreSwift-Generated.h.
     set(WebCore_SWIFT_INTEROP_SOURCES SwiftStubInterop.cpp)
+endif ()
 
+if (ENABLE_WEB_AUDIO)
+    target_sources(WebCore PRIVATE ${WebCore_AUDIO_DSP_SWIFT_SOURCES})
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${WebCore_AUDIO_DSP_INTEROP_SOURCES})
+endif ()
+
+if (DEFINED WebCore_SWIFT_INTEROP_SOURCES)
+    target_sources(WebCore PRIVATE ${WebCore_SIMD_SWIFT_SOURCES})
+    # BuiltinModule is for the vendored SIMD operations in SIMD*.swift, until the standard library has them.
+    webkit_target_add_swift_options(WebCore
+        "-enable-experimental-feature BuiltinModule"
+    )
     WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER(WebCore WebCore
         "${WebCore_PRIVATE_HEADERS_DIR}"
         "WebCoreSwift-Generated.h")

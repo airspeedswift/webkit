@@ -68,10 +68,6 @@ public:
     double rolloffFactor() const { return m_rolloffFactor; }
 
 protected:
-    NODELETE double linearGain(double distance) const;
-    NODELETE double inverseGain(double distance) const;
-    double exponentialGain(double distance) const;
-
     DistanceModelType m_model { DistanceModelType::Inverse };
     bool m_isClamped { true };
     double m_refDistance { 1 };

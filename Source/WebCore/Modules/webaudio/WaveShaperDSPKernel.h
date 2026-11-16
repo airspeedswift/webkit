@@ -24,15 +24,15 @@
 
 #pragma once
 
-#include "AudioArray.h"
+#include "AudioDSPBoundaryTypes.h"
 #include "AudioDSPKernel.h"
-#include "DownSampler.h"
-#include "UpSampler.h"
 #include "WaveShaperProcessor.h"
 #include <memory>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
+
+class WaveShaperKernel;
 
 // WaveShaperDSPKernel is an AudioDSPKernel and is responsible for non-linear distortion on one channel.
 
@@ -40,6 +40,7 @@ class WaveShaperDSPKernel final : public AudioDSPKernel {
     WTF_MAKE_TZONE_ALLOCATED(WaveShaperDSPKernel);
 public:
     explicit WaveShaperDSPKernel(WaveShaperProcessor*);
+    ~WaveShaperDSPKernel();
 
     // AudioDSPKernel
     void process(std::span<const float> source, std::span<float> destination) final;
@@ -56,23 +57,12 @@ public:
 private:
     bool isWaveShaperDSPKernel() const final { return true; }
 
-    NODELETE void processCurve(std::span<const float> source, std::span<float> destination);
-    // Use up-sampling, process at the higher sample-rate, then down-sample.
-    void processCurve2x(std::span<const float> source, std::span<float> destination);
-    void processCurve4x(std::span<const float> source, std::span<float> destination);
-
     NODELETE bool requiresTailProcessing() const final;
 
     WaveShaperProcessor* waveShaperProcessor() { return downcast<WaveShaperProcessor>(processor()); }
     const WaveShaperProcessor* waveShaperProcessor() const { return downcast<WaveShaperProcessor>(processor()); }
 
-    // Oversampling.
-    const std::unique_ptr<AudioFloatArray> m_tempBuffer;
-    const std::unique_ptr<AudioFloatArray> m_tempBuffer2;
-    const std::unique_ptr<UpSampler> m_upSampler;
-    const std::unique_ptr<DownSampler> m_downSampler;
-    const std::unique_ptr<UpSampler> m_upSampler2;
-    const std::unique_ptr<DownSampler> m_downSampler2;
+    std::unique_ptr<AudioDSPSwiftState<WaveShaperKernel>> m_swift;
 };
 
 } // namespace WebCore

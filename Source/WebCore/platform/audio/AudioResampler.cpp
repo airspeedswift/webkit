@@ -29,23 +29,28 @@
 #include "AudioResampler.h"
 
 #include "AudioBus.h"
-#include <algorithm>
-#include <wtf/MathExtras.h>
+#include "AudioUtilities.h"
 #include <wtf/TZoneMallocInlines.h>
+#include "WebCore-Swift.h"
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(AudioResampler);
 
+static_assert(AudioResampler::MaxRate == 8, "AudioResampler.swift's audioResamplerMaxRate");
+
+// Each channel's source buffer holds up to two extra frames for the linear interpolation.
+static constexpr size_t sourceBufferSize = 2 + static_cast<int>(AudioUtilities::renderQuantumSize * AudioResampler::MaxRate);
+
 AudioResampler::AudioResampler()
-    : m_kernels(Vector<std::unique_ptr<AudioResamplerKernel>>::from(makeUnique<AudioResamplerKernel>(this)))
-    , m_sourceBus(AudioBus::create(1, 0, false))
+    : AudioResampler(1)
 {
 }
 
 AudioResampler::AudioResampler(unsigned numberOfChannels)
-    : m_kernels(numberOfChannels, [&](size_t) {
-        return makeUnique<AudioResamplerKernel>(this);
+    : m_swift(makeUnique<AudioDSPSwiftState<AudioResamplerState>>(makeAudioResamplerState(numberOfChannels)))
+    , m_sourceBuffers(numberOfChannels, [](size_t) {
+        return makeUnique<AudioFloatArray>(sourceBufferSize);
     })
     , m_sourceBus(AudioBus::create(numberOfChannels, 0, false))
 {
@@ -60,16 +65,17 @@ AudioResampler::~AudioResampler() = default;
 
 void AudioResampler::configureChannels(unsigned numberOfChannels)
 {
-    unsigned currentSize = m_kernels.size();
+    unsigned currentSize = m_sourceBuffers.size();
     if (numberOfChannels == currentSize)
         return; // already setup
 
     // First deal with adding or removing kernels.
     if (numberOfChannels > currentSize) {
         for (unsigned i = currentSize; i < numberOfChannels; ++i)
-            m_kernels.append(makeUnique<AudioResamplerKernel>(this));
+            m_sourceBuffers.append(makeUnique<AudioFloatArray>(sourceBufferSize));
     } else
-        m_kernels.shrink(numberOfChannels);
+        m_sourceBuffers.shrink(numberOfChannels);
+    audioResamplerConfigureChannels(m_swift->kernel, numberOfChannels);
 
     // Reconfigure our source bus to the new channel size.
     m_sourceBus = AudioBus::create(numberOfChannels, 0, false);
@@ -81,7 +87,7 @@ void AudioResampler::process(AudioSourceProvider* provider, AudioBus& destinatio
     if (!provider)
         return;
         
-    unsigned numberOfChannels = m_kernels.size();
+    unsigned numberOfChannels = m_sourceBuffers.size();
 
     // Make sure our configuration matches the bus we're rendering to.
     bool channelsMatch = (destinationBus.numberOfChannels() == numberOfChannels);
@@ -94,13 +100,12 @@ void AudioResampler::process(AudioSourceProvider* provider, AudioBus& destinatio
     // Setup the source bus.
     for (unsigned i = 0; i < numberOfChannels; ++i) {
         // Figure out how many frames we need to get from the provider, and a pointer to the buffer.
-        size_t framesNeeded;
-        std::span<float> fillSpan = m_kernels[i]->getSourceSpan(framesToProcess, &framesNeeded);
-        ASSERT(!fillSpan.empty());
-        if (fillSpan.empty())
+        auto range = audioResamplerSourceRange(m_swift->kernel, i, framesToProcess, m_sourceBuffers[i]->size());
+        ASSERT(range.count >= 0);
+        if (range.count < 0)
             return;
 
-        sourceBus->setChannelMemory(i, fillSpan.first(framesNeeded));
+        sourceBus->setChannelMemory(i, m_sourceBuffers[i]->span().subspan(range.offset, range.count));
     }
 
     // Ask the provider to supply the desired number of source frames.
@@ -110,23 +115,18 @@ void AudioResampler::process(AudioSourceProvider* provider, AudioBus& destinatio
     // FIXME: optimize for the common stereo case where it's faster to process both left/right channels in the same inner loop.
     for (unsigned i = 0; i < numberOfChannels; ++i) {
         auto destination = destinationBus.channel(i)->mutableSpan();
-        m_kernels[i]->process(destination, framesToProcess);
+        audioResamplerProcess(m_swift->kernel, i, m_sourceBuffers[i]->span(), destination, framesToProcess);
     }
 }
 
 void AudioResampler::setRate(double rate)
 {
-    if (std::isnan(rate) || std::isinf(rate) || rate <= 0.0)
-        return;
-    
-    m_rate = std::min(AudioResampler::MaxRate, rate);
+    audioResamplerSetRate(m_swift->kernel, rate);
 }
 
 void AudioResampler::reset()
 {
-    unsigned numberOfChannels = m_kernels.size();
-    for (unsigned i = 0; i < numberOfChannels; ++i)
-        m_kernels[i]->reset();
+    audioResamplerReset(m_swift->kernel);
 }
 
 } // namespace WebCore

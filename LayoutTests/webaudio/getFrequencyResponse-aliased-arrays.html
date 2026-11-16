@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>getFrequencyResponse with arrays that share memory</title>
+<script src="../imported/w3c/web-platform-tests/resources/testharness.js"></script>
+<script src="../resources/testharnessreport.js"></script>
+</head>
+<body>
+<script>
+// BiquadFilterNode and IIRFilterNode read frequencyHz[k], then write magResponse[k] and then phaseResponse[k], before
+// they read frequencyHz[k + 1]. When the three arrays share memory, a later frame can read what an earlier one wrote.
+// The expected values replay that order one frame at a time, each frame through separate one-element arrays, so they
+// depend only on the response at single frequencies.
+
+const sampleRate = 44100;
+const length = 16;
+const initialFrequencies = [0, 20, 440, 1000, 5000, 12000, 20000, 22050, 30000, -1, 1, 0.5, 100, 2500, 7, 15000];
+
+// Each layout gives the three arrays as [buffer, offset] in floats; a shared buffer index means shared memory.
+const layouts = {
+    "frequency, magnitude and phase are one array": [[0, 0], [0, 0], [0, 0]],
+    "frequency and magnitude are one array": [[0, 0], [0, 0], [1, 0]],
+    "frequency and phase are one array": [[0, 0], [1, 0], [0, 0]],
+    "magnitude and phase are one array": [[0, 0], [1, 0], [1, 0]],
+    "views at offsets 0, 1 and 2 of one buffer": [[0, 0], [0, 1], [0, 2]],
+    "views at offsets 2, 1 and 0 of one buffer": [[0, 2], [0, 1], [0, 0]],
+    "views at offsets 1, 0 and 2 of one buffer": [[0, 1], [0, 0], [0, 2]],
+    "views at offsets 0, 2 and 1 of one buffer": [[0, 0], [0, 2], [0, 1]],
+    "separate arrays": [[0, 0], [1, 0], [2, 0]],
+};
+
+function makeArrays(layout)
+{
+    const buffers = [];
+    for (const [index] of layout)
+        buffers[index] ??= new ArrayBuffer((length + 2) * Float32Array.BYTES_PER_ELEMENT);
+    const arrays = layout.map(([index, offset]) => new Float32Array(buffers[index], offset * Float32Array.BYTES_PER_ELEMENT, length));
+    arrays[0].set(initialFrequencies);
+    return { buffers, arrays };
+}
+
+function expectedResponse(node, layout)
+{
+    const { buffers, arrays: [frequencyHz, magResponse, phaseResponse] } = makeArrays(layout);
+    const frequency = new Float32Array(1);
+    const magnitude = new Float32Array(1);
+    const phase = new Float32Array(1);
+    for (let k = 0; k < length; ++k) {
+        frequency[0] = frequencyHz[k];
+        node.getFrequencyResponse(frequency, magnitude, phase);
+        magResponse[k] = magnitude[0];
+        phaseResponse[k] = phase[0];
+    }
+    return buffers.map(buffer => Array.from(new Float32Array(buffer)));
+}
+
+function actualResponse(node, layout)
+{
+    const { buffers, arrays: [frequencyHz, magResponse, phaseResponse] } = makeArrays(layout);
+    node.getFrequencyResponse(frequencyHz, magResponse, phaseResponse);
+    return buffers.map(buffer => Array.from(new Float32Array(buffer)));
+}
+
+const context = new OfflineAudioContext(1, 1, sampleRate);
+
+function biquad(type, frequency, Q, gain)
+{
+    return new BiquadFilterNode(context, { type, frequency, Q, gain });
+}
+
+const nodes = {
+    "BiquadFilterNode lowpass": biquad("lowpass", 1000, 4, 0),
+    "BiquadFilterNode peaking": biquad("peaking", 3000, 2, 6),
+    "BiquadFilterNode allpass": biquad("allpass", 500, 1, 0),
+    "IIRFilterNode first order": new IIRFilterNode(context, { feedforward: [0.5, 0.5], feedback: [1, -0.3] }),
+    "IIRFilterNode third order": new IIRFilterNode(context, { feedforward: [0.1, 0.2, 0.2, 0.1], feedback: [1, -0.8, 0.5, -0.1] }),
+};
+
+for (const [nodeName, node] of Object.entries(nodes)) {
+    for (const [layoutName, layout] of Object.entries(layouts)) {
+        test(() => {
+            const expected = expectedResponse(node, layout);
+            const actual = actualResponse(node, layout);
+            assert_equals(actual.length, expected.length);
+            for (let i = 0; i < expected.length; ++i)
+                assert_array_equals(actual[i], expected[i], `buffer ${i}`);
+        }, `${nodeName}: ${layoutName}`);
+    }
+}
+
+// An IIR filter with feedforward [1] and feedback [1] is the identity: its response is exactly 1 at every frequency
+// from 0 to Nyquist and its phase exactly 0. The expected arrays come from those two literals alone, replayed in the
+// order above (magnitude then phase, one frame at a time), not from the entry point under test.
+const identityFrequencies = [0, 20, 440, 1000, 5000, 12000, 20000, 22050, 1, 0.5, 100, 2500, 7, 15000, 3, 21000];
+const identityNode = new IIRFilterNode(context, { feedforward: [1], feedback: [1] });
+
+function literalIdentityResponse(layout)
+{
+    const { buffers, arrays: [frequencyHz, magResponse, phaseResponse] } = makeArrays(layout);
+    frequencyHz.set(identityFrequencies);
+    for (let k = 0; k < length; ++k) {
+        assert_true(frequencyHz[k] >= 0 && frequencyHz[k] <= sampleRate / 2, `frequency ${k} is within 0 to Nyquist`);
+        magResponse[k] = 1;
+        phaseResponse[k] = 0;
+    }
+    return buffers.map(buffer => Array.from(new Float32Array(buffer)));
+}
+
+for (const [layoutName, layout] of Object.entries(layouts)) {
+    test(() => {
+        const { buffers, arrays: [frequencyHz, magResponse, phaseResponse] } = makeArrays(layout);
+        frequencyHz.set(identityFrequencies);
+        identityNode.getFrequencyResponse(frequencyHz, magResponse, phaseResponse);
+        const actual = buffers.map(buffer => Array.from(new Float32Array(buffer)));
+        const expected = literalIdentityResponse(layout);
+        assert_equals(actual.length, expected.length);
+        for (let i = 0; i < expected.length; ++i)
+            assert_array_equals(actual[i], expected[i], `buffer ${i}`);
+    }, `IIRFilterNode identity, literal response: ${layoutName}`);
+}
+</script>
+</body>
+</html>

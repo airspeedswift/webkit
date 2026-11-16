@@ -319,6 +319,14 @@
 		07D6A4F81BF2307D00174146 /* AudioTrackPrivateMediaStream.h in Headers */ = {isa = PBXBuildFile; fileRef = 07D6A4F61BF2307D00174146 /* AudioTrackPrivateMediaStream.h */; };
 		07E047C3305A9DB000DFCC4B /* SwiftStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E047C2305A9DB000DFCC4B /* SwiftStub.swift */; };
 		5A1E00000000000000000002 /* SIMDHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000001 /* SIMDHelpers.swift */; };
+		DEBF3BE43898438E88D036E6 /* AudioDSP.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3969E744F66F4BC7B8FC6CCD /* AudioDSP.swift */; };
+		F94B12816CDF409E961D0FD8 /* BiquadKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C866D09E4FA478AAB4E93F7 /* BiquadKernel.swift */; };
+		B2C50D07CBEE493CA220BDC0 /* IIRKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014A5CD4E47141A3AEF4AD90 /* IIRKernel.swift */; };
+		996FDBF81B4945BC960000E5 /* DelayKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCDF91DC38D480488EE4F32 /* DelayKernel.swift */; };
+		0D45CF6CECFD4D1C8FDDF884 /* WaveShaperKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6951D1A789DA4F16B1485D13 /* WaveShaperKernel.swift */; };
+		35DA39D7C4B7BCD1F89B6F37 /* AudioResampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2066DA8880D62EC975CD3CBB /* AudioResampler.swift */; };
+		272D02D4FBD413F5083B986B /* PannerGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F48EF3FB0D42A86BCA77EE6 /* PannerGeometry.swift */; };
+		349C0CEA3BB44EE2963EC295 /* CompressorKernel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E567949FD7F54C3083743BB8 /* CompressorKernel.swift */; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
 		5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000007 /* SIMDHighBitMask.swift */; };
@@ -7372,8 +7380,6 @@
 		FC9E0E4D16419C1E00392BE3 /* JSDOMCSSNamespace.h in Headers */ = {isa = PBXBuildFile; fileRef = FC9E0E4B16419C1E00392BE3 /* JSDOMCSSNamespace.h */; };
 		FD00D7A514A3F61900734011 /* SincResampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD00D7A314A3F61900734011 /* SincResampler.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD06DFA6134A4DEF006F5D7D /* DefaultAudioDestinationNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD06DFA4134A4DEF006F5D7D /* DefaultAudioDestinationNode.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FD1762E0176686D900D836A8 /* UpSampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD1762DE176686D900D836A8 /* UpSampler.h */; };
-		FD1762E4176686EA00D836A8 /* DownSampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD1762E2176686EA00D836A8 /* DownSampler.h */; };
 		FD23A12613F5FA5900F67001 /* JSMediaElementAudioSourceNode.h in Headers */ = {isa = PBXBuildFile; fileRef = FD23A12413F5FA5900F67001 /* JSMediaElementAudioSourceNode.h */; };
 		FD2DBF1212B048A300ED98C6 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD2DBF0E12B048A300ED98C6 /* Accelerate.framework */; };
 		FD2DBF1312B048A300ED98C6 /* AudioToolbox.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FD2DBF0F12B048A300ED98C6 /* AudioToolbox.framework */; };
@@ -7405,16 +7411,15 @@
 		FD31607C12B026F700C1A359 /* AudioBus.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604612B026F700C1A359 /* AudioBus.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31607E12B026F700C1A359 /* AudioChannel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604812B026F700C1A359 /* AudioChannel.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31607F12B026F700C1A359 /* AudioDestination.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604912B026F700C1A359 /* AudioDestination.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		484E29CA10A14D4FA8B254CE /* AudioDSPBoundaryTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 836D8CC03B6C421F9945AF99 /* AudioDSPBoundaryTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608012B026F700C1A359 /* AudioDSPKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604A12B026F700C1A359 /* AudioDSPKernel.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608212B026F700C1A359 /* AudioDSPKernelProcessor.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604C12B026F700C1A359 /* AudioDSPKernelProcessor.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608312B026F700C1A359 /* AudioFileReader.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604D12B026F700C1A359 /* AudioFileReader.h */; };
 		FD31608412B026F700C1A359 /* AudioProcessor.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31604E12B026F700C1A359 /* AudioProcessor.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608612B026F700C1A359 /* AudioResampler.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605012B026F700C1A359 /* AudioResampler.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FD31608812B026F700C1A359 /* AudioResamplerKernel.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605212B026F700C1A359 /* AudioResamplerKernel.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608912B026F700C1A359 /* AudioSourceProvider.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605312B026F700C1A359 /* AudioSourceProvider.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608B12B026F700C1A359 /* AudioUtilities.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605512B026F700C1A359 /* AudioUtilities.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		4DDD6D23C4B6441BBEB5B07E /* StereoPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = E7FBE7C424EC36F300A18E62 /* StereoPanner.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		FD31608D12B026F700C1A359 /* Biquad.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605712B026F700C1A359 /* Biquad.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		FD31608F12B026F700C1A359 /* Cone.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605912B026F700C1A359 /* Cone.h */; };
 		FD31609112B026F700C1A359 /* Distance.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605B12B026F700C1A359 /* Distance.h */; };
 		FD31609312B026F700C1A359 /* EqualPowerPanner.h in Headers */ = {isa = PBXBuildFile; fileRef = FD31605D12B026F700C1A359 /* EqualPowerPanner.h */; };
@@ -8195,6 +8200,7 @@
 		07DB47062BC27E0A00B5A958 /* WritingSuggestionData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WritingSuggestionData.h; sourceTree = "<group>"; };
 		07E047C2305A9DB000DFCC4B /* SwiftStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftStub.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000001 /* SIMDHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHelpers.swift; sourceTree = "<group>"; };
+		3969E744F66F4BC7B8FC6CCD /* AudioDSP.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDSP.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000003 /* SIMDTableLookup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDTableLookup.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDSaturatingSubtract.swift; sourceTree = "<group>"; };
 		5A1E00000000000000000007 /* SIMDHighBitMask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SIMDHighBitMask.swift; sourceTree = "<group>"; };
@@ -15676,7 +15682,6 @@
 		839AAFEA1A0C0C8D00605F99 /* HTMLWBRElement.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = HTMLWBRElement.cpp; sourceTree = "<group>"; };
 		839AAFEB1A0C0C8D00605F99 /* HTMLWBRElement.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HTMLWBRElement.h; sourceTree = "<group>"; };
 		839BE6D224F58755004DF50F /* IIRFilter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = IIRFilter.h; sourceTree = "<group>"; };
-		839BE6D424F58755004DF50F /* IIRFilter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IIRFilter.cpp; sourceTree = "<group>"; };
 		839C69CD2810D11C00E69BAD /* CommonAtomStrings.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CommonAtomStrings.cpp; sourceTree = "<group>"; };
 		839C69CE2810D11C00E69BAD /* CommonAtomStrings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CommonAtomStrings.h; sourceTree = "<group>"; };
 		83A2ABD824D86DC600E2D73D /* DelayOptions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DelayOptions.h; sourceTree = "<group>"; };
@@ -23803,10 +23808,6 @@
 		FD08A885175D3926002CD360 /* ShapeInterval.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShapeInterval.h; sourceTree = "<group>"; };
 		FD08A886175D3926002CD360 /* ShapeOutsideInfo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ShapeOutsideInfo.cpp; sourceTree = "<group>"; };
 		FD08A887175D3926002CD360 /* ShapeOutsideInfo.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ShapeOutsideInfo.h; sourceTree = "<group>"; };
-		FD1762DD176686D900D836A8 /* UpSampler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = UpSampler.cpp; sourceTree = "<group>"; };
-		FD1762DE176686D900D836A8 /* UpSampler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = UpSampler.h; sourceTree = "<group>"; };
-		FD1762E1176686EA00D836A8 /* DownSampler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DownSampler.cpp; sourceTree = "<group>"; };
-		FD1762E2176686EA00D836A8 /* DownSampler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DownSampler.h; sourceTree = "<group>"; };
 		FD23A12313F5FA5900F67001 /* JSMediaElementAudioSourceNode.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSMediaElementAudioSourceNode.cpp; sourceTree = "<group>"; };
 		FD23A12413F5FA5900F67001 /* JSMediaElementAudioSourceNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSMediaElementAudioSourceNode.h; sourceTree = "<group>"; };
 		FD2DBF0E12B048A300ED98C6 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = /System/Library/Frameworks/Accelerate.framework; sourceTree = "<absolute>"; };
@@ -23854,6 +23855,13 @@
 		FD315FD612B0267600C1A359 /* AudioProcessingEvent.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioProcessingEvent.h; sourceTree = "<group>"; };
 		FD315FD712B0267600C1A359 /* AudioProcessingEvent.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = AudioProcessingEvent.idl; sourceTree = "<group>"; };
 		FD315FDA12B0267600C1A359 /* BiquadDSPKernel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BiquadDSPKernel.cpp; sourceTree = "<group>"; };
+		6C866D09E4FA478AAB4E93F7 /* BiquadKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BiquadKernel.swift; sourceTree = "<group>"; };
+		014A5CD4E47141A3AEF4AD90 /* IIRKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IIRKernel.swift; sourceTree = "<group>"; };
+		BCCDF91DC38D480488EE4F32 /* DelayKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DelayKernel.swift; sourceTree = "<group>"; };
+		6951D1A789DA4F16B1485D13 /* WaveShaperKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WaveShaperKernel.swift; sourceTree = "<group>"; };
+		2066DA8880D62EC975CD3CBB /* AudioResampler.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AudioResampler.swift; sourceTree = "<group>"; };
+		9F48EF3FB0D42A86BCA77EE6 /* PannerGeometry.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PannerGeometry.swift; sourceTree = "<group>"; };
+		E567949FD7F54C3083743BB8 /* CompressorKernel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CompressorKernel.swift; sourceTree = "<group>"; };
 		FD315FDB12B0267600C1A359 /* BiquadDSPKernel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BiquadDSPKernel.h; sourceTree = "<group>"; };
 		FD315FDC12B0267600C1A359 /* BiquadProcessor.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BiquadProcessor.cpp; sourceTree = "<group>"; };
 		FD315FDD12B0267600C1A359 /* BiquadProcessor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BiquadProcessor.h; sourceTree = "<group>"; };
@@ -23881,6 +23889,7 @@
 		FD31604712B026F700C1A359 /* AudioChannel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioChannel.cpp; sourceTree = "<group>"; };
 		FD31604812B026F700C1A359 /* AudioChannel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioChannel.h; sourceTree = "<group>"; };
 		FD31604912B026F700C1A359 /* AudioDestination.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDestination.h; sourceTree = "<group>"; };
+		836D8CC03B6C421F9945AF99 /* AudioDSPBoundaryTypes.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDSPBoundaryTypes.h; sourceTree = "<group>"; };
 		FD31604A12B026F700C1A359 /* AudioDSPKernel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDSPKernel.h; sourceTree = "<group>"; };
 		FD31604B12B026F700C1A359 /* AudioDSPKernelProcessor.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioDSPKernelProcessor.cpp; sourceTree = "<group>"; };
 		FD31604C12B026F700C1A359 /* AudioDSPKernelProcessor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioDSPKernelProcessor.h; sourceTree = "<group>"; };
@@ -23888,13 +23897,9 @@
 		FD31604E12B026F700C1A359 /* AudioProcessor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioProcessor.h; sourceTree = "<group>"; };
 		FD31604F12B026F700C1A359 /* AudioResampler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioResampler.cpp; sourceTree = "<group>"; };
 		FD31605012B026F700C1A359 /* AudioResampler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioResampler.h; sourceTree = "<group>"; };
-		FD31605112B026F700C1A359 /* AudioResamplerKernel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioResamplerKernel.cpp; sourceTree = "<group>"; };
-		FD31605212B026F700C1A359 /* AudioResamplerKernel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioResamplerKernel.h; sourceTree = "<group>"; };
 		FD31605312B026F700C1A359 /* AudioSourceProvider.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioSourceProvider.h; sourceTree = "<group>"; };
 		FD31605412B026F700C1A359 /* AudioUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AudioUtilities.cpp; sourceTree = "<group>"; };
 		FD31605512B026F700C1A359 /* AudioUtilities.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AudioUtilities.h; sourceTree = "<group>"; };
-		FD31605612B026F700C1A359 /* Biquad.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Biquad.cpp; sourceTree = "<group>"; };
-		FD31605712B026F700C1A359 /* Biquad.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Biquad.h; sourceTree = "<group>"; };
 		FD31605812B026F700C1A359 /* Cone.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Cone.cpp; sourceTree = "<group>"; };
 		FD31605912B026F700C1A359 /* Cone.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Cone.h; sourceTree = "<group>"; };
 		FD31605A12B026F700C1A359 /* Distance.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Distance.cpp; sourceTree = "<group>"; };
@@ -24821,6 +24826,7 @@
 				65C97AF208EA908800ACD273 /* config.h */,
 				07E047C2305A9DB000DFCC4B /* SwiftStub.swift */,
 				5A1E00000000000000000001 /* SIMDHelpers.swift */,
+				3969E744F66F4BC7B8FC6CCD /* AudioDSP.swift */,
 				5A1E00000000000000000003 /* SIMDTableLookup.swift */,
 				5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */,
 				5A1E00000000000000000007 /* SIMDHighBitMask.swift */,
@@ -43771,6 +43777,10 @@
 				83198FBE24A160C100420B05 /* BaseAudioContext.h */,
 				83198FBD24A160C100420B05 /* BaseAudioContext.idl */,
 				FD315FDA12B0267600C1A359 /* BiquadDSPKernel.cpp */,
+				6C866D09E4FA478AAB4E93F7 /* BiquadKernel.swift */,
+				014A5CD4E47141A3AEF4AD90 /* IIRKernel.swift */,
+				BCCDF91DC38D480488EE4F32 /* DelayKernel.swift */,
+				E567949FD7F54C3083743BB8 /* CompressorKernel.swift */,
 				FD315FDB12B0267600C1A359 /* BiquadDSPKernel.h */,
 				FDC54F011399B0DA008D9117 /* BiquadFilterNode.cpp */,
 				FDC54F021399B0DA008D9117 /* BiquadFilterNode.h */,
@@ -43900,6 +43910,7 @@
 				E7FBE7BE24EB2FAA00A18E62 /* StereoPannerOptions.idl */,
 				FD7F298A13D4C0CB00AD9535 /* WaveShaperDSPKernel.cpp */,
 				FD7F298B13D4C0CB00AD9535 /* WaveShaperDSPKernel.h */,
+				6951D1A789DA4F16B1485D13 /* WaveShaperKernel.swift */,
 				FD7F298C13D4C0CB00AD9535 /* WaveShaperNode.cpp */,
 				FD7F298D13D4C0CB00AD9535 /* WaveShaperNode.h */,
 				FD7F298E13D4C0CB00AD9535 /* WaveShaperNode.idl */,
@@ -43925,6 +43936,7 @@
 				FD31604912B026F700C1A359 /* AudioDestination.h */,
 				7BC9642B291E765D00377DF1 /* AudioDestinationResampler.cpp */,
 				7BC9642A291E765D00377DF1 /* AudioDestinationResampler.h */,
+				836D8CC03B6C421F9945AF99 /* AudioDSPBoundaryTypes.h */,
 				FD31604A12B026F700C1A359 /* AudioDSPKernel.h */,
 				FD31604B12B026F700C1A359 /* AudioDSPKernelProcessor.cpp */,
 				FD31604C12B026F700C1A359 /* AudioDSPKernelProcessor.h */,
@@ -43935,8 +43947,7 @@
 				FD31604E12B026F700C1A359 /* AudioProcessor.h */,
 				FD31604F12B026F700C1A359 /* AudioResampler.cpp */,
 				FD31605012B026F700C1A359 /* AudioResampler.h */,
-				FD31605112B026F700C1A359 /* AudioResamplerKernel.cpp */,
-				FD31605212B026F700C1A359 /* AudioResamplerKernel.h */,
+				2066DA8880D62EC975CD3CBB /* AudioResampler.swift */,
 				CDA79823170A258300D45C55 /* AudioSession.cpp */,
 				CDA79821170A22DC00D45C55 /* AudioSession.h */,
 				FD31605312B026F700C1A359 /* AudioSourceProvider.h */,
@@ -43944,16 +43955,12 @@
 				073B87561E40DCE50071C0EC /* AudioStreamDescription.h */,
 				FD31605412B026F700C1A359 /* AudioUtilities.cpp */,
 				FD31605512B026F700C1A359 /* AudioUtilities.h */,
-				FD31605612B026F700C1A359 /* Biquad.cpp */,
-				FD31605712B026F700C1A359 /* Biquad.h */,
 				FD31605812B026F700C1A359 /* Cone.cpp */,
 				FD31605912B026F700C1A359 /* Cone.h */,
 				FDAF19961513D131008DB0C3 /* DirectConvolver.cpp */,
 				FDAF19971513D131008DB0C3 /* DirectConvolver.h */,
 				FD31605A12B026F700C1A359 /* Distance.cpp */,
 				FD31605B12B026F700C1A359 /* Distance.h */,
-				FD1762E1176686EA00D836A8 /* DownSampler.cpp */,
-				FD1762E2176686EA00D836A8 /* DownSampler.h */,
 				FD6ED2C5136B8E66003CF072 /* DynamicsCompressor.cpp */,
 				FD6ED2C6136B8E66003CF072 /* DynamicsCompressor.h */,
 				FD537354137B653B00008DCE /* DynamicsCompressorKernel.cpp */,
@@ -43974,7 +43981,6 @@
 				FD31606912B026F700C1A359 /* HRTFKernel.h */,
 				FD31606A12B026F700C1A359 /* HRTFPanner.cpp */,
 				FD31606B12B026F700C1A359 /* HRTFPanner.h */,
-				839BE6D424F58755004DF50F /* IIRFilter.cpp */,
 				839BE6D224F58755004DF50F /* IIRFilter.h */,
 				07FDA6B32E16CA53008482F8 /* MediaSessionManagerInterface.cpp */,
 				07307B792DA06AEC00A5EF65 /* MediaSessionManagerInterface.h */,
@@ -43985,6 +43991,7 @@
 				A1C6C2092BC3AFE7002CDE6F /* NowPlayingMetadataObserver.h */,
 				FD31606C12B026F700C1A359 /* Panner.cpp */,
 				FD31606D12B026F700C1A359 /* Panner.h */,
+				9F48EF3FB0D42A86BCA77EE6 /* PannerGeometry.swift */,
 				CDE667A11E4BBA4D00E8154A /* PlatformAudioData.h */,
 				070E091A1875EF71003A1D3C /* PlatformMediaSession.cpp */,
 				070E09181875ED93003A1D3C /* PlatformMediaSession.h */,
@@ -44015,8 +44022,6 @@
 				FD00D7A314A3F61900734011 /* SincResampler.h */,
 				E7FBE7C524EC36F300A18E62 /* StereoPanner.cpp */,
 				E7FBE7C424EC36F300A18E62 /* StereoPanner.h */,
-				FD1762DD176686D900D836A8 /* UpSampler.cpp */,
-				FD1762DE176686D900D836A8 /* UpSampler.h */,
 				FD31607812B026F700C1A359 /* VectorMath.cpp */,
 				FD31607912B026F700C1A359 /* VectorMath.h */,
 				FD537350137B651800008DCE /* ZeroPole.cpp */,
@@ -44517,6 +44522,7 @@
 				9B1229C423FE4BD2008CA751 /* AudioDestinationCocoa.h in Headers */,
 				FD31600812B0267600C1A359 /* AudioDestinationNode.h in Headers */,
 				7BC9642C291E76BE00377DF1 /* AudioDestinationResampler.h in Headers */,
+				484E29CA10A14D4FA8B254CE /* AudioDSPBoundaryTypes.h in Headers */,
 				FD31608012B026F700C1A359 /* AudioDSPKernel.h in Headers */,
 				FD31608212B026F700C1A359 /* AudioDSPKernelProcessor.h in Headers */,
 				5CE40F64DF8D457695087B59 /* AudioEncodedData.h in Headers */,
@@ -44545,7 +44551,6 @@
 				E7C8E11B24DCABF30027A27F /* AudioProcessingEventInit.h in Headers */,
 				FD31608412B026F700C1A359 /* AudioProcessor.h in Headers */,
 				FD31608612B026F700C1A359 /* AudioResampler.h in Headers */,
-				FD31608812B026F700C1A359 /* AudioResamplerKernel.h in Headers */,
 				073B87671E4385AC0071C0EC /* AudioSampleBufferList.h in Headers */,
 				41FFD2C327563E0D00501BBF /* AudioSampleDataConverter.h in Headers */,
 				073B87691E4385AC0071C0EC /* AudioSampleDataSource.h in Headers */,
@@ -44703,7 +44708,6 @@
 				85031B3D0A44EFC700F992E0 /* BeforeUnloadEvent.h in Headers */,
 				22F021A02FFF3E3500B13642 /* BezierUtilities.h in Headers */,
 				2DD8714B265F4366005F997C /* BifurcatedGraphicsContext.h in Headers */,
-				FD31608D12B026F700C1A359 /* Biquad.h in Headers */,
 				4DDD6D23C4B6441BBEB5B07E /* StereoPanner.h in Headers */,
 				FD31602512B0267600C1A359 /* BiquadDSPKernel.h in Headers */,
 				FDC54F051399B0DA008D9117 /* BiquadFilterNode.h in Headers */,
@@ -45658,7 +45662,6 @@
 				93A806151E03B51C008A1F26 /* DoubleRange.h in Headers */,
 				2A9D2AC32E34956600E1B1DB /* DoubleRect.h in Headers */,
 				2A9D2AC12E34956600E1B1DB /* DoubleSize.h in Headers */,
-				FD1762E4176686EA00D836A8 /* DownSampler.h in Headers */,
 				A718760E0B2A120100A16ECE /* DragActions.h in Headers */,
 				F485F0332A86A1E9000DDB9B /* DragActions.serialization.in in Headers */,
 				A7CA59630B27C1F200FA021D /* DragClient.h in Headers */,
@@ -50115,7 +50118,6 @@
 				467302021C4EFE7800BCB357 /* UnloadCountIncrementer.h in Headers */,
 				A5582D622E72254D00F97055 /* UnplacedGridItem.h in Headers */,
 				E89BE8AC2DADBD2F0036B3A5 /* UnvalidatedDigitalCredentialRequest.h in Headers */,
-				FD1762E0176686D900D836A8 /* UpSampler.h in Headers */,
 				93D437A21D57B3FE00AB85EA /* URLDecomposition.h in Headers */,
 				267726051A5DF6F2003C24DD /* URLFilterParser.h in Headers */,
 				F55B3DDE1251F12D003EF269 /* URLInputType.h in Headers */,
@@ -51341,6 +51343,14 @@
 				A833C7CA0A2CF06B00D57664 /* SVGNames.cpp in Sources */,
 				07E047C3305A9DB000DFCC4B /* SwiftStub.swift in Sources */,
 				5A1E00000000000000000002 /* SIMDHelpers.swift in Sources */,
+				DEBF3BE43898438E88D036E6 /* AudioDSP.swift in Sources */,
+				F94B12816CDF409E961D0FD8 /* BiquadKernel.swift in Sources */,
+				B2C50D07CBEE493CA220BDC0 /* IIRKernel.swift in Sources */,
+				996FDBF81B4945BC960000E5 /* DelayKernel.swift in Sources */,
+				0D45CF6CECFD4D1C8FDDF884 /* WaveShaperKernel.swift in Sources */,
+				35DA39D7C4B7BCD1F89B6F37 /* AudioResampler.swift in Sources */,
+				272D02D4FBD413F5083B986B /* PannerGeometry.swift in Sources */,
+				349C0CEA3BB44EE2963EC295 /* CompressorKernel.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,
 				5A1E00000000000000000008 /* SIMDHighBitMask.swift in Sources */,

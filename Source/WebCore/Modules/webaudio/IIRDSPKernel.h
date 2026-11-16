@@ -25,17 +25,20 @@
 
 #pragma once
 
+#include "AudioDSPBoundaryTypes.h"
 #include "AudioDSPKernel.h"
-#include "IIRFilter.h"
 #include "IIRProcessor.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
+class IIRKernel;
+
 class IIRDSPKernel final : public AudioDSPKernel {
     WTF_MAKE_TZONE_ALLOCATED(IIRDSPKernel);
 public:
-    explicit IIRDSPKernel(IIRProcessor&);
+    explicit IIRDSPKernel(IIRProcessor&, const IIRDSPKernel* tailTimeSource = nullptr);
+    ~IIRDSPKernel();
 
     // Get the magnitude and phase response of the filter at the given set of frequencies (in Hz). The phase response is in radians.
     void getFrequencyResponse(std::span<const float> frequencyHz, std::span<float> magResponse, std::span<float> phaseResponse);
@@ -45,13 +48,12 @@ private:
 
     // AudioDSPKernel
     void process(std::span<const float> source, std::span<float> destination) final;
-    double tailTime() const final { return m_tailTime; }
+    double tailTime() const final;
     double latencyTime() const final { return 0; }
     void reset() final;
     NODELETE bool requiresTailProcessing() const final;
 
-    IIRFilter m_iirFilter;
-    double m_tailTime;
+    std::unique_ptr<AudioDSPSwiftState<IIRKernel>> m_swift;
 };
 
 } // namespace WebCore

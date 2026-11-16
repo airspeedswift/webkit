@@ -30,139 +30,51 @@
 
 #include "AudioUtilities.h"
 #include "WaveShaperProcessor.h"
-#include <algorithm>
 #include <wtf/MainThread.h>
-#include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/Threading.h>
-#include <wtf/ZippedRange.h>
+#include "WebCore-Swift.h"
 
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WaveShaperDSPKernel);
 
+// The Swift receives OverSampleType's values.
+static_assert(WaveShaperProcessor::OverSampleNone == 0 && WaveShaperProcessor::OverSample2x == 1 && WaveShaperProcessor::OverSample4x == 2);
+
 WaveShaperDSPKernel::WaveShaperDSPKernel(WaveShaperProcessor* processor)
     : AudioDSPKernel(processor)
+    , m_swift(makeUnique<AudioDSPSwiftState<WaveShaperKernel>>(makeWaveShaperKernel()))
 {
     if (processor->oversample() != WaveShaperProcessor::OverSampleNone)
         lazyInitializeOversampling();
 }
 
+WaveShaperDSPKernel::~WaveShaperDSPKernel() = default;
+
 void WaveShaperDSPKernel::lazyInitializeOversampling()
 {
     ASSERT(isMainThread());
-
-    if (!m_tempBuffer) {
-        lazyInitialize(m_tempBuffer, makeUnique<AudioFloatArray>(AudioUtilities::renderQuantumSize * 2));
-        lazyInitialize(m_tempBuffer2, makeUnique<AudioFloatArray>(AudioUtilities::renderQuantumSize * 4));
-        lazyInitialize(m_upSampler, makeUnique<UpSampler>(AudioUtilities::renderQuantumSize));
-        lazyInitialize(m_downSampler, makeUnique<DownSampler>(AudioUtilities::renderQuantumSize * 2));
-        lazyInitialize(m_upSampler2, makeUnique<UpSampler>(AudioUtilities::renderQuantumSize * 2));
-        lazyInitialize(m_downSampler2, makeUnique<DownSampler>(AudioUtilities::renderQuantumSize * 4));
-    }
+    waveShaperEnableOversampling(m_swift->kernel);
 }
 
 void WaveShaperDSPKernel::process(std::span<const float> source, std::span<float> destination)
 {
     assertIsHeld(waveShaperProcessor()->processLock());
-    switch (waveShaperProcessor()->oversample()) {
-    case WaveShaperProcessor::OverSampleNone:
-        processCurve(source, destination);
-        break;
-    case WaveShaperProcessor::OverSample2x:
-        processCurve2x(source, destination);
-        break;
-    case WaveShaperProcessor::OverSample4x:
-        processCurve4x(source, destination);
-        break;
-
-    default:
-        ASSERT_NOT_REACHED();
-    }
-}
-
-void WaveShaperDSPKernel::processCurve(std::span<const float> source, std::span<float> destination)
-{
-    assertIsHeld(waveShaperProcessor()->processLock());
-    processCurveWithData(source, destination, waveShaperProcessor()->curve().span());
+    auto curve = waveShaperProcessor()->curve().span();
+    auto oversample = static_cast<uint8_t>(waveShaperProcessor()->oversample());
+    waveShaperProcess(m_swift->kernel, curve, oversample, inputUnlessOutput(source, destination), destination, source.size());
 }
 
 void WaveShaperDSPKernel::processCurveWithData(std::span<const float> source, std::span<float> destination, std::span<const float> curveData)
 {
     ASSERT(source.data() && destination.data());
-
-    if (curveData.empty()) {
-        memcpySpan(destination, source);
-        return;
-    }
-
-    // Apply waveshaping curve.
-    for (auto [input, output] : zippedRange(source, destination)) {
-        if (!std::isfinite(input)) {
-            output = 0.0f;
-            continue;
-        }
-
-        float clampedInput = std::clamp(input, -1.0f, 1.0f);
-        float v = (curveData.size() - 1) * 0.5f * (clampedInput + 1);
-        if (v < 0)
-            output = curveData[0];
-        else if (v >= curveData.size() - 1)
-            output = curveData.back();
-        else {
-            float k = std::floor(v);
-            float f = v - k;
-            unsigned kIndex = static_cast<unsigned>(k);
-            output = (1 - f) * curveData[kIndex] + f * curveData[kIndex + 1];
-        }
-    }
-}
-
-void WaveShaperDSPKernel::processCurve2x(std::span<const float> source, std::span<float> destination)
-{
-    bool isSafe = source.size() == AudioUtilities::renderQuantumSize;
-    ASSERT(isSafe);
-    if (!isSafe)
-        return;
-
-    auto tempP = m_tempBuffer->span().first(source.size() * 2);
-
-    m_upSampler->process(source, tempP);
-
-    // Process at 2x up-sampled rate.
-    processCurve(tempP, tempP);
-
-    m_downSampler->process(tempP, destination);
-}
-
-void WaveShaperDSPKernel::processCurve4x(std::span<const float> source, std::span<float> destination)
-{
-    bool isSafe = source.size() == AudioUtilities::renderQuantumSize;
-    ASSERT(isSafe);
-    if (!isSafe)
-        return;
-
-    auto tempP = m_tempBuffer->span().first(source.size() * 2);
-    auto tempP2 = m_tempBuffer2->span().first(source.size() * 4);
-
-    m_upSampler->process(source, tempP);
-    m_upSampler2->process(tempP, tempP2);
-
-    // Process at 4x up-sampled rate.
-    processCurve(tempP2, tempP2);
-
-    m_downSampler2->process(tempP2, tempP);
-    m_downSampler->process(tempP, destination);
+    waveShaperProcessCurve(source, destination, curveData);
 }
 
 void WaveShaperDSPKernel::reset()
 {
-    if (m_upSampler) {
-        m_upSampler->reset();
-        m_downSampler->reset();
-        m_upSampler2->reset();
-        m_downSampler2->reset();
-    }
+    waveShaperReset(m_swift->kernel);
 }
 
 double WaveShaperDSPKernel::latencyTime() const
@@ -172,30 +84,7 @@ double WaveShaperDSPKernel::latencyTime() const
 
     Locker locker { AdoptLock, waveShaperProcessor()->processLock() };
 
-    size_t latencyFrames = 0;
-    switch (waveShaperProcessor()->oversample()) {
-    case WaveShaperProcessor::OverSampleNone:
-        break;
-    case WaveShaperProcessor::OverSample2x:
-        latencyFrames += m_upSampler->latencyFrames();
-        latencyFrames += m_downSampler->latencyFrames();
-        break;
-    case WaveShaperProcessor::OverSample4x:
-        {
-            // Account for first stage upsampling.
-            latencyFrames += m_upSampler->latencyFrames();
-            latencyFrames += m_downSampler->latencyFrames();
-
-            // Account for second stage upsampling.
-            // and divide by 2 to get back down to the regular sample-rate.
-            size_t latencyFrames2 = (m_upSampler2->latencyFrames() + m_downSampler2->latencyFrames()) / 2;
-            latencyFrames += latencyFrames2;
-            break;
-        }
-    default:
-        ASSERT_NOT_REACHED();
-    }
-
+    auto latencyFrames = waveShaperLatencyFrames(static_cast<uint8_t>(waveShaperProcessor()->oversample()));
     return static_cast<double>(latencyFrames) / sampleRate();
 }
 

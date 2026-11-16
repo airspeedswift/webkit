@@ -24,13 +24,14 @@
 
 #pragma once
 
+#include "AudioDSPBoundaryTypes.h"
 #include "AudioDSPKernel.h"
-#include "Biquad.h"
 #include "BiquadProcessor.h"
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
+class BiquadKernel;
 class BiquadProcessor;
 
 // BiquadDSPKernel is an AudioDSPKernel and is responsible for filtering one channel of a BiquadProcessor using a Biquad object.
@@ -38,14 +39,12 @@ class BiquadProcessor;
 class BiquadDSPKernel final : public AudioDSPKernel {
     WTF_MAKE_TZONE_ALLOCATED(BiquadDSPKernel);
 public:
-    explicit BiquadDSPKernel(BiquadProcessor* processor)
-    : AudioDSPKernel(processor)
-    {
-    }
+    explicit BiquadDSPKernel(BiquadProcessor*);
+    ~BiquadDSPKernel();
     
     // AudioDSPKernel
     void process(std::span<const float> source, std::span<float> destination) final;
-    void reset() override { m_biquad.reset(); }
+    void reset() override;
 
     // Get the magnitude and phase response of the filter at the given
     // set of frequencies (in Hz). The phase response is in radians.
@@ -59,7 +58,7 @@ public:
     NODELETE bool requiresTailProcessing() const final;
 
 private:
-    Biquad m_biquad;
+    std::unique_ptr<AudioDSPSwiftState<BiquadKernel>> m_swift;
     BiquadProcessor* biquadProcessor() { return downcast<BiquadProcessor>(processor()); }
 
     // To prevent audio glitches when parameters are changed,
@@ -70,9 +69,6 @@ private:
     // if they are not dirty. (Used when computing the frequency
     // response.)
     void updateCoefficientsIfNecessary(size_t framesToProcess);
-    void updateTailTime(size_t coefIndex);
-
-    double m_tailTime { std::numeric_limits<double>::infinity() };
 };
 
 } // namespace WebCore

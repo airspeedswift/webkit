@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "AudioDSPKernel.h"
 #include <WebCore/PlatformExportMacros.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
@@ -32,47 +33,8 @@
 namespace WebCore {
 
 class WEBCORE_EXPORT IIRFilter {
-    WTF_MAKE_TZONE_ALLOCATED(IIRFilter);
 public:
     static constexpr size_t maxOrder { 20 };
-    IIRFilter(const Vector<double>& feedforward, const Vector<double>& feedback);
-
-    void reset();
-
-    NODELETE void process(std::span<const float> source, std::span<float> destination);
-    void getFrequencyResponse(std::span<const float> frequencyHz, std::span<float> magResponse, std::span<float> phaseResponse, double nyquist);
-    double tailTime(double sampleRate, bool isFilterStable);
-
-    const Vector<double>& feedforward() const { return m_feedforward; }
-    const Vector<double>& feedback() const { return m_feedback; }
-
-private:
-    // Filter memory
-    //
-    // For simplicity, we assume |m_xBuffer| and |m_yBuffer| have the same length,
-    // and the length is a power of two. Since the number of coefficients has a
-    // fixed upper length, the size of xBuffer and yBuffer is fixed. |m_xBuffer|
-    // holds the old input values and |m_yBuffer| holds the old output values
-    // needed to compute the new output value.
-    //
-    // m_yBuffer[m_bufferIndex] holds the most recent output value, say, y[n].
-    // Then m_yBuffer[m_bufferIndex - k] is y[n - k]. Similarly for m_xBuffer.
-    //
-    // To minimize roundoff, these arrays are double's instead of floats.
-    Vector<double> m_xBuffer;
-    Vector<double> m_yBuffer;
-
-    // Index into the xBuffer and yBuffer arrays where the most current x and y
-    // values should be stored. xBuffer[bufferIndex] corresponds to x[n], the
-    // current x input value and yBuffer[bufferIndex] is where y[n], the current
-    // output value.
-    size_t m_bufferIndex { 0 };
-
-    // Those Vectors are owned by the IIRProcess, which owns the IIRFilters via
-    // the IIRDSPKernels. This is a memory optimization to avoid having copies
-    // of these vectors in each IIRDSPKernel / IIRFilter.
-    const Vector<double>& m_feedforward;
-    const Vector<double>& m_feedback;
 };
 
 } // namespace WebCore

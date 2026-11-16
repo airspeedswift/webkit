@@ -1,0 +1,56 @@
+
+PASS BiquadFilterNode lowpass: frequency, magnitude and phase are one array
+PASS BiquadFilterNode lowpass: frequency and magnitude are one array
+PASS BiquadFilterNode lowpass: frequency and phase are one array
+PASS BiquadFilterNode lowpass: magnitude and phase are one array
+PASS BiquadFilterNode lowpass: views at offsets 0, 1 and 2 of one buffer
+PASS BiquadFilterNode lowpass: views at offsets 2, 1 and 0 of one buffer
+PASS BiquadFilterNode lowpass: views at offsets 1, 0 and 2 of one buffer
+PASS BiquadFilterNode lowpass: views at offsets 0, 2 and 1 of one buffer
+PASS BiquadFilterNode lowpass: separate arrays
+PASS BiquadFilterNode peaking: frequency, magnitude and phase are one array
+PASS BiquadFilterNode peaking: frequency and magnitude are one array
+PASS BiquadFilterNode peaking: frequency and phase are one array
+PASS BiquadFilterNode peaking: magnitude and phase are one array
+PASS BiquadFilterNode peaking: views at offsets 0, 1 and 2 of one buffer
+PASS BiquadFilterNode peaking: views at offsets 2, 1 and 0 of one buffer
+PASS BiquadFilterNode peaking: views at offsets 1, 0 and 2 of one buffer
+PASS BiquadFilterNode peaking: views at offsets 0, 2 and 1 of one buffer
+PASS BiquadFilterNode peaking: separate arrays
+PASS BiquadFilterNode allpass: frequency, magnitude and phase are one array
+PASS BiquadFilterNode allpass: frequency and magnitude are one array
+PASS BiquadFilterNode allpass: frequency and phase are one array
+PASS BiquadFilterNode allpass: magnitude and phase are one array
+PASS BiquadFilterNode allpass: views at offsets 0, 1 and 2 of one buffer
+PASS BiquadFilterNode allpass: views at offsets 2, 1 and 0 of one buffer
+PASS BiquadFilterNode allpass: views at offsets 1, 0 and 2 of one buffer
+PASS BiquadFilterNode allpass: views at offsets 0, 2 and 1 of one buffer
+PASS BiquadFilterNode allpass: separate arrays
+PASS IIRFilterNode first order: frequency, magnitude and phase are one array
+PASS IIRFilterNode first order: frequency and magnitude are one array
+PASS IIRFilterNode first order: frequency and phase are one array
+PASS IIRFilterNode first order: magnitude and phase are one array
+PASS IIRFilterNode first order: views at offsets 0, 1 and 2 of one buffer
+PASS IIRFilterNode first order: views at offsets 2, 1 and 0 of one buffer
+PASS IIRFilterNode first order: views at offsets 1, 0 and 2 of one buffer
+PASS IIRFilterNode first order: views at offsets 0, 2 and 1 of one buffer
+PASS IIRFilterNode first order: separate arrays
+PASS IIRFilterNode third order: frequency, magnitude and phase are one array
+PASS IIRFilterNode third order: frequency and magnitude are one array
+PASS IIRFilterNode third order: frequency and phase are one array
+PASS IIRFilterNode third order: magnitude and phase are one array
+PASS IIRFilterNode third order: views at offsets 0, 1 and 2 of one buffer
+PASS IIRFilterNode third order: views at offsets 2, 1 and 0 of one buffer
+PASS IIRFilterNode third order: views at offsets 1, 0 and 2 of one buffer
+PASS IIRFilterNode third order: views at offsets 0, 2 and 1 of one buffer
+PASS IIRFilterNode third order: separate arrays
+PASS IIRFilterNode identity, literal response: frequency, magnitude and phase are one array
+PASS IIRFilterNode identity, literal response: frequency and magnitude are one array
+PASS IIRFilterNode identity, literal response: frequency and phase are one array
+PASS IIRFilterNode identity, literal response: magnitude and phase are one array
+PASS IIRFilterNode identity, literal response: views at offsets 0, 1 and 2 of one buffer
+PASS IIRFilterNode identity, literal response: views at offsets 2, 1 and 0 of one buffer
+PASS IIRFilterNode identity, literal response: views at offsets 1, 0 and 2 of one buffer
+PASS IIRFilterNode identity, literal response: views at offsets 0, 2 and 1 of one buffer
+PASS IIRFilterNode identity, literal response: separate arrays
+

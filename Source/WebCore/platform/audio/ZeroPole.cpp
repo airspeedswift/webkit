@@ -32,8 +32,7 @@
 
 #include "ZeroPole.h"
 
-#include "AudioUtilities.h"
-
+#include "WebCore-Swift.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -42,35 +41,9 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(ZeroPole);
 
 void ZeroPole::process(std::span<const float> source, std::span<float> destination, unsigned framesToProcess)
 {
-    float zero = m_zero;
-    float pole = m_pole;
-
-    // Gain compensation to make 0dB @ 0Hz
-    const float k1 = 1 / (1 - zero);
-    const float k2 = 1 - pole;
-    
-    // Member variables to locals.
-    float lastX = m_lastX;
-    float lastY = m_lastY;
-
-    for (unsigned i = 0; i < framesToProcess; ++i) {
-        float input = source[i];
-
-        // Zero
-        float output1 = k1 * (input - zero * lastX);
-        lastX = input;
-
-        // Pole
-        float output2 = k2 * output1 + pole * lastY;
-        lastY = output2;
-
-        destination[i] = output2;
-    }
-    
-    // Locals to member variables. Flush denormals here so we don't
-    // slow down the inner loop above.
-    m_lastX = AudioUtilities::flushDenormalFloatToZero(lastX);
-    m_lastY = AudioUtilities::flushDenormalFloatToZero(lastY);
+    source = source.first(framesToProcess);
+    destination = destination.first(framesToProcess);
+    zeroPoleProcess(inputUnlessOutput(source, destination), destination, framesToProcess, m_zero, m_pole, m_lastX, m_lastY, m_lastX, m_lastY);
 }
 
 } // namespace WebCore

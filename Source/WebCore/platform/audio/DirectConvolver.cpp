@@ -32,8 +32,7 @@
 
 #include "DirectConvolver.h"
 
-#include "VectorMath.h"
-#include <wtf/StdLibExtras.h>
+#include "WebCore-Swift.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -66,16 +65,7 @@ void DirectConvolver::process(AudioFloatArray* convolutionKernel, std::span<cons
     if (!isCopyGood)
         return;
 
-    auto inputBuffer = m_buffer.span();
-    auto inputP = inputBuffer.subspan(m_inputBlockSize);
-
-    // Copy samples to 2nd half of input buffer.
-    memcpySpan(inputP, source);
-
-    VectorMath::convolve(inputBuffer.subspan(inputP.data() - inputBuffer.data() - kernelSize + 1), kernelP, destination.first(source.size()));
-
-    // Copy 2nd half of input buffer to 1st half.
-    memcpySpan(m_buffer.span(), inputP.first(source.size()));
+    directConvolverProcess(kernelP, m_buffer.span(), source, destination.first(source.size()));
 }
 
 void DirectConvolver::reset()

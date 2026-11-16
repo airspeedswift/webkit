@@ -82,7 +82,7 @@ IIRProcessor::~IIRProcessor()
 
 std::unique_ptr<AudioDSPKernel> IIRProcessor::createKernel()
 {
-    return makeUnique<IIRDSPKernel>(*this);
+    return makeUnique<IIRDSPKernel>(*this, m_responseKernel.get());
 }
 
 void IIRProcessor::process(const AudioBus& source, AudioBus& destination, size_t framesToProcess)
@@ -100,7 +100,9 @@ void IIRProcessor::process(const AudioBus& source, AudioBus& destination, size_t
 
 void IIRProcessor::getFrequencyResponse(std::span<const float> frequencyHz, std::span<float> magResponse, std::span<float> phaseResponse)
 {
-    m_responseKernel->getFrequencyResponse(frequencyHz, magResponse, phaseResponse);
+    computeFrequencyResponseOnDisjointArrays(frequencyHz, magResponse, phaseResponse, [&](auto frequencies, auto magnitudes, auto phases) {
+        m_responseKernel->getFrequencyResponse(frequencies, magnitudes, phases);
+    });
 }
 
 } // namespace WebCore

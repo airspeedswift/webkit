@@ -32,9 +32,7 @@
 
 #include "Distance.h"
 #include <wtf/TZoneMallocInlines.h>
-
-#include <algorithm>
-#include <math.h>
+#include "WebCore-Swift.h"
 
 namespace WebCore {
 
@@ -42,56 +40,13 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(DistanceEffect);
 
 DistanceEffect::DistanceEffect() = default;
 
+static_assert(static_cast<int>(DistanceModelType::Linear) == 0);
+static_assert(static_cast<int>(DistanceModelType::Inverse) == 1);
+static_assert(static_cast<int>(DistanceModelType::Exponential) == 2);
+
 double DistanceEffect::gain(double distance) const
 {
-    // don't go beyond maximum distance
-    distance = std::min(distance, m_maxDistance);
-
-    // if clamped, don't get closer than reference distance
-    if (m_isClamped)
-        distance = std::max(distance, m_refDistance);
-
-    switch (m_model) {
-    case DistanceModelType::Linear:
-        return linearGain(distance);
-    case DistanceModelType::Inverse:
-        return inverseGain(distance);
-    case DistanceModelType::Exponential:
-        return exponentialGain(distance);
-    }
-    ASSERT_NOT_REACHED();
-    return 0.0;
-}
-
-double DistanceEffect::linearGain(double distance) const
-{
-    auto clampedRolloffFactor = std::clamp(m_rolloffFactor, 0.0, 1.0);
-    // The spec permits refDistance == maxDistance; avoid the resulting division by zero.
-    if (m_refDistance == m_maxDistance)
-        return 1.0 - clampedRolloffFactor;
-    // We want a gain that decreases linearly from m_refDistance to
-    // m_maxDistance. The gain is 1 at m_refDistance.
-    return (1.0 - clampedRolloffFactor * (distance - m_refDistance) / (m_maxDistance - m_refDistance));
-}
-
-SUPPRESS_NODELETE double DistanceEffect::inverseGain(double distance) const
-{
-    // The spec mandates clamping distance to be at least refDistance for the inverse
-    // model. With that clamping in place, the only remaining division by zero is when
-    // refDistance and distance are both 0.
-    if (!m_refDistance && !distance)
-        return 0;
-    return m_refDistance / (m_refDistance + m_rolloffFactor * (std::max(distance, m_refDistance) - m_refDistance));
-}
-
-double DistanceEffect::exponentialGain(double distance) const
-{
-    // The spec mandates clamping distance to be at least refDistance for the exponential
-    // model. With that clamping in place, the only remaining division by zero is when
-    // refDistance and distance are both 0.
-    if (!m_refDistance && !distance)
-        return 0;
-    return pow(std::max(distance, m_refDistance) / m_refDistance, -m_rolloffFactor);
+    return distanceEffectGain(static_cast<int>(m_model), m_isClamped, m_refDistance, m_maxDistance, m_rolloffFactor, distance);
 }
 
 } // namespace WebCore

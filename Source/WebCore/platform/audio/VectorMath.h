@@ -38,11 +38,6 @@ namespace VectorMath {
 //     outputVector[n] += inputVector[n] * scalar;
 WEBCORE_EXPORT void multiplyByScalarThenAddToOutput(std::span<const float> inputVector, float scalar, std::span<float> outputVector);
 
-// Adds a vector inputVector2 to the product of a scalar value and a single-precision vector inputVector1 (vsma).
-// for (n = 0; n < numberOfElementsToProcess; ++n)
-//     outputVector[n] = inputVector1[n] * scalar + inputVector2[n];
-WEBCORE_EXPORT void multiplyByScalarThenAddToVector(std::span<const float> inputVector1, float scalar, std::span<const float> inputVector2, std::span<float> outputVector);
-
 // Multiplies the sum of two vectors by a scalar value (vasm).
 WEBCORE_EXPORT void addVectorsThenMultiplyByScalar(std::span<const float> inputVector1, std::span<const float> inputVector2, float scalar, std::span<float> outputVector);
 
@@ -73,20 +68,6 @@ WEBCORE_EXPORT void multiplyComplex(std::span<const float> realVector1, std::spa
 WEBCORE_EXPORT void clamp(std::span<const float> inputVector, float mininum, float maximum, std::span<float> outputVector);
 
 WEBCORE_EXPORT void linearToDecibels(std::span<const float> inputVector, std::span<float> outputVector);
-
-// Calculates the linear interpolation between the supplied single-precision vectors
-// for (n = 0; n < numberOfElementsToProcess; ++n)
-//     outputVector[n] = inputVector1[n] + interpolationFactor * (inputVector2[n] - inputVector1[n]);
-// NOTE: Internal implementation may modify inputVector2.
-WEBCORE_EXPORT void interpolate(std::span<const float> inputVector1, std::span<float> inputVector2, float interpolationFactor, std::span<float> outputVector);
-
-#if USE(ACCELERATE)
-// Applies a two-pole, two-zero recursive (biquad) filter (vDSP_deq22D).
-// coefficients holds { b0, b1, b2, a1, a2 }. source and destination both hold
-// two samples of filter history followed by framesToProcess samples, so each must
-// contain at least framesToProcess + 2 elements.
-WEBCORE_EXPORT void filterBiquad(std::span<const double> source, std::span<const double, 5> coefficients, std::span<double> destination, size_t framesToProcess);
-#endif
 
 // Convolves signal with filter:
 // output[n] = sum(signal[n + k] * filter[filter.size() - 1 - k], 0 <= k < filter.size())

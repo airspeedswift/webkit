@@ -25,14 +25,17 @@
 #ifndef AudioResampler_h
 #define AudioResampler_h
 
+#include "AudioArray.h"
 #include "AudioBus.h"
-#include "AudioResamplerKernel.h"
+#include "AudioDSPBoundaryTypes.h"
 #include "AudioSourceProvider.h"
 #include <memory>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/Vector.h>
 
 namespace WebCore {
+
+class AudioResamplerState;
 
 // AudioResampler resamples the audio stream from an AudioSourceProvider.
 // The audio stream may be single or multi-channel.
@@ -57,13 +60,12 @@ public:
 
     // 0 < rate <= MaxRate
     NODELETE WEBCORE_EXPORT void setRate(double rate);
-    double rate() const { return m_rate; }
 
     static constexpr double MaxRate { 8 };
 
 private:
-    double m_rate { 1 };
-    Vector<std::unique_ptr<AudioResamplerKernel>> m_kernels;
+    std::unique_ptr<AudioDSPSwiftState<AudioResamplerState>> m_swift;
+    Vector<std::unique_ptr<AudioFloatArray>> m_sourceBuffers;
     Ref<AudioBus> m_sourceBus;
 };
 

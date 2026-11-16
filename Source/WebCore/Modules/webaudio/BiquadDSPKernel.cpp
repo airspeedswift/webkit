@@ -28,74 +28,31 @@
 
 #include "BiquadDSPKernel.h"
 
+#include "WebCore-Swift.h"
+
 #include "AudioArray.h"
 #include "AudioUtilities.h"
-#include "Biquad.h"
 #include "BiquadProcessor.h"
 #include "FloatConversion.h"
 #include <limits.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/Vector.h>
 
-#if CPU(X86_SSE2)
-#include <immintrin.h>
-#endif
-
-#if HAVE(ARM_NEON_INTRINSICS)
-#include <arm_neon.h>
-#endif
-
 namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(BiquadDSPKernel);
 
-NODELETE static bool hasConstantValue(std::span<float> values)
+BiquadDSPKernel::BiquadDSPKernel(BiquadProcessor* processor)
+    : AudioDSPKernel(processor)
+    , m_swift(makeUnique<AudioDSPSwiftState<BiquadKernel>>(makeBiquadKernel(sampleRate())))
 {
-    // Load the initial value
-    const float value = values[0];
-    // This initialization ensures that we correctly handle the first frame and
-    // start the processing from the second frame onwards, effectively excluding
-    // the first frame from the subsequent comparisons in the non-SIMD paths
-    // it guarantees that we don't redundantly compare the first frame again
-    // during the loop execution.
-    size_t processedFrames = 1;
+}
 
-#if CPU(X86_SSE2)
-    // Process 4 floats at a time using SIMD.
-    __m128 valueVec = _mm_set1_ps(value);
-    // Start at 0 for byte alignment
-    for (processedFrames = 0; processedFrames < values.size() - 3; processedFrames += 4) {
-        // Load 4 floats from memory.
-        __m128 inputVec = _mm_loadu_ps(&values[processedFrames]);
-        // Compare the 4 floats with the value.
-        __m128 cmpVec = _mm_cmpneq_ps(inputVec, valueVec);
-        // Check if any of the floats are not equal to the value.
-        if (_mm_movemask_ps(cmpVec))
-            return false;
-    }
-#elif HAVE(ARM_NEON_INTRINSICS)
-    // Process 4 floats at a time using SIMD.
-    float32x4_t valueVec = vdupq_n_f32(value);
-    // Start at 0 for byte alignment.
-    for (processedFrames = 0; processedFrames < values.size() - 3; processedFrames += 4) {
-        // Load 4 floats from memory.
-        float32x4_t inputVec = vld1q_f32(&values[processedFrames]);
-        // Compare the 4 floats with the value.
-        uint32x4_t cmpVec = vceqq_f32(inputVec, valueVec);
-        // Accumulate the elements of the cmpVec vector using bitwise AND.
-        uint32x2_t cmpReduced32 = vand_u32(vget_low_u32(cmpVec), vget_high_u32(cmpVec));
-        // Check if any of the floats are not equal to the value.
-        if (!vget_lane_u32(vpmin_u32(cmpReduced32, cmpReduced32), 0))
-            return false;
-    }
-#endif
-    // Fallback implementation without SIMD optimization.
-    while (processedFrames < values.size()) {
-        if (values[processedFrames] != value)
-            return false;
-        ++processedFrames;
-    }
-    return true;
+BiquadDSPKernel::~BiquadDSPKernel() = default;
+
+void BiquadDSPKernel::reset()
+{
+    biquadReset(m_swift->kernel);
 }
 
 void BiquadDSPKernel::updateCoefficientsIfNecessary(size_t framesToProcess)
@@ -124,12 +81,7 @@ void BiquadDSPKernel::updateCoefficientsIfNecessary(size_t framesToProcess)
             // automation rate is "k-rate" for all of the AudioParams), we don't need
             // to compute filter coefficients for each frame since they would be the
             // same as the first.
-            bool isConstant = hasConstantValue(cutoffFrequencySpan)
-                && hasConstantValue(qSpan)
-                && hasConstantValue(gainSpan)
-                && hasConstantValue(detuneSpan);
-
-            updateCoefficients(isConstant ? 1 : framesToProcess, cutoffFrequency, q, gain, detune);
+            biquadUpdateCoefficients(m_swift->kernel, framesToProcess, biquadProcessor()->type(), cutoffFrequencySpan, qSpan, gainSpan, detuneSpan, true);
         } else {
             float cutoffFrequency = protect(biquadProcessor()->parameter1())->finalValue();
             float q = protect(biquadProcessor()->parameter2())->finalValue();
@@ -142,59 +94,7 @@ void BiquadDSPKernel::updateCoefficientsIfNecessary(size_t framesToProcess)
 
 void BiquadDSPKernel::updateCoefficients(size_t numberOfFrames, std::span<const float> cutoffFrequency, std::span<const float> q, std::span<const float> gain, std::span<const float> detune)
 {
-    // Convert from Hertz to normalized frequency 0 -> 1.
-    double nyquist = this->nyquist();
-
-    m_biquad.setHasSampleAccurateValues(numberOfFrames > 1);
-
-    for (size_t k = 0; k < numberOfFrames; ++k) {
-        double normalizedFrequency = cutoffFrequency[k] / nyquist;
-
-        // Offset frequency by detune.
-        if (detune[k]) {
-            // Detune multiplies the frequency by 2^(detune[k] / 1200).
-            normalizedFrequency *= std::exp2(detune[k] / 1200);
-        }
-
-        // Configure the biquad with the new filter parameters for the appropriate
-        // type of filter.
-        switch (biquadProcessor()->type()) {
-        case BiquadFilterType::Lowpass:
-            m_biquad.setLowpassParams(k, normalizedFrequency, q[k]);
-            break;
-
-        case BiquadFilterType::Highpass:
-            m_biquad.setHighpassParams(k, normalizedFrequency, q[k]);
-            break;
-
-        case BiquadFilterType::Bandpass:
-            m_biquad.setBandpassParams(k, normalizedFrequency, q[k]);
-            break;
-
-        case BiquadFilterType::Lowshelf:
-            m_biquad.setLowShelfParams(k, normalizedFrequency, gain[k]);
-            break;
-
-        case BiquadFilterType::Highshelf:
-            m_biquad.setHighShelfParams(k, normalizedFrequency, gain[k]);
-            break;
-
-        case BiquadFilterType::Peaking:
-            m_biquad.setPeakingParams(k, normalizedFrequency, q[k], gain[k]);
-            break;
-
-        case BiquadFilterType::Notch:
-            m_biquad.setNotchParams(k, normalizedFrequency, q[k]);
-            break;
-
-        case BiquadFilterType::Allpass:
-            m_biquad.setAllpassParams(k, normalizedFrequency, q[k]);
-            break;
-        }
-    }
-
-    ASSERT(numberOfFrames);
-    updateTailTime(numberOfFrames - 1);
+    biquadUpdateCoefficients(m_swift->kernel, numberOfFrames, biquadProcessor()->type(), cutoffFrequency, q, gain, detune, false);
 }
 
 void BiquadDSPKernel::process(std::span<const float> source, std::span<float> destination)
@@ -207,7 +107,7 @@ void BiquadDSPKernel::process(std::span<const float> source, std::span<float> de
 
     updateCoefficientsIfNecessary(source.size());
 
-    m_biquad.process(source, destination);
+    biquadProcess(m_swift->kernel, inputUnlessOutput(source, destination), destination, source.size());
 }
 
 void BiquadDSPKernel::getFrequencyResponse(std::span<const float> frequencyHz, std::span<float> magResponse, std::span<float> phaseResponse)
@@ -217,32 +117,17 @@ void BiquadDSPKernel::getFrequencyResponse(std::span<const float> frequencyHz, s
     if (!isGood)
         return;
 
-    m_biquad.getFrequencyResponse(frequencyHz, magResponse, phaseResponse, nyquist());
+    biquadFrequencyResponse(m_swift->kernel, frequencyHz, magResponse, phaseResponse);
 }
 
 double BiquadDSPKernel::tailTime() const
 {
-    return m_tailTime;
+    return biquadTailTime(m_swift->kernel);
 }
 
 double BiquadDSPKernel::latencyTime() const
 {
     return 0;
-}
-
-void BiquadDSPKernel::updateTailTime(size_t coefIndex)
-{
-    // A reasonable upper limit for the tail time. While it's easy to
-    // create biquad filters whose tail time can be much larger than
-    // this, limit the maximum to this value so that we don't keep such
-    // nodes alive "forever".
-    // TODO: What is a reasonable upper limit?
-    constexpr double maxTailTime = 30;
-
-    double sampleRate = this->sampleRate();
-    double tail = m_biquad.tailFrame(coefIndex, maxTailTime * sampleRate) / sampleRate;
-
-    m_tailTime = std::clamp(tail, 0.0, maxTailTime);
 }
 
 bool BiquadDSPKernel::requiresTailProcessing() const

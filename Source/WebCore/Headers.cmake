@@ -2382,6 +2382,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/audio/AudioArray.h
     platform/audio/AudioBus.h
     platform/audio/AudioChannel.h
+    platform/audio/AudioDSPBoundaryTypes.h
     platform/audio/AudioDestination.h
     platform/audio/AudioDestinationResampler.h
     platform/audio/AudioDSPKernel.h
@@ -2390,13 +2391,11 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/audio/AudioIOCallback.h
     platform/audio/AudioProcessor.h
     platform/audio/AudioResampler.h
-    platform/audio/AudioResamplerKernel.h
     platform/audio/AudioSession.h
     platform/audio/AudioSourceProvider.h
     platform/audio/AudioSourceProviderClient.h
     platform/audio/AudioStreamDescription.h
     platform/audio/AudioUtilities.h
-    platform/audio/Biquad.h
     platform/audio/DynamicsCompressor.h
     platform/audio/DynamicsCompressorKernel.h
     platform/audio/MediaSessionManagerInterface.h

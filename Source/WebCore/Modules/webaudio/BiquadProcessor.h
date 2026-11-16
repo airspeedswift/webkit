@@ -28,7 +28,6 @@
 #include "AudioDSPKernelProcessor.h"
 #include "AudioNode.h"
 #include "AudioParam.h"
-#include "Biquad.h"
 #include "BiquadFilterType.h"
 #include <memory>
 #include <wtf/RefPtr.h>

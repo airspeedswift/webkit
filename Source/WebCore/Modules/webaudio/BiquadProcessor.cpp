@@ -145,7 +145,9 @@ void BiquadProcessor::getFrequencyResponse(std::span<const float> frequencyHz, s
     float detune = parameter4().value();
 
     responseKernel->updateCoefficients(1, singleElementSpan(cutoffFrequency), singleElementSpan(q), singleElementSpan(gain), singleElementSpan(detune));
-    responseKernel->getFrequencyResponse(frequencyHz, magResponse, phaseResponse);
+    computeFrequencyResponseOnDisjointArrays(frequencyHz, magResponse, phaseResponse, [&](auto frequencies, auto magnitudes, auto phases) {
+        responseKernel->getFrequencyResponse(frequencies, magnitudes, phases);
+    });
 }
 
 } // namespace WebCore

@@ -33,7 +33,6 @@
 #include "HRTFKernel.h"
 
 #include "AudioChannel.h"
-#include "Biquad.h"
 #include "FFTFrame.h"
 #include "FloatConversion.h"
 #include <wtf/MathExtras.h>
