@@ -23,45 +23,46 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// In-tree benchmark for the WebCore audio DSP kernels (G1).
-// Each TEST runs one pass by default and EXPECT_EQs the CRC-32 checksum.
+// In-tree benchmark for the WebCore audio DSP kernels.
+// Each TEST runs one pass by default and compares its checksum.
 // With WEBKIT_RUN_BENCHMARKS=1 it runs for ~1 second and prints MB/s + checksum.
-// Source file: Tools/TestWebKitAPI/Tests/WebCore/AudioDSPBench.cpp
 
 #include "config.h"
 
+#if ENABLE(WEB_AUDIO)
+
+#include "AudioDSPBenchSupport.h"
 #include <WebCore/AudioBus.h>
 #include <WebCore/AudioChannel.h>
-#include <WebCore/Biquad.h>
+#include <WebCore/AudioResampler.h>
+#include <WebCore/AudioSourceProvider.h>
 #include <WebCore/DynamicsCompressor.h>
-#include <WebCore/IIRFilter.h>
+#include <WebCore/MultiChannelResampler.h>
 #include <WebCore/SincResampler.h>
 #include <WebCore/StereoPanner.h>
 #include <WebCore/VectorMath.h>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <limits>
+#include <new>
 #include <span>
 #include <vector>
+#include <wtf/Function.h>
+#include <wtf/StdLibExtras.h>
 #include <wtf/Vector.h>
-
-#if ENABLE(WEB_AUDIO)
 
 namespace TestWebKitAPI {
 
 using namespace WebCore;
 
-// ---------------------------------------------------------------------------
-// Helpers shared by all shapes
-// ---------------------------------------------------------------------------
 
-static constexpr unsigned kQuantum    = 128;
-static constexpr float    kSampleRate = 44100.0f;
 static constexpr float    kPi         = 3.14159265358979323846f;
 
-// LCG white noise, same seed as the oracle.
+// LCG white noise.
 static std::vector<float> makeNoise(unsigned n, uint64_t seed = 42)
 {
     std::vector<float> out(n);
@@ -73,7 +74,7 @@ static std::vector<float> makeNoise(unsigned n, uint64_t seed = 42)
     return out;
 }
 
-static std::vector<float> makeSine(unsigned n, float freq = 440.0f, float sr = kSampleRate)
+static std::vector<float> makeSine(unsigned n, float freq = 440.0f, float sr = sampleRate)
 {
     std::vector<float> out(n);
     for (unsigned i = 0; i < n; ++i)
@@ -110,11 +111,6 @@ struct BenchCRC {
     uint32_t result() const { return crc ^ 0xFFFFFFFFu; }
 };
 
-static bool benchmarkMode()
-{
-    return getenv("WEBKIT_RUN_BENCHMARKS") != nullptr;
-}
-
 // Returns seconds elapsed.
 static double wallClock()
 {
@@ -123,279 +119,148 @@ static double wallClock()
     return static_cast<double>(ts.tv_sec) + static_cast<double>(ts.tv_nsec) * 1e-9;
 }
 
-// ---------------------------------------------------------------------------
-// BiquadLowpass
-// Runs 341 quanta (128 frames each) of white noise through a lowpass Biquad.
-// ---------------------------------------------------------------------------
+
+// The four filter shapes drive BiquadProcessor and IIRProcessor, the entry points that WebCore's callers use
+// (BiquadDelayNode, BiquadFilterNode and IIRFilterNode create them). One pass is 341 quanta of 128 frames.
+
+// Checksums of the output bits, recorded on ARM64 Cocoa. They depend on the results of libm and Accelerate, so they are
+// checked only there.
+static constexpr uint64_t expectedBiquadLowpass = 0xecceada2290dd086ULL;
+static constexpr uint64_t expectedBiquadHighpass = 0x9c5b336e3311b9b8ULL;
+static constexpr uint64_t expectedBiquadSampleAccurate = 0xea70fc76325b62b6ULL;
+static constexpr uint64_t expectedIIRFilter4 = 0xe5d00e44c8e973eaULL;
+
+// Timed passes after the checksummed one, fixed so that every build does the same work.
+static constexpr unsigned iterationsBiquadLowpass = 12000;
+static constexpr unsigned iterationsBiquadHighpass = 12000;
+static constexpr unsigned iterationsBiquadSampleAccurate = 2700;
+static constexpr unsigned iterationsIIRFilter4 = 5000;
+
+// Lowpass at 440 Hz, Q 1, parameters not automated (k-rate).
 TEST(AudioDSPBench, BiquadLowpass)
 {
-    initCRC32();
-    constexpr unsigned kQuanta   = 341;
-    constexpr unsigned kFrames   = kQuanta * kQuantum; // 43648
-    constexpr float    kCutoffHz = 440.0f;
-    constexpr double   kQ        = 1.0;
-    // Recorded CRC-32 from the C++ arm (gate-off):
-    constexpr uint32_t kExpectedCRC = 0x00000000u; // placeholder: fill after first gate-off run
-
-    auto noise = makeNoise(kFrames, 42);
-    std::vector<float> out(kQuantum);
-
-    auto runOnce = [&](BenchCRC& crc) {
-        Biquad bq;
-        bq.setLowpassParams(0, static_cast<double>(kCutoffHz) / (kSampleRate / 2.0), kQ);
-        bq.setHasSampleAccurateValues(false);
-        for (unsigned q = 0; q < kQuanta; ++q) {
-            bq.process(std::span<const float>(noise).subspan(q * kQuantum, kQuantum), out);
-            crc.feedFloats(out);
-        }
-    };
-
-    if (benchmarkMode()) {
-        // Warm up.
-        BenchCRC warmCRC;
-        runOnce(warmCRC);
-
-        double start = wallClock();
-        unsigned iters = 0;
-        BenchCRC crc;
-        do {
-            BenchCRC iterCRC;
-            runOnce(iterCRC);
-            if (iters == 0)
-                crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
-        double elapsed = wallClock() - start;
-        double mb = static_cast<double>(kFrames) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("BiquadLowpass: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
-    } else {
-        BenchCRC crc;
-        runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result()); // self-consistent; fill kExpectedCRC after gate-off run
-    }
+    Context fixture;
+    auto processorStorage = makeUnique<BiquadProcessor>(fixture.context, sampleRate, 1, true);
+    BiquadProcessor& processor = *processorStorage;
+    processor.setType(BiquadFilterType::Lowpass);
+    processor.parameter1().setValue(440);
+    processor.parameter2().setValue(1);
+    benchProcessor("BiquadLowpass", processor, { .channels = 1, .inputSalt = 1 }, iterationsBiquadLowpass, expectedBiquadLowpass);
+    EXPECT_FALSE(processor.hasSampleAccurateValues());
 }
 
-// ---------------------------------------------------------------------------
-// BiquadHighpass
-// ---------------------------------------------------------------------------
 TEST(AudioDSPBench, BiquadHighpass)
 {
-    initCRC32();
-    constexpr unsigned kQuanta   = 341;
-    constexpr unsigned kFrames   = kQuanta * kQuantum;
-    constexpr float    kCutoffHz = 440.0f;
-    constexpr double   kQ        = 1.0;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
-
-    auto noise = makeNoise(kFrames, 42);
-    std::vector<float> out(kQuantum);
-
-    auto runOnce = [&](BenchCRC& crc) {
-        Biquad bq;
-        bq.setHighpassParams(0, static_cast<double>(kCutoffHz) / (kSampleRate / 2.0), kQ);
-        bq.setHasSampleAccurateValues(false);
-        for (unsigned q = 0; q < kQuanta; ++q) {
-            bq.process(std::span<const float>(noise).subspan(q * kQuantum, kQuantum), out);
-            crc.feedFloats(out);
-        }
-    };
-
-    if (benchmarkMode()) {
-        BenchCRC warmCRC; runOnce(warmCRC);
-        double start = wallClock();
-        unsigned iters = 0;
-        BenchCRC crc;
-        do {
-            BenchCRC iterCRC;
-            runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
-        double elapsed = wallClock() - start;
-        double mb = static_cast<double>(kFrames) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("BiquadHighpass: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
-    } else {
-        BenchCRC crc;
-        runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
-    }
+    Context fixture;
+    auto processorStorage = makeUnique<BiquadProcessor>(fixture.context, sampleRate, 1, true);
+    BiquadProcessor& processor = *processorStorage;
+    processor.setType(BiquadFilterType::Highpass);
+    processor.parameter1().setValue(440);
+    processor.parameter2().setValue(1);
+    benchProcessor("BiquadHighpass", processor, { .channels = 1, .inputSalt = 1 }, iterationsBiquadHighpass, expectedBiquadHighpass);
+    EXPECT_FALSE(processor.hasSampleAccurateValues());
 }
 
-// ---------------------------------------------------------------------------
-// BiquadSampleAccurate
-// Per-frame coefficients path (hasSampleAccurateValues = true).
-// ---------------------------------------------------------------------------
+// Per-frame coefficients: the lowpass cutoff ramps from 440 Hz to 876 Hz.
 TEST(AudioDSPBench, BiquadSampleAccurate)
 {
-    initCRC32();
-    constexpr unsigned kQuanta = 341;
-    constexpr unsigned kFrames = kQuanta * kQuantum;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
-
-    auto noise = makeNoise(kFrames, 42);
-    std::vector<float> out(kQuantum);
-
-    // Set per-frame coefficient arrays for one quantum (indices 0..kQuantum-1).
-    // The coefficient arrays must be pre-sized; Biquad's constructor sizes them to 1.
-    // Use frame offset f0 so coefficient variation changes across quanta.
-    auto setQuantumCoeffs = [&](Biquad& bq, unsigned f0) {
-        for (unsigned j = 0; j < kQuantum; ++j)
-            bq.setLowpassParams(j, (440.0 + static_cast<double>(f0 + j) * 0.01) / (kSampleRate / 2.0), 1.0);
-        bq.setHasSampleAccurateValues(true);
-    };
-
-    auto runOnce = [&](BenchCRC& crc) {
-        Biquad bq;
-        setQuantumCoeffs(bq, 0); // size arrays to kQuantum on first call
-        for (unsigned q = 0; q < kQuanta; ++q) {
-            setQuantumCoeffs(bq, q * kQuantum);
-            bq.process(std::span<const float>(noise).subspan(q * kQuantum, kQuantum), out);
-            crc.feedFloats(out);
-        }
-    };
-
-    if (benchmarkMode()) {
-        BenchCRC warmCRC; runOnce(warmCRC);
-        double start = wallClock();
-        unsigned iters = 0;
-        BenchCRC crc;
-        do {
-            BenchCRC iterCRC;
-            runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
-        double elapsed = wallClock() - start;
-        double mb = static_cast<double>(kFrames) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("BiquadSampleAccurate: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
-    } else {
-        BenchCRC crc;
-        runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
-    }
+    Context fixture;
+    auto processorStorage = makeUnique<BiquadProcessor>(fixture.context, sampleRate, 1, true);
+    BiquadProcessor& processor = *processorStorage;
+    processor.setType(BiquadFilterType::Lowpass);
+    setParameterRamp(processor.parameter1(), 440, 876);
+    benchProcessor("BiquadSampleAccurate", processor, { .channels = 1, .inputSalt = 1 }, iterationsBiquadSampleAccurate, expectedBiquadSampleAccurate);
+    EXPECT_TRUE(processor.hasSampleAccurateValues());
 }
 
-// ---------------------------------------------------------------------------
-// IIRFilter4
-// 4th-order IIR with fixed feedforward and feedback coefficients.
-// ---------------------------------------------------------------------------
+// A fourth-order Butterworth lowpass.
 TEST(AudioDSPBench, IIRFilter4)
 {
-    initCRC32();
-    constexpr unsigned kQuanta = 341;
-    constexpr unsigned kFrames = kQuanta * kQuantum;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
-
-    // 4th-order Butterworth lowpass coefficients (same as oracle).
-    static const double ff[] = {0.00482434, 0.01929736, 0.02894604, 0.01929736, 0.00482434};
-    static const double fb[] = {1.0, -2.36951301, 2.31398841, -1.05472877, 0.18737949};
-    Vector<double> feedforward(std::span(ff, 5));
-    Vector<double> feedback(std::span(fb, 5));
-
-    auto noise = makeNoise(kFrames, 42);
-    std::vector<float> out(kQuantum);
-
-    auto runOnce = [&](BenchCRC& crc) {
-        IIRFilter iir(feedforward, feedback);
-        for (unsigned q = 0; q < kQuanta; ++q) {
-            iir.process(std::span<const float>(noise).subspan(q * kQuantum, kQuantum), out);
-            crc.feedFloats(out);
-        }
-    };
-
-    if (benchmarkMode()) {
-        BenchCRC warmCRC; runOnce(warmCRC);
-        double start = wallClock();
-        unsigned iters = 0;
-        BenchCRC crc;
-        do {
-            BenchCRC iterCRC;
-            runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
-        double elapsed = wallClock() - start;
-        double mb = static_cast<double>(kFrames) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("IIRFilter4: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
-    } else {
-        BenchCRC crc;
-        runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
-    }
+    Vector<double> feedforward { 0.00482434, 0.01929736, 0.02894604, 0.01929736, 0.00482434 };
+    Vector<double> feedback { 1.0, -2.36951301, 2.31398841, -1.05472877, 0.18737949 };
+    auto processorStorage = makeUnique<IIRProcessor>(sampleRate, 1, feedforward, feedback, true);
+    IIRProcessor& processor = *processorStorage;
+    processor.initialize();
+    benchProcessor("IIRFilter4", processor, { .channels = 1, .inputSalt = 1 }, iterationsIIRFilter4, expectedIIRFilter4);
 }
 
-// ---------------------------------------------------------------------------
+
+// Timed passes of the five shapes below, after one warm-up pass, fixed (not time-driven) so that every build does the
+// same work: about a second each on arm64.
+static constexpr unsigned iterationsDynamicsCompress = 780;
+static constexpr unsigned iterationsSincResample441to480 = 1550;
+static constexpr unsigned iterationsSincResample441to220 = 3300;
+static constexpr unsigned iterationsStereoPan = 1500;
+static constexpr unsigned iterationsVectorMathMixed = 740;
+
 // DynamicsCompress
 // 341 quanta of stereo white noise through DynamicsCompressor at -24 dB, ratio 4.
-// ---------------------------------------------------------------------------
 TEST(AudioDSPBench, DynamicsCompress)
 {
     initCRC32();
     constexpr unsigned kQuanta = 341;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
+    [[maybe_unused]] constexpr uint32_t kExpectedCRC = 0x92C7814Cu; // The first pass on a fresh compressor.
 
-    auto noiseL = makeNoise(kQuanta * kQuantum, 42);
-    auto noiseR = makeNoise(kQuanta * kQuantum, 99);
+    auto noiseL = makeNoise(kQuanta * quantumSize, 42);
+    auto noiseR = makeNoise(kQuanta * quantumSize, 99);
+
+    // No exported WebCore entry builds a DynamicsCompressor, and its layout can differ between the WebCore builds this
+    // binary runs against. WebCore's constructor therefore runs in storage sized for the largest layout, and the
+    // object is never destroyed. The test touches no member directly.
+    alignas(DynamicsCompressor) static char dcStorage[sizeof(DynamicsCompressor)];
+    static DynamicsCompressor* dcInstance = ::new (dcStorage) DynamicsCompressor(sampleRate, 2);
 
     auto runOnce = [&](BenchCRC& crc) {
-        DynamicsCompressor dc(kSampleRate, 2);
+        DynamicsCompressor& dc = *dcInstance;
+        dc.reset();
         dc.setParameterValue(DynamicsCompressor::ParamThreshold, -24.0f);
         dc.setParameterValue(DynamicsCompressor::ParamRatio,     4.0f);
         dc.setParameterValue(DynamicsCompressor::ParamAttack,    0.003f);
         dc.setParameterValue(DynamicsCompressor::ParamRelease,   0.25f);
 
         for (unsigned q = 0; q < kQuanta; ++q) {
-            auto src = AudioBus::create(2, kQuantum);
-            auto dst = AudioBus::create(2, kQuantum);
-            memcpy(src->channel(0)->mutableData(), noiseL.data() + q * kQuantum, kQuantum * sizeof(float));
-            memcpy(src->channel(1)->mutableData(), noiseR.data() + q * kQuantum, kQuantum * sizeof(float));
-            dc.process(src.get(), dst.get(), kQuantum);
-            crc.feedFloats(std::span<const float>(dst->channel(0)->data(), kQuantum));
-            crc.feedFloats(std::span<const float>(dst->channel(1)->data(), kQuantum));
+            auto src = AudioBus::create(2, quantumSize);
+            auto dst = AudioBus::create(2, quantumSize);
+            memcpySpan(src->channel(0)->mutableSpan(), std::span<const float>(noiseL).subspan(q * quantumSize, quantumSize));
+            memcpySpan(src->channel(1)->mutableSpan(), std::span<const float>(noiseR).subspan(q * quantumSize, quantumSize));
+            dc.process(src.get(), dst.get(), quantumSize);
+            crc.feedFloats(std::span<const float>(dst->channel(0)->data(), quantumSize));
+            crc.feedFloats(std::span<const float>(dst->channel(1)->data(), quantumSize));
         }
     };
 
-    if (benchmarkMode()) {
+    if (runFullBenchmark()) {
         BenchCRC warmCRC; runOnce(warmCRC);
         double start = wallClock();
-        unsigned iters = 0;
+        constexpr unsigned iters = iterationsDynamicsCompress;
         BenchCRC crc;
-        do {
+        for (unsigned i = 0; i < iters; ++i) {
             BenchCRC iterCRC;
             runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
+            if (!i)
+                crc = iterCRC;
+        }
         double elapsed = wallClock() - start;
-        double mb = static_cast<double>(kQuanta * kQuantum * 2) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("DynamicsCompress: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
+        double mb = static_cast<double>(kQuanta * quantumSize * 2) * sizeof(float) * iters / (1024.0 * 1024.0);
+        SAFE_PRINTF("DynamicsCompress: %.1f ms %.0f MB/s checksum=0x%08X\n",
+                    elapsed * 1000.0 / iters, mb / elapsed, crc.result());
     } else {
         BenchCRC crc;
         runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
+#if CPU(ARM64) && PLATFORM(COCOA)
+        EXPECT_EQ(kExpectedCRC, crc.result());
+#endif
     }
 }
 
-// ---------------------------------------------------------------------------
 // SincResample441to480
 // 44100-sample 440 Hz sine resampled from 44100 Hz to 48000 Hz.
-// ---------------------------------------------------------------------------
 TEST(AudioDSPBench, SincResample441to480)
 {
     initCRC32();
     constexpr unsigned kInputFrames = 44100;
     constexpr double   kScaleFactor = 44100.0 / 48000.0;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
+    [[maybe_unused]] constexpr uint32_t kExpectedCRC = 0xC8A3A1BAu;
 
     auto sine = makeSine(kInputFrames);
     unsigned outFrames = static_cast<unsigned>(std::round(kInputFrames / kScaleFactor));
@@ -407,39 +272,38 @@ TEST(AudioDSPBench, SincResample441to480)
         crc.feedFloats(out);
     };
 
-    if (benchmarkMode()) {
+    if (runFullBenchmark()) {
         BenchCRC warmCRC; runOnce(warmCRC);
         double start = wallClock();
-        unsigned iters = 0;
+        constexpr unsigned iters = iterationsSincResample441to480;
         BenchCRC crc;
-        do {
+        for (unsigned i = 0; i < iters; ++i) {
             BenchCRC iterCRC;
             runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
+            if (!i)
+                crc = iterCRC;
+        }
         double elapsed = wallClock() - start;
         double mb = static_cast<double>(kInputFrames) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("SincResample441to480: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
+        SAFE_PRINTF("SincResample441to480: %.1f ms %.0f MB/s checksum=0x%08X\n",
+                    elapsed * 1000.0 / iters, mb / elapsed, crc.result());
     } else {
         BenchCRC crc;
         runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
+#if CPU(ARM64) && PLATFORM(COCOA)
+        EXPECT_EQ(kExpectedCRC, crc.result());
+#endif
     }
 }
 
-// ---------------------------------------------------------------------------
 // SincResample441to220
 // 44100-sample 440 Hz sine resampled from 44100 Hz to 22050 Hz (scale 2.0).
-// ---------------------------------------------------------------------------
 TEST(AudioDSPBench, SincResample441to220)
 {
     initCRC32();
     constexpr unsigned kInputFrames = 44100;
     constexpr double   kScaleFactor = 2.0;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
+    [[maybe_unused]] constexpr uint32_t kExpectedCRC = 0x0C7D1906u;
 
     auto sine = makeSine(kInputFrames);
     unsigned outFrames = static_cast<unsigned>(std::round(kInputFrames / kScaleFactor));
@@ -451,88 +315,86 @@ TEST(AudioDSPBench, SincResample441to220)
         crc.feedFloats(out);
     };
 
-    if (benchmarkMode()) {
+    if (runFullBenchmark()) {
         BenchCRC warmCRC; runOnce(warmCRC);
         double start = wallClock();
-        unsigned iters = 0;
+        constexpr unsigned iters = iterationsSincResample441to220;
         BenchCRC crc;
-        do {
+        for (unsigned i = 0; i < iters; ++i) {
             BenchCRC iterCRC;
             runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
+            if (!i)
+                crc = iterCRC;
+        }
         double elapsed = wallClock() - start;
         double mb = static_cast<double>(kInputFrames) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("SincResample441to220: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
+        SAFE_PRINTF("SincResample441to220: %.1f ms %.0f MB/s checksum=0x%08X\n",
+                    elapsed * 1000.0 / iters, mb / elapsed, crc.result());
     } else {
         BenchCRC crc;
         runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
+#if CPU(ARM64) && PLATFORM(COCOA)
+        EXPECT_EQ(kExpectedCRC, crc.result());
+#endif
     }
 }
 
-// ---------------------------------------------------------------------------
 // StereoPan
 // 341 quanta of mono white noise through StereoPanner at pan=0.5.
-// ---------------------------------------------------------------------------
 TEST(AudioDSPBench, StereoPan)
 {
     initCRC32();
     constexpr unsigned kQuanta  = 341;
-    constexpr unsigned kFrames  = kQuanta * kQuantum;
+    constexpr unsigned kFrames  = kQuanta * quantumSize;
     constexpr float    kPanVal  = 0.5f;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
+    [[maybe_unused]] constexpr uint32_t kExpectedCRC = 0xF39FEB7Cu;
 
     auto noise = makeNoise(kFrames, 42);
 
     auto runOnce = [&](BenchCRC& crc) {
         for (unsigned q = 0; q < kQuanta; ++q) {
-            auto src = AudioBus::create(1, kQuantum);
-            auto dst = AudioBus::create(2, kQuantum);
-            memcpy(src->channel(0)->mutableData(), noise.data() + q * kQuantum, kQuantum * sizeof(float));
-            StereoPanner::panToTargetValue(src.get(), dst.get(), kPanVal, kQuantum);
-            crc.feedFloats(std::span<const float>(dst->channel(0)->data(), kQuantum));
-            crc.feedFloats(std::span<const float>(dst->channel(1)->data(), kQuantum));
+            auto src = AudioBus::create(1, quantumSize);
+            auto dst = AudioBus::create(2, quantumSize);
+            memcpySpan(src->channel(0)->mutableSpan(), std::span<const float>(noise).subspan(q * quantumSize, quantumSize));
+            StereoPanner::panToTargetValue(src.get(), dst.get(), kPanVal, quantumSize);
+            crc.feedFloats(std::span<const float>(dst->channel(0)->data(), quantumSize));
+            crc.feedFloats(std::span<const float>(dst->channel(1)->data(), quantumSize));
         }
     };
 
-    if (benchmarkMode()) {
+    if (runFullBenchmark()) {
         BenchCRC warmCRC; runOnce(warmCRC);
         double start = wallClock();
-        unsigned iters = 0;
+        constexpr unsigned iters = iterationsStereoPan;
         BenchCRC crc;
-        do {
+        for (unsigned i = 0; i < iters; ++i) {
             BenchCRC iterCRC;
             runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
+            if (!i)
+                crc = iterCRC;
+        }
         double elapsed = wallClock() - start;
         double mb = static_cast<double>(kFrames) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("StereoPan: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
+        SAFE_PRINTF("StereoPan: %.1f ms %.0f MB/s checksum=0x%08X\n",
+                    elapsed * 1000.0 / iters, mb / elapsed, crc.result());
     } else {
         BenchCRC crc;
         runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
+#if CPU(ARM64) && PLATFORM(COCOA)
+        EXPECT_EQ(kExpectedCRC, crc.result());
+#endif
     }
 }
 
-// ---------------------------------------------------------------------------
 // VectorMathMixed
 // 1000 calls each to multiply, add, multiplyByScalarThenAddToOutput, and dotProduct
 // on 128-element float arrays.
-// ---------------------------------------------------------------------------
 TEST(AudioDSPBench, VectorMathMixed)
 {
     initCRC32();
-    constexpr unsigned kN      = kQuantum; // 128
+    constexpr unsigned kN      = quantumSize; // 128
     constexpr unsigned kCalls  = 1000;
-    constexpr uint32_t kExpectedCRC = 0x00000000u;
+    [[maybe_unused]] constexpr uint32_t kExpectedCRC = 0x1503EA36u;
 
     auto a = makeNoise(kN, 42);
     auto b = makeNoise(kN, 99);
@@ -555,32 +417,222 @@ TEST(AudioDSPBench, VectorMathMixed)
         for (unsigned i = 0; i < kCalls; ++i) {
             float dp = VectorMath::dotProduct(a, b);
             uint8_t dpBytes[4];
-            memcpy(dpBytes, &dp, 4);
+            memcpySpan(std::span<uint8_t> { dpBytes }, asByteSpan(dp));
             crc.feed(dpBytes, 4);
         }
     };
 
-    if (benchmarkMode()) {
+    if (runFullBenchmark()) {
         BenchCRC warmCRC; runOnce(warmCRC);
         double start = wallClock();
-        unsigned iters = 0;
+        constexpr unsigned iters = iterationsVectorMathMixed;
         BenchCRC crc;
-        do {
+        for (unsigned i = 0; i < iters; ++i) {
             BenchCRC iterCRC;
             runOnce(iterCRC);
-            if (iters == 0) crc = iterCRC;
-            ++iters;
-        } while (wallClock() - start < 1.0);
+            if (!i)
+                crc = iterCRC;
+        }
         double elapsed = wallClock() - start;
         double mb = static_cast<double>(kN * kCalls * 4) * sizeof(float) * iters / (1024.0 * 1024.0);
-        printf("VectorMathMixed: %.1f ms %.0f MB/s checksum=0x%08X\n",
-               elapsed * 1000.0 / iters, mb / elapsed, crc.result());
+        SAFE_PRINTF("VectorMathMixed: %.1f ms %.0f MB/s checksum=0x%08X\n",
+                    elapsed * 1000.0 / iters, mb / elapsed, crc.result());
     } else {
         BenchCRC crc;
         runOnce(crc);
-        (void)kExpectedCRC;
-        EXPECT_EQ(crc.result(), crc.result());
+#if CPU(ARM64) && PLATFORM(COCOA)
+        EXPECT_EQ(kExpectedCRC, crc.result());
+#endif
     }
+}
+
+// ---- Resamplers ----
+
+// MultiChannelResampler converts between sample rates for the audio destination and the media element and media
+// stream sources, 128 frames at a time. AudioResampler converts a provider's stream at a variable rate.
+// Checksums as above.
+static constexpr uint64_t expectedMultiChannelResampleMono441to480 = 0x6f7c92e0251716ccULL;
+static constexpr uint64_t expectedMultiChannelResampleStereo441to480 = 0xa6dd589646b1522cULL;
+static constexpr uint64_t expectedMultiChannelResampleStereo960to441 = 0xb34b9cc57b275193ULL;
+static constexpr uint64_t expectedMultiChannelResampleStereo80to441 = 0xbf6866ab0a02734bULL;
+static constexpr uint64_t expectedMultiChannelResample6Channels480to441 = 0xf163128c3a5f2b20ULL;
+static constexpr uint64_t expectedAudioResamplerFast = 0xa95743be3f46968fULL;
+static constexpr uint64_t expectedAudioResamplerSlow = 0x20a97a44da2f91c2ULL;
+static constexpr uint64_t expectedAudioResamplerMaxRate = 0xe4b28a2022e6921cULL;
+static constexpr uint64_t expectedAudioResamplerVaryingRate = 0x77668c324cc853bcULL;
+
+static constexpr unsigned iterationsMultiChannelResampleMono441to480 = 4300;
+static constexpr unsigned iterationsMultiChannelResampleStereo441to480 = 2150;
+static constexpr unsigned iterationsMultiChannelResampleStereo960to441 = 2050;
+static constexpr unsigned iterationsMultiChannelResampleStereo80to441 = 2170;
+static constexpr unsigned iterationsMultiChannelResample6Channels480to441 = 715;
+static constexpr unsigned iterationsAudioResamplerFast = 15600;
+static constexpr unsigned iterationsAudioResamplerSlow = 34000;
+static constexpr unsigned iterationsAudioResamplerMaxRate = 11100;
+static constexpr unsigned iterationsAudioResamplerVaryingRate = 14750;
+
+// A deterministic input stream per channel, read in order and repeated after its end.
+class InputStream {
+public:
+    InputStream(unsigned channels, unsigned salt)
+    {
+        for (unsigned c = 0; c < channels; ++c)
+            m_channels.append(makeInput(c, streamFrames, salt));
+    }
+
+    void rewind() { m_position = 0; }
+
+    // Fills the first `frames` frames of each channel of `bus`.
+    void read(AudioBus& bus, size_t frames)
+    {
+        for (unsigned c = 0; c < bus.numberOfChannels(); ++c) {
+            auto destination = bus.channel(c)->mutableSpan().first(frames);
+            size_t position = m_position;
+            while (!destination.empty()) {
+                size_t offset = position % streamFrames;
+                size_t count = std::min(destination.size(), streamFrames - offset);
+                memcpySpan(destination, m_channels[c].span().subspan(offset, count));
+                destination = destination.subspan(count);
+                position += count;
+            }
+        }
+        m_position += frames;
+    }
+
+private:
+    static constexpr size_t streamFrames = 1 << 17;
+    Vector<Vector<float>> m_channels;
+    size_t m_position { 0 };
+};
+
+static void addToDigest(Digest& digest, AudioBus& bus)
+{
+    for (unsigned c = 0; c < bus.numberOfChannels(); ++c) {
+        for (float sample : bus.channel(c)->span())
+            digest.add(sample);
+    }
+}
+
+// One checksummed pass, then `iterations` timed ones.
+static void benchPasses(const char* shape, const Function<void(Digest*)>& pass, unsigned iterations, size_t bytesPerPass, uint64_t expected)
+{
+    Digest digest;
+    pass(&digest);
+    double seconds = 0;
+    size_t bytes = 0;
+    if (runFullBenchmark()) {
+        auto start = std::chrono::steady_clock::now();
+        for (unsigned i = 0; i < iterations; ++i)
+            pass(nullptr);
+        seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        bytes = static_cast<size_t>(iterations) * bytesPerPass;
+    }
+    reportOrCheck(shape, expected, digest, seconds, bytes);
+}
+
+// A pass builds a new resampler, as a source node or destination does when the sample rates are set, and pulls one
+// pass of quanta through it.
+static void benchMultiChannelResampler(const char* shape, double scaleFactor, unsigned channels, unsigned iterations, uint64_t expected)
+{
+    InputStream input(channels, 2);
+    Ref destination = AudioBus::create(channels, quantumSize);
+    benchPasses(shape, [&](Digest* digest) {
+        input.rewind();
+        auto resampler = MultiChannelResampler::create(scaleFactor, channels, quantumSize, [&](AudioBus& bus, size_t frames) {
+            input.read(bus, frames);
+        });
+        for (unsigned q = 0; q < quantaPerPass; ++q) {
+            resampler->process(destination, quantumSize);
+            if (digest)
+                addToDigest(*digest, destination);
+        }
+    }, iterations, static_cast<size_t>(channels) * quantaPerPass * quantumSize * sizeof(float), expected);
+}
+
+// Mono takes a path of its own.
+TEST(AudioDSPBench, MultiChannelResampleMono441to480)
+{
+    benchMultiChannelResampler("MultiChannelResampleMono441to480", 44100.0 / 48000, 1, iterationsMultiChannelResampleMono441to480, expectedMultiChannelResampleMono441to480);
+}
+
+TEST(AudioDSPBench, MultiChannelResampleStereo441to480)
+{
+    benchMultiChannelResampler("MultiChannelResampleStereo441to480", 44100.0 / 48000, 2, iterationsMultiChannelResampleStereo441to480, expectedMultiChannelResampleStereo441to480);
+}
+
+// Downsampling, with the kernel narrowed below the destination's Nyquist frequency.
+TEST(AudioDSPBench, MultiChannelResampleStereo960to441)
+{
+    benchMultiChannelResampler("MultiChannelResampleStereo960to441", 96000.0 / 44100, 2, iterationsMultiChannelResampleStereo960to441, expectedMultiChannelResampleStereo960to441);
+}
+
+// About five destination frames per source frame, so that input is requested rarely.
+TEST(AudioDSPBench, MultiChannelResampleStereo80to441)
+{
+    benchMultiChannelResampler("MultiChannelResampleStereo80to441", 8000.0 / 44100, 2, iterationsMultiChannelResampleStereo80to441, expectedMultiChannelResampleStereo80to441);
+}
+
+TEST(AudioDSPBench, MultiChannelResample6Channels480to441)
+{
+    benchMultiChannelResampler("MultiChannelResample6Channels480to441", 48000.0 / 44100, 6, iterationsMultiChannelResample6Channels480to441, expectedMultiChannelResample6Channels480to441);
+}
+
+class InputStreamProvider final : public AudioSourceProvider {
+public:
+    explicit InputStreamProvider(InputStream& input)
+        : m_input(input)
+    {
+    }
+
+    void provideInput(AudioBus& bus, size_t frames) final { m_input.read(bus, frames); }
+
+private:
+    InputStream& m_input;
+};
+
+// The resampler is reset before each pass, and `rateForQuantum` is applied before each quantum.
+static void benchAudioResampler(const char* shape, unsigned channels, double (*rateForQuantum)(unsigned), unsigned iterations, uint64_t expected)
+{
+    InputStream input(channels, 3);
+    InputStreamProvider provider(input);
+    auto resampler = AudioResampler::create(channels);
+    Ref destination = AudioBus::create(channels, quantumSize);
+    benchPasses(shape, [&](Digest* digest) {
+        input.rewind();
+        resampler->reset();
+        for (unsigned q = 0; q < quantaPerPass; ++q) {
+            resampler->setRate(rateForQuantum(q));
+            resampler->process(&provider, destination, quantumSize);
+            if (digest)
+                addToDigest(*digest, destination);
+        }
+    }, iterations, static_cast<size_t>(channels) * quantaPerPass * quantumSize * sizeof(float), expected);
+}
+
+TEST(AudioDSPBench, AudioResamplerFast)
+{
+    benchAudioResampler("AudioResamplerFast", 2, [](unsigned) { return 1.5; }, iterationsAudioResamplerFast, expectedAudioResamplerFast);
+}
+
+TEST(AudioDSPBench, AudioResamplerSlow)
+{
+    benchAudioResampler("AudioResamplerSlow", 1, [](unsigned) { return 0.37; }, iterationsAudioResamplerSlow, expectedAudioResamplerSlow);
+}
+
+// A rate above the maximum is limited to it: the most source frames per quantum.
+TEST(AudioDSPBench, AudioResamplerMaxRate)
+{
+    benchAudioResampler("AudioResamplerMaxRate", 2, [](unsigned) { return 20.0; }, iterationsAudioResamplerMaxRate, expectedAudioResamplerMaxRate);
+}
+
+// A new rate every quantum, including the values the resampler ignores (NaN, infinity, zero and negative).
+TEST(AudioDSPBench, AudioResamplerVaryingRate)
+{
+    benchAudioResampler("AudioResamplerVaryingRate", 2, [](unsigned quantum) {
+        constexpr double rates[] = { 0.5, std::numeric_limits<double>::quiet_NaN(), 1.0, 2.75, -1.0, 0.0,
+            std::numeric_limits<double>::infinity(), 7.9, 1.0 / 3 };
+        return rates[quantum % std::size(rates)];
+    }, iterationsAudioResamplerVaryingRate, expectedAudioResamplerVaryingRate);
 }
 
 } // namespace TestWebKitAPI
