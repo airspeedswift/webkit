@@ -294,7 +294,7 @@ NODELETE static void clampedSkip(std::span<T>& span, size_t offset)
     skip(span, std::min(offset, span.size()));
 }
 
-NODELETE static void clampedMoveCursorWithinSpan(std::span<uint8_t>& cursor, std::span<uint8_t> container, ptrdiff_t delta)
+NODELETE static void clampedMoveByteCursorWithinSpan(std::span<uint8_t>& cursor, std::span<uint8_t> container, ptrdiff_t delta)
 {
     ASSERT(cursor.data() >= container.data());
     ASSERT(std::to_address(cursor.end()) == std::to_address(container.end()));
@@ -325,7 +325,7 @@ static bool packPixels(std::span<const uint8_t> sourceData, GraphicsContextGL::D
     int dstStride = sourceDataSubRectangle.width() * texelBytesForFormat(dstDataFormat);
     auto destinationCursor = destinationData;
     if (flipY) {
-        clampedMoveCursorWithinSpan(destinationCursor, destinationData, dstStride * ((depth * sourceDataSubRectangle.height()) - 1));
+        clampedMoveByteCursorWithinSpan(destinationCursor, destinationData, dstStride * ((depth * sourceDataSubRectangle.height()) - 1));
         dstStride = -dstStride;
     }
     if (!GraphicsContextGL::hasAlpha(sourceDataFormat) || !GraphicsContextGL::hasColor(sourceDataFormat) || !GraphicsContextGL::hasColor(dstDataFormat))
@@ -352,7 +352,7 @@ static bool packPixels(std::span<const uint8_t> sourceData, GraphicsContextGL::D
             while (!sourceCursor.empty()) {
                 memcpySpan(destinationCursor, sourceCursor.subspan(srcRowOffset, rowSize));
                 clampedSkip(sourceCursor, srcStride);
-                clampedMoveCursorWithinSpan(destinationCursor, destinationData, dstStride);
+                clampedMoveByteCursorWithinSpan(destinationCursor, destinationData, dstStride);
             }
             baseSpan = clampedSubspan(sourceData, baseSpan.data() - sourceData.data() + unpackImageHeight * srcStride, baseSpan.size());
         }
