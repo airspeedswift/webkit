@@ -3409,6 +3409,8 @@ if (SWIFT_REQUIRED AND APPLE)
 
     webkit_target_add_swift_options(WebCore
         "-library-level spi"
+        # As WebCore.xcconfig: Swift defines C++ declarations with @cxx @implementation.
+        "-enable-experimental-feature CxxImplementation"
     )
 
     # C++ sources that include WebCoreSwift-Generated.h.
