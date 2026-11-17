@@ -31,7 +31,6 @@
 
 #if ENABLE(WEB_AUTHN)
 
-#include <wtf/Noncopyable.h>
 #include <wtf/Vector.h>
 
 namespace apdu {
@@ -40,7 +39,6 @@ namespace apdu {
 // consist of a data field of varying length, up to a maximum 65536, and a
 // two byte status field.
 class WEBCORE_EXPORT ApduResponse {
-    WTF_MAKE_NONCOPYABLE(ApduResponse);
 public:
     // Status bytes are specified in ISO 7816-4.
     enum class Status : uint16_t {
@@ -55,8 +53,6 @@ public:
     WEBCORE_EXPORT static std::optional<ApduResponse> createFromMessage(Vector<uint8_t> data);
 
     ApduResponse(Vector<uint8_t>&& data, Status);
-    ApduResponse(ApduResponse&& that) = default;
-    ApduResponse& operator=(ApduResponse&& that) = default;
 
     Vector<uint8_t> getEncodedResponse() const;
 
