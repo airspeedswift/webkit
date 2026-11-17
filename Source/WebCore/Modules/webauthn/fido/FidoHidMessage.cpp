@@ -38,7 +38,7 @@
 namespace fido {
 
 // static
-std::optional<FidoHidMessage> FidoHidMessage::create(uint32_t channelId, FidoHidDeviceCommand type, const Vector<uint8_t>& data)
+std::optional<FidoHidMessage> FidoHidMessage::create(uint32_t channelId, FidoHidDeviceCommand type, Vector<uint8_t> data)
 {
     if (data.size() > kHidMaxMessageSize)
         return std::nullopt;
@@ -79,7 +79,7 @@ std::optional<FidoHidMessage> FidoHidMessage::create(uint32_t channelId, FidoHid
 }
 
 // static
-std::optional<FidoHidMessage> FidoHidMessage::createFromSerializedData(const Vector<uint8_t>& serializedData)
+std::optional<FidoHidMessage> FidoHidMessage::createFromSerializedData(Vector<uint8_t> serializedData)
 {
     size_t remainingSize = 0;
     if (serializedData.size() > kHidPacketSize || serializedData.size() < kHidInitPacketHeaderSize)
@@ -124,7 +124,7 @@ Vector<uint8_t> FidoHidMessage::popNextPacket()
     return data;
 }
 
-bool FidoHidMessage::addContinuationPacket(const Vector<uint8_t>& buf)
+bool FidoHidMessage::addContinuationPacket(Vector<uint8_t> buf)
 {
     size_t remainingSize = m_remainingSize;
     auto contPacket = FidoHidContinuationPacket::createFromSerializedData(buf, &remainingSize);

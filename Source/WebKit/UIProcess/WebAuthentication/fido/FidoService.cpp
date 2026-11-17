@@ -66,7 +66,7 @@ void FidoService::getInfo(Ref<CtapDriver>&& driver)
     ASSERT_UNUSED(addResult, addResult.isNewEntry);
 }
 
-void FidoService::continueAfterGetInfo(CtapDriver& inputDriver, Vector<uint8_t>&& response)
+void FidoService::continueAfterGetInfo(CtapDriver& inputDriver, Vector<uint8_t> response)
 {
     RefPtr driver = m_drivers.take(&inputDriver);
     if (!driver)

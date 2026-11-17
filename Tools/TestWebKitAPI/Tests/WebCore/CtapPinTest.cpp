@@ -85,7 +85,7 @@ TEST(CtapPinTest, TestSetPinRequest)
 
     auto request = SetPinRequest::tryCreate(PINUVAuthProtocol::kPinProtocol1, pin, downcast<CryptoKeyEC>(*keyPair.publicKey));
     EXPECT_TRUE(request);
-    auto result = encodeAsCBOR(*request);
+    auto result = encodeAsCBOR(WTF::move(*request));
 
     EXPECT_EQ(result.size(), 170u);
     EXPECT_EQ(result[0], static_cast<uint8_t>(CtapRequestCommand::kAuthenticatorClientPin));
@@ -404,7 +404,7 @@ TEST(CtapPinTest, TestSetPinRequestProtocol2)
 
     auto request = SetPinRequest::tryCreate(PINUVAuthProtocol::kPinProtocol2, pin, downcast<CryptoKeyEC>(*keyPair.publicKey));
     EXPECT_TRUE(request);
-    auto result = encodeAsCBOR(*request);
+    auto result = encodeAsCBOR(WTF::move(*request));
 
     EXPECT_EQ(result.size(), 203u);
     EXPECT_EQ(result[0], static_cast<uint8_t>(CtapRequestCommand::kAuthenticatorClientPin));

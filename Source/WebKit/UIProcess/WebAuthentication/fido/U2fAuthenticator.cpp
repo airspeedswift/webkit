@@ -122,7 +122,7 @@ void U2fAuthenticator::issueSignCommand(size_t index)
     issueNewCommand(WTF::move(*u2fCmd), CommandType::SignCommand);
 }
 
-void U2fAuthenticator::issueNewCommand(Vector<uint8_t>&& command, CommandType type)
+void U2fAuthenticator::issueNewCommand(Vector<uint8_t> command, CommandType type)
 {
     U2F_RELEASE_LOG("issueNewCommand, type=%hhu", type);
     m_lastCommand = WTF::move(command);
@@ -130,7 +130,7 @@ void U2fAuthenticator::issueNewCommand(Vector<uint8_t>&& command, CommandType ty
     issueCommand(m_lastCommand, m_lastCommandType);
 }
 
-void U2fAuthenticator::issueCommand(const Vector<uint8_t>& command, CommandType type)
+void U2fAuthenticator::issueCommand(Vector<uint8_t> command, CommandType type)
 {
     U2F_RELEASE_LOG("issueCommand: Sending %s", base64EncodeToString(command).utf8());
     protect(driver())->transact(Vector<uint8_t>(command), [weakThis = WeakPtr { *this }, type](Vector<uint8_t>&& data) {
@@ -140,7 +140,7 @@ void U2fAuthenticator::issueCommand(const Vector<uint8_t>& command, CommandType 
     });
 }
 
-void U2fAuthenticator::responseReceived(Vector<uint8_t>&& response, CommandType type)
+void U2fAuthenticator::responseReceived(Vector<uint8_t> response, CommandType type)
 {
     auto apduResponse = ApduResponse::createFromMessage(WTF::move(response));
     if (!apduResponse) {

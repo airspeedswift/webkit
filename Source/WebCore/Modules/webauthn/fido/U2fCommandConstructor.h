@@ -48,23 +48,23 @@ namespace fido {
 // user verification, and ES256 algorithm must be used for public key
 // credential.
 // https://fidoalliance.org/specs/fido-v2.0-id-20180227/fido-client-to-authenticator-protocol-v2.0-id-20180227.html#u2f-authenticatorMakeCredential-interoperability
-WEBCORE_EXPORT bool isConvertibleToU2fRegisterCommand(const WebCore::PublicKeyCredentialCreationOptions&);
+WEBCORE_EXPORT bool isConvertibleToU2fRegisterCommand(WebCore::PublicKeyCredentialCreationOptions);
 
 // Checks whether user verification is not required and that allow list is
 // not empty.
 // https://fidoalliance.org/specs/fido-v2.0-id-20180227/fido-client-to-authenticator-protocol-v2.0-id-20180227.html#u2f-authenticatorGetAssertion-interoperability
-NODELETE WEBCORE_EXPORT bool isConvertibleToU2fSignCommand(const WebCore::PublicKeyCredentialRequestOptions&);
+NODELETE WEBCORE_EXPORT bool isConvertibleToU2fSignCommand(WebCore::PublicKeyCredentialRequestOptions);
 
 // Extracts APDU encoded U2F register command from PublicKeyCredentialCreationOptions.
-WEBCORE_EXPORT std::optional<Vector<uint8_t>> convertToU2fRegisterCommand(const Vector<uint8_t>& clientDataHash, const WebCore::PublicKeyCredentialCreationOptions&);
+WEBCORE_EXPORT std::optional<Vector<uint8_t>> convertToU2fRegisterCommand(Vector<uint8_t> clientDataHash, WebCore::PublicKeyCredentialCreationOptions);
 
 // Extracts APDU encoded U2F check only sign command from
 // PublicKeyCredentialCreationOptions. Invoked when U2F register operation includes key
 // handles in exclude list.
-WEBCORE_EXPORT std::optional<Vector<uint8_t>> convertToU2fCheckOnlySignCommand(const Vector<uint8_t>& clientDataHash, const WebCore::PublicKeyCredentialCreationOptions&, const WebCore::PublicKeyCredentialDescriptor&);
+WEBCORE_EXPORT std::optional<Vector<uint8_t>> convertToU2fCheckOnlySignCommand(Vector<uint8_t> clientDataHash, WebCore::PublicKeyCredentialCreationOptions, WebCore::PublicKeyCredentialDescriptor);
 
 // Extracts APDU encoded U2F sign command from PublicKeyCredentialRequestOptions.
-WEBCORE_EXPORT std::optional<Vector<uint8_t>> convertToU2fSignCommand(const Vector<uint8_t>& clientDataHash, const WebCore::PublicKeyCredentialRequestOptions&, const WebCore::BufferSource& keyHandle, bool isAppId = false);
+WEBCORE_EXPORT std::optional<Vector<uint8_t>> convertToU2fSignCommand(Vector<uint8_t> clientDataHash, WebCore::PublicKeyCredentialRequestOptions, WebCore::BufferSource keyHandle, bool isAppId = false);
 
 WEBCORE_EXPORT Vector<uint8_t> constructBogusU2fRegistrationCommand();
 

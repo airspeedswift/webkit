@@ -175,7 +175,7 @@ void CtapAuthenticator::makeCredential()
         continueMakeCredentialAfterCheckExcludedCredentials();
 }
 
-void CtapAuthenticator::continueSilentlyCheckCredentials(Vector<uint8_t>&& data, Function<void(bool)>&& completionHandler)
+void CtapAuthenticator::continueSilentlyCheckCredentials(Vector<uint8_t> data, Function<void(bool)>&& completionHandler)
 {
     auto error = getResponseCode(data);
     CTAP_RELEASE_LOG("continueSilentlyCheckCredentials: Got error code: %hhu from authenticator.", std::to_underlying(error));
@@ -292,7 +292,7 @@ void CtapAuthenticator::continueMakeCredentialAfterCheckExcludedCredentials(bool
     });
 }
 
-void CtapAuthenticator::continueMakeCredentialAfterResponseReceived(Vector<uint8_t>&& data)
+void CtapAuthenticator::continueMakeCredentialAfterResponseReceived(Vector<uint8_t> data)
 {
     auto error = getResponseCode(data);
     CTAP_RELEASE_LOG("continueMakeCredentialAfterResponseReceived: Got error code: %hhu from authenticator.", std::to_underlying(error));
@@ -463,7 +463,7 @@ void CtapAuthenticator::continueGetAssertionAfterCheckAllowCredentials()
     });
 }
 
-void CtapAuthenticator::continueGetAssertionAfterResponseReceived(Vector<uint8_t>&& data)
+void CtapAuthenticator::continueGetAssertionAfterResponseReceived(Vector<uint8_t> data)
 {
     auto response = readCTAPGetAssertionResponse(data, AuthenticatorAttachment::CrossPlatform, m_hmacSecretRequest);
     auto error = getResponseCode(data);
@@ -525,7 +525,7 @@ void CtapAuthenticator::continueGetAssertionAfterResponseReceived(Vector<uint8_t
     });
 }
 
-void CtapAuthenticator::continueGetNextAssertionAfterResponseReceived(Vector<uint8_t>&& data)
+void CtapAuthenticator::continueGetNextAssertionAfterResponseReceived(Vector<uint8_t> data)
 {
     auto error = getResponseCode(data);
     CTAP_RELEASE_LOG("continueGetNextAssertionAfterResponseReceived: errorcode: %hhu", std::to_underlying(error));
@@ -580,7 +580,7 @@ void CtapAuthenticator::getRetries()
     });
 }
 
-void CtapAuthenticator::continueGetKeyAgreementAfterGetRetries(Vector<uint8_t>&& data)
+void CtapAuthenticator::continueGetKeyAgreementAfterGetRetries(Vector<uint8_t> data)
 {
     CTAP_RELEASE_LOG("continueGetKeyAgreementAfterGetRetries");
     auto retries = pin::RetriesResponse::parse(data);
@@ -603,7 +603,7 @@ void CtapAuthenticator::continueGetKeyAgreementAfterGetRetries(Vector<uint8_t>&&
     });
 }
 
-void CtapAuthenticator::continueRequestPinAfterGetKeyAgreement(Vector<uint8_t>&& data, uint64_t retries)
+void CtapAuthenticator::continueRequestPinAfterGetKeyAgreement(Vector<uint8_t> data, uint64_t retries)
 {
     CTAP_RELEASE_LOG("continueRequestPinAfterGetKeyAgreement");
     auto keyAgreement = pin::KeyAgreementResponse::parse(data);
@@ -627,7 +627,7 @@ void CtapAuthenticator::continueRequestPinAfterGetKeyAgreement(Vector<uint8_t>&&
     }
 }
 
-void CtapAuthenticator::continueGetPinTokenAfterRequestPin(const String& pin, const CryptoKeyEC& peerKey)
+void CtapAuthenticator::continueGetPinTokenAfterRequestPin(String pin, const CryptoKeyEC& peerKey)
 {
     CTAP_RELEASE_LOG("continueGetNextAssertionAfterResponseReceived");
     if (pin.isNull()) {
@@ -661,7 +661,7 @@ void CtapAuthenticator::continueGetPinTokenAfterRequestPin(const String& pin, co
     });
 }
 
-void CtapAuthenticator::continueRequestAfterGetPinToken(Vector<uint8_t>&& data, const fido::pin::TokenRequest& tokenRequest)
+void CtapAuthenticator::continueRequestAfterGetPinToken(Vector<uint8_t> data, const fido::pin::TokenRequest& tokenRequest)
 {
     CTAP_RELEASE_LOG("continueGetNextAssertionAfterResponseReceived");
     auto token = pin::TokenResponse::parse(selectPinProtocol(), tokenRequest.sharedKey(), data);
@@ -693,7 +693,7 @@ void CtapAuthenticator::continueRequestAfterGetPinToken(Vector<uint8_t>&& data, 
     });
 }
 
-bool CtapAuthenticator::tryRestartPin(const CtapDeviceResponseCode& error)
+bool CtapAuthenticator::tryRestartPin(CtapDeviceResponseCode error)
 {
     CTAP_RELEASE_LOG("tryRestartPin: Error code: %hhu", std::to_underlying(error));
     switch (error) {
@@ -792,7 +792,7 @@ fido::PINUVAuthProtocol CtapAuthenticator::selectPinProtocol() const
     return fido::PINUVAuthProtocol::kPinProtocol1;
 }
 
-void CtapAuthenticator::continueSetupPinAfterCommand(Vector<uint8_t>&& data, const String& pin, Ref<WebCore::CryptoKeyEC> peerKey)
+void CtapAuthenticator::continueSetupPinAfterCommand(Vector<uint8_t> data, String pin, Ref<WebCore::CryptoKeyEC> peerKey)
 {
     auto error = getResponseCode(data);
     if (error != fido::CtapDeviceResponseCode::kSuccess) {
@@ -827,7 +827,7 @@ void CtapAuthenticator::continueSetupPinAfterCommand(Vector<uint8_t>&& data, con
 }
 
 
-void CtapAuthenticator::continueSetupPinAfterGetKeyAgreement(Vector<uint8_t>&& data, const String& pin)
+void CtapAuthenticator::continueSetupPinAfterGetKeyAgreement(Vector<uint8_t> data, String pin)
 {
     auto keyAgreement = pin::KeyAgreementResponse::parse(data);
     if (!keyAgreement) {
@@ -841,7 +841,7 @@ void CtapAuthenticator::continueSetupPinAfterGetKeyAgreement(Vector<uint8_t>&& d
         return;
     }
     m_pinAuth = setPinRequest->pinAuth();
-    auto cborCmd = encodeAsCBOR(*setPinRequest);
+    auto cborCmd = encodeAsCBOR(WTF::move(*setPinRequest));
     protect(driver())->transact(WTF::move(cborCmd), [weakThis = WeakPtr { *this }, pin, peerKey = WTF::move( keyAgreement->peerKey)](Vector<uint8_t>&& response) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
@@ -906,7 +906,7 @@ void CtapAuthenticator::performAuthenticatorSelectionForSetupPin()
     }
 }
 
-std::optional<HmacSecretParameters> CtapAuthenticator::prepareHmacSecretParameters(const AuthenticationExtensionsClientInputs::PRFInputs& prfInputs, const std::optional<Vector<uint8_t>>& credentialId)
+std::optional<HmacSecretParameters> CtapAuthenticator::prepareHmacSecretParameters(AuthenticationExtensionsClientInputs::PRFInputs prfInputs, std::optional<Vector<uint8_t>> credentialId)
 {
     if (!m_cachedPeerKey) {
         CTAP_RELEASE_LOG("prepareHmacSecretParameters: No cached peer key available (likely first attempt before PIN)");

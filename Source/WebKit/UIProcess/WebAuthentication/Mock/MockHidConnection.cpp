@@ -259,7 +259,7 @@ void MockHidConnection::feedReports()
             infoResponse.setOptions(WTF::move(options));
             infoResponse.setMaxCredentialCountInList(m_configuration.hid->maxCredentialCountInList);
             infoResponse.setMaxCredentialIDLength(m_configuration.hid->maxCredentialIdLength);
-            infoData = encodeAsCBOR(infoResponse);
+            infoData = encodeAsCBOR(WTF::move(infoResponse));
         }
         infoData.insert(0, static_cast<uint8_t>(CtapDeviceResponseCode::kSuccess)); // Prepend status code.
         if (stagesMatch() && m_configuration.hid->error == Mock::HidError::WrongChannelId)

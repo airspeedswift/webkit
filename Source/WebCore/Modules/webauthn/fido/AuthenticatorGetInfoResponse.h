@@ -90,7 +90,7 @@ private:
     std::optional<uint32_t> m_remainingDiscoverableCredentials;
 };
 
-WEBCORE_EXPORT Vector<uint8_t> encodeAsCBOR(const AuthenticatorGetInfoResponse&);
+WEBCORE_EXPORT Vector<uint8_t> encodeAsCBOR(AuthenticatorGetInfoResponse);
 
 } // namespace fido
 

@@ -75,7 +75,7 @@ public:
     // this is the first packet, the payload length of the entire message will be
     // included within the serialized data. Remaining size will be returned to
     // inform the callee how many additional packets to expect.
-    static std::unique_ptr<FidoHidInitPacket> createFromSerializedData(const Vector<uint8_t>&, size_t* remainingSize);
+    static std::unique_ptr<FidoHidInitPacket> createFromSerializedData(Vector<uint8_t>, size_t* remainingSize);
 
     FidoHidInitPacket(uint32_t channelId, FidoHidDeviceCommand, Vector<uint8_t>&& data, uint16_t payloadLength);
 
@@ -100,7 +100,7 @@ public:
     // HidInitPacket would have arrived earlier with the total payload size,
     // the remaining size should be passed to inform the packet of how much data
     // to expect.
-    static std::unique_ptr<FidoHidContinuationPacket> createFromSerializedData(const Vector<uint8_t>&, size_t* remainingSize);
+    static std::unique_ptr<FidoHidContinuationPacket> createFromSerializedData(Vector<uint8_t>, size_t* remainingSize);
 
     FidoHidContinuationPacket(uint32_t channelId, uint8_t sequence, Vector<uint8_t>&& data);
 

@@ -100,7 +100,7 @@ void CtapHidDriverWorker::write(HidConnection::DataSent sent)
     });
 }
 
-void CtapHidDriverWorker::read(const Vector<uint8_t>& data)
+void CtapHidDriverWorker::read(Vector<uint8_t> data)
 {
     if (m_state != State::Read)
         return;

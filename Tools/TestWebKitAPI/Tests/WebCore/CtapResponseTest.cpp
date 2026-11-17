@@ -649,7 +649,7 @@ TEST(CTAPResponseTest, TestSerializeGetInfoResponse)
     response.setMaxMsgSize(1200);
     response.setPinProtocols({ PINUVAuthProtocol::kPinProtocol1 });
 
-    auto responseAsCBOR = encodeAsCBOR(response);
+    auto responseAsCBOR = encodeAsCBOR(WTF::move(response));
     EXPECT_EQ(responseAsCBOR.size(), sizeof(TestData::kTestGetInfoResponsePlatformDevice) - 1);
     EXPECT_TRUE(equalSpans(responseAsCBOR.span(), std::span { TestData::kTestGetInfoResponsePlatformDevice }.subspan(1)));
 }

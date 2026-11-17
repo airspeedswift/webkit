@@ -119,7 +119,7 @@ static Vector<PublicKeyCredentialParameters> trimmedParameters(const Vector<Publ
     return parameters;
 }
 
-Vector<uint8_t> encodeMakeCredentialRequestAsCBOR(const Vector<uint8_t>& hash, const PublicKeyCredentialCreationOptions& options, UVAvailability uvCapability, UserVerificationRequirement effectiveUVRequirement, AuthenticatorSupportedOptions::ResidentKeyAvailability residentKeyAvailability, const Vector<String>& authenticatorSupportedExtensions, std::optional<PinParameters> pin, const std::optional<Vector<WebCore::PublicKeyCredentialParameters>>& authenticatorSupportedParameters, std::optional<Vector<PublicKeyCredentialDescriptor>>&& overrideExcludeCredentials, std::optional<HmacSecretParameters>&& hmacSecretParams)
+Vector<uint8_t> encodeMakeCredentialRequestAsCBOR(Vector<uint8_t> hash, PublicKeyCredentialCreationOptions options, UVAvailability uvCapability, UserVerificationRequirement effectiveUVRequirement, AuthenticatorSupportedOptions::ResidentKeyAvailability residentKeyAvailability, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> pin, std::optional<Vector<WebCore::PublicKeyCredentialParameters>> authenticatorSupportedParameters, std::optional<Vector<PublicKeyCredentialDescriptor>> overrideExcludeCredentials, std::optional<HmacSecretParameters> hmacSecretParams)
 {
     CBORValue::MapValue cborMap;
     cborMap[CBORValue(kCtapMakeCredentialClientDataHashKey)] = CBORValue(hash);
@@ -213,7 +213,7 @@ Vector<uint8_t> encodeMakeCredentialRequestAsCBOR(const Vector<uint8_t>& hash, c
     return cborRequest;
 }
 
-Vector<uint8_t> encodeSilentGetAssertion(const String& rpId, const Vector<uint8_t>& hash, const Vector<PublicKeyCredentialDescriptor>& credentials, std::optional<PinParameters> pin)
+Vector<uint8_t> encodeSilentGetAssertion(String rpId, Vector<uint8_t> hash, Vector<PublicKeyCredentialDescriptor> credentials, std::optional<PinParameters> pin)
 {
     CBORValue::MapValue cborMap;
     cborMap[CBORValue(kCtapGetAssertionRpIdKey)] = CBORValue(rpId);
@@ -242,7 +242,7 @@ Vector<uint8_t> encodeSilentGetAssertion(const String& rpId, const Vector<uint8_
     return cborRequest;
 }
 
-Vector<uint8_t> encodeGetAssertionRequestAsCBOR(const Vector<uint8_t>& hash, const PublicKeyCredentialRequestOptions& options, UVAvailability uvCapability, UserVerificationRequirement effectiveUVRequirement, const Vector<String>& authenticatorSupportedExtensions, std::optional<PinParameters> pin, std::optional<Vector<PublicKeyCredentialDescriptor>>&& overrideAllowCredentials, std::optional<HmacSecretParameters>&& hmacSecretParams)
+Vector<uint8_t> encodeGetAssertionRequestAsCBOR(Vector<uint8_t> hash, PublicKeyCredentialRequestOptions options, UVAvailability uvCapability, UserVerificationRequirement effectiveUVRequirement, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> pin, std::optional<Vector<PublicKeyCredentialDescriptor>> overrideAllowCredentials, std::optional<HmacSecretParameters> hmacSecretParams)
 {
     CBORValue::MapValue cborMap;
     cborMap[CBORValue(kCtapGetAssertionRpIdKey)] = CBORValue(options.rpId);

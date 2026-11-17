@@ -49,7 +49,7 @@ FidoHidPacket::FidoHidPacket(Vector<uint8_t>&& data, uint32_t channelId)
 }
 
 // static
-std::unique_ptr<FidoHidInitPacket> FidoHidInitPacket::createFromSerializedData(const Vector<uint8_t>& serialized, size_t* remainingSize)
+std::unique_ptr<FidoHidInitPacket> FidoHidInitPacket::createFromSerializedData(Vector<uint8_t> serialized, size_t* remainingSize)
 {
     if (!remainingSize || serialized.size() != kHidPacketSize)
         return nullptr;
@@ -110,7 +110,7 @@ Vector<uint8_t> FidoHidInitPacket::getSerializedData() const
 }
 
 // static
-std::unique_ptr<FidoHidContinuationPacket> FidoHidContinuationPacket::createFromSerializedData(const Vector<uint8_t>& serialized, size_t* remainingSize)
+std::unique_ptr<FidoHidContinuationPacket> FidoHidContinuationPacket::createFromSerializedData(Vector<uint8_t> serialized, size_t* remainingSize)
 {
     if (!remainingSize || serialized.size() != kHidPacketSize)
         return nullptr;

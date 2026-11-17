@@ -61,10 +61,10 @@ private:
         BogusCommandNoCredentials,
         SignCommand
     };
-    void issueNewCommand(Vector<uint8_t>&& command, CommandType);
+    void issueNewCommand(Vector<uint8_t> command, CommandType);
     void retryLastCommand() { issueCommand(m_lastCommand, m_lastCommandType); }
-    void issueCommand(const Vector<uint8_t>& command, CommandType);
-    void responseReceived(Vector<uint8_t>&& response, CommandType);
+    void issueCommand(Vector<uint8_t> command, CommandType);
+    void responseReceived(Vector<uint8_t> response, CommandType);
     void continueRegisterCommandAfterResponseReceived(apdu::ApduResponse&&);
     void continueCheckOnlyCommandAfterResponseReceived(apdu::ApduResponse&&);
     void continueBogusCommandExcludeCredentialsMatchAfterResponseReceived(apdu::ApduResponse&&);

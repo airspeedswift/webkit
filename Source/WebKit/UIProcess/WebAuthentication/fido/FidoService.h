@@ -46,7 +46,7 @@ protected:
     void getInfo(Ref<CtapDriver>&&);
 
 private:
-    void continueAfterGetInfo(CtapDriver&, Vector<uint8_t>&& info);
+    void continueAfterGetInfo(CtapDriver&, Vector<uint8_t> info);
 
     // Keeping drivers alive when they are getting info from devices.
     HashSet<Ref<CtapDriver>> m_drivers;

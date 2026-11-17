@@ -43,10 +43,10 @@ class WEBCORE_EXPORT FidoHidMessage {
     WTF_MAKE_NONCOPYABLE(FidoHidMessage);
 public:
     // Static functions to create CTAP/U2F HID commands.
-    static std::optional<FidoHidMessage> create(uint32_t channelId, FidoHidDeviceCommand, const Vector<uint8_t>& data);
+    static std::optional<FidoHidMessage> create(uint32_t channelId, FidoHidDeviceCommand, Vector<uint8_t> data);
 
     // Reconstruct a message from serialized message data.
-    static std::optional<FidoHidMessage> createFromSerializedData(const Vector<uint8_t>&);
+    static std::optional<FidoHidMessage> createFromSerializedData(Vector<uint8_t>);
 
     FidoHidMessage(FidoHidMessage&& that) = default;
     FidoHidMessage& operator=(FidoHidMessage&& other) = default;
@@ -57,7 +57,7 @@ public:
     Vector<uint8_t> popNextPacket();
     // Adds a continuation packet to the packet list, from the serialized
     // response value.
-    bool addContinuationPacket(const Vector<uint8_t>&);
+    bool addContinuationPacket(Vector<uint8_t>);
 
     NODELETE size_t numPackets() const;
     uint32_t channelId() const { return m_channelId; }

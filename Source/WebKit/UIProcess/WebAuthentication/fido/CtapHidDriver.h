@@ -63,7 +63,7 @@ public:
 
 private:
     void write(HidConnection::DataSent);
-    void read(const Vector<uint8_t>&);
+    void read(Vector<uint8_t>);
     void returnMessage();
     void reset();
 

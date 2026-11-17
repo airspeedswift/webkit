@@ -66,7 +66,7 @@ AuthenticatorSupportedOptions& AuthenticatorSupportedOptions::setIsPlatformDevic
     return *this;
 }
 
-cbor::CBORValue convertToCBOR(const AuthenticatorSupportedOptions& options)
+cbor::CBORValue convertToCBOR(AuthenticatorSupportedOptions options)
 {
     using namespace cbor;
 

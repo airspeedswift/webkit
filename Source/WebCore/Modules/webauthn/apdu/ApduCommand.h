@@ -48,7 +48,7 @@ class ApduCommand {
     WTF_MAKE_NONCOPYABLE(ApduCommand);
 public:
     // Constructs an APDU command from the serialized message data.
-    WEBCORE_EXPORT static std::optional<ApduCommand> createFromMessage(const Vector<uint8_t>&);
+    WEBCORE_EXPORT static std::optional<ApduCommand> createFromMessage(Vector<uint8_t>);
 
     ApduCommand() = default;
     ApduCommand(

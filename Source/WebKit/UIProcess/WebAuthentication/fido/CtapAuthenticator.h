@@ -55,22 +55,22 @@ private:
     explicit CtapAuthenticator(Ref<CtapDriver>&&, fido::AuthenticatorGetInfoResponse&&);
 
     void makeCredential() final;
-    void continueMakeCredentialAfterResponseReceived(Vector<uint8_t>&&);
+    void continueMakeCredentialAfterResponseReceived(Vector<uint8_t>);
     void continueMakeCredentialAfterCheckExcludedCredentials(bool includeCurrentBatch = false);
     void getAssertion() final;
-    void continueSilentlyCheckCredentials(Vector<uint8_t>&&, Function<void(bool)>&&);
+    void continueSilentlyCheckCredentials(Vector<uint8_t>, Function<void(bool)>&&);
     void continueGetAssertionAfterCheckAllowCredentials();
-    void continueGetAssertionAfterResponseReceived(Vector<uint8_t>&&);
-    void continueGetNextAssertionAfterResponseReceived(Vector<uint8_t>&&);
+    void continueGetAssertionAfterResponseReceived(Vector<uint8_t>);
+    void continueGetNextAssertionAfterResponseReceived(Vector<uint8_t>);
 
     void getRetries();
-    void continueGetKeyAgreementAfterGetRetries(Vector<uint8_t>&&);
-    void continueRequestPinAfterGetKeyAgreement(Vector<uint8_t>&&, uint64_t retries);
-    void continueGetPinTokenAfterRequestPin(const String& pin, const WebCore::CryptoKeyEC&);
-    void continueRequestAfterGetPinToken(Vector<uint8_t>&&, const fido::pin::TokenRequest&);
-    bool tryRestartPin(const fido::CtapDeviceResponseCode&);
+    void continueGetKeyAgreementAfterGetRetries(Vector<uint8_t>);
+    void continueRequestPinAfterGetKeyAgreement(Vector<uint8_t>, uint64_t retries);
+    void continueGetPinTokenAfterRequestPin(String pin, const WebCore::CryptoKeyEC&);
+    void continueRequestAfterGetPinToken(Vector<uint8_t>, const fido::pin::TokenRequest&);
+    bool tryRestartPin(fido::CtapDeviceResponseCode);
 
-    std::optional<fido::HmacSecretParameters> prepareHmacSecretParameters(const WebCore::AuthenticationExtensionsClientInputs::PRFInputs&, const std::optional<Vector<uint8_t>>& credentialId);
+    std::optional<fido::HmacSecretParameters> prepareHmacSecretParameters(WebCore::AuthenticationExtensionsClientInputs::PRFInputs, std::optional<Vector<uint8_t>> credentialId);
 
     bool canDowngradeToU2f() const;
     bool tryDowngrade();
@@ -82,8 +82,8 @@ private:
     fido::PINUVAuthProtocol selectPinProtocol() const;
     NODELETE bool isUVSetup() const;
 
-    void continueSetupPinAfterCommand(Vector<uint8_t>&&, const String& pin, Ref<WebCore::CryptoKeyEC> peerKey);
-    void continueSetupPinAfterGetKeyAgreement(Vector<uint8_t>&&, const String& pin);
+    void continueSetupPinAfterCommand(Vector<uint8_t>, String pin, Ref<WebCore::CryptoKeyEC> peerKey);
+    void continueSetupPinAfterGetKeyAgreement(Vector<uint8_t>, String pin);
     void performAuthenticatorSelectionForSetupPin();
     void setupPin();
 

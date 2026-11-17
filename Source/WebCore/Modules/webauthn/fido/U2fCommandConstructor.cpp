@@ -81,7 +81,7 @@ static std::optional<Vector<uint8_t>> constructU2fSignCommand(const Vector<uint8
 
 } // namespace
 
-bool isConvertibleToU2fRegisterCommand(const PublicKeyCredentialCreationOptions& request)
+bool isConvertibleToU2fRegisterCommand(PublicKeyCredentialCreationOptions request)
 {
     if (request.authenticatorSelection && (request.authenticatorSelection->userVerification == UserVerificationRequirement::Required || request.authenticatorSelection->requireResidentKey))
         return false;
@@ -90,12 +90,12 @@ bool isConvertibleToU2fRegisterCommand(const PublicKeyCredentialCreationOptions&
     return true;
 }
 
-bool isConvertibleToU2fSignCommand(const PublicKeyCredentialRequestOptions& request)
+bool isConvertibleToU2fSignCommand(PublicKeyCredentialRequestOptions request)
 {
     return (request.userVerification != UserVerificationRequirement::Required) && !request.allowCredentials.isEmpty();
 }
 
-std::optional<Vector<uint8_t>> convertToU2fRegisterCommand(const Vector<uint8_t>& clientDataHash, const PublicKeyCredentialCreationOptions& request)
+std::optional<Vector<uint8_t>> convertToU2fRegisterCommand(Vector<uint8_t> clientDataHash, PublicKeyCredentialCreationOptions request)
 {
     if (!isConvertibleToU2fRegisterCommand(request))
         return std::nullopt;
@@ -104,7 +104,7 @@ std::optional<Vector<uint8_t>> convertToU2fRegisterCommand(const Vector<uint8_t>
     return constructU2fRegisterCommand(produceRpIdHash(request.rp.id), clientDataHash);
 }
 
-std::optional<Vector<uint8_t>> convertToU2fCheckOnlySignCommand(const Vector<uint8_t>& clientDataHash, const PublicKeyCredentialCreationOptions& request, const PublicKeyCredentialDescriptor& keyHandle)
+std::optional<Vector<uint8_t>> convertToU2fCheckOnlySignCommand(Vector<uint8_t> clientDataHash, PublicKeyCredentialCreationOptions request, PublicKeyCredentialDescriptor keyHandle)
 {
     if (keyHandle.type != PublicKeyCredentialType::PublicKey)
         return std::nullopt;
@@ -113,7 +113,7 @@ std::optional<Vector<uint8_t>> convertToU2fCheckOnlySignCommand(const Vector<uin
     return constructU2fSignCommand(produceRpIdHash(request.rp.id), clientDataHash, keyHandle.id, true /* checkOnly */);
 }
 
-std::optional<Vector<uint8_t>> convertToU2fSignCommand(const Vector<uint8_t>& clientDataHash, const PublicKeyCredentialRequestOptions& request, const WebCore::BufferSource& keyHandle, bool isAppId)
+std::optional<Vector<uint8_t>> convertToU2fSignCommand(Vector<uint8_t> clientDataHash, PublicKeyCredentialRequestOptions request, WebCore::BufferSource keyHandle, bool isAppId)
 {
     if (!isConvertibleToU2fSignCommand(request))
         return std::nullopt;

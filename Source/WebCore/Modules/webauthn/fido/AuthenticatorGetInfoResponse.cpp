@@ -108,7 +108,7 @@ AuthenticatorGetInfoResponse& AuthenticatorGetInfoResponse::setMaxCredentialIDLe
     return *this;
 }
 
-Vector<uint8_t> encodeAsCBOR(const AuthenticatorGetInfoResponse& response)
+Vector<uint8_t> encodeAsCBOR(AuthenticatorGetInfoResponse response)
 {
     using namespace cbor;
 
@@ -123,7 +123,7 @@ Vector<uint8_t> encodeAsCBOR(const AuthenticatorGetInfoResponse& response)
         deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoExtensionsKey), toArrayValue(*response.extensions()));
 
     deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoAAGUIDKey), CBORValue(response.aaguid()));
-    deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoOptionsKey), convertToCBOR(response.options()));
+    deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoOptionsKey), convertToCBOR(WTF::move(response.mutableOptions())));
 
     if (response.maxMsgSize())
         deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoMaxMsgSizeKey), CBORValue(static_cast<int64_t>(*response.maxMsgSize())));
