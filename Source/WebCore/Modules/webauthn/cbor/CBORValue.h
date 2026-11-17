@@ -172,17 +172,37 @@ public:
     bool isBool() const { return isSimple() && (m_simpleValue == SimpleValue::TrueValue || m_simpleValue == SimpleValue::FalseValue); }
 
     // FIXME(183535): Considering adding && getter for better performance.
-    // These will all fatally assert if the type doesn't match.
-    NODELETE SimpleValue getSimpleValue() const;
-    NODELETE bool getBool() const;
-    NODELETE const int64_t& getInteger() const;
-    NODELETE const int64_t& getUnsigned() const;
-    NODELETE const int64_t& getNegative() const;
-    NODELETE const BinaryValue& getByteString() const;
+    // These will all fatally assert if the type doesn't match, in debug builds only, so Swift must use the checked
+    // members below.
+    NODELETE SWIFT_UNSAFE SimpleValue getSimpleValue() const;
+    NODELETE SWIFT_UNSAFE bool getBool() const;
+    NODELETE SWIFT_UNSAFE const int64_t& getInteger() const;
+    NODELETE SWIFT_UNSAFE const int64_t& getUnsigned() const;
+    NODELETE SWIFT_UNSAFE const int64_t& getNegative() const;
+    NODELETE SWIFT_UNSAFE const BinaryValue& getByteString() const;
     // Returned string may contain NUL characters.
-    NODELETE const String& getString() const;
-    NODELETE const ArrayValue& getArray() const;
-    NODELETE const MapValue& getMap() const;
+    NODELETE SWIFT_UNSAFE const String& getString() const;
+    NODELETE SWIFT_UNSAFE const ArrayValue& getArray() const;
+    NODELETE SWIFT_UNSAFE const MapValue& getMap() const;
+
+    // Checked builders and readers, for Swift: each traps in every build when the type or an index does not match,
+    // and none returns a reference or pointer into the value.
+    static CBORValue makeByteString(BinaryValue bytes) { return CBORValue(WTF::move(bytes)); }
+    static CBORValue makeString(String string) { return CBORValue(WTF::move(string)); }
+    static CBORValue cloneOfMap(const MapValue& map) { return CBORValue(map); }
+    void arrayAppend(CBORValue value) { RELEASE_ASSERT(isArray()); m_arrayValue.append(WTF::move(value)); }
+    // False, leaving the map unchanged, when it already holds the key. Traps unless the key is an integer or a string.
+    bool mapInsert(CBORValue key, CBORValue value);
+    int64_t integerValue() const { RELEASE_ASSERT(isInteger()); return m_integerValue; }
+    SimpleValue simpleValue() const { RELEASE_ASSERT(isSimple()); return m_simpleValue; }
+    BinaryValue byteStringValue() const { RELEASE_ASSERT(isByteString()); return m_byteStringValue; }
+    String stringValue() const { RELEASE_ASSERT(isString()); return m_stringValue; }
+    size_t arraySize() const { RELEASE_ASSERT(isArray()); return m_arrayValue.size(); }
+    // Moves the element out (Vector::at traps on a bad index), leaving a None value in its place.
+    CBORValue takeArrayElement(size_t index) { RELEASE_ASSERT(isArray()); return std::exchange(m_arrayValue.at(index), CBORValue()); }
+    // Moves the entries out as an array (key 0, value 0, key 1, ...) in CTAPLess order, leaving the map empty.
+    CBORValue takeMapEntries();
+    MapValue takeMap() { RELEASE_ASSERT(isMap()); return std::exchange(m_mapValue, MapValue()); }
 
 private:
     Type m_type;

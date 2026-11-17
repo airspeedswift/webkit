@@ -261,6 +261,25 @@ bool CBORValue::getBool() const
     return m_simpleValue == SimpleValue::TrueValue;
 }
 
+bool CBORValue::mapInsert(CBORValue key, CBORValue value)
+{
+    RELEASE_ASSERT(isMap() && (key.isInteger() || key.isString()));
+    return m_mapValue.try_emplace(WTF::move(key), WTF::move(value)).second;
+}
+
+CBORValue CBORValue::takeMapEntries()
+{
+    RELEASE_ASSERT(isMap());
+    ArrayValue entries;
+    entries.reserveInitialCapacity(2 * m_mapValue.size());
+    while (!m_mapValue.empty()) {
+        auto node = m_mapValue.extract(m_mapValue.begin());
+        entries.append(WTF::move(node.key()));
+        entries.append(WTF::move(node.mapped()));
+    }
+    return CBORValue(WTF::move(entries));
+}
+
 void CBORValue::internalMoveConstructFrom(CBORValue&& that)
 {
     m_type = that.m_type;

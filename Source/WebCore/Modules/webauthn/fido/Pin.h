@@ -210,6 +210,8 @@ public:
     const WebCore::CryptoKeyAES& sharedKey() const { return m_sharedKey.get(); }
 
     const cbor::CBORValue::MapValue& coseKey() const LIFETIME_BOUND { return m_coseKey; }
+    // The COSE key by value, for callers that cannot hold a reference into this request.
+    cbor::CBORValue::MapValue coseKeyClone() const { return cbor::CBORValue::cloneOfMap(m_coseKey).takeMap(); }
 
     const Vector<uint8_t>& saltEnc() const LIFETIME_BOUND { return m_saltEnc; }
 
