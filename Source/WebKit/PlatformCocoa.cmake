@@ -2185,6 +2185,7 @@ endforeach ()
 webkit_target_add_swift_options(WebKit
     "-library-level api"
     "-enable-experimental-feature RequiresObjC=Foundation"
+    "-enable-experimental-feature CxxImplementation"
 )
 
 # Turn on library evolution and emit the swift interface files.

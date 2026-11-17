@@ -376,8 +376,9 @@ SWIFT_OBJC_INTEROP_MODE_SUPPORTS_SWIFT_OBJCXX_INTEROP_YES = objcxx;
 SWIFT_OBJC_INTEROP_MODE_SUPPORTS_SWIFT_OBJCXX_INTEROP_ = $(inherited);
 SWIFT_OBJC_INTERFACE_HEADER_NAME = WebKit-Swift-Generated.h;
 
+// CxxImplementation lets WebKit's Swift define members that WebKit's C++ headers declare (@cxx @implementation).
 // FIXME: (rdar://149474443) Swift/Cxx interop does not respect CLANG_CXX_LANGUAGE_STANDARD = "c++2b";
-OTHER_SWIFT_FLAGS = $(inherited) $(OTHER_SWIFT_FLAGS_SUPPORTS_SWIFT_OBJCXX_INTEROP_$(WK_SUPPORTS_SWIFT_OBJCXX_INTEROP)) -enable-experimental-feature RequiresObjC=Foundation $(WK_SWIFT_PGO_USE_FLAGS) $(WK_SWIFT_PGO_GEN_FLAGS);
+OTHER_SWIFT_FLAGS = $(inherited) $(OTHER_SWIFT_FLAGS_SUPPORTS_SWIFT_OBJCXX_INTEROP_$(WK_SUPPORTS_SWIFT_OBJCXX_INTEROP)) -enable-experimental-feature RequiresObjC=Foundation -enable-experimental-feature CxxImplementation $(WK_SWIFT_PGO_USE_FLAGS) $(WK_SWIFT_PGO_GEN_FLAGS);
 OTHER_SWIFT_FLAGS_SUPPORTS_SWIFT_OBJCXX_INTEROP_YES = -Xcc -std=c++2b -Xfrontend -emit-clang-header-min-access -Xfrontend internal -Xfrontend -clang-header-expose-decls=has-expose-attr-or-stdlib;
 OTHER_SWIFT_FLAGS_SUPPORTS_SWIFT_OBJCXX_INTEROP_NO = ;
 
