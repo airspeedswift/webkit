@@ -34,6 +34,7 @@
 #include "RemoteTextDetectorMessages.h"
 #include "StreamClientConnection.h"
 #include <WebCore/ColorSpace.h>
+#include <WebCore/DetectedTextInterface.h>
 #include "WebProcess.h"
 #include <WebCore/ImageBuffer.h>
 #include <wtf/TZoneMallocInlines.h>

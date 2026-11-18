@@ -33,6 +33,7 @@
 #include "RemoteRenderingBackendProxy.h"
 #include "StreamClientConnection.h"
 #include <WebCore/ColorSpace.h>
+#include <WebCore/DetectedBarcodeInterface.h>
 #include "WebProcess.h"
 #include <WebCore/NativeImage.h>
 #include <wtf/TZoneMallocInlines.h>

@@ -26,7 +26,7 @@
 #include "config.h"
 #include "ModelDowncastConvertToBackingContext.h"
 
-#if ENABLE(GPU_PROCESS)
+#if ENABLE(GPU_PROCESS_WEBGPU_SWIFT)
 
 #include "RemoteMeshProxy.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -42,4 +42,4 @@ WebModelIdentifier ModelDowncastConvertToBackingContext::convertToBacking(const 
 
 }
 
-#endif // HAVE(GPU_PROCESS)
+#endif // ENABLE(GPU_PROCESS_WEBGPU_SWIFT)

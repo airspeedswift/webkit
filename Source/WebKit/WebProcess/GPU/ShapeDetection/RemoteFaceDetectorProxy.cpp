@@ -35,6 +35,7 @@
 #include "RemoteRenderingBackendProxy.h"
 #include "StreamClientConnection.h"
 #include <WebCore/ColorSpace.h>
+#include <WebCore/DetectedFaceInterface.h>
 #include "WebProcess.h"
 #include <WebCore/NativeImage.h>
 #include <wtf/TZoneMallocInlines.h>
