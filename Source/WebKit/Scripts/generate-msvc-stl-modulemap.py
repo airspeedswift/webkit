@@ -62,11 +62,15 @@ PRIVATE_MODULE_RE = re.compile(
     r'^(?P<indent>[ \t]*)module _Private\b[^\n]*\{[ \t]*\n'
     r'(?:[ \t]*(?:requires[^\n]*)?\n)*', re.MULTILINE)
 
-# The opening line of the top-level `module WinSDK [system] {` in winsdk_um.modulemap.
-WINSDK_MODULE_RE = re.compile(r'^module WinSDK\b[^\n]*\{[ \t]*\n', re.MULTILINE)
+# The opening line of the top-level `module WinSDK [system] {` in winsdk_um.modulemap, or of
+# `module WinSDK.UM [system] {` in the um.modulemap of SDKs that split the WinSDK module.
+WINSDK_MODULE_RE = re.compile(r'^module WinSDK(?:\.UM)?\b[^\n]*\{[ \t]*\n', re.MULTILINE)
 
-# winsdk_um.modulemap lives in um/; windef.h is in the sibling shared/ directory.
-WINDEF_HEADER = '../shared/windef.h'
+
+def windef_header(modulemap_text):
+    # winsdk_um.modulemap lives in um/ and names headers as ../shared/...; um.modulemap lives in
+    # the include directory itself and names them as shared/....
+    return '../shared/windef.h' if '"../shared/' in modulemap_text else 'shared/windef.h'
 
 
 def declared_headers(modulemap_text):
@@ -97,16 +101,17 @@ def amend_modulemap(modulemap_text, headers):
 
 
 def amend_winsdk_um_modulemap(modulemap_text):
-    if WINDEF_HEADER in declared_headers(modulemap_text):
+    header = windef_header(modulemap_text)
+    if header in declared_headers(modulemap_text):
         return modulemap_text, []
 
     match = WINSDK_MODULE_RE.search(modulemap_text)
     if not match:
         raise ValueError("could not find the `module WinSDK` block to extend")
 
-    addition = '  module WinDef {\n    header "%s"\n    export *\n  }\n\n' % WINDEF_HEADER
+    addition = '  module WinDef {\n    header "%s"\n    export *\n  }\n\n' % header
     insertion_point = match.end()
-    return modulemap_text[:insertion_point] + addition + modulemap_text[insertion_point:], [WINDEF_HEADER]
+    return modulemap_text[:insertion_point] + addition + modulemap_text[insertion_point:], [header]
 
 
 def write_if_changed(path, contents):
@@ -142,7 +147,7 @@ def main(argv):
     parser.add_argument('--sdk-modulemap', required=True,
                         help='the Swift SDK\'s usr/share/vcruntime.modulemap')
     parser.add_argument('--winsdk-um-modulemap',
-                        help='the Swift SDK\'s usr/share/winsdk_um.modulemap')
+                        help='the Swift SDK\'s usr/share/winsdk_um.modulemap, or um.modulemap')
     parser.add_argument('--output-dir', required=True,
                         help='where to write the amended modulemaps and vfs-overlay.yaml')
     parser.add_argument('--headers', nargs='*', default=[], metavar='HEADER',

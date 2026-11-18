@@ -162,7 +162,11 @@ endif ()
 cmake_path(CONVERT "$ENV{SDKROOT}" TO_CMAKE_PATH_LIST _swift_sdkroot)
 cmake_path(CONVERT "$ENV{VCToolsInstallDir}" TO_CMAKE_PATH_LIST _vc_tools_dir)
 set(_sdk_vcruntime_mm "${_swift_sdkroot}/usr/share/vcruntime.modulemap")
+# The Windows SDK module of newer Swift SDKs is split into winsdk.modulemap and the um.modulemap it names.
 set(_sdk_winsdk_um_mm "${_swift_sdkroot}/usr/share/winsdk_um.modulemap")
+if (NOT EXISTS "${_sdk_winsdk_um_mm}")
+    set(_sdk_winsdk_um_mm "${_swift_sdkroot}/usr/share/um.modulemap")
+endif ()
 if (_swift_sdkroot AND _vc_tools_dir AND EXISTS "${_sdk_vcruntime_mm}")
     # CONFIGURE_DEPENDS ensures this is rerun if VC changes its header set
     # (subject to some known limitations of that cmake feature)

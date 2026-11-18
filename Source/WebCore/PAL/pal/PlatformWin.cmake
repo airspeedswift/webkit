@@ -22,7 +22,11 @@ file(WRITE "${PAL_HEADERS_DIR}/spi/pal_spi_stub.h" "")
 cmake_path(CONVERT "$ENV{SDKROOT}" TO_CMAKE_PATH_LIST _swift_sdkroot)
 cmake_path(CONVERT "$ENV{VCToolsInstallDir}" TO_CMAKE_PATH_LIST _vc_tools_dir)
 set(_sdk_vcruntime_mm "${_swift_sdkroot}/usr/share/vcruntime.modulemap")
+# The Windows SDK module of newer Swift SDKs is split into winsdk.modulemap and the um.modulemap it names.
 set(_sdk_winsdk_um_mm "${_swift_sdkroot}/usr/share/winsdk_um.modulemap")
+if (NOT EXISTS "${_sdk_winsdk_um_mm}")
+    set(_sdk_winsdk_um_mm "${_swift_sdkroot}/usr/share/um.modulemap")
+endif ()
 if (_swift_sdkroot AND _vc_tools_dir AND EXISTS "${_sdk_vcruntime_mm}")
     file(GLOB _msvc_internal_headers CONFIGURE_DEPENDS
         RELATIVE "${_vc_tools_dir}/include"
