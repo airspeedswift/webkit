@@ -967,6 +967,7 @@
 				WebCore/U2fCommandConstructorTest.cpp,
 				WebCore/URLParserTextEncoding.cpp,
 				WebCore/UserAgentStringParser.cpp,
+				WebCore/WebAuthnBench.cpp,
 				WebCore/WebCodecsBufferTransfer.cpp,
 				WebCore/WebGPUFramePacer.cpp,
 				WebCore/WebTransportHeaderValidation.cpp,

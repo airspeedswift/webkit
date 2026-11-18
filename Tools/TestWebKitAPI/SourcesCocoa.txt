@@ -433,6 +433,7 @@ Tests/WebKit/WKWebView/WebTransport.mm @nonARC
 Tests/WebKit/WKWebView/WebsiteDataStoreCustomPaths.mm @nonARC
 Tests/WebKit/WKWebView/WebsitePolicies.mm @nonARC
 Tests/WebKit/WKWebView/WindowBlurInputChangeEvent.mm @nonARC
+Tests/WebKit/WKWebView/WebAuthnBenchMock.mm @nonARC
 Tests/WebKit/WKWebView/WritingSuggestions.mm @nonARC
 Tests/WebKit/WKWebView/YoutubeReplacementPlugin.mm @nonARC
 Tests/WebKit/WKWebView/_WKInputDelegate.mm @nonARC
