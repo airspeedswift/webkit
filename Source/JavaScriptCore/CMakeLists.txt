@@ -1194,6 +1194,7 @@ set(JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
     runtime/Float32Array.h
     runtime/Float64Array.h
     runtime/Forward.h
+    runtime/FractionToDouble.h
     runtime/FunctionConstructor.h
     runtime/FunctionExecutable.h
     runtime/FunctionExecutableDump.h
@@ -1843,6 +1844,35 @@ if (WIN32)
     cmake_path(CONVERT "$ENV{SDKROOT}" TO_CMAKE_PATH_LIST _jsc_swift_sdk)
     list(APPEND _jsc_swift_platform_flags -sdk "${_jsc_swift_sdk}" -debug-info-format=codeview)
     set(_jsc_swift_object_suffix obj)
+    # The amended MSVC STL and WinSDK modulemaps that PAL's, WebCore's and WebKit's Swift mount (see
+    # Source/WebKit/PlatformWin.cmake): WTF's headers use HWND, which needs windef.h in the WinSDK module.
+    cmake_path(CONVERT "$ENV{VCToolsInstallDir}" TO_CMAKE_PATH_LIST _jsc_vc_tools_dir)
+    set(_jsc_sdk_vcruntime_mm "${_jsc_swift_sdk}/usr/share/vcruntime.modulemap")
+    set(_jsc_sdk_winsdk_um_mm "${_jsc_swift_sdk}/usr/share/winsdk_um.modulemap")
+    if (NOT EXISTS "${_jsc_sdk_winsdk_um_mm}")
+        set(_jsc_sdk_winsdk_um_mm "${_jsc_swift_sdk}/usr/share/um.modulemap")
+    endif ()
+    if (_jsc_vc_tools_dir AND EXISTS "${_jsc_sdk_vcruntime_mm}")
+        file(GLOB _jsc_msvc_internal_headers CONFIGURE_DEPENDS # NOLINT
+            RELATIVE "${_jsc_vc_tools_dir}/include"
+            "${_jsc_vc_tools_dir}/include/__msvc_*.hpp")
+        execute_process(
+            COMMAND ${PYTHON_EXECUTABLE} "${CMAKE_SOURCE_DIR}/Source/WebKit/Scripts/generate-msvc-stl-modulemap.py"
+                --sdk-modulemap "${_jsc_sdk_vcruntime_mm}"
+                --winsdk-um-modulemap "${_jsc_sdk_winsdk_um_mm}"
+                --output-dir "${CMAKE_BINARY_DIR}/windows-modulemaps"
+                --headers ${_jsc_msvc_internal_headers}
+            OUTPUT_VARIABLE _jsc_win_vfs_overlay
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_VARIABLE _jsc_win_mm_error
+            RESULT_VARIABLE _jsc_win_mm_result)
+        if (NOT _jsc_win_mm_result EQUAL 0)
+            message(FATAL_ERROR "Could not generate the amended MSVC STL modulemap for JSCSwift:\n${_jsc_win_mm_error}")
+        endif ()
+        if (_jsc_win_vfs_overlay)
+            list(APPEND _jsc_swift_platform_flags -vfsoverlay "${_jsc_win_vfs_overlay}")
+        endif ()
+    endif ()
 elseif (APPLE)
     list(APPEND _jsc_swift_platform_flags -sdk "${CMAKE_OSX_SYSROOT}"
         -module-cache-path "${CMAKE_BINARY_DIR}/SwiftModuleCache"
@@ -1931,8 +1961,10 @@ add_custom_command(
     COMMENT "Copying JSCSwiftBoundary.modulemap and its headers"
     VERBATIM)
 set(_jsc_swift_importer_resp "${_jsc_swift_dir}/JSCSwift.importer.resp")
+# Each path is quoted: on Windows an include directory can hold a space (the Swift toolchain under Program Files),
+# and swiftc splits an unquoted response file line there.
 file(GENERATE OUTPUT "${_jsc_swift_importer_resp}"
-    CONTENT "-Xcc\n-I${JavaScriptCore_PRIVATE_HEADERS_DIR}\n-Xcc\n-I$<JOIN:$<FILTER:$<FILTER:$<TARGET_PROPERTY:JavaScriptCore,INCLUDE_DIRECTORIES>,EXCLUDE,\\.hmap$>,EXCLUDE,^${JAVASCRIPTCORE_DIR}>,\n-Xcc\n-I>\n")
+    CONTENT "-Xcc\n\"-I${JavaScriptCore_PRIVATE_HEADERS_DIR}\"\n-Xcc\n\"-I$<JOIN:$<FILTER:$<FILTER:$<TARGET_PROPERTY:JavaScriptCore,INCLUDE_DIRECTORIES>,EXCLUDE,\\.hmap$>,EXCLUDE,^${JAVASCRIPTCORE_DIR}>,\"\n-Xcc\n\"-I>\"\n")
 set(_jsc_swift_platform_resp "${_jsc_swift_dir}/JSCSwift.platform-swift-args.resp")
 _webkit_generate_platform_swift_args(JSCSwift "${_jsc_swift_platform_resp}")
 _WEBKIT_COMPUTE_SWIFT_SHARED_CLANG_FLAGS(_jsc_swift_importer_defines)
@@ -1954,6 +1986,13 @@ if (APPLE)
         list(APPEND _jsc_swift_flags -F "${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks"
             -Xcc "-iframework${CMAKE_OSX_SYSROOT}/System/Library/PrivateFrameworks")
     endif ()
+endif ()
+if (NOT APPLE)
+    # JavaScriptCore_Private is a framework module, which only the Apple ports have. Elsewhere the boundary's headers
+    # include JavaScriptCore's private headers by path, so the declarations the Swift uses belong to JSCSwiftBoundary,
+    # and JavaScriptCore_Private.Cxx, which the Swift imports for them on the Apple ports, is declared empty, in the
+    # module map LiteralParserSwift's JavaScriptCore_Private comes from (below): a module is defined once.
+    list(APPEND _jsc_swift_flags -Xcc "-I${JavaScriptCore_DERIVED_SOURCES_DIR}/LiteralParserSwift")
 endif ()
 if (WIN32 AND WTF_CPU_X86_64)
     # swiftc targets x86_64 with cmpxchg16b, which clang-cl does not. The Swift functions need the same target
@@ -1993,6 +2032,11 @@ set(_jsc_json_swift_obj "${_jsc_json_swift_dir}/LiteralParserSwift.${_jsc_swift_
 set(_jsc_json_swift_hdr "${JavaScriptCore_DERIVED_SOURCES_DIR}/JavaScriptCore-Swift.h")
 file(MAKE_DIRECTORY "${_jsc_json_swift_dir}")
 # JavaScriptCore_Private.modulemap's LiteralParserSwiftTypes, the one submodule the Swift imports.
+# Off the Apple ports, also JSCSwift's empty JavaScriptCore_Private.Cxx (above).
+set(_jsc_json_swift_private_cxx "")
+if (NOT APPLE)
+    set(_jsc_json_swift_private_cxx "    explicit module Cxx {\n    }\n")
+endif ()
 file(WRITE "${_jsc_json_swift_dir}/module.modulemap"
     "module JavaScriptCore_Private {\n"
     "    explicit module LiteralParserSwiftTypes {\n"
@@ -2000,6 +2044,7 @@ file(WRITE "${_jsc_json_swift_dir}/module.modulemap"
     "        requires cplusplus\n"
     "        export *\n"
     "    }\n"
+    ${_jsc_json_swift_private_cxx}
     "}\n")
 set(_jsc_json_swift_flags
     -module-name JavaScriptCore -parse-as-library ${_jsc_swift_shared_flags} ${_jsc_swift_platform_flags}

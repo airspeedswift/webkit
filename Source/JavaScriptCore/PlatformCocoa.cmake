@@ -40,8 +40,6 @@ list(APPEND JavaScriptCore_PRIVATE_FRAMEWORK_HEADERS
 
     bytecode/DirectEvalCodeCacheInlines.h
 
-    runtime/FractionToDouble.h
-
     wasm/WasmTypeSectionState.h
 
     wasm/js/JSWebAssemblyStreamingContextInlines.h
