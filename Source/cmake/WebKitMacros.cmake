@@ -1593,6 +1593,13 @@ macro(WEBKIT_SETUP_SWIFT_AND_GENERATE_SWIFT_CPP_INTEROP_HEADER _target _module_n
     # linked by clang++ need this search path to satisfy those directives.
     string(JSON _swift_runtime_library_path GET ${_swift_target_paths} "runtimeLibraryPaths" 0)
     target_link_directories(${_target} INTERFACE "${_swift_runtime_library_path}")
+    if (WIN32 AND DEFINED ENV{SDKROOT})
+        # On Windows the runtime library paths hold the DLLs; the import libraries those directives name are in the
+        # platform SDK, where swiftc's own links find them.
+        cmake_path(CONVERT "$ENV{SDKROOT}" TO_CMAKE_PATH_LIST _swift_sdkroot_for_link)
+        string(JSON _swift_target_arch GET "${WEBKIT_SWIFT_TARGET_INFO}" "target" "arch")
+        target_link_directories(${_target} INTERFACE "${_swift_sdkroot_for_link}/usr/lib/swift/windows/${_swift_target_arch}")
+    endif ()
     # Expose the path as a compile definition so the bubblewrap sandbox
     # (BubblewrapLauncher.cpp) can bind-mount it into the child process filesystem.
     webkit_target_compile_definitions(${_target} PRIVATE

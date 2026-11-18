@@ -4595,14 +4595,14 @@ else ()
     endif ()
     # No -Xcc -I for WebCore's include directories: swiftc gives its -I paths, which CMake sets from
     # them, to the clang importer too, and repeating them overflows Windows' 32K command line.
-    if (LTO_MODE AND WEBKIT_SWIFT_WHOLE_MODULE)
+    if (LTO_MODE AND WEBKIT_SWIFT_WHOLE_MODULE AND WEBKIT_SWIFT_LTO)
         # Bitcode with the ThinLTO summary, so the LTO link optimizes the Swift with its C++ callers.
         # Not the driver's -lto=llvm-thin, which writes <name>.bc to the working directory because
         # CMake's output file map has only an "object" entry.
         webkit_target_add_swift_options(WebCore
             "$<$<AND:$<COMPILE_LANGUAGE:Swift>,$<NOT:$<CONFIG:Debug>>>:SHELL:-Xfrontend -lto=llvm-${LTO_MODE}>"
             "$<$<AND:$<COMPILE_LANGUAGE:Swift>,$<NOT:$<CONFIG:Debug>>>:SHELL:-Xfrontend -emit-bc>")
-    elseif (LTO_MODE)
+    elseif (LTO_MODE AND WEBKIT_SWIFT_LTO)
         message(WARNING "LTO_MODE is set but Swift is not whole-module (DEVELOPER_MODE), so WebCore's Swift is not LTO'd")
     endif ()
 
@@ -4722,8 +4722,13 @@ if (DEFINED WebCore_SWIFT_INTEROP_SOURCES)
     set(_interop_objs "$<FILTER:$<TARGET_OBJECTS:WebCore_SwiftInterop>,EXCLUDE,\\.(g|p)ch$>")
     set(_interop_rsp "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/WebCore_SwiftInterop.dir/$<CONFIG>/objects.rsp")
     file(GENERATE OUTPUT "${_interop_rsp}" CONTENT "$<JOIN:${_interop_objs},\n>")
-    target_link_options(WebCore PRIVATE "@${_interop_rsp}")
-    set_property(TARGET WebCore APPEND PROPERTY LINK_DEPENDS "${_interop_objs};${_interop_rsp}")
+    if (WebCore_LIBRARY_TYPE STREQUAL "OBJECT")
+        # An object library links nothing itself: the targets that link WebCore's objects link these too.
+        target_sources(WebCore INTERFACE ${_interop_objs})
+    else ()
+        target_link_options(WebCore PRIVATE "@${_interop_rsp}")
+        set_property(TARGET WebCore APPEND PROPERTY LINK_DEPENDS "${_interop_objs};${_interop_rsp}")
+    endif ()
 endif ()
 
 if (USE_APPLE_INTERNAL_SDK)

@@ -152,7 +152,7 @@ if (PAL_SWIFT_SOURCES)
         # backend cannot select it. nehalem is x86-64-v2 (SSSE3, SSE4.2).
         webkit_target_add_swift_options(PAL "-target-cpu nehalem")
     endif ()
-    if (LTO_MODE AND NOT APPLE)
+    if (LTO_MODE AND NOT APPLE AND WEBKIT_SWIFT_LTO)
         # Otherwise an LTO build is C++-only: the Swift decoder would be machine code that the LTO
         # link cannot inline into or optimize with its C++ caller. Xcode's counterpart is SWIFT_LTO.
         # Not the driver's -lto=llvm-thin: that writes <name>.bc to the working directory, because

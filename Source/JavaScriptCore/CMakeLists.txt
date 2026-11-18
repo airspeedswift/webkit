@@ -1884,7 +1884,7 @@ endif ()
 if (CMAKE_Swift_COMPILER_TARGET)
     list(APPEND _jsc_swift_platform_flags -target "${CMAKE_Swift_COMPILER_TARGET}")
 endif ()
-if (LTO_MODE)
+if (LTO_MODE AND WEBKIT_SWIFT_LTO)
     list(APPEND _jsc_swift_platform_flags -Xfrontend -lto=llvm-${LTO_MODE} -Xfrontend -emit-bc)
 endif ()
 set(_jsc_swift_shared_flags

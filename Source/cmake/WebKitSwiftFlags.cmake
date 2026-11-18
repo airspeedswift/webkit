@@ -149,6 +149,12 @@ set(WEBKIT_SWIFT_CXX_INTEROP_FLAGS
     -cxx-interoperability-mode=default
 )
 
+# In an LTO build, Swift is compiled to bitcode with the ThinLTO summary, so the LTO link optimizes it with its C++
+# (Xcode's SWIFT_LTO). That needs the linker's LLVM to read the Swift compiler's bitcode: turn it off where the C++
+# toolchain's LLVM is not the Swift toolchain's and rejects what Swift's emits (a development Swift toolchain beside a
+# release clang-cl and lld-link: its llvm.coro.id.retcon.once is variadic, theirs is not).
+option(WEBKIT_SWIFT_LTO "Compile Swift to LTO bitcode when LTO_MODE is set" ON)
+
 # Whole-module Swift for every build that is neither Debug nor DEVELOPER_MODE, as Xcode builds
 # WebCore. CMake's default is incremental, which never specializes a call to a generic function in
 # another file. DEVELOPER_MODE keeps incremental rebuilds, as it keeps clang-cl builds from LTO (see

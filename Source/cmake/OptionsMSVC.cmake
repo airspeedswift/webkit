@@ -82,6 +82,10 @@ MSVC_ADD_COMPILE_OPTIONS(/Zi /GS)
 # as it makes it unsafe to pointer-compare functions with identical definitions.
 add_link_options(/DEBUG /OPT:NOICF /OPT:REF)
 
+# A target with Swift sources links through swiftc, whose default linker here is link.exe. Link it with lld, as the C++
+# targets are: link.exe takes no ThinLTO bitcode and no response file line over 128K characters.
+add_link_options($<$<LINK_LANGUAGE:Swift>:-use-ld=lld>)
+
 # We do not use exceptions
 add_definitions(-D_HAS_EXCEPTIONS=0)
 string(REGEX REPLACE "/EH[-a-z]+" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
