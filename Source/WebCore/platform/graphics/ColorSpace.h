@@ -32,10 +32,13 @@
 #include <wtf/Forward.h>
 #include <wtf/Platform.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/SwiftBridging.h>
 
 namespace WebCore {
 
-class ColorSpace {
+// ColorSpace owns its platform color space (RetainPtr, sk_sp, or an enum): copying retains, destroying releases,
+// and the raw pointer is reachable only through members whose signatures Swift already treats as unsafe.
+class SWIFT_SAFE ColorSpace {
 public:
     WEBCORE_EXPORT static const ColorSpace& SRGB();
     WEBCORE_EXPORT static const ColorSpace& LinearSRGB();
