@@ -445,7 +445,8 @@ private func appendAVCCParameterSet(
 // common_video/h264/h264_bitstream_parser.cc, sps_parser.cc and pps_parser.cc.
 @_expose(Cxx)
 final class H264BitstreamParserState {
-    private struct SequenceParameterSet {
+    // FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+    struct SequenceParameterSet {
         var deltaPicOrderAlwaysZeroFlag = false
         var chromaFormatIDC: UInt32 = 1
         var separateColourPlaneFlag = false
@@ -455,7 +456,8 @@ final class H264BitstreamParserState {
         var picOrderCntType: UInt32 = 0
     }
 
-    private struct PictureParameterSet {
+    // FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+    struct PictureParameterSet {
         var bottomFieldPicOrderInFramePresentFlag = false
         var weightedPredFlag = false
         var entropyCodingModeFlag = false

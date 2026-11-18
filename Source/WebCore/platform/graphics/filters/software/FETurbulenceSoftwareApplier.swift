@@ -30,6 +30,8 @@ private import Cxx
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
+#elseif os(Windows)
+import ucrt
 #endif
 #if arch(arm64)
 import _Builtin_intrinsics.arm.neon

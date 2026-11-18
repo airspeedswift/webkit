@@ -32,6 +32,10 @@
 #include <wtf/Platform.h>
 #include <wtf/WindowsExtras.h>
 
+#if PLATFORM(WIN)
+#include <windef.h>
+#endif
+
 namespace WTF {
 class TextStream;
 }

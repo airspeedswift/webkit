@@ -3424,6 +3424,56 @@ set(_webcore_swift_interop_excludes ${_webcore_swift_interop_sources_all_ports})
 if (APPLE)
     list(APPEND _webcore_swift_interop_excludes ${_webcore_swift_interop_sources_apple})
 endif ()
+# The C++ of WebCore's Swift that every port builds and that, until the Win port built it, only the Apple ports listed:
+# the HTML microsyntaxes, the HTTP header parsers, Content Security Policy, the graphics filters, pixel conversion,
+# shadow blur and the media parsers. On the other ports they build in WebCore_SwiftInterop (below).
+set(_webcore_swift_interop_sources_not_apple
+    html/parser/HTMLMetaCharsetParser.cpp
+    html/parser/HTMLParserIdioms.cpp
+    html/parser/HTMLSrcsetParser.cpp
+    loader/HTTPHeaderField.cpp
+    loader/LinkHeader.cpp
+    loader/ServerTimingParser.cpp
+    page/csp/ContentSecurityPolicy.cpp
+    platform/DateComponents.cpp
+    platform/graphics/AnnexBUtilities.cpp
+    platform/graphics/AV1Utilities.cpp
+    platform/graphics/filters/FEColorMatrix.cpp
+    platform/graphics/filters/FEConvolveMatrix.cpp
+    platform/graphics/filters/FEDisplacementMap.cpp
+    platform/graphics/filters/FEDropShadow.cpp
+    platform/graphics/filters/FEGaussianBlur.cpp
+    platform/graphics/filters/FEOffset.cpp
+    platform/graphics/filters/Filter.cpp
+    platform/graphics/filters/FilterEffect.cpp
+    platform/graphics/filters/FilterResults.cpp
+    platform/graphics/H264Utilities.cpp
+    platform/graphics/HEVCBitstreamParser.cpp
+    platform/graphics/HEVCUtilities.cpp
+    platform/graphics/ImageBufferBackend.cpp
+    platform/graphics/iso/ISOBox.cpp
+    platform/graphics/iso/ISOOriginalFormatBox.cpp
+    platform/graphics/iso/ISOProtectionSchemeInfoBox.cpp
+    platform/graphics/iso/ISOProtectionSystemSpecificHeaderBox.cpp
+    platform/graphics/iso/ISOSchemeInformationBox.cpp
+    platform/graphics/iso/ISOSchemeTypeBox.cpp
+    platform/graphics/iso/ISOTrackEncryptionBox.cpp
+    platform/graphics/iso/ISOVTTCue.cpp
+    platform/graphics/PixelBufferConversion.cpp
+    platform/graphics/ShadowBlur.cpp
+    platform/graphics/ShareableBitmap.cpp
+    platform/graphics/VP9Utilities.cpp
+    platform/network/CacheValidation.cpp
+    platform/network/HTTPParsers.cpp
+    platform/network/ParsedContentRange.cpp
+    platform/network/ParsedContentType.cpp
+    platform/network/RFC8941.cpp
+    platform/ReferrerPolicy.cpp
+    rendering/CSSFilterRenderer.cpp
+    svg/graphics/filters/SVGFilterRenderer.cpp)
+if (NOT APPLE)
+    list(APPEND _webcore_swift_interop_excludes ${_webcore_swift_interop_sources_not_apple})
+endif ()
 foreach (_source IN LISTS _webcore_swift_interop_excludes)
     string(REGEX REPLACE "^.*/" "" _name "${_source}")
     string(REPLACE "+" "\\+" _name "${_name}")
@@ -4108,8 +4158,6 @@ else ()
         ${WEBCORE_DIR}/platform/graphics/transforms/TransformationMatrix.swift
         ${WEBCORE_DIR}/style/values/transforms/StyleTransformFunctionSwift.swift
         ${WEBCORE_DIR}/style/values/transforms/StyleTransformListSwift.swift
-        ${WEBCORE_DIR}/page/scrolling/ScrollingTree.swift
-        ${WEBCORE_DIR}/page/scrolling/ScrollingTreeLatchingController.swift
         ${WEBCORE_DIR}/platform/KeyboardScrollingAnimator.swift
         ${WEBCORE_DIR}/platform/ScrollAnimator.swift
         ${WEBCORE_DIR}/platform/ScrollAnimatorScrollPhysicsClient.swift
@@ -4122,6 +4170,13 @@ else ()
         ${WEBCORE_DIR}/platform/ScrollableArea.swift
         ${WebCore_DERIVED_SOURCES_DIR}/CSSPropertyParsingSwift.swift
     )
+    if (ENABLE_ASYNC_SCROLLING)
+        # The scrolling tree, which only its C++ (ENABLE(ASYNC_SCROLLING)) calls.
+        target_sources(WebCore PRIVATE
+            ${WEBCORE_DIR}/page/scrolling/ScrollingTree.swift
+            ${WEBCORE_DIR}/page/scrolling/ScrollingTreeLatchingController.swift
+        )
+    endif ()
 
     # C++ sources that include WebCoreSwift-Generated.h.
     set(WebCore_SWIFT_INTEROP_SOURCES SwiftStubInterop.cpp)
@@ -4146,6 +4201,8 @@ else ()
         # its destructor, which needs Locale's definition, so the Document submodule has PlatformLocale.h too.
         set(_webcore_swift_core_submodule_headers_Document platform/text/PlatformLocale.h)
     endif ()
+    # The importer emits a call of Node's virtual serializeNode(), which returns a SerializedNode by value.
+    set(_webcore_swift_core_submodule_headers_Node dom/SerializedNode.h)
 
     list(APPEND WebCore_SWIFT_INTEROP_SOURCES
         html/parser/HTMLTokenizer.cpp
@@ -4176,7 +4233,8 @@ else ()
         css/CSSKeywordValueInlines.h)
     # The transform sources call style/values/transforms/*Swift.swift's entry points through WebCore-Swift.h.
     list(APPEND _webcore_swift_core_submodules style/values/transforms/StyleTransformFunction.h
-        style/values/transforms/StyleTransformList.h style/values/transforms/StyleTransformSwiftTypes.h)
+        style/values/transforms/StyleTransformList.h style/values/transforms/StyleTransformSwiftTypes.h
+        style/values/primitives/StylePrimitiveNumericTypes+Blending.h)
     # The HTML tree builder's and TransformationMatrix's Swift.
     list(APPEND _webcore_swift_core_submodules
         dom/Comment.h
@@ -4250,6 +4308,205 @@ else ()
         "        requires cplusplus\n"
         "        export *\n"
         "    }\n")
+    # WebCore's Swift that every port's C++ calls, with ENABLE_WEBCORE_SWIFT as on the Apple ports (the C++ that calls it
+    # has no other implementation): the sources, the headers they import one by one, and their C++.
+    webkit_target_compile_definitions(WebCore PRIVATE ENABLE_WEBCORE_SWIFT=1)
+    if (WIN32)
+        # WebCore's Swift module compiles in one command with hundreds of sources and -I flags, longer than a Windows
+        # command line can be (32767 characters): put its flags in a response file, which swiftc-wrapper.py reads.
+        set(CMAKE_NINJA_FORCE_RESPONSE_FILE ON)
+    endif ()
+    target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/html/parser/HTMLMetaCharsetParser.swift
+        ${WEBCORE_DIR}/html/parser/HTMLMicrosyntaxCodeUnit.swift
+        ${WEBCORE_DIR}/html/parser/HTMLParserIdioms.swift
+        ${WEBCORE_DIR}/html/parser/HTMLSrcsetParser.swift
+        ${WEBCORE_DIR}/loader/HTTPHeaderField.swift
+        ${WEBCORE_DIR}/loader/LinkHeader.swift
+        ${WEBCORE_DIR}/loader/ServerTimingParser.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicyDirective.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicyDirectiveList.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicyDirectiveListVector.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicyDirectiveNames.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicyMediaListDirective.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicySource.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicySourceList.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicySourceStore.swift
+        ${WEBCORE_DIR}/page/csp/ContentSecurityPolicyTrustedTypesDirective.swift
+        ${WEBCORE_DIR}/platform/DateComponents.swift
+        ${WEBCORE_DIR}/platform/graphics/Arm64Truncating.swift
+        ${WEBCORE_DIR}/platform/graphics/AV1Utilities.swift
+        ${WEBCORE_DIR}/platform/graphics/CheckedMath.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/FilterApply.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/FilterDescriptions.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/FilterEngine.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/FilterGeometryMath.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/FilterImageImpl.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/FilterMath.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/LightingModel.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/ParallelRows.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEBlendSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEColorMatrixSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEComponentTransferSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FECompositeSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FECompositeSoftwareArithmeticApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEConvolveMatrixSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEDisplacementMapSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEDropShadowSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEFloodSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEGaussianBlurSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEImageSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FELightingSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FELightingSoftwareParallelApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEMergeSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEMorphologySoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FEOffsetSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FETileSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/FETurbulenceSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/SourceAlphaSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/filters/software/SourceGraphicSoftwareApplier.swift
+        ${WEBCORE_DIR}/platform/graphics/H264Utilities.swift
+        ${WEBCORE_DIR}/platform/graphics/HEVCBitstreamParser.swift
+        ${WEBCORE_DIR}/platform/graphics/HEVCCodecStrings.swift
+        ${WEBCORE_DIR}/platform/graphics/iso/ISOBoxes.swift
+        ${WEBCORE_DIR}/platform/graphics/iso/ISOVTTCue.swift
+        ${WEBCORE_DIR}/platform/graphics/PixelBufferConversion.swift
+        ${WEBCORE_DIR}/platform/graphics/PixelConversion.swift
+        ${WEBCORE_DIR}/platform/graphics/PixelConversionScalar.swift
+        ${WEBCORE_DIR}/platform/graphics/PixelConversionSIMD.swift
+        ${WEBCORE_DIR}/platform/graphics/PixelTransfer.swift
+        ${WEBCORE_DIR}/platform/graphics/ShadowBlurDrawing.swift
+        ${WEBCORE_DIR}/platform/graphics/ShadowBlurGeometry.swift
+        ${WEBCORE_DIR}/platform/graphics/ShadowBlurKernel.swift
+        ${WEBCORE_DIR}/platform/graphics/ShareableBitmapLayout.swift
+        ${WEBCORE_DIR}/platform/graphics/VP9Utilities.swift
+        ${WEBCORE_DIR}/platform/media-parsers/AnnexB.swift
+        ${WEBCORE_DIR}/platform/media-parsers/BitReader.swift
+        ${WEBCORE_DIR}/platform/media-parsers/ByteCursor.swift
+        ${WEBCORE_DIR}/platform/media-parsers/MutableSpanCopy.swift
+        ${WEBCORE_DIR}/platform/media-parsers/WTFCompatParsing.swift
+        ${WEBCORE_DIR}/platform/network/CacheValidation.swift
+        ${WEBCORE_DIR}/platform/network/HTTPParsers.swift
+        ${WEBCORE_DIR}/platform/network/ParsedContentRange.swift
+        ${WEBCORE_DIR}/platform/network/ParsedContentType.swift
+        ${WEBCORE_DIR}/platform/network/RFC8941.swift
+        ${WEBCORE_DIR}/platform/ReferrerPolicy.swift
+        ${WEBCORE_DIR}/rendering/CSSFilterRenderer.swift
+        ${WEBCORE_DIR}/svg/graphics/filters/SVGFilterRenderer.swift
+    )
+    list(APPEND _webcore_swift_core_submodules
+        ${WebCore_DERIVED_SOURCES_DIR}/HTTPHeaderNames.h
+        animation/CompositeOperation.h
+        html/parser/HTMLMicrosyntaxesSwiftTypes.h
+        html/parser/HTMLParserIdioms.h
+        html/parser/HTMLSrcsetParser.h
+        loader/ServerTiming.h
+        platform/DateComponents.h
+        platform/MediaParsersCxxBridging.h
+        platform/ReferrerPolicy.h
+        platform/graphics/AV1CodecConfigurationRecord.h
+        platform/graphics/AlphaPremultiplication.h
+        platform/graphics/AnnexBUtilities.h
+        platform/graphics/Color.h
+        platform/graphics/ColorSpace.h
+        platform/graphics/FloatPoint3D.h
+        platform/graphics/FloatQuad.h
+        platform/graphics/FloatRoundedRect.h
+        platform/graphics/GraphicsContextSwiftBridge.h
+        platform/graphics/GraphicsTypes.h
+        platform/graphics/ImageBuffer.h
+        platform/graphics/ImageBufferAllocator.h
+        platform/graphics/NativeImage.h
+        platform/graphics/Path.h
+        platform/graphics/PathSegmentData.h
+        platform/graphics/PixelBuffer.h
+        platform/graphics/PixelBufferConversion.h
+        platform/graphics/PixelBufferFormat.h
+        platform/graphics/PixelBufferSwiftBridge.h
+        platform/graphics/PixelFormat.h
+        platform/graphics/PlatformVideoColorPrimaries.h
+        platform/graphics/PlatformVideoMatrixCoefficients.h
+        platform/graphics/PlatformVideoTransferCharacteristics.h
+        platform/graphics/RenderingMode.h
+        platform/graphics/ShadowBlurSwiftBridge.h
+        platform/graphics/ShareableBitmapSwiftBridge.h
+        platform/graphics/VPCodecConfigurationRecord.h
+        platform/graphics/VideoCodecParameterTypes.h
+        platform/graphics/WindRule.h
+        platform/graphics/filters/FilterEffectView.h
+        platform/graphics/filters/FilterGraphicsBridge.h
+        platform/graphics/filters/FilterRenderingMode.h
+        platform/graphics/filters/FilterSwiftBridge.h
+        platform/graphics/filters/ParallelRowsDispatch.h
+        platform/graphics/filters/parameters/FEBlendParameters.h
+        platform/graphics/filters/parameters/FEColorMatrixParameters.h
+        platform/graphics/filters/parameters/FEComponentTransferParameters.h
+        platform/graphics/filters/parameters/FECompositeParameters.h
+        platform/graphics/filters/parameters/FEConvolveMatrixParameters.h
+        platform/graphics/filters/parameters/FEDisplacementMapParameters.h
+        platform/graphics/filters/parameters/FEDropShadowParameters.h
+        platform/graphics/filters/parameters/FEFloodParameters.h
+        platform/graphics/filters/parameters/FEGaussianBlurParameters.h
+        platform/graphics/filters/parameters/FEImageParameters.h
+        platform/graphics/filters/parameters/FELightingParameters.h
+        platform/graphics/filters/parameters/FEMorphologyParameters.h
+        platform/graphics/filters/parameters/FEOffsetParameters.h
+        platform/graphics/filters/parameters/FETurbulenceParameters.h
+        platform/graphics/filters/parameters/LightSourceParameters.h
+        platform/graphics/filters/skia/FilterSkiaBridge.h
+        platform/graphics/iso/ISOParseResults.h
+        platform/graphics/transforms/AffineTransform.h
+        platform/network/CacheValidation.h
+        platform/network/HTTPParsers.h
+        platform/network/ParsedContentRange.h
+        rendering/CSSFilterRendererView.h
+        svg/graphics/filters/SVGFilterRendererView.h)
+    # The security policy checks, which the C++ that includes WebCore-Swift.h calls on every port; the headers they import
+    # one by one; and the security policy types the CSP and HTTP header Swift reads, and the response CacheValidation.swift
+    # reads, whose header is the network backend's.
+    target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/Modules/fetch/FetchHeaders.swift
+        ${WEBCORE_DIR}/dom/SecurityContext.swift
+        ${WEBCORE_DIR}/html/PermissionsPolicy.swift
+        ${WEBCORE_DIR}/loader/CrossOriginAccessControl.swift
+        ${WEBCORE_DIR}/loader/CrossOriginEmbedderPolicy.swift
+        ${WEBCORE_DIR}/loader/CrossOriginOpenerPolicy.swift
+        ${WEBCORE_DIR}/loader/CrossOriginPreflightResultCache.swift
+        ${WEBCORE_DIR}/loader/DocumentIsolationPolicy.swift
+        ${WEBCORE_DIR}/loader/IntegrityPolicy.swift
+        ${WEBCORE_DIR}/loader/OriginAgentClusterPolicy.swift
+        ${WEBCORE_DIR}/loader/ResourceCryptographicDigest.swift
+        ${WEBCORE_DIR}/loader/SubresourceIntegrity.swift
+        ${WEBCORE_DIR}/page/SecurityPolicy.swift
+        ${WEBCORE_DIR}/platform/network/ResourceResponseBase.swift
+        ${WEBCORE_DIR}/platform/network/TimingAllowOrigin.swift
+    )
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${WebCore_SECURITY_POLICIES_SWIFT_INTEROP_SOURCES})
+    list(APPEND _webcore_swift_core_submodules loader/SecurityPoliciesSwiftTypes.h platform/network/ResourceResponseBase.h
+        dom/Exception.h dom/ExceptionCode.h dom/OriginKeyed.h dom/SandboxFlags.h Modules/fetch/FetchHeadersGuard.h
+        loader/CrossOriginAccessControl.h loader/CrossOriginEmbedderPolicy.h loader/CrossOriginEmbedderPolicyValue.h
+        loader/CrossOriginOpenerPolicy.h loader/DocumentIsolationPolicy.h loader/FrameLoaderTypes.h loader/IntegrityPolicy.h
+        loader/ResourceCryptographicDigest.h page/SecurityOrigin.h platform/network/HTTPHeaderMap.h
+        platform/network/StoredCredentialsPolicy.h)
+    if (USE_CURL)
+        list(APPEND _webcore_swift_core_submodules platform/network/curl/ResourceResponse.h)
+    elseif (USE_SOUP)
+        list(APPEND _webcore_swift_core_submodules platform/network/soup/ResourceResponse.h)
+    endif ()
+    string(APPEND _webcore_swift_modules
+        "    explicit module ContentSecurityPolicySwift {\n"
+        "        header \"${WEBCORE_DIR}/page/csp/ContentSecurityPolicySwift.h\"\n"
+        "        requires cplusplus\n"
+        "        export *\n"
+        "    }\n"
+        "    explicit module HTTPHeaderParsersTypes {\n"
+        "        header \"${WEBCORE_DIR}/platform/network/HTTPHeaderParsersTypes.h\"\n"
+        # LinkHeader.swift's return type, which the Apple ports' Swift sees through the framework's umbrella.
+        "        header \"${WEBCORE_DIR}/loader/LinkHeader.h\"\n"
+        "        requires cplusplus\n"
+        "        export *\n"
+        "    }\n")
+    list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_swift_interop_sources_not_apple})
     list(APPEND WebCore_SWIFT_INTEROP_SOURCES ${_webcore_swift_interop_sources_all_ports})
     list(REMOVE_DUPLICATES WebCore_SWIFT_INTEROP_SOURCES)
     list(REMOVE_DUPLICATES _webcore_swift_core_submodules)
@@ -4283,6 +4540,10 @@ else ()
         "-library-level spi"
         # For the vendored SIMD operations in SIMD*.swift, until the standard library has them.
         "-enable-experimental-feature BuiltinModule"
+        # As WebCore.xcconfig: the scroll physics' Swift takes C++ values as @_addressable parameters.
+        "-enable-experimental-feature AddressableParameters"
+        # As WebCore.xcconfig: Swift that implements C++ members with @cxx @implementation.
+        "-enable-experimental-feature CxxImplementation"
         # Apple applies these to every Swift target; WebCore's Swift is written against them.
         ${WEBKIT_SWIFT_EXPERIMENTAL_FEATURE_FLAGS}
         ${WEBKIT_SWIFT_MEMORY_SAFETY_FLAGS}
@@ -4342,6 +4603,8 @@ else ()
                 set(_h "${WEBCORE_DIR}/${_h}")
             endif ()
             get_filename_component(_name "${_h}" NAME_WE)
+            # A header named Type+Category.h is the submodule Type_Category, as in the framework's umbrella map.
+            string(REPLACE "+" "_" _name "${_name}")
             string(APPEND _webcore_swift_modules
                 "        explicit module ${_name} {\n"
                 "            header \"${_h}\"\n")

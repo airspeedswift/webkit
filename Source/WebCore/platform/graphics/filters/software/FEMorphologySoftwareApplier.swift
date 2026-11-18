@@ -138,13 +138,15 @@ private func morphologyJobCount(width: Int32, height: Int32, radiusX: Int32, rad
 
 // The two operators, as the extremum of two vectors and the value that leaves the other unchanged. (NEON because the
 // generic pointwiseMin and pointwiseMax are lane-by-lane calls in unoptimized builds, 35 times slower here.)
-private protocol MorphologyExtremum {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+protocol MorphologyExtremum {
     static var identity: UInt8 { get }
     static func extremum(_ a: SIMD16<UInt8>, _ b: SIMD16<UInt8>) -> SIMD16<UInt8>
     static func extremum(_ a: SIMD4<UInt8>, _ b: SIMD4<UInt8>) -> SIMD4<UInt8>
 }
 
-private enum MorphologyMinimum: MorphologyExtremum {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+enum MorphologyMinimum: MorphologyExtremum {
     static var identity: UInt8 { .max }
 
     @inline(__always)
@@ -162,7 +164,8 @@ private enum MorphologyMinimum: MorphologyExtremum {
     }
 }
 
-private enum MorphologyMaximum: MorphologyExtremum {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+enum MorphologyMaximum: MorphologyExtremum {
     static var identity: UInt8 { .min }
 
     @inline(__always)

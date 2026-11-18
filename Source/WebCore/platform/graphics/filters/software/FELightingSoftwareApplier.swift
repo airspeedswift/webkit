@@ -28,7 +28,13 @@
 // The safe Span overload Swift synthesizes for PixelBufferAccess.mutableSpan() calls Cxx's MutableSpan(_unsafeCxxSpan:).
 // Xcode builds don't find it unless this file imports Cxx.
 private import Cxx
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif os(Windows)
+import ucrt
+#endif
 import WebCore_Private.Core.AlphaPremultiplication
 import WebCore_Private.Core.FELightingParameters
 import WebCore_Private.Core.FilterGraphicsBridge

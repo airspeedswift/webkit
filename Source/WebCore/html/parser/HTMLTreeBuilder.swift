@@ -38,12 +38,14 @@ internal import WebCore_Private.Core.NodeName
 internal import WebCore_Private.Core.QualifiedName
 // Operators that WebCore's headers declare use these JavaScriptCore and WTF types. Without their definitions, ==, !,
 // << and * do not typecheck in this file.
+#if canImport(JavaScriptCore_Private) // Not a module outside Apple platforms, where the headers are textual.
 internal import JavaScriptCore_Private.Cxx.Snippet
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.WasmInstanceAnchor
 internal import JavaScriptCore_Private.Cxx.WasmCalleeGroup
 internal import JavaScriptCore_Private.Cxx.WasmModule
 internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
+#endif
 internal import wtf.Core.Stopwatch
 
 private func isASCIIWhitespace(_ character: UInt16) -> Bool {
@@ -71,7 +73,8 @@ private func containsOnlyASCIIWhitespace(_ string: WTF.String) -> Bool {
 ///
 /// A token's characters are 8-bit exactly when they are all Latin-1, so a part taken out of them is a substring,
 /// with the width of the whole.
-private struct ExternalCharacterTokenBuffer {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct ExternalCharacterTokenBuffer {
     private let text: WTF.String
     private var start: UInt32 = 0
     private let end: UInt32
@@ -163,7 +166,8 @@ private func makeString16(_ string: WTF.String) -> WTF.String {
 /// (https://html.spec.whatwg.org/multipage/parsing.html#concept-pending-table-character-tokens), as a
 /// StringBuilder appending each token's characters as UChar: 8-bit only while every append is one Latin-1
 /// character.
-private struct PendingTableCharacters {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct PendingTableCharacters {
     private var parts: [WTF.String] = []
     private var is8Bit = true
 
@@ -2646,21 +2650,24 @@ func makeAttributeName(_ localName: Swift.String) -> WebCore.QualifiedName {
 }
 
 /// HTMLNames' colorAttr, faceAttr and sizeAttr.
-private final class FontAttributeNames {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+final class FontAttributeNames {
     let color = makeAttributeName("color")
     let face = makeAttributeName("face")
     let size = makeAttributeName("size")
 }
 
 /// MathMLNames' and SVGNames' namespace URIs, and MathMLNames' encodingAttr.
-private final class ForeignContentNames {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+final class ForeignContentNames {
     let mathMLNamespace = makeAtomString("http://www.w3.org/1998/Math/MathML")
     let svgNamespace = makeAtomString("http://www.w3.org/2000/svg")
     let encoding = makeAttributeName("encoding")
 }
 
 /// The namespace of an adjusted attribute name.
-private enum AdjustedAttributeNamespace {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+enum AdjustedAttributeNamespace {
     case none
     case xlink
     case xml
@@ -2669,7 +2676,8 @@ private enum AdjustedAttributeNamespace {
 
 /// An attribute name the specification adjusts: the local name the tokenizer gives the attribute, and the
 /// QualifiedName's parts.
-private struct AdjustedAttributeName {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct AdjustedAttributeName {
     let key: Swift.String
     let prefix: Swift.String
     let localName: Swift.String
@@ -2677,7 +2685,8 @@ private struct AdjustedAttributeName {
 }
 
 /// A table of adjusted attribute names, ordered by the length of their keys.
-private struct AdjustedAttributeNameTable {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct AdjustedAttributeNameTable {
     let names: [AdjustedAttributeName]
     /// The names whose key has length n are at firstIndexForLength[n] ..< firstIndexForLength[n + 1].
     let firstIndexForLength: [Int]
@@ -2731,7 +2740,8 @@ private let foreignAttributeNameTable = AdjustedAttributeNameTable(
 
 /// One parser's atoms and QualifiedNames for a table of adjusted attribute names. The names of one key length are
 /// made the first time an attribute of that length is looked up.
-private final class AdjustedAttributeNames {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+final class AdjustedAttributeNames {
     private let table: AdjustedAttributeNameTable
     private var keys: [WTF.AtomString] = []
     private var names: [WebCore.QualifiedName?] = []

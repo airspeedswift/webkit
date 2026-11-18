@@ -24,6 +24,8 @@
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
+#elseif os(Windows)
+import ucrt
 #endif
 // The safe Span overload Swift synthesizes for FilterOutsetsAtLevels.span() calls Cxx's Span(_unsafeCxxSpan:). Xcode
 // builds don't find it unless this file imports Cxx.

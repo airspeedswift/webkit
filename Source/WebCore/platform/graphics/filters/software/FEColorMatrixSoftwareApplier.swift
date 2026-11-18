@@ -74,6 +74,8 @@ private import Cxx
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
+#elseif os(Windows)
+import ucrt
 #endif
 #if arch(arm64)
 import _Builtin_intrinsics.arm.neon
@@ -207,8 +209,9 @@ func feColorMatrixSaturateComponents(_ amount: Float) -> FEColorMatrixComponents
 func feColorMatrixHueRotateComponents(_ angleInDegrees: Float) -> FEColorMatrixComponents {
     // deg2rad(float): radiansPerDegreeFloat is pi_v<float> / 180 in float (Float.pi is rounded down, pi_v<float> isn't).
     let angle = angleInDegrees * (Float(Double.pi) / 180)
-    let cosHue = cos(angle)
-    let sinHue = sin(angle)
+    // cosf and sinf: Darwin's overlay has Float overloads of cos and sin, the C runtimes of the other ports do not.
+    let cosHue = cosf(angle)
+    let sinHue = sinf(angle)
     let r0: Float = 0.213 + cosHue * 0.787 - sinHue * 0.213
     let r1: Float = 0.715 - cosHue * 0.715 - sinHue * 0.715
     let r2: Float = 0.072 - cosHue * 0.072 + sinHue * 0.928

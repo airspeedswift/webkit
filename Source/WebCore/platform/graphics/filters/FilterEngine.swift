@@ -221,13 +221,19 @@ struct FilterEffectKey: Equatable {
 // from it.
 @_expose(Cxx)
 struct FilterResultsImpl {
-    fileprivate struct CachedResult {
+    // FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+    // Not for C++: internal, it would be printed in the generated header, which has no FilterImageBox.
+    @_expose(!Cxx)
+    struct CachedResult {
         let effect: FilterEffectKey
         let image: FilterImageBox
     }
 
     // An image and an effect whose result was made from it. Keeps the image while it is listed, so that it stays itself.
-    fileprivate struct ResultReference {
+    // FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+    // Not for C++: internal, it would be printed in the generated header, which has no FilterImageBox.
+    @_expose(!Cxx)
+    struct ResultReference {
         let image: FilterImageBox
         let effect: FilterEffectKey
     }

@@ -23,12 +23,14 @@
 
 // WebCore_Private.Core's headers use types defined in these JavaScriptCore_Private.Cxx submodules and in
 // wtf.Core.Stopwatch.
+#if canImport(JavaScriptCore_Private) // Not a module outside Apple platforms, where the headers are textual.
 internal import JavaScriptCore_Private.Cxx.Snippet
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.WasmInstanceAnchor
 internal import JavaScriptCore_Private.Cxx.WasmCalleeGroup
 internal import JavaScriptCore_Private.Cxx.WasmModule
 internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
+#endif
 internal import wtf.Core.Stopwatch
 internal import wtf.Core.StdLibExtras
 internal import WebCore_Private.Core.HTMLMicrosyntaxesSwiftTypes

@@ -142,7 +142,38 @@ def write_response_file(args):
     return path
 
 
+def split_response_file_content(content):
+    """Splits a response file's content into arguments, by the platform's command line rules."""
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+        CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
+        CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
+        CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
+        count = ctypes.c_int()
+        # The first token follows the program name's rules, so a placeholder goes first.
+        argv = CommandLineToArgvW("x " + " ".join(content.splitlines()), ctypes.byref(count))
+        try:
+            return [argv[i] for i in range(1, count.value)]
+        finally:
+            ctypes.windll.kernel32.LocalFree(argv)
+    return shlex.split(content)
+
+
+def expand_response_files(argv):
+    """Replaces each @file argument with the arguments in the file, as swiftc would. A build that puts the compile
+    flags in a response file (CMAKE_NINJA_FORCE_RESPONSE_FILE) passes this script's own flags there too."""
+    expanded = []
+    for arg in argv:
+        if arg.startswith("@") and os.path.isfile(arg[1:]):
+            expanded.extend(split_response_file_content(Path(arg[1:]).read_text()))
+        else:
+            expanded.append(arg)
+    return expanded
+
+
 def main(argv):
+    argv = expand_response_files(argv)
     real_swiftc = "swiftc"
     args = []
     linking = any(arg in ("-emit-library", "-emit-executable") for arg in argv)

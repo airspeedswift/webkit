@@ -194,12 +194,14 @@ private func parseScalingListData(_ reader: inout RbspBitReader) -> Bool {
     return reader.ok
 }
 
-private struct HEVCReferencePicture {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct HEVCReferencePicture {
     var deltaPoc: Int32
     var usedByCurrPic: Bool
 }
 
-private struct HEVCShortTermRefPicSet {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct HEVCShortTermRefPicSet {
     var numNegativePics: UInt32 = 0
     var numPositivePics: UInt32 = 0
     // The numNegativePics pictures of S0, then the numPositivePics pictures of S1.
@@ -256,9 +258,10 @@ private func parseShortTermRefPicSet(
             return nil
         }
 
+        // Swift's 128-bit integers: WTF's UInt128, which the C++ global `using` puts in scope, is a class on Windows.
         // Bit j: used_by_curr_pic_flag[j], and use_delta_flag[j], which is 1 when absent.
-        var usedByCurrPicFlags: UInt128 = 0
-        var useDeltaFlags: UInt128 = ~0
+        var usedByCurrPicFlags: Swift.UInt128 = 0
+        var useDeltaFlags: Swift.UInt128 = ~0
         for j in 0...refSet.numDeltaPocs {
             if reader.readFlag() {
                 usedByCurrPicFlags |= 1 << j
@@ -400,7 +403,8 @@ func parseHEVCVpsMaxNumReorderPics(_ vps: Span<UInt8>) -> UInt8? {
 
 // MARK: SPS
 
-private struct HEVCSpsState {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct HEVCSpsState {
     var spsID: UInt32 = 0
     var chromaFormatIDC: UInt32 = 0
     var separateColourPlaneFlag = false
@@ -657,7 +661,8 @@ private func parseSps(_ data: Span<UInt8>) -> HEVCSpsState? {
 
 // MARK: PPS
 
-private struct HEVCPpsState {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+struct HEVCPpsState {
     var spsID: UInt32 = 0
     var dependentSliceSegmentsEnabledFlag = false
     var outputFlagPresentFlag = false

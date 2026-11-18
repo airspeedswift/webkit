@@ -574,7 +574,7 @@ internal struct PreloadScannerStartTagScanner: ~Copyable {
                 return
             }
             if attribute == .fetchpriority {
-                fetchPriority = WebCore.preloadScannerFetchPriority(value)
+                fetchPriority = WebCore.preloadScannerFetchPriority(WTF.String(value))
                 return
             }
             if attribute == .referrerpolicy {
@@ -620,7 +620,7 @@ internal struct PreloadScannerStartTagScanner: ~Copyable {
             case .async:
                 scriptIsAsync = true
             case .fetchpriority:
-                fetchPriority = WebCore.preloadScannerFetchPriority(value)
+                fetchPriority = WebCore.preloadScannerFetchPriority(WTF.String(value))
             default:
                 processImageAndScriptAttribute(attribute, value)
             }
@@ -649,7 +649,7 @@ internal struct PreloadScannerStartTagScanner: ~Copyable {
             case .referrerpolicy:
                 referrerPolicy = WebCore.preloadScannerReferrerPolicy(WTF.String(value))
             case .fetchpriority:
-                fetchPriority = WebCore.preloadScannerFetchPriority(value)
+                fetchPriority = WebCore.preloadScannerFetchPriority(WTF.String(value))
             case .disabled:
                 linkIsDisabled = true
             case .imagesrcset:

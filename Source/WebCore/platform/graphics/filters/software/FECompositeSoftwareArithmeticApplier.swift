@@ -144,7 +144,8 @@ private func compositeArithmetic(
 }
 
 // The loops' compile-time options, as the C++ template parameters were.
-private protocol ArithmeticLoopOption {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+protocol ArithmeticLoopOption {
     static var isIncluded: Bool { get }
 }
 

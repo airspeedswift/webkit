@@ -59,9 +59,9 @@
 
 namespace WebCore {
 
-RequestPriority preloadScannerFetchPriority(std::span<const char16_t> value NOESCAPE)
+RequestPriority preloadScannerFetchPriority(const String& value)
 {
-    return parseEnumerationFromString<RequestPriority>(StringView(value).toString()).value_or(RequestPriority::Auto);
+    return parseEnumerationFromString<RequestPriority>(value).value_or(RequestPriority::Auto);
 }
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(TokenPreloadScanner);

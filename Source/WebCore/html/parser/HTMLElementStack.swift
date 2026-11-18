@@ -29,12 +29,14 @@ internal import WebCore_Private.Core.ElementInlines
 internal import WebCore_Private.Core.HTMLTreeBuilderSwiftSupport
 internal import WebCore_Private.Core.NodeName
 internal import WebCore_Private.Core.QualifiedName
+#if canImport(JavaScriptCore_Private) // Not a module outside Apple platforms, where the headers are textual.
 internal import JavaScriptCore_Private.Cxx.Snippet
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.WasmInstanceAnchor
 internal import JavaScriptCore_Private.Cxx.WasmCalleeGroup
 internal import JavaScriptCore_Private.Cxx.WasmModule
 internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
+#endif
 internal import wtf.Core.Stopwatch
 
 /// An element on the stack of open elements, or the document fragment or context element of a fragment parse.

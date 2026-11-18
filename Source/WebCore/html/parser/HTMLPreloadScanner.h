@@ -125,7 +125,9 @@ private:
 
 // For HTMLPreloadScanner.swift: the parsers of attribute values a start tag's scan uses.
 ALWAYS_INLINE LinkRelAttribute preloadScannerLinkRel(Document& document, const String& value) { return { document, value }; }
-RequestPriority preloadScannerFetchPriority(std::span<const char16_t> value NOESCAPE);
+// FIXME: Take the characters as a std::span, as preloadScannerIsShadowRootMode does, once the Swift compiler makes this
+// function's safe Span overload on Windows (it does not, for a reason not found; it does elsewhere).
+RequestPriority preloadScannerFetchPriority(const String& value);
 ALWAYS_INLINE ReferrerPolicy preloadScannerReferrerPolicy(const String& value) { return parseReferrerPolicy(value, ReferrerPolicySource::ReferrerPolicyAttribute).value_or(ReferrerPolicy::EmptyString); }
 ALWAYS_INLINE bool preloadScannerIsShadowRootMode(std::span<const char16_t> value NOESCAPE) { return !!parseShadowRootMode(StringView(value)); }
 using PreloadScannerResourceType = CachedResource::Type;

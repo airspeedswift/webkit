@@ -54,7 +54,13 @@
 
 #if ENABLE_WEBCORE_SWIFT
 
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif os(Windows)
+import ucrt
+#endif
 import WebCore_Private.Core.FilterSwiftBridge
 import WebCore_Private.Core.FloatPoint
 import WebCore_Private.Core.FloatPoint3D

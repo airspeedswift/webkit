@@ -84,7 +84,7 @@ public:
     static std::optional<UnevaluatedCalcBase> parseBase(CSSParserTokenRange&, PropertyParserState&, Category, Range, CSSCalcSymbolsAllowed&&, const CSSPropertyParserOptions&);
 
     CSSCalc::Value& calcValue() const { return m_calc; }
-    NODELETE WEBCORE_EXPORT [[nodiscard]] CSSCalc::Value& leakRef();
+    [[nodiscard]] NODELETE WEBCORE_EXPORT CSSCalc::Value& leakRef();
 
     NODELETE WEBCORE_EXPORT Category runtimeCategory() const;
     NODELETE WEBCORE_EXPORT CSSUnitType primitiveType() const;

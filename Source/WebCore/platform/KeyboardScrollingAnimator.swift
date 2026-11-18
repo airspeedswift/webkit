@@ -114,7 +114,8 @@ extension ScrollPhysicsController {
 }
 
 // The keys KeyboardScrollingAnimator scrolls for.
-private enum KeyboardScrollingKey {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+enum KeyboardScrollingKey {
     case leftArrow
     case rightArrow
     case upArrow
@@ -126,20 +127,21 @@ private enum KeyboardScrollingKey {
     case end
 }
 
-private protocol KeyIdentifierCodeUnit {
+// FIXME: Make this private once a private type links under ThinLTO on Windows ("Invalid weak external").
+protocol KeyIdentifierCodeUnit {
     var keyIdentifierCodeUnit: UInt64 { get }
 }
 
 extension WTF.Latin1Character: KeyIdentifierCodeUnit {
-    fileprivate var keyIdentifierCodeUnit: UInt64 { UInt64(value) }
+    var keyIdentifierCodeUnit: UInt64 { UInt64(value) }
 }
 
 extension UInt16: KeyIdentifierCodeUnit {
-    fileprivate var keyIdentifierCodeUnit: UInt64 { UInt64(self) }
+    var keyIdentifierCodeUnit: UInt64 { UInt64(self) }
 }
 
 extension UInt8: KeyIdentifierCodeUnit {
-    fileprivate var keyIdentifierCodeUnit: UInt64 { UInt64(self) }
+    var keyIdentifierCodeUnit: UInt64 { UInt64(self) }
 }
 
 // The identifier as PackedASCIILiteral<uint64_t>::parse() packs it: nil when longer than 8 code units or when any unit

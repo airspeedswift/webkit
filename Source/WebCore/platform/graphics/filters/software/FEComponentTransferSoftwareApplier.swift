@@ -53,6 +53,8 @@ private import Cxx
 import Darwin
 #elseif canImport(Glibc)
 import Glibc
+#elseif os(Windows)
+import ucrt
 #endif
 import WebCore_Private.Core.AlphaPremultiplication
 import WebCore_Private.Core.FEComponentTransferParameters

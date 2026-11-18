@@ -23,12 +23,14 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // The JavaScriptCore_Private and Stopwatch imports define types that WebCore_Private's headers name, which the importer needs.
+#if canImport(JavaScriptCore_Private) // Not a module outside Apple platforms, where the headers are textual.
 internal import JavaScriptCore_Private.Cxx.DOMJITCallDOMGetterSnippet
 internal import JavaScriptCore_Private.Cxx.Snippet
 internal import JavaScriptCore_Private.Cxx.WasmCalleeGroup
 internal import JavaScriptCore_Private.Cxx.WasmInstanceAnchor
 internal import JavaScriptCore_Private.Cxx.WasmModule
 internal import JavaScriptCore_Private.Cxx.WasmModuleDebugInfo
+#endif
 internal import WebCore_Private.ContentSecurityPolicySwift
 internal import wtf.Core.Stopwatch
 internal import wtf.Core.text.WTFString

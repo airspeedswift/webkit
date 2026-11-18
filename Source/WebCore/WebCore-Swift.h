@@ -86,8 +86,12 @@
 
 #include "ScrollAnimatorScrollPhysicsClient.h"
 #include "ScrollPhysicsTypes.h"
+#if PLATFORM(MAC) // In a directory only the Apple ports have.
 #include "ScrollbarsControllerMacTypes.h"
+#endif
+#if PLATFORM(MAC) // In a directory only the Apple ports have.
 #include "ScrollerPairMacTypes.h"
+#endif
 // ScrollingTree.swift's and ScrollingTreeLatchingController.swift's types, which ScrollingTreeScrollPhysicsClient.h
 // includes only with the scrolling thread.
 #include "ScrollingCoordinatorTypes.h"
@@ -96,12 +100,22 @@
 #include "ScrollingTreeFrameHostingNode.h"
 #include "ScrollingTreeScrollPhysicsClient.h"
 #include "AffineTransform.h"
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "AudioCaptureControllerHandle.h"
+#endif
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "AudioVideoRendererHost.h"
+#endif
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "CARingBufferSwiftBridge.h"
+#endif
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "CDMInstanceFairPlayStreamingHost.h"
+#endif
 #include "CDMPrivate.h"
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "CGRendererSwiftBridge.h"
+#endif
 #include "CaptureDevice.h"
 #include "CSSFilterRendererView.h"
 #include "FEBlendParameters.h"
@@ -118,7 +132,9 @@
 #include "FEMorphologyParameters.h"
 #include "FEOffsetParameters.h"
 #include "FETurbulenceParameters.h"
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "FilterCoreImageSwiftBridge.h"
+#endif
 #include "FilterEffectView.h"
 #include "FilterGraphicsBridge.h"
 #include "FilterSwiftBridge.h"
@@ -129,14 +145,20 @@
 #include "IntSize.h"
 #include "LightSourceParameters.h"
 #include "MediaConstraintsSwiftBridge.h"
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "MediaPlayerAVFoundationHost.h"
+#endif
 #include "PixelBufferConversion.h"
 #include "PixelBufferSwiftBridge.h"
 #include "SVGFilterRendererView.h"
 #include "ShadowBlurSwiftBridge.h"
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "DetectedShapes.h"
+#endif
 #include "ShareableBitmapSwiftBridge.h"
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "SharedVideoFrameSwiftBridge.h"
+#endif
 #include "SourceGraphicParameters.h"
 
 #include "AV1CodecConfigurationRecord.h"
@@ -145,7 +167,9 @@
 #include "CDMKeyStatus.h"
 #include "CDMRequirement.h"
 #include "CDMSessionType.h"
+#if PLATFORM(COCOA) // In a directory only the Apple ports have.
 #include "CMParsingTypes.h"
+#endif
 #include "EMEParseResults.h"
 #include "ISOParseResults.h"
 #include "MediaParsersCxxBridging.h"
