@@ -28,6 +28,7 @@
 
 #if ENABLE(WEB_AUTHN)
 
+#include <WebCore/AuthenticatorAssertionResponse.h>
 #include <wtf/RunLoop.h>
 
 namespace WebKit {
@@ -55,6 +56,41 @@ void Authenticator::receiveRespond(AuthenticatorObserverRespond&& respond) const
     ASSERT(RunLoop::isMain());
     if (RefPtr observer = m_observer.get())
         observer->respondReceived(WTF::move(respond));
+}
+
+void Authenticator::updateObserverStatus(WebAuthenticationStatus status) const
+{
+    if (RefPtr observer = m_observer.get())
+        observer->authenticatorStatusUpdated(status);
+}
+
+void Authenticator::downgradeInObserver(Authenticator& downgradedAuthenticator)
+{
+    protect(observer())->downgrade(*this, Ref { downgradedAuthenticator });
+}
+
+void Authenticator::requestPinFromObserver(bool isNew, uint64_t retriesOrMinLength, AuthenticatorPinHandler&& handler) const
+{
+    RefPtr observer = m_observer.get();
+    if (!observer)
+        return;
+    auto forward = [handler = WTF::move(handler)](const WTF::String& pin) {
+        handler(pin);
+    };
+    if (isNew)
+        observer->requestNewPin(retriesOrMinLength, WTF::move(forward));
+    else
+        observer->requestPin(retriesOrMinLength, WTF::move(forward));
+}
+
+void Authenticator::respondWithError(WebCore::ExceptionCode code, const WTF::String& message) const
+{
+    receiveRespond(WebCore::ExceptionData { code, message });
+}
+
+void Authenticator::respondWithResponse(WebCore::AuthenticatorResponse& response) const
+{
+    receiveRespond(Ref { response });
 }
 
 } // namespace WebKit

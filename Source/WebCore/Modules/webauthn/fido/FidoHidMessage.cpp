@@ -32,7 +32,6 @@
 
 #if ENABLE(WEB_AUTHN)
 
-#include "FidoParsingUtils.h"
 #include <wtf/Vector.h>
 
 namespace fido {
@@ -40,57 +39,21 @@ namespace fido {
 // static
 std::optional<FidoHidMessage> FidoHidMessage::create(uint32_t channelId, FidoHidDeviceCommand type, Vector<uint8_t> data)
 {
-    if (data.size() > kHidMaxMessageSize)
+    auto payloadLength = static_cast<uint16_t>(data.size());
+    auto payloads = packetPayloads(type, WTF::move(data));
+    if (payloads.isEmpty())
         return std::nullopt;
-
-    switch (type) {
-    case FidoHidDeviceCommand::kPing:
-        break;
-    case FidoHidDeviceCommand::kMsg:
-    case FidoHidDeviceCommand::kCbor: {
-        if (data.isEmpty())
-            return std::nullopt;
-        break;
-    }
-
-    case FidoHidDeviceCommand::kCancel:
-    case FidoHidDeviceCommand::kWink: {
-        if (!data.isEmpty())
-            return std::nullopt;
-        break;
-    }
-    case FidoHidDeviceCommand::kLock: {
-        if (data.size() != 1 || data[0] > kHidMaxLockSeconds)
-            return std::nullopt;
-        break;
-    }
-    case FidoHidDeviceCommand::kInit: {
-        if (data.size() != 8)
-            return std::nullopt;
-        break;
-    }
-    case FidoHidDeviceCommand::kKeepAlive:
-    case FidoHidDeviceCommand::kError:
-        if (data.size() != 1)
-            return std::nullopt;
-    }
-
-    return FidoHidMessage(channelId, type, data);
+    return FidoHidMessage(channelId, type, WTF::move(payloads), payloadLength);
 }
 
 // static
 std::optional<FidoHidMessage> FidoHidMessage::createFromSerializedData(Vector<uint8_t> serializedData)
 {
-    size_t remainingSize = 0;
-    if (serializedData.size() > kHidPacketSize || serializedData.size() < kHidInitPacketHeaderSize)
+    auto state = parseInitPacket(WTF::move(serializedData));
+    if (!state.valid)
         return std::nullopt;
-
-    auto initPacket = FidoHidInitPacket::createFromSerializedData(serializedData, &remainingSize);
-
-    if (!initPacket)
-        return std::nullopt;
-
-    return FidoHidMessage(WTF::move(initPacket), remainingSize);
+    auto payloadLength = static_cast<uint16_t>(state.payload.size() + state.remainingSize);
+    return FidoHidMessage(makeUnique<FidoHidInitPacket>(state.channelId, state.cmd, WTF::move(state.payload), payloadLength), state.remainingSize);
 }
 
 bool FidoHidMessage::messageComplete() const
@@ -126,15 +89,11 @@ Vector<uint8_t> FidoHidMessage::popNextPacket()
 
 bool FidoHidMessage::addContinuationPacket(Vector<uint8_t> buf)
 {
-    size_t remainingSize = m_remainingSize;
-    auto contPacket = FidoHidContinuationPacket::createFromSerializedData(buf, &remainingSize);
-
-    // Reject packets with a different channel id.
-    if (!contPacket || m_channelId != contPacket->channelId())
+    auto state = addContinuation({ true, m_channelId, m_cmd, 0, { }, m_remainingSize }, WTF::move(buf));
+    if (!state.valid)
         return false;
-
-    m_remainingSize = remainingSize;
-    m_packets.append(WTF::move(contPacket));
+    m_remainingSize = state.remainingSize;
+    m_packets.append(makeUnique<FidoHidContinuationPacket>(m_channelId, state.sequence, WTF::move(state.payload)));
     return true;
 }
 
@@ -143,16 +102,13 @@ size_t FidoHidMessage::numPackets() const
     return m_packets.size();
 }
 
-FidoHidMessage::FidoHidMessage(uint32_t channelId, FidoHidDeviceCommand type, const Vector<uint8_t>& data)
+FidoHidMessage::FidoHidMessage(uint32_t channelId, FidoHidDeviceCommand type, Vector<Vector<uint8_t>>&& payloads, uint16_t payloadLength)
     : m_channelId(channelId)
     , m_cmd(type)
 {
-    uint8_t sequence = 0;
-
-    size_t pos = data.size() > kHidInitPacketDataSize ? kHidInitPacketDataSize : data.size();
-    m_packets.append(makeUnique<FidoHidInitPacket>(channelId, type, getInitPacketData(data), data.size()));
-    for (; pos < data.size(); pos += kHidContinuationPacketDataSize)
-        m_packets.append(makeUnique<FidoHidContinuationPacket>(channelId, sequence++, getContinuationPacketData(data, pos)));
+    m_packets.append(makeUnique<FidoHidInitPacket>(channelId, type, WTF::move(payloads[0]), payloadLength));
+    for (size_t i = 1; i < payloads.size(); ++i)
+        m_packets.append(makeUnique<FidoHidContinuationPacket>(channelId, static_cast<uint8_t>(i - 1), WTF::move(payloads[i])));
 }
 
 FidoHidMessage::FidoHidMessage(std::unique_ptr<FidoHidInitPacket> initPacket, size_t remainingSize)

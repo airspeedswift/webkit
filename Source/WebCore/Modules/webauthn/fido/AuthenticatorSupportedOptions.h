@@ -94,8 +94,6 @@ private:
     ClientPinAvailability m_clientPinAvailability { ClientPinAvailability::kNotSupported };
 };
 
-WEBCORE_EXPORT cbor::CBORValue convertToCBOR(AuthenticatorSupportedOptions);
-
 } // namespace fido
 
 #endif // ENABLE(WEB_AUTHN)

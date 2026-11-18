@@ -37,6 +37,16 @@
 
 namespace fido {
 
+// A HID packet or message as plain values, as the Swift framing reads and builds them.
+struct HidMessageState {
+    bool valid { false };
+    uint32_t channelId { 0 };
+    FidoHidDeviceCommand cmd { FidoHidDeviceCommand::kMsg };
+    uint8_t sequence { 0 };
+    Vector<uint8_t> payload;
+    size_t remainingSize { 0 };
+};
+
 // Represents HID message format defined by the specification at
 // https://fidoalliance.org/specs/fido-v2.0-ps-20170927/fido-client-to-authenticator-protocol-v2.0-ps-20170927.html#message-and-packet-structure
 class WEBCORE_EXPORT FidoHidMessage {
@@ -64,8 +74,19 @@ public:
     FidoHidDeviceCommand cmd() const { return m_cmd; }
     const Deque<std::unique_ptr<FidoHidPacket>>& getPacketsForTesting() const LIFETIME_BOUND { return m_packets; }
 
+    // The framing, in Swift. An empty result means create() refuses the message.
+    static Vector<Vector<uint8_t>> serializedPackets(uint32_t channelId, FidoHidDeviceCommand, Vector<uint8_t> data);
+    // The packets' payloads, init packet first; empty when create() refuses the message.
+    static Vector<Vector<uint8_t>> packetPayloads(FidoHidDeviceCommand, Vector<uint8_t> data);
+    static HidMessageState parseInitPacket(Vector<uint8_t>);
+    static HidMessageState parseContinuationPacket(Vector<uint8_t>, size_t remainingSize);
+    // Appends a continuation packet of the message's channel to the message's payload.
+    static HidMessageState addContinuation(HidMessageState, Vector<uint8_t>);
+    static Vector<uint8_t> serializeInitPacket(uint32_t channelId, FidoHidDeviceCommand, uint16_t payloadLength, Vector<uint8_t> data);
+    static Vector<uint8_t> serializeContinuationPacket(uint32_t channelId, uint8_t sequence, Vector<uint8_t> data);
+
 private:
-    FidoHidMessage(uint32_t channelId, FidoHidDeviceCommand, const Vector<uint8_t>& data);
+    FidoHidMessage(uint32_t channelId, FidoHidDeviceCommand, Vector<Vector<uint8_t>>&& payloads, uint16_t payloadLength);
     FidoHidMessage(std::unique_ptr<FidoHidInitPacket>, size_t remainingSize);
 
     uint32_t m_channelId = kHidBroadcastChannel;

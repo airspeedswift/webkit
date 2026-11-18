@@ -92,6 +92,32 @@ private:
 
 WEBCORE_EXPORT Vector<uint8_t> encodeAsCBOR(AuthenticatorGetInfoResponse);
 
+
+// An AuthenticatorGetInfoResponse as plain fields, for the Swift reader and encoder: the class is move-only (so its
+// std::optional imports with no members), its setters return a reference, and Swift cannot build a StdSet.
+struct GetInfoResponseFields {
+    Vector<ProtocolVersion> versions; // In StdSet order, each once.
+    Vector<uint8_t> aaguid;
+    std::optional<uint32_t> maxMsgSize;
+    std::optional<Vector<PINUVAuthProtocol>> pinProtocols; // In StdSet order, each once.
+    std::optional<Vector<String>> extensions;
+    bool isPlatformDevice { false };
+    AuthenticatorSupportedOptions::ResidentKeyAvailability residentKeyAvailability { AuthenticatorSupportedOptions::ResidentKeyAvailability::kNotSupported };
+    AuthenticatorSupportedOptions::UserVerificationAvailability userVerificationAvailability { AuthenticatorSupportedOptions::UserVerificationAvailability::kNotSupported };
+    bool userPresenceRequired { true };
+    AuthenticatorSupportedOptions::ClientPinAvailability clientPinAvailability { AuthenticatorSupportedOptions::ClientPinAvailability::kNotSupported };
+    std::optional<Vector<WebCore::AuthenticatorTransport>> transports;
+    std::optional<uint32_t> remainingDiscoverableCredentials;
+    std::optional<uint32_t> minPINLength;
+    std::optional<uint32_t> maxCredentialCountInList;
+    std::optional<uint32_t> maxCredentialIDLength;
+    std::optional<Vector<WebCore::PublicKeyCredentialParameters>> algorithms; // Read only: the class has no setter.
+};
+
+// nullopt for empty versions (no response the reader accepts has them), else the response.
+std::optional<AuthenticatorGetInfoResponse> makeGetInfoResponse(GetInfoResponseFields&&);
+WEBCORE_EXPORT GetInfoResponseFields getInfoResponseFields(const AuthenticatorGetInfoResponse&);
+
 } // namespace fido
 
 #endif // ENABLE(WEB_AUTHN)

@@ -51,17 +51,6 @@ CtapDriver& FidoAuthenticator::driver() const
     return *m_driver;
 }
 
-Ref<CtapDriver> FidoAuthenticator::releaseDriver()
-{
-    ASSERT(m_driver);
-    return m_driver.releaseNonNull();
-}
-
-String FidoAuthenticator::transportForDebugging() const
-{
-    return WebCore::toString(driver().transport());
-}
-
 } // namespace WebKit
 
 #endif // ENABLE(WEB_AUTHN)

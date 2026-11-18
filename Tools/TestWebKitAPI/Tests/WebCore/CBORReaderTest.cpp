@@ -684,6 +684,40 @@ TEST(CBORReaderTest, TestDuplicateKeyError)
     EXPECT_TRUE(errorCode == CBORReader::DecoderError::DuplicateKey);
 }
 
+
+// A key equal to an earlier, not adjacent, key is also out of order: the duplicate check comes first, for integer and
+// text keys.
+TEST(CBORReaderTest, TestDuplicateKeyBeforeOutOfOrderKey)
+{
+    static const Vector<uint8_t> kIntegerKeys = {
+        0xa3, // map of 3 pairs:
+        0x01, 0x60, // 1: ""
+        0x02, 0x60, // 2: ""
+        0x01, 0x60, // 1: "" (duplicate of the first key, and out of order)
+    };
+    static const Vector<uint8_t> kTextKeys = {
+        0xa3, // map of 3 pairs:
+        0x61, 0x61, 0x00, // "a": 0
+        0x61, 0x62, 0x00, // "b": 0
+        0x61, 0x61, 0x00, // "a": 0 (duplicate of the first key, and out of order)
+    };
+    static const Vector<uint8_t> kOutOfOrderOnly = {
+        0xa3, // map of 3 pairs:
+        0x61, 0x61, 0x00, // "a": 0
+        0x61, 0x63, 0x00, // "c": 0
+        0x61, 0x62, 0x00, // "b": 0 (out of order, not a duplicate)
+    };
+
+    for (auto& input : { kIntegerKeys, kTextKeys }) {
+        CBORReader::DecoderError errorCode;
+        EXPECT_FALSE(CBORReader::read(input, &errorCode).has_value());
+        EXPECT_TRUE(errorCode == CBORReader::DecoderError::DuplicateKey);
+    }
+    CBORReader::DecoderError errorCode;
+    EXPECT_FALSE(CBORReader::read(kOutOfOrderOnly, &errorCode).has_value());
+    EXPECT_TRUE(errorCode == CBORReader::DecoderError::OutOfOrderKey);
+}
+
 // Leveraging Markus Kuhn’s UTF-8 decoder stress test. See
 // http://www.cl.cam.ac.uk/~mgk25/ucs/examples/UTF-8-test.txt for details.
 TEST(CBORReaderTest, TestIncorrectStringEncodingError)

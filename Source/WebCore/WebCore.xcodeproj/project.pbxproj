@@ -373,6 +373,13 @@
 		C55D00000000000000000010 /* CSSPropertyConsumerSwiftSmall.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D0000000000000000000F /* CSSPropertyConsumerSwiftSmall.swift */; };
 		C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */; };
 		C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = C55A00000000000000000003 /* CSSTokenizerSwift.swift */; };
+		2F13F722BC0D42E7D835C00E /* WebAuthnU2f.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F564A8A3EF78E07352E65B4 /* WebAuthnU2f.swift */; };
+		359E6608BF267C6ED91115E9 /* WebAuthnCtapResponses.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F675F65769BA57BB5375E73 /* WebAuthnCtapResponses.swift */; };
+		F907276A950C2BAA4213D1AF /* WebAuthnCtapRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2C25CE2134FEABF1908ED86 /* WebAuthnCtapRequests.swift */; };
+		183BD627EB266577E9779A03 /* WebAuthnHid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BFF96C5F05BA6F6316B611F /* WebAuthnHid.swift */; };
+		E2231B01039B2D98A13D21C7 /* WebAuthnPin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952A14712C6C6732CE583967 /* WebAuthnPin.swift */; };
+		91A6735B735F6CEFCDCB0084 /* WebAuthnApdu.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A68CDBA074B4BB9EEB1AAD /* WebAuthnApdu.swift */; };
+		F4A700189418780F7B636395 /* WebAuthnCBOR.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE5F3B22082A1652B29B7AEC /* WebAuthnCBOR.swift */; };
 		F4FD8A7220C64FDA7BA4884D /* TransformationMatrix.swift in Sources */ = {isa = PBXBuildFile; fileRef = E726A6625648494E4377EAC9 /* TransformationMatrix.swift */; };
 		5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000003 /* SIMDTableLookup.swift */; };
 		5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1E00000000000000000005 /* SIMDSaturatingSubtract.swift */; };
@@ -1262,6 +1269,7 @@
 		C55B00000000000000000002 /* CSSParserFastPathsSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = C55B00000000000000000001 /* CSSParserFastPathsSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		C55C00000000000000000002 /* CSSCalcSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = C55C00000000000000000001 /* CSSCalcSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		C55A00000000000000000002 /* CSSTokenizerSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = C55A00000000000000000001 /* CSSTokenizerSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		3D6AFDA51750DC9E91EB092C /* WebAuthnSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 40E5A67DCBE14279A59C46A5 /* WebAuthnSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		318891611AB7EEA100EA627B /* missingImage@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = CDF419991AB0DA14004E64E1 /* missingImage@3x.png */; };
 		318EAD4D1FA91380008CEF86 /* ImageBitmapRenderingContextSettings.h in Headers */ = {isa = PBXBuildFile; fileRef = 318EAD4A1FA91157008CEF86 /* ImageBitmapRenderingContextSettings.h */; };
 		319848011A1D817B00A13318 /* CSSAnimationEvent.h in Headers */ = {isa = PBXBuildFile; fileRef = 319847FF1A1D816700A13318 /* CSSAnimationEvent.h */; };
@@ -2572,7 +2580,6 @@
 		573489391DAC6B6E00DC0667 /* CryptoAlgorithmParameters.h in Headers */ = {isa = PBXBuildFile; fileRef = 573489381DAC6B6D00DC0667 /* CryptoAlgorithmParameters.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5739E12F1DAC7F7800E14383 /* JSCryptoAlgorithmParameters.h in Headers */ = {isa = PBXBuildFile; fileRef = 5739E12E1DAC7F7800E14383 /* JSCryptoAlgorithmParameters.h */; };
 		573F5332216806E10045587A /* FidoHidMessage.h in Headers */ = {isa = PBXBuildFile; fileRef = 57BAF28A2167D303008E954E /* FidoHidMessage.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		573F533721680D150045587A /* FidoParsingUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = 573F533521680D140045587A /* FidoParsingUtils.h */; };
 		574F55E1204F3B23002948C6 /* WebAuthenticationConstants.h in Headers */ = {isa = PBXBuildFile; fileRef = 574F55DC204F3732002948C6 /* WebAuthenticationConstants.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5750A9751E68D00000705C4A /* CryptoKeyEC.h in Headers */ = {isa = PBXBuildFile; fileRef = 5750A9731E68D00000705C4A /* CryptoKeyEC.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5750A9821E6A150800705C4A /* JSEcKeyParams.h in Headers */ = {isa = PBXBuildFile; fileRef = 5750A9801E6A150800705C4A /* JSEcKeyParams.h */; };
@@ -13364,10 +13371,8 @@
 		57152B5621CB2E3A000C37CA /* ApduResponse.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ApduResponse.h; path = Modules/webauthn/apdu/ApduResponse.h; sourceTree = SOURCE_ROOT; };
 		57152B5721CB2E3A000C37CA /* ApduCommand.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ApduCommand.cpp; path = Modules/webauthn/apdu/ApduCommand.cpp; sourceTree = SOURCE_ROOT; };
 		57152B5821CB2E3B000C37CA /* ApduCommand.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ApduCommand.h; path = Modules/webauthn/apdu/ApduCommand.h; sourceTree = SOURCE_ROOT; };
-		57152B6A21CD995C000C37CA /* U2fCommandConstructor.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = U2fCommandConstructor.cpp; sourceTree = "<group>"; };
 		57152B6C21CD995C000C37CA /* U2fCommandConstructor.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = U2fCommandConstructor.h; sourceTree = "<group>"; };
 		57152B7A21DD8BA1000C37CA /* U2fResponseConverter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = U2fResponseConverter.h; sourceTree = "<group>"; };
-		57152B7B21DD8BA1000C37CA /* U2fResponseConverter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = U2fResponseConverter.cpp; sourceTree = "<group>"; };
 		57152B7E21DDA581000C37CA /* WebAuthenticationUtils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebAuthenticationUtils.h; sourceTree = "<group>"; };
 		57152B7F21DDA581000C37CA /* WebAuthenticationUtils.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebAuthenticationUtils.cpp; sourceTree = "<group>"; };
 		57156108234C1B31008FC7AB /* MockWebAuthenticationConfiguration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MockWebAuthenticationConfiguration.h; sourceTree = "<group>"; };
@@ -13382,13 +13387,11 @@
 		572A7F201C6E5719009C6149 /* SimulatedClick.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SimulatedClick.h; sourceTree = "<group>"; };
 		572A7F221C6E5A66009C6149 /* SimulatedClick.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SimulatedClick.cpp; sourceTree = "<group>"; };
 		572B401D21757A64000AD43E /* DeviceRequestConverter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DeviceRequestConverter.h; sourceTree = "<group>"; };
-		572B401E21757A64000AD43E /* DeviceRequestConverter.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = DeviceRequestConverter.cpp; sourceTree = "<group>"; };
 		572B402321768D85000AD43E /* UserVerificationRequirement.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = UserVerificationRequirement.h; sourceTree = "<group>"; };
 		572B402521768D85000AD43E /* UserVerificationRequirement.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = UserVerificationRequirement.idl; sourceTree = "<group>"; };
 		572B402A2176901F000AD43E /* JSUserVerificationRequirement.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSUserVerificationRequirement.h; sourceTree = "<group>"; };
 		572B402B2176901F000AD43E /* JSUserVerificationRequirement.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSUserVerificationRequirement.cpp; sourceTree = "<group>"; };
 		572B40372177256C000AD43E /* DeviceResponseConverter.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DeviceResponseConverter.h; sourceTree = "<group>"; };
-		572B40382177256C000AD43E /* DeviceResponseConverter.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DeviceResponseConverter.cpp; sourceTree = "<group>"; };
 		572B403B2177FB60000AD43E /* AuthenticatorGetInfoResponse.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AuthenticatorGetInfoResponse.cpp; sourceTree = "<group>"; };
 		572B403C2177FB61000AD43E /* AuthenticatorGetInfoResponse.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AuthenticatorGetInfoResponse.h; sourceTree = "<group>"; };
 		572B403D2178016F000AD43E /* AuthenticatorSupportedOptions.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AuthenticatorSupportedOptions.cpp; sourceTree = "<group>"; };
@@ -13433,8 +13436,6 @@
 		573489381DAC6B6D00DC0667 /* CryptoAlgorithmParameters.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CryptoAlgorithmParameters.h; sourceTree = "<group>"; };
 		5739E12E1DAC7F7800E14383 /* JSCryptoAlgorithmParameters.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSCryptoAlgorithmParameters.h; sourceTree = "<group>"; };
 		5739E1301DAC7FD100E14383 /* JSCryptoAlgorithmParameters.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSCryptoAlgorithmParameters.cpp; sourceTree = "<group>"; };
-		573F533521680D140045587A /* FidoParsingUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FidoParsingUtils.h; sourceTree = "<group>"; };
-		573F533621680D150045587A /* FidoParsingUtils.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = FidoParsingUtils.cpp; sourceTree = "<group>"; };
 		574AC7531DAC367D00E9744C /* CryptoAlgorithmParameters.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = CryptoAlgorithmParameters.idl; sourceTree = "<group>"; };
 		574F55DC204F3732002948C6 /* WebAuthenticationConstants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WebAuthenticationConstants.h; sourceTree = "<group>"; };
 		574F55E2204F3CBF002948C6 /* LocalAuthentication.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LocalAuthentication.framework; path = System/Library/Frameworks/LocalAuthentication.framework; sourceTree = SDKROOT; };
@@ -13492,7 +13493,6 @@
 		57B5F8071E5D19F200F34F90 /* AesGcmParams.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = AesGcmParams.idl; sourceTree = "<group>"; };
 		57B5F80A1E5D22DA00F34F90 /* JSAesGcmParams.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSAesGcmParams.cpp; sourceTree = "<group>"; };
 		57B5F80B1E5D22DA00F34F90 /* JSAesGcmParams.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSAesGcmParams.h; sourceTree = "<group>"; };
-		57BAF2872167D2F7008E954E /* FidoConstants.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = FidoConstants.cpp; sourceTree = "<group>"; };
 		57BAF28A2167D303008E954E /* FidoHidMessage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FidoHidMessage.h; sourceTree = "<group>"; };
 		57C7A6891E56946D00C67D71 /* BasicCredential.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = BasicCredential.idl; sourceTree = "<group>"; };
 		57C7A68B1E56967500C67D71 /* BasicCredential.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BasicCredential.h; sourceTree = "<group>"; };
@@ -20149,7 +20149,15 @@
 		C55D00000000000000000007 /* CSSPropertyParsingSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSPropertyParsingSwift.swift; sourceTree = "<group>"; };
 		C55C00000000000000000001 /* CSSCalcSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSCalcSwiftTypes.h; sourceTree = "<group>"; };
 		C55A00000000000000000003 /* CSSTokenizerSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSSTokenizerSwift.swift; sourceTree = "<group>"; };
+		3F564A8A3EF78E07352E65B4 /* WebAuthnU2f.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthnU2f.swift; sourceTree = "<group>"; };
+		5F675F65769BA57BB5375E73 /* WebAuthnCtapResponses.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthnCtapResponses.swift; sourceTree = "<group>"; };
+		C2C25CE2134FEABF1908ED86 /* WebAuthnCtapRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthnCtapRequests.swift; sourceTree = "<group>"; };
+		2BFF96C5F05BA6F6316B611F /* WebAuthnHid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthnHid.swift; sourceTree = "<group>"; };
+		952A14712C6C6732CE583967 /* WebAuthnPin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthnPin.swift; sourceTree = "<group>"; };
+		B3A68CDBA074B4BB9EEB1AAD /* WebAuthnApdu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthnApdu.swift; sourceTree = "<group>"; };
+		CE5F3B22082A1652B29B7AEC /* WebAuthnCBOR.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebAuthnCBOR.swift; sourceTree = "<group>"; };
 		C55A00000000000000000001 /* CSSTokenizerSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSTokenizerSwiftTypes.h; sourceTree = "<group>"; };
+		40E5A67DCBE14279A59C46A5 /* WebAuthnSwiftTypes.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebAuthnSwiftTypes.h; sourceTree = "<group>"; };
 		BC7C5E902BE2A8FB00AE645C /* CSSSubstitutionParser.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CSSSubstitutionParser.cpp; sourceTree = "<group>"; };
 		BC7C5E912BE2A8FB00AE645C /* CSSSubstitutionParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CSSSubstitutionParser.h; sourceTree = "<group>"; };
 		BC7C5E922BE2A8FB00AE645C /* MediaQueryBlockWatcher.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MediaQueryBlockWatcher.cpp; sourceTree = "<group>"; };
@@ -30185,6 +30193,7 @@
 			children = (
 				57152B5721CB2E3A000C37CA /* ApduCommand.cpp */,
 				57152B5821CB2E3B000C37CA /* ApduCommand.h */,
+				B3A68CDBA074B4BB9EEB1AAD /* WebAuthnApdu.swift */,
 				57152B5521CB2E3A000C37CA /* ApduResponse.cpp */,
 				57152B5621CB2E3A000C37CA /* ApduResponse.h */,
 			);
@@ -30201,6 +30210,7 @@
 				57303BB42006C6ED00355965 /* CBORValue.h */,
 				57303BB82006C6ED00355965 /* CBORWriter.cpp */,
 				57303BB52006C6ED00355965 /* CBORWriter.h */,
+				CE5F3B22082A1652B29B7AEC /* WebAuthnCBOR.swift */,
 			);
 			path = cbor;
 			sourceTree = "<group>";
@@ -30212,24 +30222,22 @@
 				572B403C2177FB61000AD43E /* AuthenticatorGetInfoResponse.h */,
 				572B403D2178016F000AD43E /* AuthenticatorSupportedOptions.cpp */,
 				572B403E21780170000AD43E /* AuthenticatorSupportedOptions.h */,
-				572B401E21757A64000AD43E /* DeviceRequestConverter.cpp */,
 				572B401D21757A64000AD43E /* DeviceRequestConverter.h */,
-				572B40382177256C000AD43E /* DeviceResponseConverter.cpp */,
 				572B40372177256C000AD43E /* DeviceResponseConverter.h */,
-				57BAF2872167D2F7008E954E /* FidoConstants.cpp */,
 				578A4C0B2167D29600D08F34 /* FidoConstants.h */,
 				578A4C082167D29500D08F34 /* FidoHidMessage.cpp */,
 				57BAF28A2167D303008E954E /* FidoHidMessage.h */,
 				578A4C092167D29600D08F34 /* FidoHidPacket.cpp */,
 				578A4C0A2167D29600D08F34 /* FidoHidPacket.h */,
-				573F533621680D150045587A /* FidoParsingUtils.cpp */,
-				573F533521680D140045587A /* FidoParsingUtils.h */,
 				5758597823A1FCE600C74572 /* Pin.cpp */,
 				5758597923A1FCF200C74572 /* Pin.h */,
-				57152B6A21CD995C000C37CA /* U2fCommandConstructor.cpp */,
 				57152B6C21CD995C000C37CA /* U2fCommandConstructor.h */,
-				57152B7B21DD8BA1000C37CA /* U2fResponseConverter.cpp */,
 				57152B7A21DD8BA1000C37CA /* U2fResponseConverter.h */,
+				C2C25CE2134FEABF1908ED86 /* WebAuthnCtapRequests.swift */,
+				5F675F65769BA57BB5375E73 /* WebAuthnCtapResponses.swift */,
+				2BFF96C5F05BA6F6316B611F /* WebAuthnHid.swift */,
+				952A14712C6C6732CE583967 /* WebAuthnPin.swift */,
+				3F564A8A3EF78E07352E65B4 /* WebAuthnU2f.swift */,
 			);
 			path = fido;
 			sourceTree = "<group>";
@@ -30362,6 +30370,7 @@
 				574F55DC204F3732002948C6 /* WebAuthenticationConstants.h */,
 				57152B7F21DDA581000C37CA /* WebAuthenticationUtils.cpp */,
 				57152B7E21DDA581000C37CA /* WebAuthenticationUtils.h */,
+				40E5A67DCBE14279A59C46A5 /* WebAuthnSwiftTypes.h */,
 				FE7CF1A6010000000000E000 /* WebAuthnOperationErrorCode.h */,
 				FE7CF1A6010000000000E001 /* WebAuthnOperationErrorCode.idl */,
 				FE7CF1A6010000000000E004 /* WebAuthnOperationException.cpp */,
@@ -45573,6 +45582,7 @@
 				318210D92C59B17E00C334B4 /* CSSTokenizer.h in Headers */,
 				3169B7DA2C63091700024DBA /* CSSTokenizerInputStream.h in Headers */,
 				C55A00000000000000000002 /* CSSTokenizerSwiftTypes.h in Headers */,
+				3D6AFDA51750DC9E91EB092C /* WebAuthnSwiftTypes.h in Headers */,
 				9AB1F38018E2489A00534743 /* CSSToLengthConversionData.h in Headers */,
 				2A538A2D26F0104C00965FC8 /* CSSTransformComponent.h in Headers */,
 				71DB0FD929007C910071AC42 /* CSSTransformListValue.h in Headers */,
@@ -46049,7 +46059,6 @@
 				57BAF28C2167D316008E954E /* FidoConstants.h in Headers */,
 				573F5332216806E10045587A /* FidoHidMessage.h in Headers */,
 				57BAF28E2167D339008E954E /* FidoHidPacket.h in Headers */,
-				573F533721680D150045587A /* FidoParsingUtils.h in Headers */,
 				976D6C81122B8A3D001FD1F7 /* File.h in Headers */,
 				838F86DA1F509E7400E8CFC5 /* FileCallback.h in Headers */,
 				066C772B0AB603B700238CC4 /* FileChooser.h in Headers */,
@@ -51576,6 +51585,13 @@
 				F62B487326834EBE8211B33D /* CSSPropertyParserShorthandsFont.swift in Sources */,
 				C55D00000000000000000008 /* CSSPropertyParsingSwift.swift in Sources */,
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
+				2F13F722BC0D42E7D835C00E /* WebAuthnU2f.swift in Sources */,
+				359E6608BF267C6ED91115E9 /* WebAuthnCtapResponses.swift in Sources */,
+				F907276A950C2BAA4213D1AF /* WebAuthnCtapRequests.swift in Sources */,
+				183BD627EB266577E9779A03 /* WebAuthnHid.swift in Sources */,
+				E2231B01039B2D98A13D21C7 /* WebAuthnPin.swift in Sources */,
+				91A6735B735F6CEFCDCB0084 /* WebAuthnApdu.swift in Sources */,
+				F4A700189418780F7B636395 /* WebAuthnCBOR.swift in Sources */,
 				F4FD8A7220C64FDA7BA4884D /* TransformationMatrix.swift in Sources */,
 				5A1E00000000000000000004 /* SIMDTableLookup.swift in Sources */,
 				5A1E00000000000000000006 /* SIMDSaturatingSubtract.swift in Sources */,

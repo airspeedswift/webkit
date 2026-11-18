@@ -30,17 +30,12 @@
 
 #include "CtapAuthenticator.h"
 #include "CtapDriver.h"
-#include "Logging.h"
-#include "U2fAuthenticator.h"
 #include <WebCore/DeviceRequestConverter.h>
 #include <WebCore/DeviceResponseConverter.h>
-#include <WebCore/FidoConstants.h>
-#include <WebCore/FidoHidMessage.h>
+#include <WebCore/PublicKeyCredentialDescriptor.h>
+#include <WebCore/PublicKeyCredentialParameters.h>
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/text/Base64.h>
-
-#define CTAP_RELEASE_LOG(fmt, ...) RELEASE_LOG(WebAuthn, "%p - FidoService::" fmt, this, ##__VA_ARGS__)
 
 namespace WebKit {
 using namespace fido;
@@ -50,6 +45,11 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(FidoService);
 FidoService::FidoService(AuthenticatorTransportServiceObserver& observer)
     : AuthenticatorTransportService(observer)
 {
+}
+
+void FidoService::notifyAuthenticatorAdded(Authenticator& authenticator)
+{
+    protect(observer())->authenticatorAdded(Ref { authenticator });
 }
 
 void FidoService::getInfo(Ref<CtapDriver>&& driver)
@@ -66,33 +66,15 @@ void FidoService::getInfo(Ref<CtapDriver>&& driver)
     ASSERT_UNUSED(addResult, addResult.isNewEntry);
 }
 
-void FidoService::continueAfterGetInfo(CtapDriver& inputDriver, Vector<uint8_t> response)
+RefPtr<Authenticator> FidoService::ctapAuthenticatorForGetInfo(CtapDriver& driver, const Vector<uint8_t>& response)
 {
-    RefPtr driver = m_drivers.take(&inputDriver);
-    if (!driver)
-        return;
-
-    RefPtr observer = this->observer();
-    if (!observer)
-        return;
-
-    if (response.isEmpty())
-        return;
-
-    CTAP_RELEASE_LOG("Got response from getInfo: %s", base64EncodeToString(response).utf8());
-
     auto info = readCTAPGetInfoResponse(response);
-    if (info && info->versions().find(ProtocolVersion::kCtap2) != info->versions().end()) {
-        driver->setMaxMsgSize(info->maxMsgSize());
-        observer->authenticatorAdded(CtapAuthenticator::create(driver.releaseNonNull(), WTF::move(*info)));
-        return;
-    }
-    driver->setProtocol(ProtocolVersion::kU2f);
-    observer->authenticatorAdded(U2fAuthenticator::create(driver.releaseNonNull()));
+    if (!info || info->versions().find(ProtocolVersion::kCtap2) == info->versions().end())
+        return nullptr;
+    driver.setMaxMsgSize(info->maxMsgSize());
+    return CtapAuthenticator::create(Ref { driver }, WTF::move(*info));
 }
 
 } // namespace WebKit
-
-#undef CTAP_RELEASE_LOG
 
 #endif // ENABLE(WEB_AUTHN)

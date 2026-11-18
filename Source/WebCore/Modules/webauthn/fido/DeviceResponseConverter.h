@@ -43,8 +43,6 @@
 // CTAP protocol, null optional is returned.
 namespace fido {
 
-std::optional<cbor::CBORValue> decodeResponseMap(const Vector<uint8_t>&);
-
 // Parses response code from response received from the authenticator. If
 // unknown response code value is received, then CTAP2_ERR_OTHER is returned.
 NODELETE WEBCORE_EXPORT CtapDeviceResponseCode getResponseCode(Vector<uint8_t>);

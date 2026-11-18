@@ -28,14 +28,21 @@
 #if ENABLE(WEB_AUTHN)
 
 #include "Authenticator.h"
+#include <wtf/SwiftBridging.h>
 
 namespace WebKit {
 
 class CtapDriver;
 
-class FidoAuthenticator : public Authenticator {
+class SWIFT_PRIVATE_FILEID("WebKit/FidoAuthenticator.swift") FidoAuthenticator : public Authenticator {
 public:
     ~FidoAuthenticator();
+
+    // For CtapAuthenticator.swift and U2fAuthenticator.swift, which reach neither the protected members nor the
+    // Swift implementations below.
+    CtapDriver& driverForSubclass() const { return driver(); }
+    Ref<CtapDriver> releaseDriverForDowngrade() { return releaseDriver(); }
+    String transportName() const { return transportForDebugging(); }
 
 protected:
     explicit FidoAuthenticator(Ref<CtapDriver>&&);

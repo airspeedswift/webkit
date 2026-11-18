@@ -29,13 +29,13 @@
 
 #include "CtapDriver.h"
 #include "NfcConnection.h"
-#include <wtf/UniqueRef.h>
+#include <wtf/SwiftBridging.h>
 
 namespace WebKit {
 
 // The following implements the CTAP NFC protocol:
 // https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#nfc
-class CtapNfcDriver final : public CtapDriver {
+class SWIFT_PRIVATE_FILEID("WebKit/CtapNfcDriver.swift") CtapNfcDriver final : public CtapDriver {
 public:
     static Ref<CtapNfcDriver> create(Ref<NfcConnection>&&);
 
@@ -44,6 +44,8 @@ public:
 private:
     explicit CtapNfcDriver(Ref<NfcConnection>&&);
 
+    Vector<uint8_t> encodeCtap2Command(Vector<uint8_t>);
+    Vector<uint8_t> ctap2Response(Vector<uint8_t> apduResponse);
     void respondAsync(ResponseCallback&&, Vector<uint8_t>&& response) const;
 
     const Ref<NfcConnection> m_connection;

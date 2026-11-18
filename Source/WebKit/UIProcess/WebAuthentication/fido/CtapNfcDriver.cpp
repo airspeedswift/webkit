@@ -28,15 +28,10 @@
 
 #if ENABLE(WEB_AUTHN) && HAVE(NEAR_FIELD)
 
-#include "Logging.h"
-#include <WebCore/ApduCommand.h>
-#include <WebCore/ApduResponse.h>
 #include <wtf/Assertions.h>
 #include <wtf/RunLoop.h>
 
 namespace WebKit {
-using namespace apdu;
-using namespace fido;
 
 Ref<CtapNfcDriver> CtapNfcDriver::create(Ref<NfcConnection>&& connection)
 {
@@ -55,34 +50,9 @@ void CtapNfcDriver::transact(Vector<uint8_t>&& data, ResponseCallback&& callback
     // For CTAP2, commands follow:
     // https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#nfc-command-framing
     if (isCtap2Protocol()) {
-        if (!isValidSize(data.size()))
-            RELEASE_LOG(WebAuthn, "CtapNfcDriver::transact Sending data larger than maxSize. msgSize=%ld", data.size());
-        ApduCommand command;
-        command.setCla(kCtapNfcApduCla);
-        command.setIns(kCtapNfcApduIns);
-        command.setData(WTF::move(data));
-        command.setResponseLength(ApduCommand::kApduMaxResponseLength);
-
-        auto apduResponse = ApduResponse::createFromMessage(m_connection->transact(command.getEncodedCommand()));
-        if (!apduResponse) {
-            respondAsync(WTF::move(callback), { });
-            return;
-        }
-        if (apduResponse->status() == ApduResponse::Status::SW_INS_NOT_SUPPORTED) {
-            // Return kCtap1ErrInvalidCommand instead of an empty response to signal FidoService to create a U2F authenticator
-            // for the getInfo stage.
-            respondAsync(WTF::move(callback), { static_cast<uint8_t>(CtapDeviceResponseCode::kCtap1ErrInvalidCommand) });
-            return;
-        }
-        if (apduResponse->status() != ApduResponse::Status::SW_NO_ERROR) {
-            respondAsync(WTF::move(callback), { });
-            return;
-        }
-
-        respondAsync(WTF::move(callback), WTF::move(apduResponse->data()));
+        respondAsync(WTF::move(callback), ctap2Response(m_connection->transact(encodeCtap2Command(WTF::move(data)))));
         return;
     }
-
 
     // For U2F, U2fAuthenticator would handle the APDU encoding.
     // https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-nfc-protocol-v1.2-ps-20170411.html#framing

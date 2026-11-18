@@ -33,6 +33,8 @@
 
 #include <WebCore/AuthenticatorSupportedOptions.h>
 #include <WebCore/FidoConstants.h>
+#include <WebCore/PublicKeyCredentialDescriptor.h>
+#include <WebCore/PublicKeyCredentialParameters.h>
 #include <WebCore/UserVerificationRequirement.h>
 #include <wtf/Forward.h>
 
@@ -51,7 +53,7 @@ struct PinParameters {
 };
 
 struct HmacSecretParameters {
-    cbor::CBORValue::MapValue keyAgreement;
+    Vector<uint8_t> keyAgreement; // The platform COSE key map, CBOR encoded.
     Vector<uint8_t> saltEnc;
     Vector<uint8_t> saltAuth;
     int protocol;
@@ -67,8 +69,7 @@ WEBCORE_EXPORT Vector<uint8_t> encodeMakeCredentialRequestAsCBOR(Vector<uint8_t>
 // https://fidoalliance.org/specs/fido-v2.0-ps-20170927/fido-client-to-authenticator-protocol-v2.0-ps-20170927.html#authenticatorGetAssertion
 WEBCORE_EXPORT Vector<uint8_t> encodeGetAssertionRequestAsCBOR(Vector<uint8_t> hash, WebCore::PublicKeyCredentialRequestOptions, AuthenticatorSupportedOptions::UserVerificationAvailability, WebCore::UserVerificationRequirement effectiveUVRequirement, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialDescriptor>> = std::nullopt, std::optional<HmacSecretParameters> = std::nullopt);
 
-// Test-only entries without the HmacSecretParameters parameter, so test code never constructs it and
-// keeps working when the layout of that struct changes (TestWebKitAPI binary shared by every arm).
+// Test-only entries without the HmacSecretParameters parameter, so tests can call the encoders without building one.
 WEBCORE_EXPORT Vector<uint8_t> encodeMakeCredentialRequestAsCBORForTesting(Vector<uint8_t> hash, WebCore::PublicKeyCredentialCreationOptions, AuthenticatorSupportedOptions::UserVerificationAvailability, WebCore::UserVerificationRequirement effectiveUVRequirement, AuthenticatorSupportedOptions::ResidentKeyAvailability, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialParameters>> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialDescriptor>> = std::nullopt);
 WEBCORE_EXPORT Vector<uint8_t> encodeGetAssertionRequestAsCBORForTesting(Vector<uint8_t> hash, WebCore::PublicKeyCredentialRequestOptions, AuthenticatorSupportedOptions::UserVerificationAvailability, WebCore::UserVerificationRequirement effectiveUVRequirement, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialDescriptor>> = std::nullopt);
 

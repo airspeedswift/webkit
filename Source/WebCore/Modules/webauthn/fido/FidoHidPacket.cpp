@@ -32,8 +32,7 @@
 
 #if ENABLE(WEB_AUTHN)
 
-#include <algorithm>
-#include <wtf/StdLibExtras.h>
+#include "FidoHidMessage.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace fido {
@@ -51,30 +50,14 @@ FidoHidPacket::FidoHidPacket(Vector<uint8_t>&& data, uint32_t channelId)
 // static
 std::unique_ptr<FidoHidInitPacket> FidoHidInitPacket::createFromSerializedData(Vector<uint8_t> serialized, size_t* remainingSize)
 {
-    if (!remainingSize || serialized.size() != kHidPacketSize)
+    if (!remainingSize)
         return nullptr;
-
-    size_t index = 0;
-    auto channelId = (serialized[index++] & 0xff) << 24;
-    channelId |= (serialized[index++] & 0xff) << 16;
-    channelId |= (serialized[index++] & 0xff) << 8;
-    channelId |= serialized[index++] & 0xff;
-
-    auto command = static_cast<FidoHidDeviceCommand>(serialized[index++] & 0x7f);
-    if (!isFidoHidDeviceCommand(command))
+    auto state = FidoHidMessage::parseInitPacket(WTF::move(serialized));
+    if (!state.valid)
         return nullptr;
-
-    uint16_t payloadSize = serialized[index++] << 8;
-    payloadSize |= serialized[index++];
-
-    // Check to see if payload is less than maximum size and padded with 0s.
-    uint16_t dataSize = std::min(payloadSize, static_cast<uint16_t>(kHidPacketSize - index));
-
-    // Update remaining size to determine the payload size of follow on packets.
-    *remainingSize = payloadSize - dataSize;
-
-    auto data = serialized.subvector(index, dataSize);
-    return makeUnique<FidoHidInitPacket>(channelId, command, WTF::move(data), payloadSize);
+    *remainingSize = state.remainingSize;
+    auto payloadLength = static_cast<uint16_t>(state.payload.size() + state.remainingSize);
+    return makeUnique<FidoHidInitPacket>(state.channelId, state.cmd, WTF::move(state.payload), payloadLength);
 }
 
 // U2F Initialization packet is defined as:
@@ -93,40 +76,19 @@ FidoHidInitPacket::FidoHidInitPacket(uint32_t channelId, FidoHidDeviceCommand cm
 
 Vector<uint8_t> FidoHidInitPacket::getSerializedData() const
 {
-    Vector<uint8_t> serialized(ReserveCapacityTag { }, kHidPacketSize);
-    serialized.append((m_channelId >> 24) & 0xff);
-    serialized.append((m_channelId >> 16) & 0xff);
-    serialized.append((m_channelId >> 8) & 0xff);
-    serialized.append(m_channelId & 0xff);
-    serialized.append(static_cast<uint8_t>(m_command) | 0x80);
-    serialized.append((m_payloadLength >> 8) & 0xff);
-    serialized.append(m_payloadLength & 0xff);
-    serialized.appendVector(m_data);
-    auto offset = serialized.size();
-    serialized.grow(kHidPacketSize);
-    zeroSpan(serialized.mutableSpan().subspan(offset, kHidPacketSize - offset));
-
-    return serialized;
+    return FidoHidMessage::serializeInitPacket(m_channelId, m_command, m_payloadLength, m_data);
 }
 
 // static
 std::unique_ptr<FidoHidContinuationPacket> FidoHidContinuationPacket::createFromSerializedData(Vector<uint8_t> serialized, size_t* remainingSize)
 {
-    if (!remainingSize || serialized.size() != kHidPacketSize)
+    if (!remainingSize)
         return nullptr;
-
-    size_t index = 0;
-    auto channelId = (serialized[index++] & 0xff) << 24;
-    channelId |= (serialized[index++] & 0xff) << 16;
-    channelId |= (serialized[index++] & 0xff) << 8;
-    channelId |= serialized[index++] & 0xff;
-    auto sequence = serialized[index++];
-
-    // Check to see if packet payload is less than maximum size and padded with 0s.
-    size_t dataSize = std::min(*remainingSize, kHidPacketSize - index);
-    *remainingSize -= dataSize;
-    auto data = serialized.subvector(index, dataSize);
-    return makeUnique<FidoHidContinuationPacket>(channelId, sequence, WTF::move(data));
+    auto state = FidoHidMessage::parseContinuationPacket(WTF::move(serialized), *remainingSize);
+    if (!state.valid)
+        return nullptr;
+    *remainingSize = state.remainingSize;
+    return makeUnique<FidoHidContinuationPacket>(state.channelId, state.sequence, WTF::move(state.payload));
 }
 
 // U2F Continuation packet is defined as:
@@ -142,18 +104,7 @@ FidoHidContinuationPacket::FidoHidContinuationPacket(const uint32_t channelId, c
 
 Vector<uint8_t> FidoHidContinuationPacket::getSerializedData() const
 {
-    Vector<uint8_t> serialized(ReserveCapacityTag { }, kHidPacketSize);
-    serialized.append((m_channelId >> 24) & 0xff);
-    serialized.append((m_channelId >> 16) & 0xff);
-    serialized.append((m_channelId >> 8) & 0xff);
-    serialized.append(m_channelId & 0xff);
-    serialized.append(m_sequence);
-    serialized.appendVector(m_data);
-    auto offset = serialized.size();
-    serialized.grow(kHidPacketSize);
-    zeroSpan(serialized.mutableSpan().subspan(offset, kHidPacketSize - offset));
-
-    return serialized;
+    return FidoHidMessage::serializeContinuationPacket(m_channelId, m_sequence, m_data);
 }
 
 } // namespace fido

@@ -59,6 +59,7 @@ public:
 
     // Returns serialized message data.
     WEBCORE_EXPORT Vector<uint8_t> getEncodedCommand() const;
+    static Vector<uint8_t> encodeCommand(uint8_t cla, uint8_t ins, uint8_t p1, uint8_t p2, size_t responseLength, Vector<uint8_t> data);
 
     void setCla(uint8_t cla) { m_cla = cla; }
     void setIns(uint8_t ins) { m_ins = ins; }

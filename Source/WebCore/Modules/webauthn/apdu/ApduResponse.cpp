@@ -34,20 +34,6 @@
 
 namespace apdu {
 
-// static
-std::optional<ApduResponse> ApduResponse::createFromMessage(Vector<uint8_t> data)
-{
-    // Invalid message size, data is appended by status byte.
-    if (data.size() < 2)
-        return std::nullopt;
-
-    uint16_t statusBytes = data[data.size() - 2] << 8;
-    statusBytes |= data[data.size() - 1];
-
-    data.shrink(data.size() - 2);
-    return ApduResponse(WTF::move(data), static_cast<Status>(statusBytes));
-}
-
 ApduResponse::ApduResponse(Vector<uint8_t>&& data, Status responseStatus)
     : m_data(WTF::move(data))
     , m_responseStatus(responseStatus)
@@ -56,10 +42,7 @@ ApduResponse::ApduResponse(Vector<uint8_t>&& data, Status responseStatus)
 
 Vector<uint8_t> ApduResponse::getEncodedResponse() const
 {
-    Vector<uint8_t> encodedResponse = m_data;
-    encodedResponse.append(static_cast<uint16_t>(m_responseStatus) >> 8 & 0xff);
-    encodedResponse.append(static_cast<uint16_t>(m_responseStatus) & 0xff);
-    return encodedResponse;
+    return encodeResponse(m_data, m_responseStatus);
 }
 
 } // namespace apdu

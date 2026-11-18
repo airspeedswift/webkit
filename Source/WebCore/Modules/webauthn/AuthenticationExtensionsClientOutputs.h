@@ -64,6 +64,27 @@ struct AuthenticationExtensionsClientOutputs {
     WEBCORE_EXPORT static std::optional<AuthenticationExtensionsClientOutputs> fromCBOR(const Vector<uint8_t>&);
 };
 
+
+// For the Swift CTAP response readers, which cannot build this aggregate or its optionals: engaged outputs with only
+// prf, set as parseAuthenticatorDataExtensions sets it (when enabled was given, or when results were given and their
+// first ArrayBuffer was created).
+inline std::optional<AuthenticationExtensionsClientOutputs> makeClientOutputsWithPRF(bool hasEnabled, bool enabled, bool hasResults, const Vector<uint8_t>& first, bool hasSecond, const Vector<uint8_t>& second)
+{
+    AuthenticationExtensionsClientOutputs outputs;
+    if (hasEnabled)
+        outputs.prf = AuthenticationExtensionsClientOutputs::PRFOutputs { enabled, std::nullopt };
+    if (hasResults) {
+        RefPtr firstBuffer = ArrayBuffer::tryCreate(first.span());
+        RefPtr<ArrayBuffer> secondBuffer = hasSecond ? ArrayBuffer::tryCreate(second.span()) : nullptr;
+        if (firstBuffer) {
+            if (!outputs.prf)
+                outputs.prf = AuthenticationExtensionsClientOutputs::PRFOutputs { };
+            outputs.prf->results = AuthenticationExtensionsClientOutputs::PRFValues { firstBuffer.releaseNonNull(), WTF::move(secondBuffer) };
+        }
+    }
+    return outputs;
+}
+
 } // namespace WebCore
 
 #endif // ENABLE(WEB_AUTHN)

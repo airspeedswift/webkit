@@ -119,8 +119,6 @@ enum class CtapDeviceResponseCode : uint8_t {
     kCtap2ErrVendorLast = 0xFF
 };
 
-NODELETE bool isCtapDeviceResponseCode(CtapDeviceResponseCode);
-
 constexpr size_t kResponseCodeLength = 1;
 
 // Commands supported by CTAPHID device as specified in
@@ -136,8 +134,6 @@ enum class FidoHidDeviceCommand : uint8_t {
     kWink = 0x08,
     kLock = 0x04,
 };
-
-NODELETE bool isFidoHidDeviceCommand(FidoHidDeviceCommand);
 
 // Parameters for fake U2F registration used to check for user presence.
 constexpr std::array<uint8_t, 32> kBogusAppParam {
@@ -234,8 +230,6 @@ constexpr auto kAuthDataKey = "authData"_s;
 // String representation of public key credential enum.
 // https://w3c.github.io/webauthn/#credentialType
 constexpr auto kPublicKey = "public-key"_s;
-
-NODELETE ASCIILiteral publicKeyCredentialTypeToString(WebCore::PublicKeyCredentialType);
 
 // FIXME: Add url to the official spec once it's standardized.
 constexpr auto kCtap2Version = "FIDO_2_0"_s;

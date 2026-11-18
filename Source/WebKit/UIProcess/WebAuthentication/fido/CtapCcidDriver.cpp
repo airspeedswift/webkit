@@ -27,14 +27,9 @@
 #include "CtapCcidDriver.h"
 
 #if ENABLE(WEB_AUTHN)
-#include "Logging.h"
-#include <WebCore/ApduCommand.h>
-#include <WebCore/ApduResponse.h>
 #include <wtf/RunLoop.h>
 
 namespace WebKit {
-using namespace apdu;
-using namespace fido;
 
 Ref<CtapCcidDriver> CtapCcidDriver::create(Ref<CcidConnection>&& connection, WebCore::AuthenticatorTransport transport)
 {
@@ -52,35 +47,9 @@ void CtapCcidDriver::transact(Vector<uint8_t>&& data, ResponseCallback&& callbac
     // For CTAP2, commands follow:
     // https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#nfc-command-framing
     if (isCtap2Protocol()) {
-
-        if (!isValidSize(data.size()))
-            RELEASE_LOG(WebAuthn, "CtapCcidDriver::transact Sending data larger than maxSize. msgSize=%ld", data.size());
-        ApduCommand command;
-        command.setCla(kCtapNfcApduCla);
-        command.setIns(kCtapNfcApduIns);
-        command.setData(WTF::move(data));
-        command.setResponseLength(ApduCommand::kApduMaxResponseLength);
-        auto ncallback = [callback = WTF::move(callback), this, protectedThis = Ref { *this }](Vector<uint8_t>&& resp) mutable {
-            auto apduResponse = ApduResponse::createFromMessage(WTF::move(resp));
-            if (!apduResponse) {
-                respondAsync(WTF::move(callback), { });
-                return;
-            }
-            if (apduResponse->status() == ApduResponse::Status::SW_INS_NOT_SUPPORTED) {
-                // Return kCtap1ErrInvalidCommand instead of an empty response to signal FidoService to create a U2F authenticator
-                // for the getInfo stage.
-                respondAsync(WTF::move(callback), { static_cast<uint8_t>(CtapDeviceResponseCode::kCtap1ErrInvalidCommand) });
-                return;
-            }
-            if (apduResponse->status() != ApduResponse::Status::SW_NO_ERROR) {
-                respondAsync(WTF::move(callback), { });
-                return;
-            }
-
-            respondAsync(WTF::move(callback), WTF::move(apduResponse->data()));
-            return;
-        };
-        m_connection->transact(command.getEncodedCommand(), WTF::move(ncallback));
+        m_connection->transact(encodeCtap2Command(WTF::move(data)), [callback = WTF::move(callback), this, protectedThis = Ref { *this }](Vector<uint8_t>&& response) mutable {
+            respondAsync(WTF::move(callback), ctap2Response(WTF::move(response)));
+        });
         return;
     }
 

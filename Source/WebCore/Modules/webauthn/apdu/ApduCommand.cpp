@@ -34,74 +34,9 @@
 
 namespace apdu {
 
-namespace {
-
-// APDU command data length is 2 bytes encoded in big endian order.
-NODELETE uint16_t parseMessageLength(const Vector<uint8_t>& message, size_t offset)
-{
-    ASSERT(message.size() >= offset + 2);
-    return (message[offset] << 8) | message[offset + 1];
-}
-
-} // namespace
-
-std::optional<ApduCommand> ApduCommand::createFromMessage(Vector<uint8_t> message)
-{
-    if (message.size() < kApduMinHeader || message.size() > kApduMaxLength)
-        return std::nullopt;
-
-    uint8_t cla = message[0];
-    uint8_t ins = message[1];
-    uint8_t p1 = message[2];
-    uint8_t p2 = message[3];
-
-    size_t responseLength = 0;
-    Vector<uint8_t> data;
-
-    switch (message.size()) {
-    // No data present; no expected response.
-    case kApduMinHeader:
-        break;
-    // Invalid encoding sizes.
-    case kApduMinHeader + 1:
-    case kApduMinHeader + 2:
-        return std::nullopt;
-    // No data present; response expected.
-    case kApduMinHeader + 3:
-        // Fifth byte must be 0.
-        if (message[4])
-            return std::nullopt;
-        responseLength = parseMessageLength(message, kApduCommandLengthOffset);
-        // Special case where response length of 0x0000 corresponds to 65536
-        // as defined in ISO7816-4.
-        if (!responseLength)
-            responseLength = kApduMaxResponseLength;
-        break;
-    default:
-        // Fifth byte must be 0.
-        if (message[4])
-            return std::nullopt;
-        auto dataLength = parseMessageLength(message, kApduCommandLengthOffset);
-
-        if (message.size() == dataLength + kApduCommandDataOffset) {
-            // No response expected.
-            data.append(message.subspan(kApduCommandDataOffset));
-        } else if (message.size() == dataLength + kApduCommandDataOffset + 2) {
-            // Maximum response size is stored in final 2 bytes.
-            data.append(message.subspan(kApduCommandDataOffset, message.size() - kApduCommandDataOffset - 2));
-            auto responseLengthOffset = kApduCommandDataOffset + dataLength;
-            responseLength = parseMessageLength(message, responseLengthOffset);
-            // Special case where response length of 0x0000 corresponds to 65536
-            // as defined in ISO7816-4.
-            if (!responseLength)
-                responseLength = kApduMaxResponseLength;
-        } else
-            return std::nullopt;
-        break;
-    }
-
-    return ApduCommand(cla, ins, p1, p2, responseLength, WTF::move(data));
-}
+// WebAuthnApdu.swift spells these as literals (static constexpr members do not import).
+static_assert(ApduCommand::kApduMinHeader == 4 && ApduCommand::kApduCommandLengthOffset == 5 && ApduCommand::kApduCommandDataOffset == 7);
+static_assert(ApduCommand::kApduMaxDataLength == 65535 && ApduCommand::kApduMaxResponseLength == 65536 && ApduCommand::kApduMaxLength == 65544);
 
 ApduCommand::ApduCommand(uint8_t cla, uint8_t ins, uint8_t p1, uint8_t p2, size_t responseLength, Vector<uint8_t>&& data)
     : m_cla(cla)
@@ -115,31 +50,7 @@ ApduCommand::ApduCommand(uint8_t cla, uint8_t ins, uint8_t p1, uint8_t p2, size_
 
 Vector<uint8_t> ApduCommand::getEncodedCommand() const
 {
-    Vector<uint8_t> encoded = { m_cla, m_ins, m_p1, m_p2 };
-
-    // If data exists, request size (Lc) is encoded in 3 bytes, with the first
-    // byte always being null, and the other two bytes being a big-endian
-    // representation of the request size. If data length is 0, response size (Le)
-    // will be prepended with a null byte.
-    if (!m_data.isEmpty()) {
-        size_t dataLength = std::min(m_data.size(), kApduMaxDataLength);
-
-        encoded.append(0x0);
-        encoded.append((dataLength >> 8) & 0xff);
-        encoded.append(dataLength & 0xff);
-        encoded.append(m_data.span().first(dataLength));
-    } else if (m_responseLength > 0)
-        encoded.append(0x0);
-
-    if (m_responseLength > 0) {
-        size_t responseLength = m_responseLength;
-        if (responseLength > kApduMaxResponseLength)
-            responseLength = kApduMaxResponseLength;
-        // A zero value represents a response length of 65,536 bytes.
-        encoded.append((responseLength >> 8) & 0xff);
-        encoded.append(responseLength & 0xff);
-    }
-    return encoded;
+    return encodeCommand(m_cla, m_ins, m_p1, m_p2, m_responseLength, m_data);
 }
 
 } // namespace apdu

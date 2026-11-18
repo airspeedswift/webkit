@@ -471,6 +471,18 @@ module WebKit_Internal [system] {
         export *
     }
 
+    module WebAuthnFido {
+        requires cplusplus20
+        header "../../UIProcess/WebAuthentication/fido/CtapAuthenticator.h"
+        header "../../UIProcess/WebAuthentication/fido/CtapCcidDriver.h"
+        header "../../UIProcess/WebAuthentication/fido/CtapHidDriver.h"
+        header "../../UIProcess/WebAuthentication/fido/CtapNfcDriver.h"
+        header "../../UIProcess/WebAuthentication/fido/FidoAuthenticator.h"
+        header "../../UIProcess/WebAuthentication/fido/FidoService.h"
+        header "../../UIProcess/WebAuthentication/fido/U2fAuthenticator.h"
+        export *
+    }
+
     module SecurityFlags {
         requires cplusplus20
         header "SecurityFlagsForSwift.h"

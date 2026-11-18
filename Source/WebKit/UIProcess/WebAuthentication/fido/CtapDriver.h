@@ -66,6 +66,9 @@ private:
     std::optional<uint32_t> m_maxMsgSize;
 };
 
+// The name Swift spells for the instantiation.
+using CtapDriverRef = Ref<CtapDriver>;
+
 } // namespace WebKit
 
 #endif // ENABLE(WEB_AUTHN)

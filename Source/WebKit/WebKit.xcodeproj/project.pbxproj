@@ -2874,6 +2874,13 @@
 		DE9B7DD307BFDC59AAD5A316 /* WebPhoneNumberPossessionCoordinator.h in Headers */ = {isa = PBXBuildFile; fileRef = 615CAF1FFF884BA22CC8F813 /* WebPhoneNumberPossessionCoordinator.h */; };
 		AD68F1ED46BFEA0437BA3D85 /* PhoneNumberPossessionManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22FE3E4E5FDB2A3685605EB9 /* PhoneNumberPossessionManaging.swift */; };
 		3625771CD7ED2C7CCF7238E1 /* MockPhoneNumberPossessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FC558120E9C9FB6C819C9C /* MockPhoneNumberPossessionManager.swift */; };
+		086669E84B8615B8358018F3 /* CtapAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B94220E65D521286D99CA03D /* CtapAuthenticator.swift */; };
+		5D61E03767AAC53AB6D370FB /* CtapCcidDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B67A9EF30E2C4308628B3B1 /* CtapCcidDriver.swift */; };
+		CB8DF318BB79241F256B4917 /* CtapHidDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9077879AC58AA61894A10514 /* CtapHidDriver.swift */; };
+		406CB7739BBED76B9D1E2028 /* CtapNfcDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7937A20FC50EDD1BA01166EE /* CtapNfcDriver.swift */; };
+		768A5EE00B3084D349BA27F1 /* FidoAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B5FACEBC6AD4B57AC9C7B8D /* FidoAuthenticator.swift */; };
+		01E838920E7BDD54F9EC4805 /* FidoService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5535C6E177072015FA25FCC3 /* FidoService.swift */; };
+		ED451274BDCD3032577827B0 /* U2fAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B09449C1EC74E2106C4F0655 /* U2fAuthenticator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXBuildRule section */
@@ -9471,6 +9478,13 @@
 		C5B999CD29BB9B11852EBA95 /* WebPhoneNumberPossessionCoordinatorProxyCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebPhoneNumberPossessionCoordinatorProxyCocoa.mm; sourceTree = "<group>"; };
 		22FE3E4E5FDB2A3685605EB9 /* PhoneNumberPossessionManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneNumberPossessionManaging.swift; sourceTree = "<group>"; };
 		34FC558120E9C9FB6C819C9C /* MockPhoneNumberPossessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPhoneNumberPossessionManager.swift; sourceTree = "<group>"; };
+		B94220E65D521286D99CA03D /* CtapAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtapAuthenticator.swift; sourceTree = "<group>"; };
+		1B67A9EF30E2C4308628B3B1 /* CtapCcidDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtapCcidDriver.swift; sourceTree = "<group>"; };
+		9077879AC58AA61894A10514 /* CtapHidDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtapHidDriver.swift; sourceTree = "<group>"; };
+		7937A20FC50EDD1BA01166EE /* CtapNfcDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CtapNfcDriver.swift; sourceTree = "<group>"; };
+		6B5FACEBC6AD4B57AC9C7B8D /* FidoAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FidoAuthenticator.swift; sourceTree = "<group>"; };
+		5535C6E177072015FA25FCC3 /* FidoService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FidoService.swift; sourceTree = "<group>"; };
+		B09449C1EC74E2106C4F0655 /* U2fAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = U2fAuthenticator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -14918,19 +14932,26 @@
 			isa = PBXGroup;
 			children = (
 				57597EBC2181848F0037F924 /* CtapAuthenticator.cpp */,
+				B94220E65D521286D99CA03D /* CtapAuthenticator.swift */,
 				57597EBB2181848F0037F924 /* CtapAuthenticator.h */,
 				526C5721284ADCBC00E08955 /* CtapCcidDriver.cpp */,
+				1B67A9EF30E2C4308628B3B1 /* CtapCcidDriver.swift */,
 				526C5720284ADCBC00E08955 /* CtapCcidDriver.h */,
 				570B73CF230236DD00FAEC53 /* CtapDriver.h */,
 				57597EC021818BE20037F924 /* CtapHidDriver.cpp */,
+				9077879AC58AA61894A10514 /* CtapHidDriver.swift */,
 				57597EB721811D9A0037F924 /* CtapHidDriver.h */,
 				570DAAC9230385FD00E8FC04 /* CtapNfcDriver.cpp */,
+				7937A20FC50EDD1BA01166EE /* CtapNfcDriver.swift */,
 				570DAAC8230385FD00E8FC04 /* CtapNfcDriver.h */,
 				57B8E3D62355864A00D5C5D1 /* FidoAuthenticator.cpp */,
+				6B5FACEBC6AD4B57AC9C7B8D /* FidoAuthenticator.swift */,
 				57B8E3D52355864A00D5C5D1 /* FidoAuthenticator.h */,
 				57B8264723050C5100B72EB0 /* FidoService.cpp */,
+				5535C6E177072015FA25FCC3 /* FidoService.swift */,
 				57B8264623050C5100B72EB0 /* FidoService.h */,
 				57EB2E3921E1983E00B89CDF /* U2fAuthenticator.cpp */,
+				B09449C1EC74E2106C4F0655 /* U2fAuthenticator.swift */,
 				57EB2E3821E1983E00B89CDF /* U2fAuthenticator.h */,
 			);
 			path = fido;
@@ -22403,6 +22424,13 @@
 				49DC1DE127E5129100C1CB36 /* CSPExtensionUtilities.mm in Sources */,
 				522F792C28D531970069B45B /* CtapAuthenticator.cpp in Sources */,
 				526C5723284ADCBC00E08955 /* CtapCcidDriver.cpp in Sources */,
+				086669E84B8615B8358018F3 /* CtapAuthenticator.swift in Sources */,
+				5D61E03767AAC53AB6D370FB /* CtapCcidDriver.swift in Sources */,
+				CB8DF318BB79241F256B4917 /* CtapHidDriver.swift in Sources */,
+				406CB7739BBED76B9D1E2028 /* CtapNfcDriver.swift in Sources */,
+				768A5EE00B3084D349BA27F1 /* FidoAuthenticator.swift in Sources */,
+				01E838920E7BDD54F9EC4805 /* FidoService.swift in Sources */,
+				ED451274BDCD3032577827B0 /* U2fAuthenticator.swift in Sources */,
 				522F792B28D5318A0069B45B /* CtapHidDriver.cpp in Sources */,
 				2D0C56FE229F1DEA00BD33E7 /* DeviceManagementSoftLink.mm in Sources */,
 				E382D57F2C21D500005F7653 /* DownloadProxyCocoa.mm in Sources */,

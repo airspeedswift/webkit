@@ -70,7 +70,6 @@
 namespace cbor {
 
 class CBORReader {
-    WTF_MAKE_NONCOPYABLE(CBORReader);
 public:
     using Bytes = std::span<const uint8_t>;
 
@@ -94,7 +93,13 @@ public:
     // CBOR nested depth sufficient for most use cases.
     static const int kCBORMaxDepth = 16;
 
-    NODELETE ~CBORReader();
+    // The result of the reader, WebCore::cborReadResult in Swift: value is a NONE value when the read fails.
+    struct ReadResult {
+        CBORValue value;
+        DecoderError error { DecoderError::CBORNoError };
+        size_t bytesConsumed { 0 };
+    };
+
 
     // Reads and parses |input_data| into a CBORValue. If any one of the syntax
     // formats is violated -including unknown additional info and incomplete
@@ -106,33 +111,6 @@ public:
     // Reads and parses |input_data| into a CBORValue and returns the number of bytes consumed.
     // If parsing fails, returns nullopt and sets |errorCodeOut| if provided.
     WEBCORE_EXPORT static std::optional<std::pair<CBORValue, size_t>> readWithBytesConsumed(const Bytes&, DecoderError* errorCodeOut = nullptr, int maxNestingLevel = kCBORMaxDepth);
-
-    // Translates errors to human-readable error messages.
-    static ASCIILiteral errorCodeToString(DecoderError errorCode);
-
-private:
-    explicit CBORReader(const Bytes&);
-    std::optional<CBORValue> decodeCBOR(int maxNestingLevel);
-    std::optional<CBORValue> decodeValueToNegative(uint64_t value);
-    std::optional<CBORValue> decodeValueToUnsigned(uint64_t value);
-    std::optional<CBORValue> readSimpleValue(uint8_t additionalInfo, uint64_t value);
-    NODELETE bool readVariadicLengthInteger(uint8_t additionalInfo, uint64_t* value);
-    std::optional<CBORValue> readBytes(uint64_t numBytes);
-    std::optional<CBORValue> readString(uint64_t numBytes);
-    std::optional<CBORValue> readCBORArray(uint64_t length, int maxNestingLevel);
-    std::optional<CBORValue> readCBORMap(uint64_t length, int maxNestingLevel);
-    NODELETE bool canConsume(uint64_t bytes);
-    NODELETE void checkExtraneousData();
-    NODELETE bool checkDuplicateKey(const CBORValue& newKey, const CBORValue::MapValue&);
-    NODELETE bool hasValidUTF8Format(const String&);
-    NODELETE bool checkOutOfOrderKey(const CBORValue& newKey, const CBORValue::MapValue&);
-    NODELETE bool checkMinimalEncoding(uint8_t additionalBytes, uint64_t uintData);
-
-    NODELETE DecoderError getErrorCode();
-
-    const Bytes& m_data;
-    Bytes::iterator m_it;
-    DecoderError m_errorCode;
 };
 
 } // namespace cbor

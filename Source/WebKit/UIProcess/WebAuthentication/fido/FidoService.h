@@ -31,11 +31,12 @@
 #include "CtapDriver.h"
 #include <wtf/HashSet.h>
 #include <wtf/RetainPtr.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/UniqueRef.h>
 
 namespace WebKit {
 
-class FidoService : public AuthenticatorTransportService, public RefCounted<FidoService> {
+class SWIFT_PRIVATE_FILEID("WebKit/FidoService.swift") FidoService : public AuthenticatorTransportService, public RefCounted<FidoService> {
     WTF_MAKE_TZONE_ALLOCATED(FidoService);
 public:
     void ref() const final { RefCounted::ref(); }
@@ -47,6 +48,14 @@ protected:
 
 private:
     void continueAfterGetInfo(CtapDriver&, Vector<uint8_t> info);
+
+    // For FidoService.swift.
+    RefPtr<CtapDriver> takeDriver(CtapDriver& driver) { return m_drivers.take(&driver); }
+    bool hasObserver() const { return !!observer(); }
+    void notifyAuthenticatorAdded(Authenticator&);
+    // The CTAP2 authenticator for a getInfo response, after setting the driver's maximum message size; null when the
+    // response is no CTAP2 device's. readCTAPGetInfoResponse gives a move-only optional, which Swift does not take.
+    static RefPtr<Authenticator> ctapAuthenticatorForGetInfo(CtapDriver&, const Vector<uint8_t>& response);
 
     // Keeping drivers alive when they are getting info from devices.
     HashSet<Ref<CtapDriver>> m_drivers;

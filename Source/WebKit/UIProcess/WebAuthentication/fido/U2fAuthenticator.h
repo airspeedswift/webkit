@@ -29,31 +29,21 @@
 
 #include "FidoAuthenticator.h"
 #include <wtf/RunLoop.h>
-
-namespace apdu {
-class ApduResponse;
-}
+#include <wtf/SwiftBridging.h>
 
 namespace WebKit {
 
 class CtapDriver;
 
-class U2fAuthenticator final : public FidoAuthenticator {
+class SWIFT_PRIVATE_FILEID("WebKit/U2fAuthenticator.swift") U2fAuthenticator final : public FidoAuthenticator {
 public:
     static Ref<U2fAuthenticator> create(Ref<CtapDriver>&& driver)
     {
         return adoptRef(*new U2fAuthenticator(WTF::move(driver)));
     }
+    ~U2fAuthenticator(); // The key function, kept in C++ so the vtable is emitted with the destructor.
 
-private:
-    explicit U2fAuthenticator(Ref<CtapDriver>&&);
-
-    void makeCredential() final;
-    void checkExcludeList(size_t index);
-    void issueRegisterCommand();
-    void getAssertion() final;
-    void issueSignCommand(size_t index);
-
+    // Public: Swift crashes serializing a private nested C++ enum used in a Swift signature.
     enum class CommandType : uint8_t {
         RegisterCommand,
         CheckOnlyCommand,
@@ -61,15 +51,16 @@ private:
         BogusCommandNoCredentials,
         SignCommand
     };
-    void issueNewCommand(Vector<uint8_t> command, CommandType);
+
+private:
+    explicit U2fAuthenticator(Ref<CtapDriver>&&);
+
+    void makeCredential() final;
+    void getAssertion() final;
+
     void retryLastCommand() { issueCommand(m_lastCommand, m_lastCommandType); }
+    void scheduleRetry() { m_retryTimer.startOneShot(Seconds::fromMilliseconds(200)); }
     void issueCommand(Vector<uint8_t> command, CommandType);
-    void responseReceived(Vector<uint8_t> response, CommandType);
-    void continueRegisterCommandAfterResponseReceived(apdu::ApduResponse&&);
-    void continueCheckOnlyCommandAfterResponseReceived(apdu::ApduResponse&&);
-    void continueBogusCommandExcludeCredentialsMatchAfterResponseReceived(apdu::ApduResponse&&);
-    void continueBogusCommandNoCredentialsAfterResponseReceived(apdu::ApduResponse&&);
-    void continueSignCommandAfterResponseReceived(apdu::ApduResponse&&);
 
     RunLoop::Timer m_retryTimer;
     Vector<uint8_t> m_lastCommand;
@@ -77,6 +68,8 @@ private:
     size_t m_nextListIndex { 0 };
     bool m_isAppId { false };
 };
+
+using WeakPtrU2fAuthenticator = WeakPtr<U2fAuthenticator>;
 
 } // namespace WebKit
 

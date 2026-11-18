@@ -55,6 +55,7 @@ public:
     ApduResponse(Vector<uint8_t>&& data, Status);
 
     Vector<uint8_t> getEncodedResponse() const;
+    static Vector<uint8_t> encodeResponse(Vector<uint8_t> data, Status);
 
     const Vector<uint8_t>& data() const LIFETIME_BOUND { return m_data; }
     Vector<uint8_t>& data() LIFETIME_BOUND { return m_data; }

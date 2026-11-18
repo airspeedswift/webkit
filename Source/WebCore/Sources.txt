@@ -508,15 +508,9 @@ Modules/webauthn/cbor/CBORValue.cpp
 Modules/webauthn/cbor/CBORWriter.cpp
 Modules/webauthn/fido/AuthenticatorGetInfoResponse.cpp
 Modules/webauthn/fido/AuthenticatorSupportedOptions.cpp
-Modules/webauthn/fido/DeviceRequestConverter.cpp
-Modules/webauthn/fido/DeviceResponseConverter.cpp
-Modules/webauthn/fido/FidoConstants.cpp
 Modules/webauthn/fido/FidoHidMessage.cpp
 Modules/webauthn/fido/FidoHidPacket.cpp
-Modules/webauthn/fido/FidoParsingUtils.cpp
 Modules/webauthn/fido/Pin.cpp
-Modules/webauthn/fido/U2fCommandConstructor.cpp
-Modules/webauthn/fido/U2fResponseConverter.cpp
 Modules/webcodecs/VideoColorSpace.cpp
 Modules/webcodecs/WebCodecsAudioData.cpp
 Modules/webcodecs/WebCodecsAudioDataAlgorithms.cpp

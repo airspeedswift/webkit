@@ -66,44 +66,6 @@ AuthenticatorSupportedOptions& AuthenticatorSupportedOptions::setIsPlatformDevic
     return *this;
 }
 
-cbor::CBORValue convertToCBOR(AuthenticatorSupportedOptions options)
-{
-    using namespace cbor;
-
-    CBORValue::MapValue optionMap;
-    optionMap.emplace(CBORValue(kResidentKeyMapKey), CBORValue(options.residentKeyAvailability() == AuthenticatorSupportedOptions::ResidentKeyAvailability::kSupported));
-    optionMap.emplace(CBORValue(kUserPresenceMapKey), CBORValue(options.userPresenceRequired()));
-    optionMap.emplace(CBORValue(kPlatformDeviceMapKey), CBORValue(options.isPlatformDevice()));
-
-    using UvAvailability = AuthenticatorSupportedOptions::UserVerificationAvailability;
-
-    switch (options.userVerificationAvailability()) {
-    case UvAvailability::kSupportedAndConfigured:
-        optionMap.emplace(CBORValue(kUserVerificationMapKey), CBORValue(true));
-        break;
-    case UvAvailability::kSupportedButNotConfigured:
-        optionMap.emplace(CBORValue(kUserVerificationMapKey), CBORValue(false));
-        break;
-    case UvAvailability::kNotSupported:
-        break;
-    }
-
-    using ClientPinAvailability = AuthenticatorSupportedOptions::ClientPinAvailability;
-
-    switch (options.clientPinAvailability()) {
-    case ClientPinAvailability::kSupportedAndPinSet:
-        optionMap.emplace(CBORValue(kClientPinMapKey), CBORValue(true));
-        break;
-    case ClientPinAvailability::kSupportedButPinNotSet:
-        optionMap.emplace(CBORValue(kClientPinMapKey), CBORValue(false));
-        break;
-    case ClientPinAvailability::kNotSupported:
-        break;
-    }
-
-    return CBORValue(WTF::move(optionMap));
-}
-
 } // namespace fido
 
 #endif // ENABLE(WEB_AUTHN)

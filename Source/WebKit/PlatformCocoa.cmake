@@ -491,6 +491,13 @@ list(APPEND WebKit_SOURCES
     UIProcess/WebAuthentication/fido/CtapAuthenticator.cpp
     UIProcess/WebAuthentication/fido/CtapCcidDriver.cpp
     UIProcess/WebAuthentication/fido/CtapHidDriver.cpp
+    ${WEBKIT_DIR}/UIProcess/WebAuthentication/fido/CtapAuthenticator.swift
+    ${WEBKIT_DIR}/UIProcess/WebAuthentication/fido/CtapCcidDriver.swift
+    ${WEBKIT_DIR}/UIProcess/WebAuthentication/fido/CtapHidDriver.swift
+    ${WEBKIT_DIR}/UIProcess/WebAuthentication/fido/CtapNfcDriver.swift
+    ${WEBKIT_DIR}/UIProcess/WebAuthentication/fido/FidoAuthenticator.swift
+    ${WEBKIT_DIR}/UIProcess/WebAuthentication/fido/FidoService.swift
+    ${WEBKIT_DIR}/UIProcess/WebAuthentication/fido/U2fAuthenticator.swift
 
     WebProcess/Inspector/ServiceWorkerDebuggableFrontendChannel.cpp
     WebProcess/Inspector/ServiceWorkerDebuggableProxy.cpp

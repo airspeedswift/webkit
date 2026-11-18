@@ -79,8 +79,6 @@ public:
     // Default that should be sufficiently large for most use cases.
     static constexpr size_t kDefaultMaxNestingDepth = 16;
 
-    NODELETE ~CBORWriter();
-
     // Returns the CBOR byte string representation of |node|, unless its nesting
     // depth is greater than |max_nesting_depth|, in which case an empty optional
     // value is returned. The nesting depth of |node| is defined as the number of
@@ -89,28 +87,6 @@ public:
     // depths of 0.
     WEBCORE_EXPORT static std::optional<Vector<uint8_t>> write(const CBORValue&, size_t maxNestingLevel = kDefaultMaxNestingDepth);
 
-private:
-    NODELETE explicit CBORWriter(Vector<uint8_t>*);
-
-    // Called recursively to build the CBOR bytestring. When completed,
-    // |m_encodedCBOR| will contain the CBOR.
-    bool encodeCBOR(const CBORValue&, int maxNestingLevel);
-
-    // Encodes the type and size of the data being added.
-    void startItem(CBORValue::Type, uint64_t size);
-
-    // Encodes the additional information for the data.
-    NODELETE void setAdditionalInformation(uint8_t);
-
-    // Encodes an unsigned integer value. This is used to both write
-    // unsigned integers and to encode the lengths of other major types.
-    void setUint(uint64_t value);
-
-    // Get the number of bytes needed to store the unsigned integer.
-    NODELETE size_t getNumUintBytes(uint64_t value);
-
-    // Holds the encoded CBOR data.
-    Vector<uint8_t>* m_encodedCBOR;
 };
 
 } // namespace cbor

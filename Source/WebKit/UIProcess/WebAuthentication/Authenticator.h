@@ -62,6 +62,9 @@ public:
     virtual void cancelRequest() = 0;
 };
 
+// The handlers the Swift implementations pass to the observer, wrapped into CompletionHandlers.
+using AuthenticatorPinHandler = Function<void(const WTF::String&)>;
+
 class Authenticator : public RefCountedAndCanMakeWeakPtr<Authenticator> {
 public:
     virtual ~Authenticator();
@@ -70,6 +73,21 @@ public:
 
     // This operation is guaranteed to execute asynchronously.
     void handleRequest(const WebAuthenticationRequestData&);
+
+    // For the Swift implementations, which reach neither the observer's methods nor the request's Variant. Public,
+    // since Swift imports a base class's protected members as private to the base class's own file.
+    bool hasObserver() const { return !!m_observer; }
+    // Each does nothing without an observer, except downgradeInObserver, which crashes as protect(observer())-> does.
+    void updateObserverStatus(WebAuthenticationStatus) const;
+    void downgradeInObserver(Authenticator& downgradedAuthenticator);
+    // Asks for the PIN, given the retries left, or for a new one, given its minimum length.
+    void requestPinFromObserver(bool isNew, uint64_t retriesOrMinLength, AuthenticatorPinHandler&&) const;
+    void respondWithError(WebCore::ExceptionCode, const WTF::String& message) const;
+    void respondWithResponse(WebCore::AuthenticatorResponse&) const;
+    bool isCreationRequest() const { return std::holds_alternative<WebCore::PublicKeyCredentialCreationOptions>(requestData().options); }
+    WebCore::PublicKeyCredentialCreationOptions creationOptions() const { return std::get<WebCore::PublicKeyCredentialCreationOptions>(requestData().options); }
+    WebCore::PublicKeyCredentialRequestOptions requestOptions() const { return std::get<WebCore::PublicKeyCredentialRequestOptions>(requestData().options); }
+    Vector<uint8_t> requestHash() const { return requestData().hash; }
 
 protected:
     Authenticator();

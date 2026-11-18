@@ -33,160 +33,31 @@
 #if ENABLE(WEB_AUTHN)
 
 #include "CBORBinary.h"
+#include "CBORReader.h"
+#include "WebCore-Swift.h"
 
 namespace cbor {
 
-CBORWriter::~CBORWriter() = default;
+// The numbers that WebAuthnCBOR.swift spells as literals: CBORBinary.h is not in a header Swift sees, and class-scope
+// constants do not import.
+static_assert(constants::kMajorTypeBitShift == 5 && constants::kAdditionalInformationMask == 0x1F);
+static_assert(constants::kAdditionalInformation1Byte == 24 && constants::kAdditionalInformation2Bytes == 25);
+static_assert(constants::kAdditionalInformation4Bytes == 26 && constants::kAdditionalInformation8Bytes == 27);
+static_assert(static_cast<int>(CBORValue::Type::Unsigned) == 0 && static_cast<int>(CBORValue::Type::Negative) == 1);
+static_assert(static_cast<int>(CBORValue::Type::ByteString) == 2 && static_cast<int>(CBORValue::Type::String) == 3);
+static_assert(static_cast<int>(CBORValue::Type::Array) == 4 && static_cast<int>(CBORValue::Type::Map) == 5);
+static_assert(static_cast<int>(CBORValue::Type::SimpleValue) == 7);
+static_assert(static_cast<int>(CBORValue::SimpleValue::FalseValue) == 20 && static_cast<int>(CBORValue::SimpleValue::TrueValue) == 21);
+static_assert(static_cast<int>(CBORValue::SimpleValue::NullValue) == 22 && static_cast<int>(CBORValue::SimpleValue::Undefined) == 23);
+static_assert(CBORReader::kCBORMaxDepth == 16 && CBORWriter::kDefaultMaxNestingDepth == 16);
 
 // static
 std::optional<Vector<uint8_t>> CBORWriter::write(const CBORValue& node, size_t maxNestingLevel)
 {
-    Vector<uint8_t> cbor;
-    CBORWriter writer(&cbor);
-    if (writer.encodeCBOR(node, static_cast<int>(maxNestingLevel)))
-        return cbor;
-    return std::nullopt;
-}
-
-CBORWriter::CBORWriter(Vector<uint8_t>* cbor)
-    : m_encodedCBOR(cbor)
-{
-}
-
-bool CBORWriter::encodeCBOR(const CBORValue& node, int maxNestingLevel)
-{
-    if (maxNestingLevel < 0)
-        return false;
-
-    switch (node.type()) {
-    case CBORValue::Type::None: {
-        startItem(CBORValue::Type::ByteString, 0);
-        return true;
-    }
-    // Represents unsigned integers.
-    case CBORValue::Type::Unsigned: {
-        int64_t value = node.getUnsigned();
-        startItem(CBORValue::Type::Unsigned, static_cast<uint64_t>(value));
-        return true;
-    }
-    // Represents negative integers.
-    case CBORValue::Type::Negative: {
-        int64_t value = node.getNegative();
-        startItem(CBORValue::Type::Negative, static_cast<uint64_t>(-(value + 1)));
-        return true;
-    }
-    // Represents a byte string.
-    case CBORValue::Type::ByteString: {
-        const CBORValue::BinaryValue& bytes = node.getByteString();
-        startItem(CBORValue::Type::ByteString, static_cast<uint64_t>(bytes.size()));
-        // Add the bytes.
-        m_encodedCBOR->appendVector(bytes);
-        return true;
-    }
-    case CBORValue::Type::String: {
-        // WTFString uses UTF16 but RFC7049 requires UTF8
-        auto utf8String = node.getString().utf8();
-        startItem(CBORValue::Type::String, static_cast<uint64_t>(utf8String.length()));
-        // Add the characters.
-        m_encodedCBOR->append(utf8String.span());
-        return true;
-    }
-    // Represents an array.
-    case CBORValue::Type::Array: {
-        const CBORValue::ArrayValue& array = node.getArray();
-        startItem(CBORValue::Type::Array, array.size());
-        for (const auto& value : array) {
-            if (!encodeCBOR(value, maxNestingLevel - 1))
-                return false;
-        }
-        return true;
-    }
-    // Represents a map.
-    case CBORValue::Type::Map: {
-        const CBORValue::MapValue& map = node.getMap();
-        startItem(CBORValue::Type::Map, map.size());
-
-        for (const auto& value : map) {
-            if (!encodeCBOR(value.first, maxNestingLevel - 1))
-                return false;
-            if (!encodeCBOR(value.second, maxNestingLevel - 1))
-                return false;
-        }
-        return true;
-    }
-    // Represents a simple value.
-    case CBORValue::Type::SimpleValue: {
-        const CBORValue::SimpleValue simpleValue = node.getSimpleValue();
-        startItem(CBORValue::Type::SimpleValue, static_cast<uint64_t>(simpleValue));
-        return true;
-    }
-    default:
-        break;
-    }
-
-    ASSERT_NOT_REACHED();
-    return false;
-}
-
-void CBORWriter::startItem(CBORValue::Type type, uint64_t size)
-{
-    m_encodedCBOR->append(static_cast<uint8_t>(static_cast<unsigned>(type) << constants::kMajorTypeBitShift));
-    setUint(size);
-}
-
-void CBORWriter::setAdditionalInformation(uint8_t additionalInformation)
-{
-    ASSERT(!m_encodedCBOR->isEmpty());
-    ASSERT((additionalInformation & constants::kAdditionalInformationMask) == additionalInformation);
-    m_encodedCBOR->last() |= (additionalInformation & constants::kAdditionalInformationMask);
-}
-
-void CBORWriter::setUint(uint64_t value)
-{
-    size_t count = getNumUintBytes(value);
-    int shift = -1;
-    // Values under 24 are encoded directly in the initial byte.
-    // Otherwise, the last 5 bits of the initial byte contains the length
-    // of unsigned integer, which is encoded in following bytes.
-    switch (count) {
-    case 0:
-        setAdditionalInformation(static_cast<uint8_t>(value));
-        break;
-    case 1:
-        setAdditionalInformation(constants::kAdditionalInformation1Byte);
-        shift = 0;
-        break;
-    case 2:
-        setAdditionalInformation(constants::kAdditionalInformation2Bytes);
-        shift = 1;
-        break;
-    case 4:
-        setAdditionalInformation(constants::kAdditionalInformation4Bytes);
-        shift = 3;
-        break;
-    case 8:
-        setAdditionalInformation(constants::kAdditionalInformation8Bytes);
-        shift = 7;
-        break;
-    default:
-        ASSERT_NOT_REACHED();
-        break;
-    }
-    for (; shift >= 0; shift--)
-        m_encodedCBOR->append(0xFF & (value >> (shift * 8)));
-}
-
-size_t CBORWriter::getNumUintBytes(uint64_t value)
-{
-    if (value < 24)
-        return 0;
-    if (value <= 0xFF)
-        return 1;
-    if (value <= 0xFFFF)
-        return 2;
-    if (value <= 0xFFFFFFFF)
-        return 4;
-    return 8;
+    auto cbor = WebCore::cborWrite(node, maxNestingLevel);
+    if (cbor.isEmpty())
+        return std::nullopt;
+    return cbor;
 }
 
 } // namespace cbor

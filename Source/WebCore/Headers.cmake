@@ -641,6 +641,7 @@ set(WebCore_PRIVATE_FRAMEWORK_HEADERS
     Modules/webauthn/WebAuthenticationConstants.h
     Modules/webauthn/WebAuthenticationUtils.h
     Modules/webauthn/WebAuthnOperationErrorCode.h
+    Modules/webauthn/WebAuthnSwiftTypes.h
     Modules/webauthn/WellKnownOriginList.h
 
     Modules/webauthn/apdu/ApduCommand.h

@@ -32,21 +32,9 @@
 
 #if ENABLE(WEB_AUTHN)
 
-#include "CBORValue.h"
-#include "CBORWriter.h"
-#include "WebAuthenticationConstants.h"
-#include "WebAuthenticationUtils.h"
+#include "WebCore-Swift.h"
 
 namespace fido {
-
-template <typename Container>
-cbor::CBORValue toArrayValue(const Container& container)
-{
-    auto value = WTF::map(container, [](auto& item) {
-        return cbor::CBORValue(item);
-    });
-    return cbor::CBORValue(WTF::move(value));
-}
 
 AuthenticatorGetInfoResponse::AuthenticatorGetInfoResponse(StdSet<ProtocolVersion>&& versions, Vector<uint8_t>&& aaguid)
     : m_versions(WTF::move(versions))
@@ -110,53 +98,74 @@ AuthenticatorGetInfoResponse& AuthenticatorGetInfoResponse::setMaxCredentialIDLe
 
 Vector<uint8_t> encodeAsCBOR(AuthenticatorGetInfoResponse response)
 {
-    using namespace cbor;
-
-    CBORValue::MapValue deviceInfoMap;
-
-    CBORValue::ArrayValue versionArray;
-    for (const auto& version : response.versions())
-        versionArray.append(toString(version));
-    deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoVersionsKey), CBORValue(WTF::move(versionArray)));
-
-    if (response.extensions())
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoExtensionsKey), toArrayValue(*response.extensions()));
-
-    deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoAAGUIDKey), CBORValue(response.aaguid()));
-    deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoOptionsKey), convertToCBOR(WTF::move(response.mutableOptions())));
-
-    if (response.maxMsgSize())
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoMaxMsgSizeKey), CBORValue(static_cast<int64_t>(*response.maxMsgSize())));
-
-    if (response.pinProtocol()) {
-        CBORValue::ArrayValue protocols;
-        for (auto protocol : *response.pinProtocol())
-            protocols.append(CBORValue(static_cast<int64_t>(protocol)));
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoPinUVAuthProtocolsKey), CBORValue(WTF::move(protocols)));
-    }
-    
-    if (response.transports()) {
-        auto transports = *response.transports();
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoTransportsKey), toArrayValue(transports.map([](auto transport) {
-            return WebCore::toString(transport);
-        })));
-    }
-
-    if (response.remainingDiscoverableCredentials())
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoRemainingDiscoverableCredentialsKey), CBORValue(static_cast<int64_t>(*response.remainingDiscoverableCredentials())));
-
-    if (auto minPINLength = response.minPINLength())
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoMinPINLengthKey), CBORValue(static_cast<int64_t>(*minPINLength)));
-
-    if (response.maxCredentialCountInList())
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoMaxCredentialCountInListKey), CBORValue(static_cast<int64_t>(*response.maxCredentialCountInList())));
-    if (response.maxCredentialIDLength())
-        deviceInfoMap.emplace(CBORValue(kCtapAuthenticatorGetInfoMaxCredentialIdLengthKey), CBORValue(static_cast<int64_t>(*response.maxCredentialIDLength())));
-
-    auto encodedBytes = CBORWriter::write(CBORValue(WTF::move(deviceInfoMap)));
-    ASSERT(encodedBytes);
-    return *encodedBytes;
+    return WebCore::encodeGetInfoResponseAsCBOR(response);
 }
+
+
+std::optional<AuthenticatorGetInfoResponse> makeGetInfoResponse(GetInfoResponseFields&& fields)
+{
+    if (fields.versions.isEmpty())
+        return std::nullopt;
+    AuthenticatorGetInfoResponse response(StdSet<ProtocolVersion>(fields.versions.begin(), fields.versions.end()), WTF::move(fields.aaguid));
+    if (fields.maxMsgSize)
+        response.setMaxMsgSize(*fields.maxMsgSize);
+    if (fields.pinProtocols)
+        response.setPinProtocols(StdSet<PINUVAuthProtocol>(fields.pinProtocols->begin(), fields.pinProtocols->end()));
+    if (fields.extensions)
+        response.setExtensions(WTF::move(*fields.extensions));
+    AuthenticatorSupportedOptions options;
+    options.setIsPlatformDevice(fields.isPlatformDevice).setResidentKeyAvailability(fields.residentKeyAvailability).setUserVerificationAvailability(fields.userVerificationAvailability).setUserPresenceRequired(fields.userPresenceRequired).setClientPinAvailability(fields.clientPinAvailability);
+    response.setOptions(WTF::move(options));
+    if (fields.transports)
+        response.setTransports(WTF::move(*fields.transports));
+    if (fields.remainingDiscoverableCredentials)
+        response.setRemainingDiscoverableCredentials(*fields.remainingDiscoverableCredentials);
+    if (fields.minPINLength)
+        response.setMinPINLength(*fields.minPINLength);
+    if (fields.maxCredentialCountInList)
+        response.setMaxCredentialCountInList(*fields.maxCredentialCountInList);
+    if (fields.maxCredentialIDLength)
+        response.setMaxCredentialIDLength(*fields.maxCredentialIDLength);
+    return response;
+}
+
+GetInfoResponseFields getInfoResponseFields(const AuthenticatorGetInfoResponse& response)
+{
+    auto& options = response.options();
+    return {
+        .versions = WTF::copyToVector(response.versions()),
+        .aaguid = response.aaguid(),
+        .maxMsgSize = response.maxMsgSize(),
+        .pinProtocols = response.pinProtocol() ? std::optional(WTF::copyToVector(*response.pinProtocol())) : std::nullopt,
+        .extensions = response.extensions(),
+        .isPlatformDevice = options.isPlatformDevice(),
+        .residentKeyAvailability = options.residentKeyAvailability(),
+        .userVerificationAvailability = options.userVerificationAvailability(),
+        .userPresenceRequired = options.userPresenceRequired(),
+        .clientPinAvailability = options.clientPinAvailability(),
+        .transports = response.transports(),
+        .remainingDiscoverableCredentials = response.remainingDiscoverableCredentials(),
+        .minPINLength = response.minPINLength(),
+        .maxCredentialCountInList = response.maxCredentialCountInList(),
+        .maxCredentialIDLength = response.maxCredentialIDLength(),
+        .algorithms = response.algorithms(),
+    };
+}
+
+// The FidoConstants.h names that WebAuthnCtapRequests.swift's FidoName spells as literals (ASCIILiteral does not
+// import).
+static consteval bool spells(ASCIILiteral name, std::string_view literal)
+{
+    return std::string_view(name.characters(), name.length()) == literal;
+}
+static_assert(spells(kResidentKeyMapKey, "rk") && spells(kUserVerificationMapKey, "uv") && spells(kUserPresenceMapKey, "up"));
+static_assert(spells(kClientPinMapKey, "clientPin") && spells(kPlatformDeviceMapKey, "plat"));
+static_assert(spells(kEntityIdMapKey, "id") && spells(kEntityNameMapKey, "name") && spells(kDisplayNameMapKey, "displayName"));
+static_assert(spells(kIconUrlMapKey, "icon") && spells(kCredentialTypeMapKey, "type") && spells(kCredentialAlgorithmMapKey, "alg"));
+static_assert(spells(kCredentialIdKey, "id") && spells(kCredentialTypeKey, "type") && spells(kPublicKey, "public-key"));
+static_assert(spells(kCtap2Version, "FIDO_2_0") && spells(kCtap21Version, "FIDO_2_1") && spells(kCtap21PreVersion, "FIDO_2_1_PRE"));
+static_assert(spells(kU2fVersion, "U2F_V2") && spells(kExtensionHmacSecret, "hmac-secret") && spells(kExtensionHmacSecretMc, "hmac-secret-mc"));
+static_assert(spells(kFormatKey, "fmt") && spells(kAttestationStatementKey, "attStmt") && spells(kAuthDataKey, "authData"));
 
 } // namespace fido
 

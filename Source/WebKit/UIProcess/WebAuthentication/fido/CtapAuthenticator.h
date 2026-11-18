@@ -30,62 +30,37 @@
 #include "FidoAuthenticator.h"
 #include <WebCore/AuthenticatorGetInfoResponse.h>
 #include <WebCore/CryptoKeyEC.h>
+#include <WebCore/DeviceRequestConverter.h>
 #include <WebCore/Pin.h>
 #include <WebCore/PublicKeyCredentialDescriptor.h>
-
-namespace fido {
-namespace pin {
-class TokenRequest;
-}
-struct HmacSecretParameters;
-}
+#include <wtf/SwiftBridging.h>
 
 namespace WebKit {
 
 class CtapDriver;
 
-class CtapAuthenticator final : public FidoAuthenticator {
+class SWIFT_PRIVATE_FILEID("WebKit/CtapAuthenticator.swift") CtapAuthenticator final : public FidoAuthenticator {
 public:
     static Ref<CtapAuthenticator> create(Ref<CtapDriver>&& driver, fido::AuthenticatorGetInfoResponse&& info)
     {
         return adoptRef(*new CtapAuthenticator(WTF::move(driver), WTF::move(info)));
     }
+    ~CtapAuthenticator(); // The key function, kept in C++ so the vtable is emitted with the destructor.
 
 private:
     explicit CtapAuthenticator(Ref<CtapDriver>&&, fido::AuthenticatorGetInfoResponse&&);
 
     void makeCredential() final;
-    void continueMakeCredentialAfterResponseReceived(Vector<uint8_t>);
-    void continueMakeCredentialAfterCheckExcludedCredentials(bool includeCurrentBatch = false);
     void getAssertion() final;
-    void continueSilentlyCheckCredentials(Vector<uint8_t>, Function<void(bool)>&&);
-    void continueGetAssertionAfterCheckAllowCredentials();
-    void continueGetAssertionAfterResponseReceived(Vector<uint8_t>);
-    void continueGetNextAssertionAfterResponseReceived(Vector<uint8_t>);
 
-    void getRetries();
-    void continueGetKeyAgreementAfterGetRetries(Vector<uint8_t>);
-    void continueRequestPinAfterGetKeyAgreement(Vector<uint8_t>, uint64_t retries);
-    void continueGetPinTokenAfterRequestPin(String pin, const WebCore::CryptoKeyEC&);
-    void continueRequestAfterGetPinToken(Vector<uint8_t>, const fido::pin::TokenRequest&);
-    bool tryRestartPin(fido::CtapDeviceResponseCode);
-
-    std::optional<fido::HmacSecretParameters> prepareHmacSecretParameters(WebCore::AuthenticationExtensionsClientInputs::PRFInputs, std::optional<Vector<uint8_t>> credentialId);
-
-    bool canDowngradeToU2f() const;
-    bool tryDowngrade();
-
-    Vector<WebCore::AuthenticatorTransport> transports() const;
-
-    String aaguidForDebugging() const;
-
-    fido::PINUVAuthProtocol selectPinProtocol() const;
-    NODELETE bool isUVSetup() const;
-
-    void continueSetupPinAfterCommand(Vector<uint8_t>, String pin, Ref<WebCore::CryptoKeyEC> peerKey);
-    void continueSetupPinAfterGetKeyAgreement(Vector<uint8_t>, String pin);
-    void performAuthenticatorSelectionForSetupPin();
-    void setupPin();
+    // For CtapAuthenticator.swift: Vector<Ref<AuthenticatorAssertionResponse>>
+    // imports as unsafe, and Swift cannot compare the identity of a foreign reference (=== takes only AnyObject).
+    void restartMakeCredential() { makeCredential(); }
+    void restartGetAssertion() { getAssertion(); }
+    void reserveAssertionResponses(size_t capacity) { m_assertionResponses.reserveInitialCapacity(capacity); }
+    void appendAssertionResponse(WebCore::AuthenticatorAssertionResponse&);
+    void selectAssertionResponseFromObserver();
+    void markClientPinSet() { m_info.mutableOptions().setClientPinAvailability(fido::AuthenticatorSupportedOptions::ClientPinAvailability::kSupportedAndPinSet); }
 
     fido::AuthenticatorGetInfoResponse m_info;
     bool m_isDowngraded { false };
@@ -95,9 +70,13 @@ private:
     Vector<Ref<WebCore::AuthenticatorAssertionResponse>> m_assertionResponses;
     Vector<Vector<WebCore::PublicKeyCredentialDescriptor>> m_batches;
     Vector<uint8_t> m_pinAuth;
-    std::optional<fido::pin::HmacSecretRequest> m_hmacSecretRequest;
+    // What the pending hmac-secret request decrypts the output with; a null key when there is none.
+    RefPtr<WebCore::CryptoKeyAES> m_hmacSecretSharedKey;
+    fido::PINUVAuthProtocol m_hmacSecretProtocol { fido::PINUVAuthProtocol::kPinProtocol1 };
     RefPtr<WebCore::CryptoKeyEC> m_cachedPeerKey;
 };
+
+using WeakPtrCtapAuthenticator = WeakPtr<CtapAuthenticator>;
 
 } // namespace WebKit
 

@@ -450,6 +450,40 @@ TEST(CBORWriterTest, OverlyNestedCBOR)
     EXPECT_FALSE(CBORWriter::write(CBORValue(map), 4).has_value());
 }
 
+// A map of `count` entries, key i (0 ... count - 1) to the negative integer -1 - i, and its encoding: the header,
+// then each key and each value as a one-byte item (count <= 24).
+static void checkIntegerMapWrite(size_t count)
+{
+    CBORValue::MapValue map;
+    Vector<uint8_t> expected;
+    expected.append(static_cast<uint8_t>(0xa0 | count));
+    for (size_t i = 0; i < count; ++i) {
+        map[CBORValue(static_cast<int64_t>(i))] = CBORValue(-1 - static_cast<int64_t>(i));
+        expected.append(static_cast<uint8_t>(i));
+        expected.append(static_cast<uint8_t>(0x20 | i));
+    }
+    EXPECT_EQ(count, map.size());
+
+    auto cbor = CBORWriter::write(CBORValue(map));
+    ASSERT_TRUE(cbor.has_value());
+    EXPECT_TRUE(eq(*cbor, expected.span()));
+
+    // A map of integers nests one level: one level suffices, none does not.
+    auto nested = CBORWriter::write(CBORValue(map), 1);
+    ASSERT_TRUE(nested.has_value());
+    EXPECT_TRUE(eq(*nested, expected.span()));
+    EXPECT_FALSE(CBORWriter::write(CBORValue(map), 0).has_value());
+}
+
+// Maps around the 16-entry size are written correctly.
+TEST(CBORWriterTest, WriteMapsAroundSixteenEntries)
+{
+    checkIntegerMapWrite(15);
+    checkIntegerMapWrite(16);
+    checkIntegerMapWrite(17);
+    checkIntegerMapWrite(20);
+}
+
 } // namespace TestWebKitAPI
 
 #endif // ENABLE(WEB_AUTHN)

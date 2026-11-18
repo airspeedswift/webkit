@@ -37,7 +37,9 @@
 
 #include <WebCore/CBORValue.h>
 #include <WebCore/CryptoKeyAES.h>
+#include <WebCore/DeviceRequestConverter.h>
 #include <WebCore/FidoConstants.h>
+#include <wtf/SwiftBridging.h>
 
 namespace WebCore {
 class CryptoKeyAES;
@@ -88,6 +90,34 @@ WEBCORE_EXPORT cbor::CBORValue::MapValue encodeCOSEPublicKey(Vector<uint8_t> key
 // validateAndConvertToUTF8 convert the input to a UTF8 CString if it is a syntactically valid PIN.
 WEBCORE_EXPORT std::optional<UTF8CString> validateAndConvertToUTF8(String pin);
 
+// Plain results of the Swift parsers, for the optionals the importer cannot return.
+struct RetriesParseResult {
+    uint64_t retries { 0 };
+    bool valid { false };
+};
+UTF8CString validatePinAsUTF8(String pin); // Null when the PIN is not valid.
+RetriesParseResult parseRetriesResponse(Vector<uint8_t>);
+RefPtr<WebCore::CryptoKeyEC> parseKeyAgreementResponse(Vector<uint8_t>);
+RefPtr<WebCore::CryptoKeyHMAC> parseTokenResponse(PINUVAuthProtocol, const WebCore::CryptoKeyAES& sharedKey, Vector<uint8_t>);
+Vector<uint8_t> tokenPinAuth(PINUVAuthProtocol, const WebCore::CryptoKeyHMAC& token, Vector<uint8_t> clientDataHash);
+
+// The platform crypto steps of the PIN protocol, for WebAuthnPin.swift.
+struct PinKeyAgreement {
+    Vector<uint8_t> sharedSecret; // The ECDH result, when derived.
+    Vector<uint8_t> rawPublicKey; // The new key pair's public key, when exported.
+    bool generated { false };
+    bool derived { false };
+    bool exported { false };
+};
+enum class PinHKDFKey : uint8_t { HMACKey, AESKey };
+PinKeyAgreement pinKeyAgreement(const WebCore::CryptoKeyEC& peerKey);
+Vector<uint8_t> pinSHA256(const Vector<uint8_t>&);
+Vector<uint8_t> pinHKDF(const Vector<uint8_t>& secret, PinHKDFKey); // Empty on failure.
+Vector<uint8_t> pinAESCBCEncrypt(const WebCore::CryptoKeyAES&, const Vector<uint8_t>& iv, const Vector<uint8_t>& plaintext); // Empty IV: zero IV.
+Vector<uint8_t> pinAESCBCDecrypt(const WebCore::CryptoKeyAES&, const Vector<uint8_t>& iv, const Vector<uint8_t>& ciphertext); // Empty on failure.
+Vector<uint8_t> pinHMACSign(const WebCore::CryptoKeyHMAC&, const Vector<uint8_t>&);
+Vector<uint8_t> pinRandomIV();
+
 // kMinBytes is the minimum number of *bytes* of PIN data that a CTAP2 device
 // will accept. Since the PIN is UTF-8 encoded, this could be a single code
 // point. However, the platform is supposed to additionally enforce a 4
@@ -136,7 +166,7 @@ private:
     explicit KeyAgreementResponse(Ref<WebCore::CryptoKeyEC>&&);
 };
 
-struct SetPinRequest {
+struct SWIFT_PRIVATE_FILEID("WebCore/WebAuthnPin.swift") SetPinRequest {
 public:
     const WebCore::CryptoKeyAES& sharedKey() const { return m_sharedKey.get(); }
     WEBCORE_EXPORT static std::optional<SetPinRequest> tryCreate(PINUVAuthProtocol, String newPin, const WebCore::CryptoKeyEC&);
@@ -151,13 +181,15 @@ private:
     Vector<uint8_t> m_pinUvAuthParam;
     PINUVAuthProtocol m_protocol;
 
-    SetPinRequest(Ref<WebCore::CryptoKeyAES>&& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& m_newPinEnc, Vector<uint8_t>&& m_pinUvAuthParam, PINUVAuthProtocol);
+    SetPinRequest(WebCore::CryptoKeyAES& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& m_newPinEnc, Vector<uint8_t>&& m_pinUvAuthParam, PINUVAuthProtocol);
+    // For Swift, which cannot wrap a move-only value in std::optional itself.
+    static std::optional<SetPinRequest> makeOptional(WebCore::CryptoKeyAES& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& newPinEnc, Vector<uint8_t>&& pinUvAuthParam, PINUVAuthProtocol protocol) { return SetPinRequest(sharedKey, WTF::move(coseKey), WTF::move(newPinEnc), WTF::move(pinUvAuthParam), protocol); }
 };
 
 // TokenRequest requests a pin-token from an authenticator. These tokens can be
 // used to show user-verification in other operations, e.g. when getting an
 // assertion.
-class TokenRequest {
+class SWIFT_PRIVATE_FILEID("WebCore/WebAuthnPin.swift") TokenRequest {
     WTF_MAKE_NONCOPYABLE(TokenRequest);
 public:
     WEBCORE_EXPORT static std::optional<TokenRequest> tryCreate(PINUVAuthProtocol, UTF8CString pin, const WebCore::CryptoKeyEC&);
@@ -170,7 +202,8 @@ public:
     friend Vector<uint8_t> encodeAsCBOR(const TokenRequest&);
 
 private:
-    TokenRequest(Ref<WebCore::CryptoKeyAES>&& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& pinHash, PINUVAuthProtocol);
+    TokenRequest(WebCore::CryptoKeyAES& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& pinHash, PINUVAuthProtocol);
+    static std::optional<TokenRequest> makeOptional(WebCore::CryptoKeyAES& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& pinHash, PINUVAuthProtocol protocol) { return TokenRequest(sharedKey, WTF::move(coseKey), WTF::move(pinHash), protocol); }
 
     const Ref<WebCore::CryptoKeyAES> m_sharedKey;
     mutable cbor::CBORValue::MapValue m_coseKey;
@@ -182,7 +215,7 @@ private:
 // decrypt a response, the shared key from the request is needed. Once a pin-
 // token has been decrypted, it can be used to calculate the pinAuth parameters
 // needed to show user-verification in future operations.
-class TokenResponse {
+class SWIFT_PRIVATE_FILEID("WebCore/WebAuthnPin.swift") TokenResponse {
 public:
     WEBCORE_EXPORT static std::optional<TokenResponse> parse(PINUVAuthProtocol, const WebCore::CryptoKeyAES& sharedKey, Vector<uint8_t> inBuffer);
 
@@ -200,7 +233,7 @@ private:
 
 // HmacSecretRequest prepares parameters for hmac-secret extension.
 // It performs key agreement and encrypts the provided salts.
-class HmacSecretRequest {
+class SWIFT_PRIVATE_FILEID("WebCore/WebAuthnPin.swift") HmacSecretRequest {
     WTF_MAKE_NONCOPYABLE(HmacSecretRequest);
 public:
     WEBCORE_EXPORT static std::optional<HmacSecretRequest> create(PINUVAuthProtocol, Vector<uint8_t> salt1, std::optional<Vector<uint8_t>> salt2, RefPtr<WebCore::CryptoKeyEC> peerKey);
@@ -211,8 +244,6 @@ public:
     Ref<WebCore::CryptoKeyAES> protectedSharedKey() const { return m_sharedKey; }
 
     const cbor::CBORValue::MapValue& coseKey() const LIFETIME_BOUND { return m_coseKey; }
-    // The COSE key by value, for callers that cannot hold a reference into this request.
-    cbor::CBORValue::MapValue coseKeyClone() const { return cbor::CBORValue::cloneOfMap(m_coseKey).takeMap(); }
 
     const Vector<uint8_t>& saltEnc() const LIFETIME_BOUND { return m_saltEnc; }
 
@@ -221,7 +252,8 @@ public:
     PINUVAuthProtocol protocol() const { return m_protocol; }
 
 private:
-    HmacSecretRequest(Ref<WebCore::CryptoKeyAES>&& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& saltEnc, Vector<uint8_t>&& saltAuth, PINUVAuthProtocol);
+    HmacSecretRequest(WebCore::CryptoKeyAES& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& saltEnc, Vector<uint8_t>&& saltAuth, PINUVAuthProtocol);
+    static std::optional<HmacSecretRequest> makeOptional(WebCore::CryptoKeyAES& sharedKey, cbor::CBORValue::MapValue&& coseKey, Vector<uint8_t>&& saltEnc, Vector<uint8_t>&& saltAuth, PINUVAuthProtocol protocol) { return HmacSecretRequest(sharedKey, WTF::move(coseKey), WTF::move(saltEnc), WTF::move(saltAuth), protocol); }
 
     Ref<WebCore::CryptoKeyAES> m_sharedKey;
     cbor::CBORValue::MapValue m_coseKey;
@@ -230,7 +262,7 @@ private:
     PINUVAuthProtocol m_protocol;
 };
 
-class HmacSecretResponse {
+class SWIFT_PRIVATE_FILEID("WebCore/WebAuthnPin.swift") HmacSecretResponse {
 public:
     WEBCORE_EXPORT static std::optional<HmacSecretResponse> parse(PINUVAuthProtocol, const WebCore::CryptoKeyAES& sharedKey, Vector<uint8_t> encryptedOutput);
 
@@ -246,6 +278,26 @@ WEBCORE_EXPORT Vector<uint8_t> encodeAsCBOR(RetriesRequest);
 WEBCORE_EXPORT Vector<uint8_t> encodeAsCBOR(KeyAgreementRequest);
 WEBCORE_EXPORT Vector<uint8_t> encodeAsCBOR(const TokenRequest&);
 WEBCORE_EXPORT Vector<uint8_t> encodeAsCBOR(SetPinRequest);
+
+// For WebKit's Swift: the PIN requests are move-only optionals, which Swift does not take.
+struct TokenRequestParts {
+    Vector<uint8_t> command;
+    RefPtr<WebCore::CryptoKeyAES> sharedKey; // Null when the request could not be made.
+};
+struct SetPinRequestParts {
+    Vector<uint8_t> command;
+    Vector<uint8_t> pinAuth;
+    bool valid { false };
+};
+struct HmacSecretRequestParts {
+    HmacSecretParameters parameters;
+    RefPtr<WebCore::CryptoKeyAES> sharedKey;
+    PINUVAuthProtocol pinProtocol { PINUVAuthProtocol::kPinProtocol1 };
+    bool valid { false };
+};
+WEBCORE_EXPORT TokenRequestParts tokenRequestParts(PINUVAuthProtocol, UTF8CString pin, const WebCore::CryptoKeyEC& peerKey);
+WEBCORE_EXPORT SetPinRequestParts setPinRequestParts(PINUVAuthProtocol, String newPin, const WebCore::CryptoKeyEC& peerKey);
+WEBCORE_EXPORT HmacSecretRequestParts hmacSecretRequestParts(PINUVAuthProtocol, Vector<uint8_t> salt1, std::optional<Vector<uint8_t>> salt2, RefPtr<WebCore::CryptoKeyEC> peerKey);
 
 } // namespace pin
 } // namespace fido

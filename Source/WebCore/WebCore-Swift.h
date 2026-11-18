@@ -77,4 +77,6 @@
 
 #include "TransformationMatrix.h"
 
+#include "WebAuthnSwiftTypes.h"
+
 #include "WebCoreSwift-Generated.h"
