@@ -51,6 +51,10 @@ struct AuthenticationExtensionsClientInputs {
         std::optional<Vector<KeyValuePair<String, AuthenticationExtensionsClientInputs::PRFValues>>> evalByCredential;
     };
 
+    // Instantiates the pair here: otherwise Swift's importer sees evalByCredential's element as incomplete and imports
+    // PRFInputs, and every type holding it, as unsafe.
+    static_assert(sizeof(KeyValuePair<String, PRFValues>));
+
     String appid;
     std::optional<bool> credProps;
     std::optional<AuthenticationExtensionsClientInputs::LargeBlobInputs> largeBlob;
