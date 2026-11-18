@@ -323,6 +323,16 @@ Vector<uint8_t> encodeGetAssertionRequestAsCBOR(Vector<uint8_t> hash, PublicKeyC
     return cborRequest;
 }
 
+Vector<uint8_t> encodeMakeCredentialRequestAsCBORForTesting(Vector<uint8_t> hash, PublicKeyCredentialCreationOptions options, UVAvailability uvCapability, UserVerificationRequirement effectiveUVRequirement, AuthenticatorSupportedOptions::ResidentKeyAvailability residentKeyAvailability, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> pin, std::optional<Vector<WebCore::PublicKeyCredentialParameters>> authenticatorSupportedParameters, std::optional<Vector<PublicKeyCredentialDescriptor>> overrideExcludeCredentials)
+{
+    return encodeMakeCredentialRequestAsCBOR(WTF::move(hash), WTF::move(options), uvCapability, effectiveUVRequirement, residentKeyAvailability, WTF::move(authenticatorSupportedExtensions), WTF::move(pin), WTF::move(authenticatorSupportedParameters), WTF::move(overrideExcludeCredentials), std::nullopt);
+}
+
+Vector<uint8_t> encodeGetAssertionRequestAsCBORForTesting(Vector<uint8_t> hash, PublicKeyCredentialRequestOptions options, UVAvailability uvCapability, UserVerificationRequirement effectiveUVRequirement, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> pin, std::optional<Vector<PublicKeyCredentialDescriptor>> overrideAllowCredentials)
+{
+    return encodeGetAssertionRequestAsCBOR(WTF::move(hash), WTF::move(options), uvCapability, effectiveUVRequirement, WTF::move(authenticatorSupportedExtensions), WTF::move(pin), WTF::move(overrideAllowCredentials), std::nullopt);
+}
+
 Vector<uint8_t> encodeBogusRequestForAuthenticatorSelection()
 {
     CBORValue::MapValue cborMap;

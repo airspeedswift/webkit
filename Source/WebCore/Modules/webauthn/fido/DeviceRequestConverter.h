@@ -67,6 +67,11 @@ WEBCORE_EXPORT Vector<uint8_t> encodeMakeCredentialRequestAsCBOR(Vector<uint8_t>
 // https://fidoalliance.org/specs/fido-v2.0-ps-20170927/fido-client-to-authenticator-protocol-v2.0-ps-20170927.html#authenticatorGetAssertion
 WEBCORE_EXPORT Vector<uint8_t> encodeGetAssertionRequestAsCBOR(Vector<uint8_t> hash, WebCore::PublicKeyCredentialRequestOptions, AuthenticatorSupportedOptions::UserVerificationAvailability, WebCore::UserVerificationRequirement effectiveUVRequirement, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialDescriptor>> = std::nullopt, std::optional<HmacSecretParameters> = std::nullopt);
 
+// Test-only entries without the HmacSecretParameters parameter, so test code never constructs it and
+// keeps working when the layout of that struct changes (TestWebKitAPI binary shared by every arm).
+WEBCORE_EXPORT Vector<uint8_t> encodeMakeCredentialRequestAsCBORForTesting(Vector<uint8_t> hash, WebCore::PublicKeyCredentialCreationOptions, AuthenticatorSupportedOptions::UserVerificationAvailability, WebCore::UserVerificationRequirement effectiveUVRequirement, AuthenticatorSupportedOptions::ResidentKeyAvailability, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialParameters>> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialDescriptor>> = std::nullopt);
+WEBCORE_EXPORT Vector<uint8_t> encodeGetAssertionRequestAsCBORForTesting(Vector<uint8_t> hash, WebCore::PublicKeyCredentialRequestOptions, AuthenticatorSupportedOptions::UserVerificationAvailability, WebCore::UserVerificationRequirement effectiveUVRequirement, Vector<String> authenticatorSupportedExtensions, std::optional<PinParameters> = std::nullopt, std::optional<Vector<WebCore::PublicKeyCredentialDescriptor>> = std::nullopt);
+
 WEBCORE_EXPORT Vector<uint8_t> encodeBogusRequestForAuthenticatorSelection();
 WEBCORE_EXPORT Vector<uint8_t> encodeSilentGetAssertion(String rpId, Vector<uint8_t> hash, Vector<WebCore::PublicKeyCredentialDescriptor> credentials, std::optional<PinParameters> = std::nullopt);
 

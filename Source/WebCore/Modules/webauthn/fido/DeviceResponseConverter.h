@@ -53,12 +53,13 @@ NODELETE WEBCORE_EXPORT CtapDeviceResponseCode getResponseCode(Vector<uint8_t>);
 // and converts response to AuthenticatorMakeCredentialResponse object with
 // CBOR map keys that conform to format of attestation object defined by the
 // WebAuthN spec : https://w3c.github.io/webauthn/#fig-attStructs
-WEBCORE_EXPORT RefPtr<WebCore::AuthenticatorAttestationResponse> readCTAPMakeCredentialResponse(Vector<uint8_t>, WebCore::AuthenticatorAttachment, Vector<WebCore::AuthenticatorTransport>, WebCore::AttestationConveyancePreference = WebCore::AttestationConveyancePreference::Direct, const std::optional<pin::HmacSecretRequest>& = std::nullopt);
+// A null hmacSharedKey means no hmac-secret request.
+WEBCORE_EXPORT RefPtr<WebCore::AuthenticatorAttestationResponse> readCTAPMakeCredentialResponse(Vector<uint8_t>, WebCore::AuthenticatorAttachment, Vector<WebCore::AuthenticatorTransport>, WebCore::AttestationConveyancePreference = WebCore::AttestationConveyancePreference::Direct, RefPtr<WebCore::CryptoKeyAES> hmacSharedKey = nullptr, PINUVAuthProtocol = PINUVAuthProtocol::kPinProtocol1);
 
 // De-serializes CBOR encoded response to AuthenticatorGetAssertion /
 // AuthenticatorGetNextAssertion request to AuthenticatorGetAssertionResponse
 // object.
-WEBCORE_EXPORT RefPtr<WebCore::AuthenticatorAssertionResponse> readCTAPGetAssertionResponse(Vector<uint8_t>, WebCore::AuthenticatorAttachment, const std::optional<pin::HmacSecretRequest>& = std::nullopt);
+WEBCORE_EXPORT RefPtr<WebCore::AuthenticatorAssertionResponse> readCTAPGetAssertionResponse(Vector<uint8_t>, WebCore::AuthenticatorAttachment, RefPtr<WebCore::CryptoKeyAES> hmacSharedKey = nullptr, PINUVAuthProtocol = PINUVAuthProtocol::kPinProtocol1);
 
 // De-serializes CBOR encoded response to AuthenticatorGetInfo request to
 // AuthenticatorGetInfoResponse object.

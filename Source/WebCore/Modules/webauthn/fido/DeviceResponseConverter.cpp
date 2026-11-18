@@ -94,7 +94,7 @@ static Vector<uint8_t> getCredentialId(const Vector<uint8_t>& authenticatorData)
     return Vector<uint8_t>(authenticatorData.subspan(credentialIdLengthOffset + credentialIdLengthLength, credentialIdLength));
 }
 
-static std::optional<AuthenticationExtensionsClientOutputs> parseAuthenticatorDataExtensions(const Vector<uint8_t>& authData, const std::optional<pin::HmacSecretRequest>& hmacSecretRequest = std::nullopt)
+static std::optional<AuthenticationExtensionsClientOutputs> parseAuthenticatorDataExtensions(const Vector<uint8_t>& authData, RefPtr<CryptoKeyAES> hmacSharedKey = nullptr, PINUVAuthProtocol protocol = PINUVAuthProtocol::kPinProtocol1)
 {
     constexpr size_t minAuthDataLength = rpIdHashLength + flagsLength + signCounterLength;
     if (authData.size() < minAuthDataLength)
@@ -145,12 +145,12 @@ static std::optional<AuthenticationExtensionsClientOutputs> parseAuthenticatorDa
             if (!outputs.prf)
                 outputs.prf = AuthenticationExtensionsClientOutputs::PRFOutputs { };
             outputs.prf->enabled = hmacIt->second.getBool();
-        } else if (hmacIt->second.isByteString() && hmacSecretRequest) {
+        } else if (hmacIt->second.isByteString() && hmacSharedKey) {
             auto& encryptedOutput = hmacIt->second.getByteString();
 
             auto decryptedResponse = pin::HmacSecretResponse::parse(
-                hmacSecretRequest->protocol(),
-                protect(hmacSecretRequest->sharedKey()).get(),
+                protocol,
+                *hmacSharedKey,
                 encryptedOutput
             );
 
@@ -180,7 +180,7 @@ static std::optional<AuthenticationExtensionsClientOutputs> parseAuthenticatorDa
     return outputs;
 }
 
-RefPtr<AuthenticatorAttestationResponse> readCTAPMakeCredentialResponse(Vector<uint8_t> inBuffer, WebCore::AuthenticatorAttachment attachment, Vector<AuthenticatorTransport> transports, AttestationConveyancePreference attestation, const std::optional<pin::HmacSecretRequest>& hmacSecretRequest)
+RefPtr<AuthenticatorAttestationResponse> readCTAPMakeCredentialResponse(Vector<uint8_t> inBuffer, WebCore::AuthenticatorAttachment attachment, Vector<AuthenticatorTransport> transports, AttestationConveyancePreference attestation, RefPtr<CryptoKeyAES> hmacSharedKey, PINUVAuthProtocol protocol)
 {
     auto decodedMap = decodeResponseMap(inBuffer);
     if (!decodedMap)
@@ -207,7 +207,7 @@ RefPtr<AuthenticatorAttestationResponse> readCTAPMakeCredentialResponse(Vector<u
         return nullptr;
     auto attStmt = it->second.clone();
 
-    auto extensions = parseAuthenticatorDataExtensions(authDataBytes, hmacSecretRequest);
+    auto extensions = parseAuthenticatorDataExtensions(authDataBytes, WTF::move(hmacSharedKey), protocol);
     if (!extensions)
         extensions = AuthenticationExtensionsClientOutputs { };
 
@@ -225,7 +225,7 @@ RefPtr<AuthenticatorAttestationResponse> readCTAPMakeCredentialResponse(Vector<u
     return AuthenticatorAttestationResponse::create(credentialId, *attestationObject, WTF::move(extensions), attachment, WTF::move(transports));
 }
 
-RefPtr<AuthenticatorAssertionResponse> readCTAPGetAssertionResponse(Vector<uint8_t> inBuffer, WebCore::AuthenticatorAttachment attachment, const std::optional<pin::HmacSecretRequest>& hmacSecretRequest)
+RefPtr<AuthenticatorAssertionResponse> readCTAPGetAssertionResponse(Vector<uint8_t> inBuffer, WebCore::AuthenticatorAttachment attachment, RefPtr<CryptoKeyAES> hmacSharedKey, PINUVAuthProtocol protocol)
 {
     auto decodedMap = decodeResponseMap(inBuffer);
     if (!decodedMap)
@@ -252,7 +252,7 @@ RefPtr<AuthenticatorAssertionResponse> readCTAPGetAssertionResponse(Vector<uint8
     auto& signature = it->second.getByteString();
 
     // Parse extensions from authenticatorData
-    auto extensions = parseAuthenticatorDataExtensions(authData, hmacSecretRequest);
+    auto extensions = parseAuthenticatorDataExtensions(authData, WTF::move(hmacSharedKey), protocol);
     if (!extensions)
         extensions = AuthenticationExtensionsClientOutputs { };
 

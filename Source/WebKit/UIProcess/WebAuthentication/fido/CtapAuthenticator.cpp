@@ -206,7 +206,7 @@ void CtapAuthenticator::continueSilentlyCheckCredentials(Vector<uint8_t> data, F
     }
 
     Vector<uint8_t> cborCmd;
-    auto response = readCTAPGetAssertionResponse(data, AuthenticatorAttachment::CrossPlatform, m_hmacSecretRequest);
+    auto response = readCTAPGetAssertionResponse(data, AuthenticatorAttachment::CrossPlatform, m_hmacSecretRequest ? RefPtr { m_hmacSecretRequest->protectedSharedKey() } : nullptr, m_hmacSecretRequest ? m_hmacSecretRequest->protocol() : PINUVAuthProtocol::kPinProtocol1);
     std::optional<PinParameters> pinParameters;
     if (!m_pinAuth.isEmpty())
         pinParameters = PinParameters { static_cast<uint8_t>(selectPinProtocol()), m_pinAuth };
@@ -296,7 +296,7 @@ void CtapAuthenticator::continueMakeCredentialAfterResponseReceived(Vector<uint8
 {
     auto error = getResponseCode(data);
     CTAP_RELEASE_LOG("continueMakeCredentialAfterResponseReceived: Got error code: %hhu from authenticator.", std::to_underlying(error));
-    auto response = readCTAPMakeCredentialResponse(data, AuthenticatorAttachment::CrossPlatform, transports(), std::get<PublicKeyCredentialCreationOptions>(requestData().options).attestation, m_hmacSecretRequest);
+    auto response = readCTAPMakeCredentialResponse(data, AuthenticatorAttachment::CrossPlatform, transports(), std::get<PublicKeyCredentialCreationOptions>(requestData().options).attestation, m_hmacSecretRequest ? RefPtr { m_hmacSecretRequest->protectedSharedKey() } : nullptr, m_hmacSecretRequest ? m_hmacSecretRequest->protocol() : PINUVAuthProtocol::kPinProtocol1);
     if (!response) {
         CTAP_RELEASE_LOG("makeCredential: Failed to parse response %s", base64EncodeToString(data).utf8());
 
@@ -465,7 +465,7 @@ void CtapAuthenticator::continueGetAssertionAfterCheckAllowCredentials()
 
 void CtapAuthenticator::continueGetAssertionAfterResponseReceived(Vector<uint8_t> data)
 {
-    auto response = readCTAPGetAssertionResponse(data, AuthenticatorAttachment::CrossPlatform, m_hmacSecretRequest);
+    auto response = readCTAPGetAssertionResponse(data, AuthenticatorAttachment::CrossPlatform, m_hmacSecretRequest ? RefPtr { m_hmacSecretRequest->protectedSharedKey() } : nullptr, m_hmacSecretRequest ? m_hmacSecretRequest->protocol() : PINUVAuthProtocol::kPinProtocol1);
     auto error = getResponseCode(data);
     CTAP_RELEASE_LOG("continueGetAssertionAfterResponseReceived: errorcode: %hhu", std::to_underlying(error));
     if (!response) {
@@ -529,7 +529,7 @@ void CtapAuthenticator::continueGetNextAssertionAfterResponseReceived(Vector<uin
 {
     auto error = getResponseCode(data);
     CTAP_RELEASE_LOG("continueGetNextAssertionAfterResponseReceived: errorcode: %hhu", std::to_underlying(error));
-    auto response = readCTAPGetAssertionResponse(data, AuthenticatorAttachment::CrossPlatform, m_hmacSecretRequest);
+    auto response = readCTAPGetAssertionResponse(data, AuthenticatorAttachment::CrossPlatform, m_hmacSecretRequest ? RefPtr { m_hmacSecretRequest->protectedSharedKey() } : nullptr, m_hmacSecretRequest ? m_hmacSecretRequest->protocol() : PINUVAuthProtocol::kPinProtocol1);
     if (!response) {
         CTAP_RELEASE_LOG("continueGetNextAssertionAfterResponseReceived: Unable to parse response: %s", base64EncodeToString(data).utf8());
         receiveRespond(ExceptionData { ExceptionCode::UnknownError, makeString("Unknown internal error. Error code: "_s, static_cast<uint8_t>(error)) });

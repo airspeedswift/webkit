@@ -208,6 +208,7 @@ public:
     HmacSecretRequest& operator=(HmacSecretRequest&&) = default;
 
     const WebCore::CryptoKeyAES& sharedKey() const { return m_sharedKey.get(); }
+    Ref<WebCore::CryptoKeyAES> protectedSharedKey() const { return m_sharedKey; }
 
     const cbor::CBORValue::MapValue& coseKey() const LIFETIME_BOUND { return m_coseKey; }
     // The COSE key by value, for callers that cannot hold a reference into this request.
