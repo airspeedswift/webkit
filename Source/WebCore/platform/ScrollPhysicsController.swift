@@ -38,7 +38,14 @@
 // ScrollAnimator, and the scrolling thread or the UI process's event dispatcher, under the scrolling
 // tree's lock, for ThreadedScrollingTreeScrollingNodeDelegate.
 
+#if canImport(Darwin)
 internal import Foundation
+#elseif canImport(Glibc)
+internal import Glibc
+#elseif os(Windows)
+// Its math only. Foundation on Windows brings its own copy of ICU, whose enums clash with WebKit's ICU in the importer.
+internal import ucrt
+#endif
 #if os(macOS)
 internal import pal.spi.mac.NSScrollViewSPI
 #endif
@@ -62,10 +69,15 @@ private let rubberbandMinimumRequiredDeltaBeforeStretch: Float = 10
 private let gestureAxisDecayTimeConstant = 0.12
 private let numberOfDeltasToStoreForDiscreteScrollSnap = 3
 
-// NSScrollWheelMultiplier, read from the user defaults once, when first needed.
+// NSScrollWheelMultiplier, read from the user defaults once, when first needed. A macOS default
+// (mac/ScrollingEffectsController.mm); 1 where there are no user defaults.
 private let scrollWheelMultiplierValue: Float = {
+#if canImport(Darwin)
     let multiplier = UserDefaults.standard.float(forKey: "NSScrollWheelMultiplier")
     return multiplier <= 0 ? 1 : multiplier
+#else
+    return 1
+#endif
 }()
 
 // AppKit's elastic curve. Rubber-banding is macOS's (HAVE(RUBBER_BANDING)); elsewhere nothing stretches.
@@ -122,6 +134,8 @@ private func affectedSideOnDominantAxis(_ delta: ScrollSize) -> WebCore.BoxSide?
     targetSideForScrollDelta(delta, dominantAxisFavoringVertical(delta))
 }
 
+// Wheel event phases, which PlatformWheelEvent has with ENABLE(ASYNC_SCROLLING) or ENABLE(KINETIC_SCROLLING).
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
 private enum WheelEventStatus {
     case userScrollBegin
     case userScrolling
@@ -161,6 +175,8 @@ private enum WheelEventStatus {
 
 // The last few discrete wheel deltas, oldest first: at most numberOfDeltasToStoreForDiscreteScrollSnap
 // are kept, and one more for the moment an append makes it too long.
+#endif
+
 struct RecentWheelDeltas {
     private var deltas: (ScrollSize, ScrollSize, ScrollSize, ScrollSize) = (.zero, .zero, .zero, .zero)
     private(set) var count = 0
@@ -494,6 +510,7 @@ final class ScrollPhysicsController {
         }
     }
 
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
     /// `c` is made on the caller's stack for this call; nothing else reaches it.
     @_expose(Cxx)
     func handleWheelEventDuringSpringAnimation(
@@ -526,6 +543,7 @@ final class ScrollPhysicsController {
             stopSpringAnimation(&c)
         }
     }
+#endif
 
     func stopAnimatedNonRubberbandingScroll<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C) {
         guard let type = currentAnimationType else {
@@ -861,6 +879,7 @@ final class ScrollPhysicsController {
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent,
         _ timestamp: Double
     ) -> Bool {
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
         if processWheelEventForScrollSnap(&c, wheelEvent) {
             return true
         }
@@ -1025,7 +1044,90 @@ final class ScrollPhysicsController {
         updateRubberBandingState(&c)
 
         return handled
+#else
+        return handleWheelEventWithoutPhases(&c, wheelEvent)
+#endif
     }
+
+#if !(ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING)
+    // ScrollingEffectsController::handleWheelEvent() of the ports whose wheel events have no phases (neither
+    // ENABLE(ASYNC_SCROLLING) nor ENABLE(KINETIC_SCROLLING)), which are not macOS: scrolls by the event's deltas at
+    // once, snapped when the scroller has snap offsets.
+    private func handleWheelEventWithoutPhases<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
+        _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent
+    ) -> Bool {
+        let scrollOffset = c.scrollOffset()
+        var deltaX: Float = c.allowsHorizontalScrolling() ? wheelEvent.deltaX() : 0
+        var deltaY: Float = c.allowsVerticalScrolling() ? wheelEvent.deltaY() : 0
+        let extents = c.scrollExtents()
+        let minPosition = extents.minimumScrollOffset()
+        let maxPosition = extents.maximumScrollOffset()
+
+        if (deltaX < 0 && scrollOffset.x() >= maxPosition.x()) || (deltaX > 0 && scrollOffset.x() <= minPosition.x()) {
+            deltaX = 0
+        }
+        if (deltaY < 0 && scrollOffset.y() >= maxPosition.y()) || (deltaY > 0 && scrollOffset.y() <= minPosition.y()) {
+            deltaY = 0
+        }
+
+        if wheelEvent.granularity() == .ScrollByPageWheelEvent {
+            // Scrollbar::pageStepDelta() takes the contents' length as an int.
+            if deltaX != 0 {
+                let step = WebCore.ScrollAnimatorScrollPhysicsClient.pageStepDelta(clampToInt32(extents.contentsSize.width()))
+                deltaX = deltaX < 0 ? -step : step
+            }
+            if deltaY != 0 {
+                let step = WebCore.ScrollAnimatorScrollPhysicsClient.pageStepDelta(clampToInt32(extents.contentsSize.height()))
+                deltaY = deltaY < 0 ? -step : step
+            }
+        }
+
+        deltaX = -deltaX
+        deltaY = -deltaY
+
+        if !inScrollGesture {
+            adjustDeltaForSnappingIfNeeded(&c, &deltaX, &deltaY)
+        }
+
+        if deltaX == 0 && deltaY == 0 {
+            return false
+        }
+
+#if ENABLE_SMOOTH_SCROLLING
+#error("ScrollingEffectsController::handleWheelEvent()'s animated scroll (ENABLE(SMOOTH_SCROLLING)) is not in Swift yet")
+#endif
+
+        c.immediateScrollBy(WebCore.FloatSize(deltaX, deltaY), .Clamped, self)
+        return true
+    }
+
+    // ScrollingEffectsController::adjustDeltaForSnappingIfNeeded(): the deltas that reach the snap offsets closest to
+    // where they would scroll. The contents size stands for the viewport size, as there.
+    private func adjustDeltaForSnappingIfNeeded<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
+        _ deltaX: inout Float,
+        _ deltaY: inout Float
+    ) {
+        guard let scrollSnapState, scrollSnapState.hasSnapOffsets(.Horizontal) || scrollSnapState.hasSnapOffsets(.Vertical) else {
+            return
+        }
+        let scale = c.pageScaleFactor()
+        let scrollOffset = c.scrollOffset()
+        let extents = c.scrollExtents()
+
+        let originalOffset = ScrollPoint(x: scrollOffset.x() / scale, y: scrollOffset.y() / scale)
+        let newOffset = ScrollPoint(x: (scrollOffset.x() + deltaX) / scale, y: (scrollOffset.y() + deltaY) / scale)
+        let contentsSize = ScrollSize(extents.contentsSize)
+
+        let offsetX = scrollSnapState.closestSnapOffset(&c, .Horizontal, contentsSize, newOffset, deltaX, originalOffset.x)
+        let offsetY = scrollSnapState.closestSnapOffset(&c, .Vertical, contentsSize, newOffset, deltaY, originalOffset.y)
+
+        // (offset - LayoutUnit(originalOffset)) * scale, in LayoutUnit then float.
+        deltaX = layoutUnitToFloat(layoutUnitDifference(offsetX, layoutUnitRawValue(originalOffset.x))) * scale
+        deltaY = layoutUnitToFloat(layoutUnitDifference(offsetY, layoutUnitRawValue(originalOffset.y))) * scale
+    }
+#endif
 
     private func sideCanScrollOrStretch<C: ScrollPhysicsClientProtocol & ~Copyable>(
         _ c: inout C,
@@ -1311,6 +1413,7 @@ final class ScrollPhysicsController {
     }
 #endif
 
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
     private func applyScrollDeltaWithStretching<C: ScrollPhysicsClientProtocol & ~Copyable>(
         _ c: inout C,
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent,
@@ -1416,6 +1519,7 @@ final class ScrollPhysicsController {
     }
 
     // MARK: Rubber banding
+#endif
 
     // Called every animation frame, and most frames are not rubber banding: test for it in the caller's frame.
     @inline(always)
@@ -1776,12 +1880,18 @@ final class ScrollPhysicsController {
         _ c: inout C,
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent
     ) -> Bool {
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
         guard let scrollSnapState else {
             return false
         }
         return processWheelEventForScrollSnap(&c, wheelEvent, scrollSnapState)
+#else
+        // Without wheel event phases, ScrollAnimator::processWheelEventForScrollSnap() snapped nothing.
+        return false
+#endif
     }
 
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
     @inline(never)
     private func processWheelEventForScrollSnap<C: ScrollPhysicsClientProtocol & ~Copyable>(
         _ c: inout C,
@@ -1835,6 +1945,7 @@ final class ScrollPhysicsController {
 
         return isMomentumScrolling && shouldOverrideMomentumScrolling()
     }
+#endif
 
     /// `c` is made on the caller's stack for this call; nothing else reaches it.
     ///
@@ -1846,6 +1957,7 @@ final class ScrollPhysicsController {
     }
 
     func updateGestureInProgressState<C: ScrollPhysicsClientProtocol & ~Copyable>(_ c: inout C, _ wheelEvent: WebCore.PlatformWheelEvent) {
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
         if wheelEvent.isGestureStart() || wheelEvent.isTransitioningToMomentumScroll() {
             inScrollGesture = true
         } else if wheelEvent.isEndOfNonMomentumScroll() || wheelEvent.isGestureCancel() || wheelEvent.isEndOfMomentumScroll() {
@@ -1853,6 +1965,7 @@ final class ScrollPhysicsController {
         }
 
         updateRubberBandingState(&c)
+#endif
     }
 
 #if HAVE_RUBBER_BANDING
@@ -2141,6 +2254,7 @@ final class ScrollPhysicsController {
         return c.scrollAnimationScheduled() ? .Animating : .NotAnimating
     }
 
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
     @_expose(Cxx)
     func scrollAnimatorMacHandleWheelEventPhase(_ c: inout MainThreadScrollPhysicsClient, _ phase: WebCore.PlatformWheelEventPhase) {
         // FIXME: Need to ensure we get PlatformWheelEventPhase::Ended.
@@ -2183,6 +2297,7 @@ final class ScrollPhysicsController {
 
         return didHandleEvent
     }
+#endif
 
     @_expose(Cxx)
     func keyboardScrollingAnimatorBeginKeyboardScrollGesture(

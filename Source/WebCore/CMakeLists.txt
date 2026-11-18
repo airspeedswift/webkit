@@ -3965,6 +3965,9 @@ if (APPLE)
     if (WTF_CPU_X86_64)
         webkit_target_add_swift_options(WebCore "-D HAVE_SSSE3")
     endif ()
+    # The scroll physics' Swift is compiled under the conditions of the C++ it replaced, which PlatformEnableCocoa.h
+    # sets on every Apple port.
+    webkit_target_add_swift_options(WebCore "-D ENABLE_ASYNC_SCROLLING" "-D ENABLE_KINETIC_SCROLLING")
     # WebCore soft-links these frameworks, so its Swift doesn't autolink them or their overlays, and a stray use of
     # their symbols fails the link. As WebCore.xcconfig's WK_SOFT_LINKED_FRAMEWORKS_SWIFT_FLAGS. The check at the end of
     # this file keeps the list complete for direct imports; MediaToolbox and VideoToolbox come through the C++ modules,
@@ -4572,6 +4575,18 @@ else ()
         -warnings-as-errors
         ${WebCore_PLATFORM_SWIFT_CLANG_FLAG_PAIRS}
     )
+    # The scroll physics' Swift is compiled under the conditions of the C++ it replaced: wheel event phases with
+    # ENABLE(ASYNC_SCROLLING) or ENABLE(KINETIC_SCROLLING), which PlatformEnableGlib.h and PlatformEnablePlayStation.h
+    # turn on with asynchronous scrolling, and GTK's always.
+    if (ENABLE_ASYNC_SCROLLING)
+        webkit_target_add_swift_options(WebCore "-D ENABLE_ASYNC_SCROLLING")
+    endif ()
+    if (ENABLE_ASYNC_SCROLLING OR PORT STREQUAL "GTK")
+        webkit_target_add_swift_options(WebCore "-D ENABLE_KINETIC_SCROLLING")
+    endif ()
+    if (ENABLE_SMOOTH_SCROLLING)
+        webkit_target_add_swift_options(WebCore "-D ENABLE_SMOOTH_SCROLLING")
+    endif ()
     if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|amd64")
         # HAVE_SSSE3 chooses PSHUFB in SIMDTableLookup.swift, as WebCore.xcconfig sets it for x86_64. The code
         # generator must be allowed SSSE3 too, or the (LTO) backend cannot select it. nehalem is x86-64-v2

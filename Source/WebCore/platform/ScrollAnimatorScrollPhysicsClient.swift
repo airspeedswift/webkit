@@ -92,6 +92,7 @@ extension WebCore.ScrollAnimatorScrollPhysicsClient: ScrollPhysicsClientProtocol
 
     // As ScrollAnimatorMac::allowsHorizontalStretching().
     mutating func allowsHorizontalStretching(_ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent) -> Bool {
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
         if horizontalOverscrollBehavior() == .None {
             return false
         }
@@ -118,10 +119,15 @@ extension WebCore.ScrollAnimatorScrollPhysicsClient: ScrollPhysicsClientProtocol
         @unknown default:
             return false
         }
+#else
+        // Only the wheel handling of the ports whose wheel events have phases stretches (HAVE(RUBBER_BANDING)).
+        return false
+#endif
     }
 
     // As ScrollAnimatorMac::allowsVerticalStretching().
     mutating func allowsVerticalStretching(_ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent) -> Bool {
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
         if verticalOverscrollBehavior() == .None {
             return false
         }
@@ -148,10 +154,15 @@ extension WebCore.ScrollAnimatorScrollPhysicsClient: ScrollPhysicsClientProtocol
         @unknown default:
             return false
         }
+#else
+        // Only the wheel handling of the ports whose wheel events have phases stretches (HAVE(RUBBER_BANDING)).
+        return false
+#endif
     }
 
     // Whether a gesture's end should snap on the axis rather than stretch. The area's snap offsets are this
     // animator's.
+#if ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING
     private mutating func gestureShouldBeginSnap(
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent,
         _ axis: WebCore.ScrollEventAxis
@@ -172,6 +183,7 @@ extension WebCore.ScrollAnimatorScrollPhysicsClient: ScrollPhysicsClientProtocol
 
         return true
     }
+#endif
 
     mutating func scrollOffset() -> WebCore.FloatPoint {
         let position = roundedIntPoint(ScrollPoint(currentPosition()))

@@ -36,8 +36,13 @@
 internal import AppKit
 internal import pal.spi.mac.NSScrollViewSPI
 internal import pal.spi.mac.NSScrollingMomentumCalculatorSPI
-#else
+#elseif canImport(Darwin)
 internal import Foundation
+#elseif canImport(Glibc)
+internal import Glibc
+#elseif os(Windows)
+// Its math only. Foundation on Windows brings its own copy of ICU, whose enums clash with WebKit's ICU in the importer.
+internal import ucrt
 #endif
 internal import WebCore_Private.Core.KeyboardScroll
 internal import WebCore_Private.Core.ScrollExtents

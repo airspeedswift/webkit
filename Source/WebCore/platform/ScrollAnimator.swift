@@ -38,12 +38,14 @@ extension ScrollPhysicsController {
         _ c: inout MainThreadScrollPhysicsClient,
         _ wheelEvent: borrowing @_addressable WebCore.PlatformWheelEvent
     ) -> Bool {
+#if ENABLE_KINETIC_SCROLLING
         let phase = wheelEvent.phase()
         let momentumPhase = wheelEvent.momentumPhase()
         if (phase == .Ended && momentumPhase == .None) || momentumPhase == .Ended {
             c.scrollDidEnd()
             return true
         }
+#endif
 
         let hasHorizontalScrollbar = c.hasScrollbar(.Horizontal)
         let hasVerticalScrollbar = c.hasScrollbar(.Vertical)

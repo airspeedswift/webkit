@@ -377,6 +377,21 @@ final class ScrollSnapAnimationState {
         return layoutClosestSnapOffset(&c, axis, geometry, velocity, originalOffset, selectionMethod)
     }
 
+#if !(ENABLE_ASYNC_SCROLLING || ENABLE_KINETIC_SCROLLING)
+    /// LayoutScrollSnapOffsetsInfo::closestSnapOffset() with its default selection method, as
+    /// ScrollingEffectsController::adjustDeltaForSnappingIfNeeded() calls it: the offset's LayoutUnit raw value.
+    func closestSnapOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
+        _ c: inout C,
+        _ axis: WebCore.ScrollEventAxis,
+        _ viewportSize: ScrollSize,
+        _ scrollDestinationOffset: ScrollPoint,
+        _ velocity: Float,
+        _ originalPosition: Float
+    ) -> Int32 {
+        closestSnapOffset(&c, axis, viewportSize, scrollDestinationOffset, velocity, originalPosition, .Closest).offset
+    }
+#endif
+
     private func closestSnapPointForOffset<C: ScrollPhysicsClientProtocol & ~Copyable>(
         _ c: inout C,
         _ axis: WebCore.ScrollEventAxis,
