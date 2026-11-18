@@ -31,7 +31,6 @@
 
 #if ENABLE(WEB_AUTHN)
 
-#include <wtf/Noncopyable.h>
 #include <wtf/Vector.h>
 
 namespace apdu {
@@ -45,7 +44,6 @@ namespace apdu {
 // instruction parameters, a length field (Lc), a data field of length Lc, and
 // a maximum expected response length (Le).
 class ApduCommand {
-    WTF_MAKE_NONCOPYABLE(ApduCommand);
 public:
     // Constructs an APDU command from the serialized message data.
     WEBCORE_EXPORT static std::optional<ApduCommand> createFromMessage(Vector<uint8_t>);
@@ -58,8 +56,6 @@ public:
         uint8_t p2,
         size_t responseLength,
         Vector<uint8_t>&& data);
-    ApduCommand(ApduCommand&&) = default;
-    ApduCommand& operator=(ApduCommand&&) = default;
 
     // Returns serialized message data.
     WEBCORE_EXPORT Vector<uint8_t> getEncodedCommand() const;
