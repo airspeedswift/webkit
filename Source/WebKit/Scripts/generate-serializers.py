@@ -2757,6 +2757,60 @@ def swift_guarded(condition, lines):
     return [f'#if {condition}'] + lines + ['#endif']
 
 
+# The conditions of the hand-written forms each generated form holds (swift_form_conditions), by C++ name.
+_swift_form_conditions = {}
+
+
+def swift_form_conditions(serialized_types, using_statements):
+    """For each [Swift] type and Variant, the Swift conditions of the hand-written forms it holds
+    (swift_types.HAND_WRITTEN_TYPE_CONDITIONS), directly or through another generated form: it exists only where they
+    do. A type serialized as its subclasses is guarded whole, never case by case, which would renumber its subclasses."""
+    mentions = {}
+    for type in serialized_types:
+        if not type.swift:
+            continue
+        if type.members_are_subclasses:
+            texts = [f'{member.namespace}::{member.name}' for member in type.members]
+        else:
+            texts = [member.type for member in type.members]
+            if type.parent_class_name is not None:
+                texts.append(type.parent_class_name)
+        mentions[type.namespace_and_name().removeprefix('::')] = texts
+    for using_statement in using_statements:
+        if using_statement.is_swift():
+            mentions[using_statement.name.removeprefix('::')] = [' '.join(using_statement.alias_lines)]
+
+    def mentioned(text, name):
+        return re.search(r'(?<![A-Za-z0-9_:])(?:::)?' + re.escape(name) + r'(?![A-Za-z0-9_])', text) is not None
+
+    conditions = {name: set() for name in mentions}
+    changed = True
+    while changed:
+        changed = False
+        for name, texts in mentions.items():
+            found = set(conditions[name])
+            for text in texts:
+                for hand_written, condition in swift_types.HAND_WRITTEN_TYPE_CONDITIONS.items():
+                    if mentioned(text, hand_written):
+                        found.add(condition)
+                for other in mentions:
+                    if other != name and mentioned(text, other):
+                        found |= conditions[other]
+            if found != conditions[name]:
+                conditions[name] = found
+                changed = True
+    return conditions
+
+
+def swift_held_forms_guarded(cpp_name, lines):
+    conditions = sorted(_swift_form_conditions.get(cpp_name.removeprefix('::'), ()))
+    if not conditions:
+        return lines
+    if len(conditions) == 1:
+        return swift_guarded(conditions[0], lines)
+    return swift_guarded(' && '.join(f'({condition})' for condition in conditions), lines)
+
+
 def generate_swift_struct(type, swift_names):
     context = f'[Swift] {type.namespace_and_name()}'
     check_swift_type_attributes(type, context)
@@ -2806,6 +2860,7 @@ def generate_swift_struct(type, swift_names):
         decoding_initializer))
     if owned:
         result = swift_guarded(SWIFT_OWNED_FORMS_CONDITION, result)
+    result = swift_held_forms_guarded(type.namespace_and_name(), result)
     return swift_guarded(swift_condition(type.condition, context), result)
 
 
@@ -2875,6 +2930,7 @@ def generate_swift_subclasses(type, swift_names):
     decode_lines.append('        throw IPCDecodingError()')
     encode_lines.extend(swift_conditional_lines(cases, encode_case_lines))
     result.extend(swift_coder_conformance(name, decode_lines, encode_lines))
+    result = swift_held_forms_guarded(type.namespace_and_name(), result)
     return swift_guarded(swift_condition(type.condition, context), result)
 
 
@@ -3077,6 +3133,7 @@ def generate_swift_variant(using_statement, swift_names):
     result.extend((swift_owned_coder_conformance if owned else swift_coder_conformance)(name, decode_lines, encode_lines))
     if owned:
         result = swift_guarded(SWIFT_OWNED_FORMS_CONDITION, result)
+    result = swift_held_forms_guarded(using_statement.name, result)
     return swift_guarded(swift_condition(using_statement.condition, context), result)
 
 
@@ -3112,6 +3169,8 @@ def generate_swift_cxx_names(identifiers, serialized_types, serialized_enums, us
         alias_condition = swift_condition(condition, f'[Swift] {cpp_name}')
         if cpp_name in swift_types.OWNED_SERIALIZED_TYPES:
             alias_condition = f'({alias_condition}) && {SWIFT_OWNED_FORMS_CONDITION}' if alias_condition else SWIFT_OWNED_FORMS_CONDITION
+        for held_condition in sorted(_swift_form_conditions.get(cpp_name, ())):
+            alias_condition = f'({alias_condition}) && ({held_condition})' if alias_condition else held_condition
         alias = SwiftCxxName(swift_types.swift_cxx_name(cpp_name), swift_name, alias_condition)
         if cpp_names.setdefault(alias.name, cpp_name) != cpp_name:
             raise Exception(f'{cpp_names[alias.name]} and {cpp_name} would both be {swift_qualified_name(swift_types.SWIFT_CXX_NAMES)}.{alias.name} in Swift.')
@@ -3140,6 +3199,8 @@ def generate_swift(serialized_types, serialized_enums, using_statements):
     compile_decode_policies(serialized_types, serialized_enums, using_statements)
     set_swift_plain_aliases(using_statements)
     swift_names = swift_type_names(serialized_types, serialized_enums, using_statements)
+    _swift_form_conditions.clear()
+    _swift_form_conditions.update(swift_form_conditions(serialized_types, using_statements))
     identifiers = swift_identifiers(serialized_types, serialized_enums, using_statements)
     declarations = [generate_swift_identifiers(identifiers)]
     for enum in serialized_enums:

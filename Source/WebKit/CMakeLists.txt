@@ -906,8 +906,9 @@ set(WebKit_SWIFT_INTEROP_MODULE_PATH_SWIFT_ONLY TRUE)
 # -F module to discover; the in-tree map is also a `framework module` that needs
 # the framework layout. Synthesize a plain module map exposing only what
 # WebBackForwardList.swift names directly (the rest of the WebCore:: types it uses
-# are reachable transitively via WebKit_Internal headers) and put it on the
-# importer's search path below.
+# are reachable transitively via WebKit_Internal headers), and the headers of the C++
+# enums the generated serializers name (swift_types.py's CXX_ENUM_TYPES), and put it on
+# the importer's search path below.
 if (NOT USE_FRAMEWORK_BUNDLES)
     set(WebCore_Private_SWIFT_MODULEMAP_DIR "${CMAKE_BINARY_DIR}/WebKit/SwiftModules/WebCorePrivate")
     file(MAKE_DIRECTORY "${WebCore_Private_SWIFT_MODULEMAP_DIR}")
@@ -917,6 +918,15 @@ if (NOT USE_FRAMEWORK_BUNDLES)
     header \"${WebCore_PRIVATE_HEADERS_DIR}/DiagnosticLoggingKeys.h\"
     header \"${WebCore_PRIVATE_HEADERS_DIR}/DiagnosticLoggingClient.h\"
     header \"${WebCore_PRIVATE_HEADERS_DIR}/TextGranularity.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/StyleAppearance.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/GraphicsTypes.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/FEColorMatrixParameters.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/FEComponentTransferParameters.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/FECompositeParameters.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/FEConvolveMatrixParameters.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/FEDisplacementMapParameters.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/FEMorphologyParameters.h\"
+    header \"${WebCore_PRIVATE_HEADERS_DIR}/FETurbulenceParameters.h\"
     export *
 }
 ")

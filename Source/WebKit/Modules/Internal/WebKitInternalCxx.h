@@ -25,6 +25,13 @@
 
 // Add project-level C++ header files here to be able to access them from within Swift sources.
 
+#if defined(_MSVC_STL_VERSION) || defined(_WIN32)
+// With the MSVC STL, a header below compares iterators that involve coroutine_handle<> before any header includes
+// <coroutine>, and the importer then finds its specialization unreachable ("must be imported from module
+// 'std.coroutine' before it is required"). Import it first.
+#include <coroutine>
+#endif
+
 #include "IPCSwiftStreamTesterCount.h"
 #include "IPCSwiftStreamTesterMessages.h"
 #include "IPCSwiftWorkQueueTesterMessages.h"
@@ -85,6 +92,11 @@
 
 #if ENABLE(GPU_PROCESS) && ENABLE(MEDIA_STREAM) && PLATFORM(COCOA)
 #include "RemoteAudioMediaStreamTrackRendererInternalUnitManagerMessages.h"
+#endif
+
+#if ENABLE(GPU_PROCESS)
+// GPUConnectionToWebProcess.swift holds the connection's rendering backends on every port with the GPU process.
+#include "RemoteRenderingBackend.h"
 #endif
 
 #if ENABLE(GPU_PROCESS) && HAVE(SHAPE_DETECTION_API_IMPLEMENTATION)

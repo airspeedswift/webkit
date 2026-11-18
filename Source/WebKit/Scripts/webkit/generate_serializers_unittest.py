@@ -188,6 +188,27 @@ class GeneratedSwiftTest(unittest.TestCase):
         self.assertIn('        switch consume value {\n', swift)
         self.assertIn('        #if canImport(Darwin)\n        typealias WebKit_Holder = IPCTypes.Holder\n        #endif\n', swift)
 
+    def test_forms_holding_conditional_hand_written_forms(self):
+        source = '''
+[Swift] struct WebKit::Tinted {
+    WebCore::ColorSpace colorSpace;
+    uint64_t value;
+}
+[Swift] struct WebKit::Outer {
+    WebKit::Tinted tinted;
+}
+[Swift] struct WebKit::Plain {
+    uint64_t value;
+}
+'''
+        swift = generate_swift(source)
+        # A form holding a hand-written form is under its condition, and so is a form holding that form.
+        self.assertIn('#if canImport(CoreGraphics)\nextension IPCTypes {\n    struct Tinted: Sendable, Equatable {\n', swift)
+        self.assertIn('#if canImport(CoreGraphics)\nextension IPCTypes {\n    struct Outer: Sendable, Equatable {\n', swift)
+        self.assertIn('\nextension IPCTypes {\n    struct Plain: Sendable, Equatable {\n', swift)
+        self.assertNotIn('#if canImport(CoreGraphics)\nextension IPCTypes {\n    struct Plain:', swift)
+        self.assertIn('        #if canImport(CoreGraphics)\n        typealias WebKit_Tinted = IPCTypes.Tinted\n        #endif\n', swift)
+
     def test_types_described_alike(self):
         swift = generate_swift('''
 [Swift, OptionSet] enum class WebKit::M : uint8_t {
