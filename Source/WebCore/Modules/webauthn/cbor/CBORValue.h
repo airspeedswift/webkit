@@ -204,6 +204,16 @@ public:
     CBORValue takeMapEntries();
     MapValue takeMap() { RELEASE_ASSERT(isMap()); return std::exchange(m_mapValue, MapValue()); }
 
+    // Borrowing reads, for Swift: each traps in every build on a wrong type or index; the result lives no longer
+    // than this value.
+    struct MapKeyAt { size_t index; };
+    struct MapValueAt { size_t index; };
+    const CBORValue& operator[](size_t index) const LIFETIME_BOUND { RELEASE_ASSERT(isArray()); return m_arrayValue.at(index); }
+    size_t mapSize() const { RELEASE_ASSERT(isMap()); return m_mapValue.size(); }
+    // The key or value of the entry at.index in CTAPLess order.
+    const CBORValue& operator[](MapKeyAt at) const LIFETIME_BOUND { RELEASE_ASSERT(isMap() && at.index < m_mapValue.size()); return std::next(m_mapValue.begin(), at.index)->first; }
+    const CBORValue& operator[](MapValueAt at) const LIFETIME_BOUND { RELEASE_ASSERT(isMap() && at.index < m_mapValue.size()); return std::next(m_mapValue.begin(), at.index)->second; }
+
 private:
     Type m_type;
 
