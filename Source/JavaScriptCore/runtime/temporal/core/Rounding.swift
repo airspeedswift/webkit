@@ -235,7 +235,7 @@ extension TemporalOperations {
                 maximum = 1
             }
         } else {
-            maximum = temporalDouble(JSC.lengthInNanoseconds(.Second))
+            maximum = temporalDouble(Int128(wtf: JSC.lengthInNanoseconds(.Second)))
         }
 
         let increment = increment.rounded(.towardZero)
@@ -270,13 +270,14 @@ extension JSC.TemporalCore {
     @cxx
     @implementation
     public static func applyUnsignedRoundingMode(
-        _ xNumerator: Int128,
-        _ xDenominator: Int128,
-        _ r1: Int128,
-        _ r2: Int128,
+        _ xNumerator: WTF.Int128,
+        _ xDenominator: WTF.Int128,
+        _ r1: WTF.Int128,
+        _ r2: WTF.Int128,
         _ unsignedRoundingMode: JSC.UnsignedRoundingMode
-    ) -> Int128 {
-        TemporalOperations.applyUnsignedRoundingMode(xNumerator, xDenominator, r1, r2, unsignedRoundingMode)
+    ) -> WTF.Int128 {
+        WTF.Int128(swift: TemporalOperations.applyUnsignedRoundingMode(
+            Int128(wtf: xNumerator), Int128(wtf: xDenominator), Int128(wtf: r1), Int128(wtf: r2), unsignedRoundingMode))
     }
 
     /// `TemporalCore::maximumRoundingIncrement`.
@@ -299,15 +300,15 @@ extension JSC.TemporalCore {
     /// `TemporalCore::roundNumberToIncrementAsIfPositive`.
     @cxx
     @implementation
-    public static func roundNumberToIncrementAsIfPositive(_ x: Int128, _ increment: Int128, _ roundingMode: JSC.RoundingMode) -> Int128 {
-        TemporalOperations.roundNumberToIncrementAsIfPositive(x, increment, roundingMode)
+    public static func roundNumberToIncrementAsIfPositive(_ x: WTF.Int128, _ increment: WTF.Int128, _ roundingMode: JSC.RoundingMode) -> WTF.Int128 {
+        WTF.Int128(swift: TemporalOperations.roundNumberToIncrementAsIfPositive(Int128(wtf: x), Int128(wtf: increment), roundingMode))
     }
 
     /// `TemporalCore::roundNumberToIncrementInt128`.
     @cxx
     @implementation
-    public static func roundNumberToIncrementInt128(_ x: Int128, _ increment: Int128, _ mode: JSC.RoundingMode) -> Int128 {
-        TemporalOperations.roundNumberToIncrementInt128(x, increment, mode)
+    public static func roundNumberToIncrementInt128(_ x: WTF.Int128, _ increment: WTF.Int128, _ mode: JSC.RoundingMode) -> WTF.Int128 {
+        WTF.Int128(swift: TemporalOperations.roundNumberToIncrementInt128(Int128(wtf: x), Int128(wtf: increment), mode))
     }
 }
 

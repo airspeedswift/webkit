@@ -80,8 +80,8 @@ extension TemporalOperations {
         if fieldSign == 0 { fieldSign = sign(d.minutes()) }
         if fieldSign == 0 { fieldSign = sign(d.seconds()) }
         if fieldSign == 0 { fieldSign = sign(d.milliseconds()) }
-        if fieldSign == 0 { fieldSign = sign(d.microseconds()) }
-        if fieldSign == 0 { fieldSign = sign(d.nanoseconds()) }
+        if fieldSign == 0 { fieldSign = sign(Int128(wtf: d.microseconds())) }
+        if fieldSign == 0 { fieldSign = sign(Int128(wtf: d.nanoseconds())) }
         return fieldSign
     }
 
@@ -103,8 +103,8 @@ extension TemporalOperations {
             abs(d.minutes()),
             abs(d.seconds()),
             abs(d.milliseconds()),
-            temporalAbsInt128(d.microseconds()),
-            temporalAbsInt128(d.nanoseconds())
+            WTF.Int128(swift: temporalAbsInt128(Int128(wtf: d.microseconds()))),
+            WTF.Int128(swift: temporalAbsInt128(Int128(wtf: d.nanoseconds())))
         )
     }
 
@@ -145,8 +145,8 @@ extension TemporalOperations {
             TemporalISO8601.checkedCastDoubleToInt128(converting: d.minutes()),
             TemporalISO8601.checkedCastDoubleToInt128(converting: d.seconds()),
             TemporalISO8601.checkedCastDoubleToInt128(converting: d.milliseconds()),
-            TemporalISO8601.checkedCastDoubleToInt128(converting: d.microseconds()),
-            TemporalISO8601.checkedCastDoubleToInt128(converting: d.nanoseconds())
+            TemporalISO8601.checkedCastDoubleToInt128(converting: Int128(wtf: d.microseconds())),
+            TemporalISO8601.checkedCastDoubleToInt128(converting: Int128(wtf: d.nanoseconds()))
         )
     }
 
@@ -216,11 +216,11 @@ extension TemporalOperations {
     // totalTimeDuration — temporal_rs: TimeDuration::total (src/builtins/core/duration/normalized.rs)
     // https://tc39.es/proposal-temporal/#sec-temporal-totaltimeduration
     static func totalTimeDuration(_ timeDuration: Int128, _ unit: JSC.TemporalUnit) -> Double {
-        let unitLength = JSC.lengthInNanoseconds(unit)
+        let unitLength = Int128(wtf: JSC.lengthInNanoseconds(unit))
         // All "Length in Nanoseconds" values in spec Table 21 are ≤ nsPerDay = 8.64e13 < 2^53.
         // Spec NOTE: timeDuration may exceed safe integer range; fractionToDouble
         // implements the required software emulation (double-double arithmetic).
-        return JSC.fractionToDouble(timeDuration, temporalDouble(unitLength))
+        return JSC.fractionToDouble(WTF.Int128(swift: timeDuration), temporalDouble(unitLength))
     }
 
     // toInternalDuration — temporal_rs: Duration::to_internal_duration_record (src/builtins/core/duration.rs)
@@ -244,7 +244,7 @@ extension TemporalOperations {
         var microseconds: Int128 = 0
 
         let sign = internalDuration.timeDurationSign()
-        var nanoseconds = temporalAbsInt128(internalDuration.time())
+        var nanoseconds = temporalAbsInt128(Int128(wtf: internalDuration.time()))
 
         if temporalUnitIsAtLeast(largestUnit, .Day) {
             (microseconds, nanoseconds) = temporalDivideInt128(nanoseconds, 1000)
@@ -326,8 +326,8 @@ extension TemporalOperations {
             minutes,
             seconds,
             JSC.ISO8601.Duration.doubleToInt64Saturating(temporalDouble(milliseconds)),
-            temporalTruncatingInt128(temporalDouble(microseconds)),
-            temporalTruncatingInt128(temporalDouble(nanoseconds))
+            WTF.Int128(swift: temporalTruncatingInt128(temporalDouble(microseconds))),
+            WTF.Int128(swift: temporalTruncatingInt128(temporalDouble(nanoseconds)))
         )
         // CreateTemporalDuration step: If IsValidDuration is false, return error.
         if !TemporalISO8601.isValidDuration(result) {
@@ -397,7 +397,7 @@ extension TemporalOperations {
         case .failure(let failure):
             return .failure(failure)
         }
-        let days = temporalDivideInt128(internalDuration.time(), TemporalExactTime.nsPerDay).quotient
+        let days = temporalDivideInt128(Int128(wtf: internalDuration.time()), TemporalExactTime.nsPerDay).quotient
         let dateDuration = internalDuration.dateDuration()
         return .success(
             JSC.ISO8601.Duration(
@@ -442,7 +442,7 @@ private func temporalEpochNanosecondsForDateAndTime(
     if !result.has_value() {
         return .failure(TemporalFailure(JSC.temporalErrorOf(result)))
     }
-    return .success((JSC.temporalValueOf(result) as JSC.ISO8601.ExactTime).epochNanoseconds())
+    return .success(Int128(wtf: (JSC.temporalValueOf(result) as JSC.ISO8601.ExactTime).epochNanoseconds()))
 }
 
 extension TemporalOperations {
@@ -817,7 +817,7 @@ extension TemporalOperations {
         // (NOTE: computed via integer arithmetic before the final float division per spec note.)
         let totalNumerator =
             Int128(nudgeWindow.r1) &* progressDenominator &+ progressNumerator &* Int128(temporalTruncatingInt64(increment)) &* Int128(sign)
-        let total = JSC.fractionToDouble(totalNumerator, temporalAbsInt128(progressDenominator)) * (progressDenominator < 0 ? -1.0 : 1.0)
+        let total = JSC.fractionToDouble(WTF.Int128(swift: totalNumerator), WTF.Int128(swift: temporalAbsInt128(progressDenominator))) * (progressDenominator < 0 ? -1.0 : 1.0)
         // The denominator is not zero (checked above); Int128.min / -1 wraps.
         let progress = progressNumerator.dividedReportingOverflow(by: progressDenominator).partialValue
         // Step 17: Assert: 0 ≤ progress ≤ 1.
@@ -848,7 +848,7 @@ extension TemporalOperations {
         // (computeNudgeWindow steps 13-14 deferred here: CombineDateAndTimeDuration applied only to the selected path.)
         let resultDurationInternal = TemporalISO8601.combineDateAndTimeDuration(resultDuration, 0)
         // Step 25: Return the Record { [[NudgeResult]]: nudgeResult, [[Total]]: total }.
-        return .success(JSC.Nudged(JSC.NudgeResult(resultDurationInternal, nudgedEpochNs, didExpandCalendarUnit), total))
+        return .success(JSC.Nudged(JSC.NudgeResult(resultDurationInternal, WTF.Int128(swift: nudgedEpochNs), didExpandCalendarUnit), total))
     }
 
     // nudgeToZonedTime — temporal_rs: InternalDurationRecord::nudge_to_zoned_time (src/builtins/core/duration/normalized.rs)
@@ -904,10 +904,10 @@ extension TemporalOperations {
         // (tc39/proposal-temporal#3310). Only subtracted, never divided by, so zero needs no handling.
         assert(daySpan == 0 || (daySpan < 0 ? -1 : 1) == sign)
         // Step 9: Let unitLength be the nanoseconds length of unit.
-        let unitLength = JSC.lengthInNanoseconds(unit)
+        let unitLength = Int128(wtf: JSC.lengthInNanoseconds(unit))
         let incrementLength = unitLength &* temporalTruncatingInt128(increment.rounded(.towardZero))
         // Step 10: Let roundedTimeDuration be ? RoundTimeDurationToIncrement(duration.[[Time]], increment × unitLength, roundingMode).
-        var roundedTimeDuration = TemporalOperations.roundNumberToIncrementInt128(duration.time(), incrementLength, roundingMode)
+        var roundedTimeDuration = TemporalOperations.roundNumberToIncrementInt128(Int128(wtf: duration.time()), incrementLength, roundingMode)
         // Step 11: Let beyondDaySpan be ! AddTimeDuration(roundedTimeDuration, -daySpan).
         let beyondDaySpan = roundedTimeDuration &- daySpan
         let beyondSign: Int32 = beyondDaySpan < 0 ? -1 : beyondDaySpan > 0 ? 1 : 0
@@ -943,7 +943,7 @@ extension TemporalOperations {
         // Step 15: Let resultDuration be CombineDateAndTimeDuration(dateDuration, roundedTimeDuration).
         let resultDuration = TemporalISO8601.combineDateAndTimeDuration(adjusted, roundedTimeDuration)
         // Step 16: Return Duration Nudge Result Record { [[Duration]]: resultDuration, [[NudgedEpochNs]]: nudgedEpochNs, [[DidExpandCalendarUnit]]: didRoundBeyondDay }.
-        return .success(JSC.NudgeResult(resultDuration, nudgedEpochNs, didRoundBeyondDay))
+        return .success(JSC.NudgeResult(resultDuration, WTF.Int128(swift: nudgedEpochNs), didRoundBeyondDay))
     }
 
     // nudgeToDayOrTime — temporal_rs: InternalDurationRecord::nudge_to_day_or_time (src/builtins/core/duration/normalized.rs)
@@ -957,7 +957,7 @@ extension TemporalOperations {
         _ roundingMode: JSC.RoundingMode
     ) -> TemporalOutcome<JSC.NudgeResult> {
         // Step 1: Let timeDuration be ! Add24HourDaysToTimeDuration(duration.[[Time]], duration.[[Date]].[[Days]]).
-        let timeDurationResult = add24HourDaysToTimeDuration(duration.time(), duration.dateDuration().days())
+        let timeDurationResult = add24HourDaysToTimeDuration(Int128(wtf: duration.time()), duration.dateDuration().days())
         let timeDuration: Int128
         switch consume timeDurationResult {
         case .success(let value):
@@ -966,7 +966,7 @@ extension TemporalOperations {
             return .failure(failure)
         }
         // Step 2: Let unitLength be the nanoseconds length of smallestUnit.
-        let unitLength = JSC.lengthInNanoseconds(smallestUnit)
+        let unitLength = Int128(wtf: JSC.lengthInNanoseconds(smallestUnit))
         // Step 3: Let roundedTime be ? RoundTimeDurationToIncrement(timeDuration, unitLength × increment, roundingMode).
         // timeDuration is within maxTimeDuration and increment × unitLength at most 1e9 × 8.64e13, so the
         // arithmetic below stays far inside Int128; past that it wraps.
@@ -1015,7 +1015,7 @@ extension TemporalOperations {
         // Step 15: Let resultDuration be CombineDateAndTimeDuration(dateDuration, remainder).
         let resultDuration = TemporalISO8601.combineDateAndTimeDuration(dateDuration, remainder)
         // Step 16: Return Duration Nudge Result Record { [[Duration]]: resultDuration, [[NudgedEpochNs]]: nudgedEpochNs, [[DidExpandCalendarUnit]]: didExpandDays }.
-        return .success(JSC.NudgeResult(resultDuration, nudgedEpochNs, didExpandDays))
+        return .success(JSC.NudgeResult(resultDuration, WTF.Int128(swift: nudgedEpochNs), didExpandDays))
     }
 
     // bubbleRelativeDuration — temporal_rs: InternalDurationRecord::bubble_relative_duration (src/builtins/core/duration/normalized.rs)
@@ -1206,7 +1206,7 @@ extension TemporalOperations {
             let bubbled = bubbleRelativeDuration(
                 sign,
                 duration,
-                nudgeResult.nudgedEpochNs,
+                Int128(wtf: nudgeResult.nudgedEpochNs),
                 isoDate,
                 isoTime,
                 largestUnit,
@@ -1244,30 +1244,30 @@ extension JSC.TemporalCore {
         _ milliseconds: Double,
         _ microseconds: Double,
         _ nanoseconds: Double
-    ) -> Int128 {
-        TemporalOperations.timeDurationFromComponents(hours, minutes, seconds, milliseconds, microseconds, nanoseconds)
+    ) -> WTF.Int128 {
+        WTF.Int128(swift: TemporalOperations.timeDurationFromComponents(hours, minutes, seconds, milliseconds, microseconds, nanoseconds))
     }
 
     /// `TemporalCore::splitTimeDuration`.
     @cxx
     @implementation
-    public static func splitTimeDuration(_ timeDuration: Int128) -> JSC.TemporalTimeDurationSplit {
-        let (overflowDays, subdayNs) = TemporalOperations.splitTimeDuration(timeDuration)
-        return JSC.TemporalTimeDurationSplit(first: overflowDays, second: subdayNs)
+    public static func splitTimeDuration(_ timeDuration: WTF.Int128) -> JSC.TemporalTimeDurationSplit {
+        let (overflowDays, subdayNs) = TemporalOperations.splitTimeDuration(Int128(wtf: timeDuration))
+        return JSC.TemporalTimeDurationSplit(first: overflowDays, second: WTF.Int128(swift: subdayNs))
     }
 
     /// `TemporalCore::plainTimeFromSubdayNs`.
     @cxx
     @implementation
-    public static func plainTimeFromSubdayNs(_ ns: Int128) -> JSC.ISO8601.PlainTime {
-        TemporalOperations.plainTimeFromSubdayNs(ns)
+    public static func plainTimeFromSubdayNs(_ ns: WTF.Int128) -> JSC.ISO8601.PlainTime {
+        TemporalOperations.plainTimeFromSubdayNs(Int128(wtf: ns))
     }
 
     /// `TemporalCore::totalTimeDuration`.
     @cxx
     @implementation
-    public static func totalTimeDuration(_ timeDuration: Int128, _ unit: JSC.TemporalUnit) -> Double {
-        TemporalOperations.totalTimeDuration(timeDuration, unit)
+    public static func totalTimeDuration(_ timeDuration: WTF.Int128, _ unit: JSC.TemporalUnit) -> Double {
+        TemporalOperations.totalTimeDuration(Int128(wtf: timeDuration), unit)
     }
 
     /// `TemporalCore::toInternalDuration`.
@@ -1287,8 +1287,8 @@ extension JSC.TemporalCore {
     /// `TemporalCore::getUTCEpochNanoseconds`.
     @cxx
     @implementation
-    public static func getUTCEpochNanoseconds(_ date: JSC.ISO8601.PlainDate, _ time: JSC.ISO8601.PlainTime) -> Int128 {
-        TemporalOperations.getUTCEpochNanoseconds(date, time)
+    public static func getUTCEpochNanoseconds(_ date: JSC.ISO8601.PlainDate, _ time: JSC.ISO8601.PlainTime) -> WTF.Int128 {
+        WTF.Int128(swift: TemporalOperations.getUTCEpochNanoseconds(date, time))
     }
 }
 
@@ -1334,12 +1334,12 @@ func temporalTemporalDurationFromInternal(
 /// `TemporalCore::add24HourDaysToTimeDuration`.
 @_expose(Cxx)
 func temporalAdd24HourDaysToTimeDuration(
-    _ d: Int128,
+    _ d: WTF.Int128,
     _ days: Double,
-    _ timeDuration: inout Int128,
+    _ timeDuration: inout WTF.Int128,
     _ kind: inout JSC.TemporalErrorKind
 ) -> WTF.String {
-    TemporalOperations.add24HourDaysToTimeDuration(d, days).store(&timeDuration, &kind)
+    TemporalOperations.add24HourDaysToTimeDuration(Int128(wtf: d), days).store(wtf: &timeDuration, &kind)
 }
 
 /// `TemporalCore::toInternalDurationRecordWith24HourDays`.
@@ -1382,8 +1382,8 @@ func temporalAdjustDateDurationRecord(
 func temporalNudgeToCalendarUnit(
     _ sign: Int32,
     _ duration: JSC.ISO8601.InternalDuration,
-    _ originEpochNs: Int128,
-    _ destEpochNs: Int128,
+    _ originEpochNs: WTF.Int128,
+    _ destEpochNs: WTF.Int128,
     _ isoDate: JSC.ISO8601.PlainDate,
     _ isoTime: JSC.ISO8601.PlainTime,
     _ increment: Double,
@@ -1397,8 +1397,8 @@ func temporalNudgeToCalendarUnit(
     TemporalOperations.nudgeToCalendarUnit(
         sign,
         duration,
-        originEpochNs,
-        destEpochNs,
+        Int128(wtf: originEpochNs),
+        Int128(wtf: destEpochNs),
         isoDate,
         isoTime,
         increment,
@@ -1433,7 +1433,7 @@ func temporalNudgeToZonedTime(
 @_expose(Cxx)
 func temporalNudgeToDayOrTime(
     _ duration: JSC.ISO8601.InternalDuration,
-    _ destEpochNs: Int128,
+    _ destEpochNs: WTF.Int128,
     _ largestUnit: JSC.TemporalUnit,
     _ increment: Double,
     _ smallestUnit: JSC.TemporalUnit,
@@ -1441,7 +1441,7 @@ func temporalNudgeToDayOrTime(
     _ nudgeResult: inout JSC.NudgeResult,
     _ kind: inout JSC.TemporalErrorKind
 ) -> WTF.String {
-    TemporalOperations.nudgeToDayOrTime(duration, destEpochNs, largestUnit, increment, smallestUnit, roundingMode)
+    TemporalOperations.nudgeToDayOrTime(duration, Int128(wtf: destEpochNs), largestUnit, increment, smallestUnit, roundingMode)
         .store(&nudgeResult, &kind)
 }
 
@@ -1452,7 +1452,7 @@ func temporalNudgeToDayOrTime(
 func temporalBubbleRelativeDuration(
     _ sign: Int32,
     _ duration: JSC.ISO8601.InternalDuration,
-    _ nudgedEpochNs: Int128,
+    _ nudgedEpochNs: WTF.Int128,
     _ isoDate: JSC.ISO8601.PlainDate,
     _ isoTime: JSC.ISO8601.PlainTime,
     _ largestUnit: JSC.TemporalUnit,
@@ -1465,7 +1465,7 @@ func temporalBubbleRelativeDuration(
     TemporalOperations.bubbleRelativeDuration(
         sign,
         duration,
-        nudgedEpochNs,
+        Int128(wtf: nudgedEpochNs),
         isoDate,
         isoTime,
         largestUnit,
@@ -1487,8 +1487,8 @@ func temporalBubbleRelativeDuration(
 @_expose(Cxx)
 func temporalRoundRelativeDuration(
     _ duration: inout JSC.ISO8601.InternalDuration,
-    _ originEpochNs: Int128,
-    _ destEpochNs: Int128,
+    _ originEpochNs: WTF.Int128,
+    _ destEpochNs: WTF.Int128,
     _ isoDate: JSC.ISO8601.PlainDate,
     _ isoTime: JSC.ISO8601.PlainTime,
     _ largestUnit: JSC.TemporalUnit,
@@ -1501,8 +1501,8 @@ func temporalRoundRelativeDuration(
 ) -> WTF.String {
     TemporalOperations.roundRelativeDuration(
         &duration,
-        originEpochNs,
-        destEpochNs,
+        Int128(wtf: originEpochNs),
+        Int128(wtf: destEpochNs),
         isoDate,
         isoTime,
         largestUnit,

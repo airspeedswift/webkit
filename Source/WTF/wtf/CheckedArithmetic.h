@@ -693,7 +693,8 @@ public:
     {
         if (this->hasOverflowed()) [[unlikely]]
             this->crash();
-        return m_value;
+        // Explicit, for a T whose own conversion to bool is explicit (Int128Impl).
+        return static_cast<bool>(m_value);
     }
 
     constexpr operator T() const

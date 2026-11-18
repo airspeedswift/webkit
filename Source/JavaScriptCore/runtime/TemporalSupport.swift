@@ -29,6 +29,52 @@ internal import JSCSwiftBoundary
 // The boundary's headers reach JavaScriptCore classes that are defined in other private headers.
 internal import JavaScriptCore_Private.Cxx
 
+/// Temporal's arithmetic is in Swift's 128-bit integers, here and in the rest of JSCSwift. WTF's `Int128` and `UInt128`,
+/// which `using` declarations put in C++'s global namespace and so in Swift's, are the same types where WTF uses
+/// `__int128`, and its `Int128Impl` and `UInt128Impl` classes where it does not (under the Microsoft STL, whose
+/// templates under-align `__int128`). These module-wide names shadow WTF's; a value that crosses to or from WTF's type
+/// is converted (`Int128(wtf:)`, `WTF.Int128(swift:)`).
+typealias Int128 = Swift.Int128
+typealias UInt128 = Swift.UInt128
+
+extension Swift.Int128 {
+    /// A WTF `Int128` that crosses into Swift.
+    @inline(__always)
+    init(wtf value: WTF.Int128) {
+#if os(Windows)
+        self = Swift.Int128(Int64(WTF.Int128High64(value))) << 64 | Swift.Int128(UInt64(WTF.Int128Low64(value)))
+#else
+        self = value // The same type.
+#endif
+    }
+}
+
+#if os(Windows)
+extension WTF.Int128Impl {
+    /// A Swift `Int128` that crosses into WTF.
+    @inline(__always)
+    init(swift value: Swift.Int128) {
+        self = WTF.MakeInt128(Int64(truncatingIfNeeded: value >> 64), UInt64(truncatingIfNeeded: value))
+    }
+}
+
+/// The integer literals that Temporal's Swift passes to C++ that takes a WTF `Int128`.
+extension WTF.Int128Impl: @retroactive ExpressibleByIntegerLiteral {
+    @inline(__always)
+    public init(integerLiteral value: Int64) {
+        self.init(swift: Swift.Int128(value))
+    }
+}
+#else
+extension Swift.Int128 {
+    /// A Swift `Int128` that crosses into WTF: the same type.
+    @inline(__always)
+    init(swift value: Swift.Int128) {
+        self = value
+    }
+}
+#endif
+
 // MARK: - Namespaces
 
 /// Swift counterparts of `JSC::ISO8601`'s functions, under their C++ names.
@@ -124,6 +170,21 @@ enum TemporalOutcome<Value> {
             return failure
         }
         return nil
+    }
+}
+
+extension TemporalOutcome where Value == Swift.Int128 {
+    /// `store(_:_:)` into a WTF `Int128` out-parameter.
+    @inline(always)
+    consuming func store(wtf value: inout WTF.Int128, _ kind: inout JSC.TemporalErrorKind) -> WTF.String {
+        switch consume self {
+        case .success(let result):
+            value = WTF.Int128(swift: result)
+            return WTF.String()
+        case .failure(let failure):
+            kind = failure.kind
+            return failure.messageString
+        }
     }
 }
 

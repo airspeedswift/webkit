@@ -566,11 +566,11 @@ extension JSC.TemporalCore {
     public static func roundISODateTime(
         _ date: JSC.ISO8601.PlainDate,
         _ time: JSC.ISO8601.PlainTime,
-        _ incrementNs: Int128,
+        _ incrementNs: WTF.Int128,
         _ unit: JSC.TemporalUnit,
         _ mode: JSC.RoundingMode
     ) -> JSC.TemporalCore.RoundedISODateTime {
-        TemporalOperations.roundISODateTime(date, time, incrementNs, unit, mode)
+        TemporalOperations.roundISODateTime(date, time, Int128(wtf: incrementNs), unit, mode)
     }
 }
 

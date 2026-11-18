@@ -501,7 +501,7 @@ extension TemporalISO8601 {
             * TemporalExactTime.nsPerMinute
             + Int128(second) * TemporalExactTime.nsPerSecond + Int128(millisecond) * TemporalExactTime.nsPerMillisecond
             + Int128(microsecond) * TemporalExactTime.nsPerMicrosecond + Int128(nanosecond)
-        return ExactTime(utcNanoseconds &- Int128(offset))
+        return ExactTime(WTF.Int128(swift: utcNanoseconds &- Int128(offset)))
     }
 
     /// `checkedCastDoubleToInt128(Double(n))`: n itself where its conversion to a double is exact.
@@ -597,9 +597,9 @@ extension TemporalISO8601 {
         case .Millisecond:
             duration.setMilliseconds(Duration.doubleToInt64Saturating(v))
         case .Microsecond:
-            duration.setMicroseconds(checkedCastDoubleToInt128(v) ?? subsecondOutOfRangeSentinel)
+            duration.setMicroseconds(WTF.Int128(swift: checkedCastDoubleToInt128(v) ?? subsecondOutOfRangeSentinel))
         case .Nanosecond:
-            duration.setNanoseconds(checkedCastDoubleToInt128(v) ?? subsecondOutOfRangeSentinel)
+            duration.setNanoseconds(WTF.Int128(swift: checkedCastDoubleToInt128(v) ?? subsecondOutOfRangeSentinel))
         @unknown default:
             break
         }
@@ -629,10 +629,10 @@ extension TemporalISO8601 {
             resultNs += TemporalCheckedInt128(Int128(duration.milliseconds())) * TemporalExactTime.nsPerMillisecond
         }
         if unit <= JSC.TemporalUnit.Microsecond.rawValue {
-            resultNs += TemporalCheckedInt128(duration.microseconds()) * TemporalExactTime.nsPerMicrosecond
+            resultNs += TemporalCheckedInt128(Int128(wtf: duration.microseconds())) * TemporalExactTime.nsPerMicrosecond
         }
         if unit <= JSC.TemporalUnit.Nanosecond.rawValue {
-            resultNs += TemporalCheckedInt128(duration.nanoseconds())
+            resultNs += TemporalCheckedInt128(Int128(wtf: duration.nanoseconds()))
         }
 
         if resultNs.hasOverflowed {
@@ -649,7 +649,7 @@ extension TemporalISO8601 {
         let fields: [10 of Int128] = [
             Int128(duration.years()), Int128(duration.months()), Int128(duration.weeks()), Int128(duration.days()),
             Int128(duration.hours()), Int128(duration.minutes()), Int128(duration.seconds()),
-            Int128(duration.milliseconds()), duration.microseconds(), duration.nanoseconds(),
+            Int128(duration.milliseconds()), Int128(wtf: duration.microseconds()), Int128(wtf: duration.nanoseconds()),
         ]
         var sign = 0
         for index in fields.indices {
@@ -697,7 +697,7 @@ extension TemporalISO8601 {
         assert(duration.weeks() == 0)
         assert(duration.days() == 0)
 
-        var resultNs = TemporalCheckedInt128(exactTime.epochNanoseconds())
+        var resultNs = TemporalCheckedInt128(Int128(wtf: exactTime.epochNanoseconds()))
 
         // The duration's hours, minutes, seconds, and milliseconds should be
         // able to be cast into a 64-bit int. 2*1e8 24-hour days is the maximum
@@ -712,14 +712,14 @@ extension TemporalISO8601 {
         resultNs += seconds * TemporalExactTime.nsPerSecond
         let milliseconds = TemporalCheckedInt128(Int128(duration.milliseconds()))
         resultNs += milliseconds * TemporalExactTime.nsPerMillisecond
-        let microseconds = TemporalCheckedInt128(duration.microseconds())
+        let microseconds = TemporalCheckedInt128(Int128(wtf: duration.microseconds()))
         resultNs += microseconds * TemporalExactTime.nsPerMicrosecond
-        resultNs += TemporalCheckedInt128(duration.nanoseconds())
+        resultNs += TemporalCheckedInt128(Int128(wtf: duration.nanoseconds()))
         if resultNs.hasOverflowed {
             return nil
         }
 
-        let result = ExactTime(resultNs.value)
+        let result = ExactTime(WTF.Int128(swift: resultNs.value))
         if !result.isValid() {
             return nil
         }
@@ -770,7 +770,7 @@ extension TemporalISO8601 {
     ///
     /// The two signs agree.
     static func combineDateAndTimeDuration(_ dateDuration: JSC.ISO8601.Duration, _ timeDuration: Int128) -> JSC.ISO8601.InternalDuration {
-        JSC.ISO8601.InternalDuration(dateDuration, timeDuration)
+        JSC.ISO8601.InternalDuration(dateDuration, WTF.Int128(swift: timeDuration))
     }
 
     // https://tc39.es/proposal-temporal/#sec-temporal-isodatetimewithinlimits
@@ -795,8 +795,8 @@ extension TemporalISO8601 {
             return true
         }
 
-        let nanoseconds = exactTimeFromISOPartsAndOffset(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, 0)
-            .epochNanoseconds()
+        let nanoseconds = Int128(wtf: exactTimeFromISOPartsAndOffset(year, month, day, hour, minute, second, millisecond, microsecond, nanosecond, 0)
+            .epochNanoseconds())
         if nanoseconds <= (TemporalExactTime.minValue - TemporalExactTime.nsPerDay) {
             return false
         }
@@ -970,9 +970,9 @@ extension JSC.ISO8601.InternalDuration {
     @implementation
     public static func combineDateAndTimeDuration(
         _ dateDuration: JSC.ISO8601.Duration,
-        _ timeDuration: Int128
+        _ timeDuration: WTF.Int128
     ) -> JSC.ISO8601.InternalDuration {
-        TemporalISO8601.combineDateAndTimeDuration(dateDuration, timeDuration)
+        TemporalISO8601.combineDateAndTimeDuration(dateDuration, Int128(wtf: timeDuration))
     }
 }
 
@@ -984,7 +984,7 @@ extension JSC {
         guard let value = TemporalISO8601.checkedCastDoubleToInt128(n) else {
             return JSC.CheckedInt128(WTF.ResultOverflowed)
         }
-        return JSC.CheckedInt128(value)
+        return JSC.CheckedInt128(WTF.Int128(swift: value))
     }
 }
 
@@ -1101,8 +1101,8 @@ func temporalDurationSetField(_ unit: JSC.TemporalUnit, _ v: Double, _ duration:
 
 /// `ISO8601::Duration::totalNanoseconds<unit>()`, every instantiation.
 @_expose(Cxx)
-func temporalDurationTotalNanoseconds(_ duration: JSC.ISO8601.Duration, _ unit: JSC.TemporalUnit, _ value: inout Int128) -> Bool {
-    temporalStore(TemporalISO8601.durationTotalNanoseconds(duration, unit), &value)
+func temporalDurationTotalNanoseconds(_ duration: JSC.ISO8601.Duration, _ unit: JSC.TemporalUnit, _ value: inout WTF.Int128) -> Bool {
+    temporalStore(TemporalISO8601.durationTotalNanoseconds(duration, unit).map { WTF.Int128(swift: $0) }, &value)
 }
 
 /// `ISO8601::isValidDuration`.

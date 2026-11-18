@@ -147,8 +147,8 @@ extension TemporalISO8601 {
         }
 
         duration.setMilliseconds(fraction / nsPerMillisecond)
-        duration.setMicroseconds(Int128(fraction % nsPerMillisecond / nsPerMicrosecond))
-        duration.setNanoseconds(Int128(fraction % nsPerMicrosecond))
+        duration.setMicroseconds(WTF.Int128(swift: Int128(fraction % nsPerMillisecond / nsPerMicrosecond)))
+        duration.setNanoseconds(WTF.Int128(swift: Int128(fraction % nsPerMicrosecond)))
     }
 
     // ParseTemporalDurationString ( isoString )

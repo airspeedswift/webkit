@@ -68,7 +68,7 @@ extension TemporalOperations {
         {
             let naiveNs = TemporalOperations.getUTCEpochNanoseconds(date, time)
             // Cannot overflow: a PlainDate's epoch nanoseconds are within ±2^90 and the offset is an Int64.
-            let result = JSC.ISO8601.ExactTime(naiveNs &- Int128(inlineOffsetNs))
+            let result = JSC.ISO8601.ExactTime(WTF.Int128(swift: naiveNs &- Int128(inlineOffsetNs)))
             if !result.isValid() {
                 return .failure(.range("date/time offset combination is outside the supported range for Temporal.ZonedDateTime"))
             }
@@ -101,7 +101,7 @@ extension TemporalOperations {
             let candidate = candidates[index]
             // Step 10a: candidateOffset = utcEpochNanoseconds - candidate.
             // Cannot overflow: both are epoch nanoseconds of dates within ±1e8 days (step 7), well inside ±2^126.
-            let candidateOffset = utcEpochNs &- candidate.epochNanoseconds()
+            let candidateOffset = utcEpochNs &- Int128(wtf: candidate.epochNanoseconds())
             // Step 10b: If candidateOffset = offsetNanoseconds, return candidate.
             if candidateOffset == Int128(inlineOffsetNs) {
                 return .success(candidate)
@@ -182,8 +182,8 @@ extension TemporalOperations {
         _ calendarId: JSC.CalendarID,
         _ largestUnit: JSC.TemporalUnit
     ) -> TemporalOutcome<JSC.ISO8601.InternalDuration> {
-        let nsA = ns1.epochNanoseconds()
-        let nsB = ns2.epochNanoseconds()
+        let nsA = Int128(wtf: ns1.epochNanoseconds())
+        let nsB = Int128(wtf: ns2.epochNanoseconds())
 
         // Step 1: If ns1 = ns2, return zero.
         if nsA == nsB {
@@ -251,7 +251,7 @@ extension TemporalOperations {
             }
             // Step 11.d: timeDuration = TimeDurationFromEpochNanosecondsDifference(ns2, intermediateNs).
             // Cannot overflow: both are epoch nanoseconds of ExactTimes.
-            adjustedTimeDiff = nsB &- (JSC.temporalValueOf(intermediateNsResult) as JSC.ISO8601.ExactTime).epochNanoseconds()
+            adjustedTimeDiff = nsB &- Int128(wtf: (JSC.temporalValueOf(intermediateNsResult) as JSC.ISO8601.ExactTime).epochNanoseconds())
             // Step 11.e: timeSign = TimeDurationSign(timeDuration).
             let adjTimeSign: Int32 = adjustedTimeDiff < 0 ? -1 : adjustedTimeDiff > 0 ? 1 : 0
             // Step 11.f: If sign ≠ timeSign, success = true.
@@ -303,8 +303,8 @@ extension TemporalOperations {
         _ increment: Double,
         _ calendarId: JSC.CalendarID
     ) -> TemporalOutcome<JSC.ISO8601.InternalDuration> {
-        let nsA = ns1.epochNanoseconds()
-        let nsB = ns2.epochNanoseconds()
+        let nsA = Int128(wtf: ns1.epochNanoseconds())
+        let nsB = Int128(wtf: ns2.epochNanoseconds())
 
         // Step 1: If largestUnit is time category -> DifferenceInstant (pure nanosecond arithmetic).
         if largestUnit.rawValue > JSC.TemporalUnit.Day.rawValue {
@@ -316,8 +316,8 @@ extension TemporalOperations {
                 // Wraps on overflow. A validated increment (≤ 1e9) times a
                 // unit (≤ 8.64e13 ns) is far inside Int128.
                 let roundedTime = TemporalOperations.roundNumberToIncrementInt128(
-                    internalDuration.time(),
-                    JSC.lengthInNanoseconds(smallestUnit) &* temporalTruncatingInt128(increment.rounded(.towardZero)),
+                    Int128(wtf: internalDuration.time()),
+                    Int128(wtf: JSC.lengthInNanoseconds(smallestUnit)) &* temporalTruncatingInt128(increment.rounded(.towardZero)),
                     roundingMode
                 )
                 internalDuration = TemporalISO8601.combineDateAndTimeDuration(JSC.ISO8601.Duration(), roundedTime)
