@@ -26,11 +26,27 @@
 #pragma once
 
 #include <memory>
+#include <type_traits>
+#include <wtf/Compiler.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/Forward.h>
 #include <wtf/SwiftBridging.h>
 
 namespace WTF {
+
+// Only the declarations Swift uses below have nullability annotations.
+IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
+
+// The C ABI a Swift closure reduces to, used by the `CxxCompletionHandler` and `CxxVoidFunction` Swift protocols to
+// build a CompletionHandler or a Function out of a Swift closure.
+using SwiftClosureInvoke = void (* WTF_NONNULL)(void* WTF_NONNULL context, void* WTF_NULLABLE argument);
+using SwiftClosureDestroy = void (* WTF_NONNULL)(void* WTF_NONNULL context);
+
+#ifdef __swift__
+#define WTF_FUNCTION_SWIFT_UNAVAILABLE __attribute__((availability(swift, unavailable)))
+#else
+#define WTF_FUNCTION_SWIFT_UNAVAILABLE
+#endif
 
 namespace Detail {
 
@@ -72,31 +88,38 @@ class Function<Out(In...)> {
 public:
     using Impl = Detail::CallableWrapperBase<Out, In...>;
 
-    Function() = default;
-    Function(std::nullptr_t) { }
+    // Swift makes a Function only with init(sendable:) (WTFFunction+Extras.swift): never an empty one, which cannot
+    // be called, nor one from a closure that is not Sendable.
+    WTF_FUNCTION_SWIFT_UNAVAILABLE Function() = default;
+    WTF_FUNCTION_SWIFT_UNAVAILABLE Function(std::nullptr_t) { }
 
     template<typename CallableType>
         requires (!(std::is_pointer_v<CallableType> && std::is_function_v<typename std::remove_pointer_t<CallableType>>) && std::is_rvalue_reference_v<CallableType&&>)
-    Function(CallableType&& callable)
+    WTF_FUNCTION_SWIFT_UNAVAILABLE Function(CallableType&& callable)
         : m_callableWrapper(makeCallableWrapper(std::forward<CallableType>(callable))) { }
 
     template<typename FunctionType>
         requires (std::is_pointer_v<FunctionType> && std::is_function_v<typename std::remove_pointer_t<FunctionType>>)
-    Function(FunctionType f)
+    WTF_FUNCTION_SWIFT_UNAVAILABLE Function(FunctionType f)
         : m_callableWrapper(makeCallableWrapper(std::forward<FunctionType>(f))) { }
 
 #if defined(__APPLE__)
     // Always use C++ lambdas to create a WTF::Function in Objective-C++.
-    // Always use Swift closures (implicitly as Objective-C blocks) to create a WTF::Function in Swift.
-#ifndef __swift__
     Function(Out (^block)(In... args)) = delete;
-#else
-    Function(Out (^block)(In... args))
-        : m_callableWrapper(makeCallableWrapper(std::forward<Out (^)(In...)>(block)))
+#endif // defined(__APPLE__)
+
+#ifdef __swift__
+    // This should only be called within the initializer of the `CxxVoidFunction` protocol
+    // (Source/WebKit/Shared/WTFFunction+Extras.swift), which takes a `@Sendable` closure: a Function may be called
+    // and destroyed on any thread.
+    Function(SwiftClosureInvoke invoke, SwiftClosureDestroy destroy, void* WTF_NONNULL context) SWIFT_NAME(init(invoke:destroy:context:))
+        : Function([invoke, owner = std::unique_ptr<void, SwiftClosureDestroy> { context, destroy }]() {
+            invoke(owner.get(), nullptr);
+        })
     {
+        static_assert(std::is_void_v<Out> && !sizeof...(In), "Swift closures can only be used with functions that take no argument and return void.");
     }
 #endif
-#endif // defined(__APPLE__)
 
     Out operator()(In... in) const
     {
@@ -159,5 +182,9 @@ template<typename Out, typename... In> Function<Out(In...)> adopt(Detail::Callab
 {
     return Function<Out(In...)>(impl, Function<Out(In...)>::Adopt);
 }
+
+using VoidFunction = Function<void()>;
+
+IGNORE_CLANG_WARNINGS_END
 
 } // namespace WTF

@@ -39,10 +39,7 @@
 
 namespace WTF {
 
-// The C ABI a Swift closure reduces to, used by the `CxxCompletionHandler` Swift protocol to build a
-// CompletionHandler out of a Swift closure.
-using SwiftClosureInvoke = void (* WTF_NONNULL)(void* WTF_NONNULL context, void* WTF_NULLABLE argument);
-using SwiftClosureDestroy = void (* WTF_NONNULL)(void* WTF_NONNULL context);
+// SwiftClosureInvoke and SwiftClosureDestroy, the C ABI a Swift closure reduces to, are in Function.h.
 
 template<typename> class CompletionHandler;
 class CompletionHandlerCallThread {
