@@ -26,19 +26,22 @@
 #pragma once
 
 #include <span>
+#include <type_traits>
+#include <wtf/Compiler.h>
 #include <wtf/EnumTraits.h>
 #include <wtf/SHA1.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/persistence/PersistentCoders.h>
 
 namespace WTF::Persistence {
 
 template<typename> struct Coder;
 
-class Decoder {
+// A Decoder reads the bytes it is given in place and never owns them: it must not outlive them (SWIFT_VIEW).
+class SWIFT_VIEW Decoder {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(Decoder);
 public:
-    WTF_EXPORT_PRIVATE Decoder(std::span<const uint8_t>);
-    NODELETE WTF_EXPORT_PRIVATE ~Decoder();
+    WTF_EXPORT_PRIVATE Decoder(std::span<const uint8_t> buffer LIFETIME_BOUND);
 
     size_t length() const { return m_buffer.size(); }
     size_t currentOffset() const { return static_cast<size_t>(std::distance(m_buffer.begin(), m_bufferPosition)); }
@@ -90,7 +93,7 @@ public:
         return numElements <= std::numeric_limits<size_t>::max() / sizeof(T) && bufferIsLargeEnoughToContain(numElements * sizeof(T));
     }
 
-    [[nodiscard]] WTF_EXPORT_PRIVATE std::span<const uint8_t> bufferPointerForDirectRead(size_t numBytes);
+    [[nodiscard]] WTF_EXPORT_PRIVATE std::span<const uint8_t> bufferPointerForDirectRead(size_t numBytes) LIFETIME_BOUND;
 
 private:
     NODELETE [[nodiscard]] WTF_EXPORT_PRIVATE bool bufferIsLargeEnoughToContain(size_t) const;
@@ -101,5 +104,15 @@ private:
 
     SHA1 m_sha1;
 };
+
+// Swift checks that a Decoder does not outlive its bytes only when it can copy the Decoder bit for bit. Nothing
+// points into a Decoder, so a bitwise copy is a correct one.
+static_assert(std::is_trivially_copy_constructible_v<Decoder> && std::is_trivially_destructible_v<Decoder>);
+
+// Swift imports this with a Span parameter that the Decoder depends on; it imports the constructor as unsafe.
+inline Decoder makeDecoder(std::span<const uint8_t> buffer LIFETIME_BOUND)
+{
+    return Decoder(buffer);
+}
 
 } 
