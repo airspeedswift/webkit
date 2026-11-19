@@ -77,3 +77,10 @@ if (ENABLE_WEBKIT)
         win/PlatformWebViewWin.cpp
     )
 endif ()
+
+# TestNetworkCache
+if (ENABLE_WEBKIT)
+    list(APPEND TestNetworkCache_SOURCES
+        ${test_main_SOURCES}
+    )
+endif ()

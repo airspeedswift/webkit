@@ -152,6 +152,7 @@ class NetworkProcess final : public AuxiliaryProcess, private DownloadManager::C
     WTF_MAKE_NONCOPYABLE(NetworkProcess);
     WTF_MAKE_TZONE_ALLOCATED(NetworkProcess);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(NetworkProcess);
+    friend struct NetworkCacheTestSupportAccess;
 public:
     using RegistrableDomain = WebCore::RegistrableDomain;
     using TopFrameDomain = WebCore::RegistrableDomain;

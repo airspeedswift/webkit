@@ -657,6 +657,26 @@ if (ENABLE_WEBKIT)
 
     WEBKIT_EXECUTABLE_DECLARE(TestWebKit)
 
+    # TestNetworkCache: the network cache's tests, through the test-support layer WebKit2.dll exports.
+    if (PORT STREQUAL "Win")
+        set(TestNetworkCache_SOURCES
+            Tests/NetworkCache/NetworkCacheReach.cpp
+        )
+        set(TestNetworkCache_PRIVATE_INCLUDE_DIRECTORIES
+            ${TestWebKit_PRIVATE_INCLUDE_DIRECTORIES}
+            ${WEBKIT_DIR}/NetworkProcess/cache
+        )
+        set(TestNetworkCache_LIBRARIES
+            TestWebKitAPIBase
+            WebKit::gtest
+        )
+        set(TestNetworkCache_FRAMEWORKS
+            WebKit
+        )
+        WEBKIT_EXECUTABLE_DECLARE(TestNetworkCache)
+        target_compile_definitions(TestNetworkCache PRIVATE BUILDING_TestWebKit)
+    endif ()
+
     if (APPLE OR PORT STREQUAL "GTK" OR PORT STREQUAL "WPE")
         # TestIPC definitions
         set(TestIPC_SOURCES
@@ -874,6 +894,9 @@ if (ENABLE_WEBKIT)
         WEBKIT_COMPUTE_SOURCES(TestWebKit)
     endif ()
     WEBKIT_TEST(TestWebKit)
+    if (PORT STREQUAL "Win")
+        WEBKIT_TEST(TestNetworkCache)
+    endif ()
     if (APPLE OR PORT STREQUAL "GTK" OR PORT STREQUAL "WPE")
         WEBKIT_TEST(TestIPC)
     endif ()

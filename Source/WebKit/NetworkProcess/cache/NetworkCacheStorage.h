@@ -49,6 +49,7 @@ class IOChannel;
 
 class Storage : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<Storage, WTF::DestructionThread::MainRunLoop> {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(Storage);
+    friend struct TestSupportAccess;
 public:
     enum class Mode { Normal, AvoidRandomness };
     static RefPtr<Storage> open(const String& cachePath, Mode, size_t capacity, size_t mainResourceBlobMemoryCacheFileLimit);

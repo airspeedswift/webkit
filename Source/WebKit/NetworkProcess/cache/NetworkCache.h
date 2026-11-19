@@ -51,6 +51,7 @@ namespace WebCore {
 class FragmentedSharedBuffer;
 class LowPowerModeNotifier;
 class ResourceRequest;
+class ResourceResponse;
 class SharedBuffer;
 class ThermalMitigationNotifier;
 class URLPattern;
@@ -104,6 +105,7 @@ namespace NetworkCache {
 
 class AsyncRevalidation;
 class Cache;
+class Entry;
 class SpeculativeLoadManager;
 
 struct MappedBody {
@@ -151,6 +153,11 @@ enum class UseDecision {
     NoDueToRequestContainingFragments
 };
 
+// The cache's decisions, called by Cache and by the test-support layer (NetworkCacheTestSupport.cpp).
+RetrieveDecision makeRetrieveDecision(const WebCore::ResourceRequest&);
+StoreDecision makeStoreDecision(const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, size_t bodySize);
+UseDecision makeUseDecision(PAL::SessionID, const Entry&, const WebCore::ResourceRequest&);
+
 enum class CacheOption : uint8_t {
     // In testing mode we try to eliminate sources of randomness. Cache does not shrink and there are no read timeouts.
     TestingMode = 1 << 0,
@@ -165,6 +172,7 @@ enum class RecordType : uint8_t {
 const AtomString& recordTypeName(RecordType);
 
 class Cache : public RefCountedAndCanMakeWeakPtr<Cache> {
+    friend struct TestSupportAccess;
 public:
     ~Cache();
     static RefPtr<Cache> open(const String& cachePath, OptionSet<CacheOption>, PAL::SessionID);

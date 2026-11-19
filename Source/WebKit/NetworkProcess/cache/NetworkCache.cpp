@@ -258,7 +258,7 @@ static UseDecision responseNeedsRevalidation(NetworkSession& networkSession, con
     return responseNeedsRevalidation(networkSession, response, timestamp, requestDirectives);
 }
 
-static UseDecision makeUseDecision(PAL::SessionID sessionID, const Entry& entry, const WebCore::ResourceRequest& request)
+UseDecision makeUseDecision(PAL::SessionID sessionID, const Entry& entry, const WebCore::ResourceRequest& request)
 {
     // The request is conditional so we force revalidation from the network. We merely check the disk cache
     // so we can update the cache entry.
@@ -287,7 +287,7 @@ static UseDecision makeUseDecision(PAL::SessionID sessionID, const Entry& entry,
     return entry.redirectRequest() ? UseDecision::NoDueToExpiredRedirect : UseDecision::Validate;
 }
 
-static RetrieveDecision makeRetrieveDecision(const WebCore::ResourceRequest& request)
+RetrieveDecision makeRetrieveDecision(const WebCore::ResourceRequest& request)
 {
     ASSERT(request.cachePolicy() != WebCore::ResourceRequestCachePolicy::DoNotUseAnyCache);
 
@@ -305,7 +305,7 @@ static bool isMediaMIMEType(const String& type)
     return startsWithLettersIgnoringASCIICase(type, "video/"_s) || startsWithLettersIgnoringASCIICase(type, "audio/"_s);
 }
 
-static StoreDecision makeStoreDecision(const WebCore::ResourceRequest& originalRequest, const WebCore::ResourceResponse& response, size_t bodySize)
+StoreDecision makeStoreDecision(const WebCore::ResourceRequest& originalRequest, const WebCore::ResourceResponse& response, size_t bodySize)
 {
     if (!originalRequest.url().protocolIsInHTTPFamily() || !response.isInHTTPFamily())
         return StoreDecision::NoDueToProtocol;

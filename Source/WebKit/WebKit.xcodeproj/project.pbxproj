@@ -7544,6 +7544,8 @@
 		816C18758ACB9F66D87FBE39 /* WKImmersiveEnvironmentInternal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKImmersiveEnvironmentInternal.h; sourceTree = "<group>"; };
 		831042891BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheSubresourcesEntry.h; sourceTree = "<group>"; };
 		8310428A1BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheSubresourcesEntry.cpp; sourceTree = "<group>"; };
+		34AEE28EE67242ADAADB1A67 /* NetworkCacheTestSupport.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheTestSupport.cpp; sourceTree = "<group>"; };
+		B856FC19C4264C91841D88A0 /* NetworkCacheTestSupport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheTestSupport.h; sourceTree = "<group>"; };
 		8313F7E71F7DAE0300B944EB /* SharedStringHashTable.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SharedStringHashTable.h; sourceTree = "<group>"; };
 		8313F7E81F7DAE0300B944EB /* SharedStringHashTable.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SharedStringHashTable.cpp; sourceTree = "<group>"; };
 		8313F7E91F7DAE0300B944EB /* SharedStringHashStore.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SharedStringHashStore.h; sourceTree = "<group>"; };
@@ -18228,6 +18230,8 @@
 				E4436EC21A0CFDB200EAD204 /* NetworkCacheStorage.h */,
 				8310428A1BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.cpp */,
 				831042891BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.h */,
+				34AEE28EE67242ADAADB1A67 /* NetworkCacheTestSupport.cpp */,
+				B856FC19C4264C91841D88A0 /* NetworkCacheTestSupport.h */,
 				5CB1C0031234567890ABCDEF /* NetworkCacheValidation.cpp */,
 				5CB1C0011234567890ABCDEF /* NetworkCacheValidation.h */,
 				AAB145E5223F931200E489D8 /* PrefetchCache.cpp */,
