@@ -58,9 +58,9 @@ class SHA1 {
 public:
     WTF_EXPORT_PRIVATE SHA1();
 
-    WTF_EXPORT_PRIVATE void addBytes(std::span<const std::byte>);
+    WTF_EXPORT_PRIVATE void addBytes(std::span<const std::byte> input NOESCAPE);
 
-    void addBytes(std::span<const uint8_t> input)
+    void addBytes(std::span<const uint8_t> input NOESCAPE)
     {
         addBytes(std::as_bytes(input));
     }
