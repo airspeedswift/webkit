@@ -225,5 +225,9 @@ if (APPLE)
 else ()
     webkit_add_swift_options(
         "-Xcc -fmodules-validate-system-headers"
+        # Mirrors -enable-experimental-feature SafeInteropWrappers in CommonBase.xcconfig's OTHER_SWIFT_FLAGS: it gives a
+        # std::span parameter that is LIFETIME_BOUND or NOESCAPE its Span overload. Without it a Windows build imports only
+        # the unsafe std.span one (WTF::Persistence::makeDecoder, SHA1::addBytes, Data::span).
+        "-enable-experimental-feature SafeInteropWrappers"
     )
 endif ()
