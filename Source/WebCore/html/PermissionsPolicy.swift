@@ -94,7 +94,9 @@ func permissionsPolicyIsAllowedByDefault(_ feature: UInt8, _ isSameOrigin: Bool)
 
 // A feature: its token in an allow attribute, its name in console messages, and whether its default allowlist is "*"
 // rather than 'self'.
-private struct PermissionsPolicyFeatureDescription {
+// FIXME: Internal rather than private so Windows thin LTO links: lld-link rejects the weak_odr alias a private type's
+// metadata gets in bitcode.
+struct PermissionsPolicyFeatureDescription {
     let token: [UInt8]
     let nameForLogging: [UInt8]
     let allowsAllOriginsByDefault: Bool

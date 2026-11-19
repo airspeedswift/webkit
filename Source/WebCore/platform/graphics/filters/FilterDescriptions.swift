@@ -93,10 +93,13 @@ public import WebCore_Private.Core.CGRendererSwiftBridge
 // The descriptions of filters that WebCore's Swift filter engine applies: Swift values, which the GPU process makes of
 // the filters it decodes in Swift, and C++ makes of its filters for each apply (the `init(_:)`s of the views).
 
+// FIXME: let, not var, for Windows thin LTO: a public var's _modify coroutine leaves its continuation prototype an
+// undefined dllimport at the link.
+
 // FEColorMatrix's parameters.
 @_spi(WebKitGPU) public struct FEColorMatrixValues {
-    public var type: WebCore.ColorMatrixType
-    public var values: [Float]
+    public let type: WebCore.ColorMatrixType
+    public let values: [Float]
 
     public init(type: WebCore.ColorMatrixType, values: [Float]) {
         self.type = type
@@ -111,13 +114,13 @@ public import WebCore_Private.Core.CGRendererSwiftBridge
 
 // A ComponentTransferFunction.
 @_spi(WebKitGPU) public struct ComponentTransferFunctionValues {
-    public var type: WebCore.ComponentTransferType
-    public var slope: Float
-    public var intercept: Float
-    public var amplitude: Float
-    public var exponent: Float
-    public var offset: Float
-    public var tableValues: [Float]
+    public let type: WebCore.ComponentTransferType
+    public let slope: Float
+    public let intercept: Float
+    public let amplitude: Float
+    public let exponent: Float
+    public let offset: Float
+    public let tableValues: [Float]
 
     public init(
         type: WebCore.ComponentTransferType,
@@ -150,10 +153,10 @@ public import WebCore_Private.Core.CGRendererSwiftBridge
 
 // FEComponentTransfer's parameters.
 @_spi(WebKitGPU) public struct FEComponentTransferValues {
-    public var red: ComponentTransferFunctionValues
-    public var green: ComponentTransferFunctionValues
-    public var blue: ComponentTransferFunctionValues
-    public var alpha: ComponentTransferFunctionValues
+    public let red: ComponentTransferFunctionValues
+    public let green: ComponentTransferFunctionValues
+    public let blue: ComponentTransferFunctionValues
+    public let alpha: ComponentTransferFunctionValues
 
     public init(
         red: ComponentTransferFunctionValues,
@@ -177,13 +180,13 @@ public import WebCore_Private.Core.CGRendererSwiftBridge
 
 // FEConvolveMatrix's parameters that its appliers read.
 @_spi(WebKitGPU) public struct FEConvolveMatrixValues {
-    public var kernelSize: WebCore.IntSize
-    public var divisor: Float
-    public var bias: Float
-    public var targetOffset: WebCore.IntPoint
-    public var edgeMode: WebCore.EdgeModeType
-    public var preserveAlpha: Bool
-    public var kernel: [Float]
+    public let kernelSize: WebCore.IntSize
+    public let divisor: Float
+    public let bias: Float
+    public let targetOffset: WebCore.IntPoint
+    public let edgeMode: WebCore.EdgeModeType
+    public let preserveAlpha: Bool
+    public let kernel: [Float]
 
     public init(
         kernelSize: WebCore.IntSize,
@@ -392,8 +395,8 @@ public import WebCore_Private.Core.CGRendererSwiftBridge
 
 // A term of an SVG filter's expression: the index of its effect, and the primitive's x, y, width and height.
 @_spi(WebKitGPU) public struct SVGFilterTermDescription {
-    public var effectIndex: UInt32
-    public var geometry: WebCore.FilterEffectGeometryValues
+    public let effectIndex: UInt32
+    public let geometry: WebCore.FilterEffectGeometryValues
 
     public init(effectIndex: UInt32, geometry: WebCore.FilterEffectGeometryValues) {
         self.effectIndex = effectIndex
@@ -404,10 +407,10 @@ public import WebCore_Private.Core.CGRendererSwiftBridge
 // An SVG filter (SVGFilterRenderer): its expression, a stack program over its effects, and what applying its effects
 // takes. `identifier` identifies it to the FilterResults its results are cached in.
 @_spi(WebKitGPU) public struct SVGFilterDescription {
-    public var identifier: UInt
-    public var renderer: WebCore.FilterRendererParameters
-    public var terms: [SVGFilterTermDescription]
-    public var effects: [FilterEffectDescription]
+    public let identifier: UInt
+    public let renderer: WebCore.FilterRendererParameters
+    public let terms: [SVGFilterTermDescription]
+    public let effects: [FilterEffectDescription]
 
     public init(identifier: UInt, renderer: WebCore.FilterRendererParameters, terms: [SVGFilterTermDescription], effects: [FilterEffectDescription]) {
         self.identifier = identifier
@@ -440,9 +443,9 @@ public import WebCore_Private.Core.CGRendererSwiftBridge
 // A CSS filter (CSSFilterRenderer): its functions, applied in turn, and what applying its effects takes. Nil functions
 // apply nothing, and make the filter fail.
 @_spi(WebKitGPU) public struct CSSFilterDescription {
-    public var identifier: UInt
-    public var renderer: WebCore.FilterRendererParameters
-    public var functions: [CSSFilterFunctionDescription?]
+    public let identifier: UInt
+    public let renderer: WebCore.FilterRendererParameters
+    public let functions: [CSSFilterFunctionDescription?]
 
     public init(identifier: UInt, renderer: WebCore.FilterRendererParameters, functions: [CSSFilterFunctionDescription?]) {
         self.identifier = identifier
