@@ -46,8 +46,8 @@ class NetworkProcess;
 class NetworkLoad final : public RefCounted<NetworkLoad>, public NetworkDataTaskClient {
     WTF_MAKE_TZONE_ALLOCATED(NetworkLoad);
 public:
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
+    SWIFT_UNSAFE void ref() const final { RefCounted::ref(); }
+    SWIFT_UNSAFE void deref() const final { RefCounted::deref(); }
 
     static Ref<NetworkLoad> create(NetworkLoadClient& networkLoadClient, NetworkLoadParameters&& networkLoadParameters, NetworkSession& networkSession)
     {

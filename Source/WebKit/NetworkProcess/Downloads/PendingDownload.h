@@ -71,8 +71,8 @@ public:
         return adoptRef(*new PendingDownload(connection, WTF::move(networkLoad), WTF::move(responseCompletionHandler), downloadID, resourceRequest, resourceResponse));
     }
 
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
+    SWIFT_UNSAFE void ref() const final { RefCounted::ref(); }
+    SWIFT_UNSAFE void deref() const final { RefCounted::deref(); }
 
     virtual ~PendingDownload();
 

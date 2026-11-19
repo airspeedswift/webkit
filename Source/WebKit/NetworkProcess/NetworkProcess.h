@@ -387,8 +387,8 @@ public:
 
     const String& uiProcessBundleIdentifier() const LIFETIME_BOUND;
 
-    void ref() const final { ThreadSafeRefCounted<NetworkProcess>::ref(); }
-    void deref() const final { ThreadSafeRefCounted<NetworkProcess>::deref(); }
+    SWIFT_UNSAFE void ref() const final { ThreadSafeRefCounted<NetworkProcess>::ref(); }
+    SWIFT_UNSAFE void deref() const final { ThreadSafeRefCounted<NetworkProcess>::deref(); }
 
     void storePrivateClickMeasurement(PAL::SessionID, WebCore::PrivateClickMeasurement&&);
     void simulatePrivateClickMeasurementConversion(PAL::SessionID, int priority, int triggerData, const URL& sourceURL, const URL& destinationURL);
