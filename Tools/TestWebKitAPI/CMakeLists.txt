@@ -660,6 +660,7 @@ if (ENABLE_WEBKIT)
     # TestNetworkCache: the network cache's tests, through the test-support layer WebKit2.dll exports.
     if (PORT STREQUAL "Win")
         set(TestNetworkCache_SOURCES
+            Tests/NetworkCache/NetworkCacheBench.cpp
             Tests/NetworkCache/NetworkCacheReach.cpp
         )
         set(TestNetworkCache_PRIVATE_INCLUDE_DIRECTORIES
