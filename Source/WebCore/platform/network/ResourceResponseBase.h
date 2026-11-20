@@ -92,9 +92,13 @@ public:
     WEBCORE_EXPORT bool isSuccessful() const;
 
     WEBCORE_EXPORT const URL& url() const LIFETIME_BOUND;
+    // By value for Swift, which imports the const& getter as a pointer.
+    URL urlCopy() const { return url(); }
     WEBCORE_EXPORT void setURL(URL&&);
 
     WEBCORE_EXPORT const String& mimeType() const LIFETIME_BOUND;
+    // By value for Swift, which imports the const& getter as a pointer.
+    String mimeTypeCopy() const { return mimeType(); }
     WEBCORE_EXPORT void setMimeType(String&&);
 
     WEBCORE_EXPORT long long expectedContentLength() const;
@@ -115,6 +119,8 @@ public:
     WEBCORE_EXPORT bool isHTTP09() const;
 
     WEBCORE_EXPORT const HTTPHeaderMap& httpHeaderFields() const LIFETIME_BOUND;
+    // By value for Swift, which imports the const& getter as a pointer.
+    HTTPHeaderMap httpHeaderFieldsCopy() const { return httpHeaderFields(); }
     void setHTTPHeaderFields(HTTPHeaderMap&&);
 
     enum class SanitizationType { Redirection, RemoveCookies, CrossOriginSafe };

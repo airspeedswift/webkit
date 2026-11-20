@@ -144,6 +144,8 @@ public:
     WEBCORE_EXPORT bool isEmpty() const;
     
     WEBCORE_EXPORT const URL& url() const LIFETIME_BOUND;
+    // By value for Swift, which imports the const& getter as a pointer.
+    URL urlCopy() const { return url(); }
     WEBCORE_EXPORT void setURL(URL&&, bool didFilterLinkDecoration = false);
 
     void redirectAsGETIfNeeded(const ResourceRequestBase &, const ResourceResponse&);
@@ -161,6 +163,8 @@ public:
     WEBCORE_EXPORT void resetTimeoutInterval();
     
     WEBCORE_EXPORT const URL& firstPartyForCookies() const LIFETIME_BOUND;
+    // By value for Swift, which imports the const& getter as a pointer.
+    URL firstPartyForCookiesCopy() const { return firstPartyForCookies(); }
     WEBCORE_EXPORT void setFirstPartyForCookies(const URL&);
 
     WEBCORE_EXPORT bool isThirdParty() const;
@@ -181,6 +185,8 @@ public:
     WEBCORE_EXPORT void setHTTPMethod(const String& httpMethod);
     
     WEBCORE_EXPORT const HTTPHeaderMap& httpHeaderFields() const LIFETIME_BOUND;
+    // By value for Swift, which imports the const& getter as a pointer.
+    HTTPHeaderMap httpHeaderFieldsCopy() const { return httpHeaderFields(); }
     WEBCORE_EXPORT void setHTTPHeaderFields(HTTPHeaderMap);
 
     WEBCORE_EXPORT String httpHeaderField(StringView name) const;
