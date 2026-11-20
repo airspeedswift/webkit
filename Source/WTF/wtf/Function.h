@@ -25,8 +25,12 @@
 
 #pragma once
 
+#include <cstddef>
 #include <memory>
+#include <new>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 #include <wtf/Compiler.h>
 #include <wtf/FastMalloc.h>
 #include <wtf/Forward.h>
@@ -41,6 +45,13 @@ IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
 // build a CompletionHandler or a Function out of a Swift closure.
 using SwiftClosureInvoke = void (* WTF_NONNULL)(void* WTF_NONNULL context, void* WTF_NULLABLE argument);
 using SwiftClosureDestroy = void (* WTF_NONNULL)(void* WTF_NONNULL context);
+
+// What a Function<Out(A)> built from a Swift closure passes as the `argument` of its invoke: the address of the
+// Function's argument, to copy, and the address of uninitialized storage for the Out, to initialize once.
+struct SwiftClosureResultFrame {
+    void* WTF_NONNULL argument;
+    void* WTF_NONNULL result;
+};
 
 #ifdef __swift__
 #define WTF_FUNCTION_SWIFT_UNAVAILABLE __attribute__((availability(swift, unavailable)))
@@ -109,15 +120,21 @@ public:
 #endif // defined(__APPLE__)
 
 #ifdef __swift__
-    // This should only be called within the initializer of the `CxxVoidFunction` protocol
-    // (Source/WebKit/Shared/WTFFunction+Extras.swift), which takes a `@Sendable` closure: a Function may be called
-    // and destroyed on any thread.
+    // This should only be called within the initializers of the `CxxVoidFunction`, `CxxResultFunction` and
+    // `CxxArgumentFunction` and `CxxResultArgumentFunction` protocols (Source/WebKit/Shared/WTFFunction+Extras.swift),
+    // which take a `@Sendable`
+    // closure: a Function may be called and destroyed on any thread.
+    //
+    // The closure's C ABI is `invoke(context, argument)`: `argument` is null for Function<void()>; the address of the
+    // Function's argument, to copy, for Function<void(A)>; and the address of uninitialized storage for an Out, which
+    // the closure initializes once and which is moved out and destroyed here, for Function<Out()>; and the address of a
+    // SwiftClosureResultFrame holding both, for Function<Out(A)>.
     Function(SwiftClosureInvoke invoke, SwiftClosureDestroy destroy, void* WTF_NONNULL context) SWIFT_NAME(init(invoke:destroy:context:))
-        : Function([invoke, owner = std::unique_ptr<void, SwiftClosureDestroy> { context, destroy }]() {
-            invoke(owner.get(), nullptr);
+        : Function([invoke, owner = std::unique_ptr<void, SwiftClosureDestroy> { context, destroy }](In... arguments) -> Out {
+            return passToSwift(invoke, owner.get(), std::forward<In>(arguments)...);
         })
     {
-        static_assert(std::is_void_v<Out> && !sizeof...(In), "Swift closures can only be used with functions that take no argument and return void.");
+        static_assert(sizeof...(In) <= 1, "Swift closures can only be used with functions that take at most one argument.");
     }
 #endif
 
@@ -174,6 +191,41 @@ private:
     }
 
     friend Function adopt<Out, In...>(Impl*);
+
+#ifdef __swift__
+    static Out passToSwift(SwiftClosureInvoke invoke, void* WTF_NONNULL context, In... arguments)
+    {
+        if constexpr (std::is_void_v<Out> && !sizeof...(In))
+            invoke(context, nullptr);
+        else if constexpr (!sizeof...(In)) {
+            static_assert(std::is_move_constructible_v<Out> && !std::is_reference_v<Out>);
+
+            alignas(Out) std::byte storage[sizeof(Out)];
+            invoke(context, storage);
+            Out* result = std::launder(reinterpret_cast<Out*>(storage));
+            Out out(WTF::move(*result));
+            std::destroy_at(result);
+            return out;
+        } else if constexpr (std::is_void_v<Out>) {
+            using ArgumentType = std::tuple_element_t<0, std::tuple<In...>>;
+            static_assert(!std::is_reference_v<ArgumentType> && std::is_copy_constructible_v<ArgumentType>);
+
+            invoke(context, std::addressof(arguments)...);
+        } else {
+            using ArgumentType = std::tuple_element_t<0, std::tuple<In...>>;
+            static_assert(!std::is_reference_v<ArgumentType> && std::is_copy_constructible_v<ArgumentType>);
+            static_assert(std::is_move_constructible_v<Out> && !std::is_reference_v<Out>);
+
+            alignas(Out) std::byte storage[sizeof(Out)];
+            SwiftClosureResultFrame frame { std::addressof(arguments)..., storage };
+            invoke(context, &frame);
+            Out* result = std::launder(reinterpret_cast<Out*>(storage));
+            Out out(WTF::move(*result));
+            std::destroy_at(result);
+            return out;
+        }
+    }
+#endif
 
     std::unique_ptr<Impl> m_callableWrapper;
 } SWIFT_SELF_CONTAINED;
