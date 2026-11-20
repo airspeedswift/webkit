@@ -29,6 +29,7 @@
 #include <wtf/Box.h>
 #include <wtf/FileHandle.h>
 #include <wtf/FileSystem.h>
+#include <wtf/Function.h>
 #include <wtf/MappedFileData.h>
 #include <wtf/SHA1.h>
 #include <wtf/ThreadSafeRefCounted.h>
@@ -118,6 +119,8 @@ Data mapFile(const String& path);
 
 using Salt = FileSystem::Salt;
 SHA1::Digest computeSHA1(const Data&, const Salt&);
+
+using NetworkCacheFileReadCompletion = Function<void(Data)>;
 
 }
 

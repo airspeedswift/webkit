@@ -23,6 +23,7 @@
 
 #if compiler(>=6.4) && !SWIFT_WEBKIT_TOOLCHAIN
 
+import WebKit_Internal.NetworkCacheCxx
 import wtf.Core.Function
 
 // How Swift builds a `WTF::Function` from a closure.
@@ -219,6 +220,16 @@ extension WTF.VoidFunction: @unsafe CxxVoidFunction {}
 extension WTF.VoidFunction {
     /// Creates a `WTF::Function<void()>` from a Swift closure.
     init(sendable body: @escaping @Sendable () -> Void) {
+        self.init(cxxSendable: body)
+    }
+}
+
+// A whole-file read (NetworkCacheStorage.h), which hands the file's bytes to its completion.
+
+extension WebKit.NetworkCache.NetworkCacheFileReadCompletion: CxxArgumentFunction {
+    typealias Argument = WebKit.NetworkCache.Data
+
+    init(sendable body: @escaping @Sendable (WebKit.NetworkCache.Data) -> Void) {
         self.init(cxxSendable: body)
     }
 }
