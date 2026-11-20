@@ -201,6 +201,19 @@ private func releaseSwiftSendableClosureBox(_ context: UnsafeMutableRawPointer) 
 
 // MARK: - Conformances
 
+extension WTF.SpanApplyFunction: @unsafe CxxResultArgumentFunction {
+    typealias Argument = WTF.SpanApplyArgument
+    typealias Output = Bool
+
+    /// Creates a span applier from a Swift closure that reads each span it is given; the span lives only for the call.
+    init(sendable body: @escaping @Sendable (Span<UInt8>) -> Bool) {
+        self.init(cxxSendable: { (span: WTF.SpanApplyArgument) -> Bool in
+            // Safe because the C++ caller's span is live for the whole call, and the Span cannot escape the closure.
+            body(unsafe Span(_unsafeCxxSpan: span))
+        })
+    }
+}
+
 extension WTF.VoidFunction: @unsafe CxxVoidFunction {}
 
 extension WTF.VoidFunction {

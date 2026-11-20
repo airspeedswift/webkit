@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <memory>
 #include <new>
+#include <span>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -236,6 +237,11 @@ template<typename Out, typename... In> Function<Out(In...)> adopt(Detail::Callab
 }
 
 using VoidFunction = Function<void()>;
+
+// The span applier of Data::apply, mapToFile and dispatch_data_apply_span, named for Swift
+// (WTFFunction+Extras.swift builds it from a closure over a Span).
+using SpanApplyArgument = std::span<const uint8_t>;
+using SpanApplyFunction = Function<bool(SpanApplyArgument)>;
 
 IGNORE_CLANG_WARNINGS_END
 
