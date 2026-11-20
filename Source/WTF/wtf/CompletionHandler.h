@@ -51,7 +51,7 @@ public:
 
 // Wraps a Function to make sure it is always called once and only once.
 template <typename Out, typename... In>
-class CompletionHandler<Out(In...)> {
+class SWIFT_NONSENDABLE CompletionHandler<Out(In...)> {
 IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(CompletionHandler);
 IGNORE_CLANG_WARNINGS_END
@@ -145,7 +145,7 @@ private:
 // the finalizer is invoked with the function as its argument.
 template<typename> class CompletionHandlerWithFinalizer;
 template <typename Out, typename... In>
-class CompletionHandlerWithFinalizer<Out(In...)> {
+class SWIFT_NONSENDABLE CompletionHandlerWithFinalizer<Out(In...)> {
 IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(CompletionHandlerWithFinalizer);
 IGNORE_CLANG_WARNINGS_END

@@ -464,3 +464,14 @@
 #define SWIFT_MAIN_ACTOR
 #endif
 #endif
+
+// SWIFT_NONSENDABLE makes Swift import a C++ type as ~Sendable, so safe Swift cannot send it across isolation domains.
+#if __has_attribute(swift_attr)
+#ifndef SWIFT_NONSENDABLE
+#define SWIFT_NONSENDABLE __attribute__((swift_attr("~Sendable")))
+#endif
+#else
+#ifndef SWIFT_NONSENDABLE
+#define SWIFT_NONSENDABLE
+#endif
+#endif
