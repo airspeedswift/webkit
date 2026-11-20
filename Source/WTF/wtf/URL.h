@@ -143,6 +143,8 @@ public:
 
     const String& string() const & LIFETIME_BOUND { return m_string; }
     String string() && { m_isValid = false; return WTF::move(m_string); }
+    // By value for Swift, which imports the const& getter as a pointer.
+    String stringCopy() const { return m_string; }
     WTF_EXPORT_PRIVATE String stringCenterEllipsizedToLength(unsigned length = 1024) const;
 
     // Unlike user() and password(), encodedUser() and encodedPassword() don't decode escape sequences.
