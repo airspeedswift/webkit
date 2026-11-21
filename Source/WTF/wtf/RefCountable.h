@@ -54,12 +54,12 @@ public:
 #ifdef __swift__
     // FIXME: rdar://165684636 means we have to define these at this level of the
     // type hierarchy.
-    void ref() const
+    SWIFT_UNSAFE void ref() const
     {
         ThreadSafeRefCounted<RefCountable<T>>::ref();
     }
 
-    void deref() const
+    SWIFT_UNSAFE void deref() const
     {
         ThreadSafeRefCounted<RefCountable<T>>::deref();
     }
