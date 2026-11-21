@@ -985,6 +985,7 @@
 				WebCore/PlatformMediaSessionManagerTests.cpp,
 				WebCore/PODIntervalTree.cpp,
 				WebCore/PrivateClickMeasurement.cpp,
+				WebCore/PrivateClickMeasurementBench.mm,
 				WebCore/PublicSuffix.cpp,
 				WebCore/PushDatabase.cpp,
 				WebCore/PushMessageCrypto.cpp,
