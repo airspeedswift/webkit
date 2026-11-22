@@ -146,3 +146,7 @@
 #include "RemoteXRSubImageMessages.h"
 #include "RemoteXRViewMessages.h"
 #endif
+
+// SuspendableWorkQueue is a foreign reference type, so Swift needs its definition before ResourceLoadStatisticsStore.h names it.
+#include <wtf/SuspendableWorkQueue.h>
+#include "ResourceLoadStatisticsStore.h"

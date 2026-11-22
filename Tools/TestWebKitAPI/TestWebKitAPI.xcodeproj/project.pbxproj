@@ -1316,6 +1316,7 @@
 				WebKit/WKWebView/NowPlayingMetadataObserver.mm,
 				WebKit/WKWebView/OrthogonalFlowAvailableSize.mm,
 				WebKit/WKWebView/ParentalControlsContentFilteringTests.mm,
+				WebKit/WKWebView/ResourceLoadStatisticsBench.mm,
 				WebKit/WKWebView/SmartLists.mm,
 				WebKit/WKWebView/SpatialAudioExperience.mm,
 				WebKit/WKWebView/WebRTC.mm,

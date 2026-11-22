@@ -26,7 +26,8 @@
 #pragma once
 
 #include "DatabaseUtilities.h"
-#include "ITPThirdPartyDataForSpecificFirstParty.h"
+#include "DidFilterKnownLinkDecoration.h"
+#include "ITPThirdPartyData.h"
 #include "ResourceLoadStatisticsClassifier.h"
 #include "WebResourceLoadStatisticsStore.h"
 #include <JavaScriptCore/ConsoleTypes.h>
@@ -35,6 +36,7 @@
 #include <wtf/Forward.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/StdSet.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 
@@ -53,7 +55,143 @@ struct ResourceLoadStatistics;
 
 namespace WebKit {
 
-enum class DidFilterKnownLinkDecoration : bool;
+// Names for Swift, which cannot spell a class template specialization.
+using OptionalDomainID = std::optional<unsigned>;
+using RegistrableDomainVector = Vector<WebCore::RegistrableDomain>;
+using DomainIDVector = Vector<unsigned>;
+using ITPThirdPartyDataVector = Vector<ITPThirdPartyData>;
+using ITPThirdPartyDataForSpecificFirstPartyVector = Vector<ITPThirdPartyDataForSpecificFirstParty>;
+
+// Any value is safe to pass: the store checks the slot and its generation on every use, so a stale or made-up handle
+// traps or names a live statement of the same store.
+struct SQLStatementHandle {
+    bool isValid() const { return m_generation; }
+    uint32_t m_slot { 0 };
+    uint64_t m_generation { 0 };
+};
+
+#define FOR_EACH_RESOURCE_LOAD_STATISTICS_CACHED_STATEMENT(macro) \
+    macro(ObservedDomainCount, observedDomainCountQuery) \
+    macro(InsertObservedDomain, insertObservedDomainQuery) \
+    macro(DomainIDFromString, domainIDFromStringQuery) \
+    macro(SubframeUnderTopFrameDomainExists, subframeUnderTopFrameDomainExistsQuery) \
+    macro(SubresourceUnderTopFrameDomainExists, subresourceUnderTopFrameDomainExistsQuery) \
+    macro(SubresourceUniqueRedirectsToExists, subresourceUniqueRedirectsToExistsQuery) \
+    macro(MostRecentUserInteraction, mostRecentUserInteractionQuery) \
+    macro(UpdateLastSeen, updateLastSeenQuery) \
+    macro(UpdateDataRecordsRemoved, updateDataRecordsRemovedQuery) \
+    macro(UpdatePrevalentResource, updatePrevalentResourceQuery) \
+    macro(IsPrevalentResource, isPrevalentResourceQuery) \
+    macro(UpdateVeryPrevalentResource, updateVeryPrevalentResourceQuery) \
+    macro(IsVeryPrevalentResource, isVeryPrevalentResourceQuery) \
+    macro(ClearPrevalentResource, clearPrevalentResourceQuery) \
+    macro(HadUserInteraction, hadUserInteractionQuery) \
+    macro(UpdateGrandfathered, updateGrandfatheredQuery) \
+    macro(IsScheduledForAllButCookieDataRemoval, isScheduledForAllButCookieDataRemovalQuery) \
+    macro(UpdateIsScheduledForAllButCookieDataRemoval, updateIsScheduledForAllButCookieDataRemovalQuery) \
+    macro(UpdateMostRecentWebPushInteractionTime, updateMostRecentWebPushInteractionTimeQuery) \
+    macro(IsGrandfathered, isGrandfatheredQuery) \
+    macro(GetResourceDataByDomainName, getResourceDataByDomainNameQuery) \
+    macro(GetAllDomains, getAllDomainsQuery) \
+    macro(DomainStringFromDomainID, domainStringFromDomainIDQuery) \
+    macro(GetAllSubStatistics, getAllSubStatisticsUnderDomainQuery) \
+    macro(StorageAccessExists, storageAccessExistsQuery) \
+    macro(GetMostRecentlyUpdatedTimestamp, getMostRecentlyUpdatedTimestampQuery) \
+    macro(LinkDecorationExists, linkDecorationExistsQuery) \
+    macro(ScriptLoadExists, scriptLoadExistsQuery) \
+    macro(SubFrameExists, subFrameExistsQuery) \
+    macro(SubResourceExists, subResourceExistsQuery) \
+    macro(UniqueRedirectExists, uniqueRedirectExistsQuery) \
+    macro(ObservedDomainsExists, observedDomainsExistsQuery) \
+    macro(RemoveAllData, removeAllDataQuery) \
+    macro(CheckIfTableExists, checkIfTableExistsQuery)
+
+enum class ResourceLoadStatisticsCachedStatement : uint8_t {
+#define DECLARE_CACHED_STATEMENT(name, query) name,
+    FOR_EACH_RESOURCE_LOAD_STATISTICS_CACHED_STATEMENT(DECLARE_CACHED_STATEMENT)
+#undef DECLARE_CACHED_STATEMENT
+};
+
+#define COUNT_CACHED_STATEMENT(name, query) + 1
+static constexpr size_t resourceLoadStatisticsCachedStatementCount = 0 FOR_EACH_RESOURCE_LOAD_STATISTICS_CACHED_STATEMENT(COUNT_CACHED_STATEMENT);
+#undef COUNT_CACHED_STATEMENT
+
+// The names ResourceLoadStatisticsStore.swift logs when a cached statement fails to prepare, passed as an index so that
+// opening a statement builds no String.
+#define FOR_EACH_RESOURCE_LOAD_STATISTICS_STATEMENT_LOG_LABEL(macro) \
+    macro(TableExists, "tableExists"_s) \
+    macro(IsEmpty, "isEmpty"_s) \
+    macro(DomainID, "domainID"_s) \
+    macro(HasStorageAccess, "hasStorageAccess"_s) \
+    macro(IsPrevalentResource, "isPrevalentResource"_s) \
+    macro(IsVeryPrevalentResource, "isVeryPrevalentResource"_s) \
+    macro(IsScheduledForAllButCookieDataRemoval, "isScheduledForAllButCookieDataRemoval"_s) \
+    macro(IsRegisteredAsSubresourceUnder, "isRegisteredAsSubresourceUnder"_s) \
+    macro(IsRegisteredAsSubFrameUnder, "isRegisteredAsSubFrameUnder"_s) \
+    macro(IsRegisteredAsRedirectingTo, "isRegisteredAsRedirectingTo"_s) \
+    macro(IsGrandfathered, "isGrandfathered"_s) \
+    macro(RemoveDataForDomain, "removeDataForDomain"_s) \
+    macro(AllDomains, "allDomains"_s) \
+    macro(GetDomainStringFromDomainID, "getDomainStringFromDomainID"_s) \
+    macro(DomainIDExistsInDatabase, "domainIDExistsInDatabase"_s) \
+    macro(DomainIDExistsInDatabaseLinkDecorationExistsStatement, "domainIDExistsInDatabase linkDecorationExistsStatement"_s) \
+    macro(DomainIDExistsInDatabaseSubFrameExistsStatement, "domainIDExistsInDatabase subFrameExistsStatement"_s) \
+    macro(DomainIDExistsInDatabaseSubResourceExistsStatement, "domainIDExistsInDatabase subResourceExistsStatement"_s) \
+    macro(DomainIDExistsInDatabaseUniqueRedirectExistsStatement, "domainIDExistsInDatabase uniqueRedirectExistsStatement"_s) \
+    macro(DomainIDExistsInDatabaseObservedDomainsExistsStatement, "domainIDExistsInDatabase observedDomainsExistsStatement"_s) \
+    macro(InsertObservedDomain, "insertObservedDomain"_s) \
+    macro(SetUserInteraction, "setUserInteraction"_s) \
+    macro(ClearPrevalentResource, "clearPrevalentResource"_s) \
+    macro(SetGrandfathered, "setGrandfathered"_s) \
+    macro(SetIsScheduledForAllScriptWrittenStorageRemoval, "setIsScheduledForAllScriptWrittenStorageRemoval"_s) \
+    macro(SetMostRecentWebPushInteractionTime, "setMostRecentWebPushInteractionTime"_s) \
+    macro(EnsureResourceStatisticsForRegistrableDomain, "ensureResourceStatisticsForRegistrableDomain"_s) \
+    macro(UpdateLastSeen, "updateLastSeen"_s) \
+    macro(UpdateDataRecordsRemoved, "updateDataRecordsRemoved"_s) \
+    macro(SetPrevalentResource, "setPrevalentResource"_s) \
+    macro(SetPrevalentResourceUpdateVeryPrevalentResource, "setPrevalentResource updateVeryPrevalentResource"_s) \
+    macro(PruneStatisticsIfNeeded, "pruneStatisticsIfNeeded"_s) \
+    macro(MergeStatistic, "mergeStatistic"_s) \
+    macro(HasHadUserInteraction, "hasHadUserInteraction"_s) \
+    macro(GetThirdPartyDataForSpecificFirstPartyDomains, "getThirdPartyDataForSpecificFirstPartyDomains"_s) \
+    macro(GetMostRecentlyUpdatedTimestamp, "getMostRecentlyUpdatedTimestamp"_s) \
+    macro(ResourceToString, "resourceToString"_s) \
+    macro(DumpResourceLoadStatistics, "dumpResourceLoadStatistics"_s) \
+    macro(InsertExpiredStatisticForTesting, "insertExpiredStatisticForTesting"_s)
+
+enum class ResourceLoadStatisticsStatementLogLabel : uint8_t {
+#define DECLARE_STATEMENT_LOG_LABEL(name, text) name,
+    FOR_EACH_RESOURCE_LOAD_STATISTICS_STATEMENT_LOG_LABEL(DECLARE_STATEMENT_LOG_LABEL)
+#undef DECLARE_STATEMENT_LOG_LABEL
+};
+
+#define COUNT_STATEMENT_LOG_LABEL(name, text) + 1
+static constexpr size_t resourceLoadStatisticsStatementLogLabelCount = 0 FOR_EACH_RESOURCE_LOAD_STATISTICS_STATEMENT_LOG_LABEL(COUNT_STATEMENT_LOG_LABEL);
+#undef COUNT_STATEMENT_LOG_LABEL
+
+// The relationship inserts' query prefixes, which openRelationshipStatement completes with one placeholder per domain,
+// passed as an index so that ResourceLoadStatisticsStore.swift builds no SQL of its own.
+#define FOR_EACH_RESOURCE_LOAD_STATISTICS_RELATIONSHIP_QUERY(macro) \
+    macro(StorageAccessUnderTopFrameDomains, "INSERT OR IGNORE INTO StorageAccessUnderTopFrameDomains (domainID, topLevelDomainID) SELECT ?, domainID FROM ObservedDomains WHERE registrableDomain in ( "_s) \
+    macro(TopFrameUniqueRedirectsTo, "INSERT OR IGNORE into TopFrameUniqueRedirectsTo (sourceDomainID, toDomainID) SELECT ?, domainID FROM ObservedDomains where registrableDomain in ( "_s) \
+    macro(TopFrameUniqueRedirectsToSinceSameSiteStrictEnforcement, "INSERT OR IGNORE into TopFrameUniqueRedirectsToSinceSameSiteStrictEnforcement (sourceDomainID, toDomainID) SELECT ?, domainID FROM ObservedDomains where registrableDomain in ( "_s) \
+    macro(TopFrameUniqueRedirectsFrom, "INSERT OR IGNORE INTO TopFrameUniqueRedirectsFrom (targetDomainID, fromDomainID) SELECT ?, domainID FROM ObservedDomains WHERE registrableDomain in ( "_s) \
+    macro(TopFrameLoadedThirdPartyScripts, "INSERT OR IGNORE into TopFrameLoadedThirdPartyScripts (topFrameDomainID, subresourceDomainID) SELECT ?, domainID FROM ObservedDomains where registrableDomain in ( "_s) \
+    macro(SubresourceUniqueRedirectsFrom, "INSERT OR IGNORE INTO SubresourceUniqueRedirectsFrom (subresourceDomainID, fromDomainID) SELECT ?, domainID FROM ObservedDomains WHERE registrableDomain in ( "_s) \
+    macro(SubframeUnderTopFrameDomains, "INSERT OR REPLACE into SubframeUnderTopFrameDomains (subFrameDomainID, lastUpdated, topFrameDomainID) SELECT ?, ?, domainID FROM ObservedDomains where registrableDomain in ( "_s) \
+    macro(TopFrameLinkDecorationsFrom, "INSERT OR REPLACE INTO TopFrameLinkDecorationsFrom (toDomainID, lastUpdated, fromDomainID) SELECT ?, ?, domainID FROM ObservedDomains WHERE registrableDomain in ( "_s) \
+    macro(SubresourceUnderTopFrameDomains, "INSERT OR REPLACE INTO SubresourceUnderTopFrameDomains (subresourceDomainID, lastUpdated, topFrameDomainID) SELECT ?, ?, domainID FROM ObservedDomains WHERE registrableDomain in ( "_s) \
+    macro(SubresourceUniqueRedirectsTo, "INSERT OR REPLACE INTO SubresourceUniqueRedirectsTo (subresourceDomainID, lastUpdated, toDomainID) SELECT ?, ?, domainID FROM ObservedDomains WHERE registrableDomain in ( "_s)
+
+enum class ResourceLoadStatisticsRelationshipQuery : uint8_t {
+#define DECLARE_RELATIONSHIP_QUERY(name, query) name,
+    FOR_EACH_RESOURCE_LOAD_STATISTICS_RELATIONSHIP_QUERY(DECLARE_RELATIONSHIP_QUERY)
+#undef DECLARE_RELATIONSHIP_QUERY
+};
+
+#define COUNT_RELATIONSHIP_QUERY(name, query) + 1
+static constexpr size_t resourceLoadStatisticsRelationshipQueryCount = 0 FOR_EACH_RESOURCE_LOAD_STATISTICS_RELATIONSHIP_QUERY(COUNT_RELATIONSHIP_QUERY);
+#undef COUNT_RELATIONSHIP_QUERY
 
 class OperatingDate {
 public:
@@ -87,7 +225,7 @@ enum class CanRequestStorageAccessWithoutUserInteraction : bool { No, Yes };
 enum class DataRemovalFrequency : uint8_t { Never, Short, Long };
 
 // This is always constructed / used / destroyed on the WebResourceLoadStatisticsStore's statistics queue.
-class ResourceLoadStatisticsStore final : public RefCountedAndCanMakeWeakPtr<ResourceLoadStatisticsStore>,  public DatabaseUtilities {
+class SWIFT_PRIVATE_FILEID("WebKit/ResourceLoadStatisticsStore.swift") ResourceLoadStatisticsStore final : public RefCountedAndCanMakeWeakPtr<ResourceLoadStatisticsStore>,  public DatabaseUtilities {
     WTF_MAKE_TZONE_ALLOCATED(ResourceLoadStatisticsStore);
 public:
     using ResourceLoadStatistics = WebCore::ResourceLoadStatistics;
@@ -112,7 +250,7 @@ public:
 
     void clear(CompletionHandler<void()>&&);
     bool isEmpty() const;
-    Vector<ITPThirdPartyData> aggregatedThirdPartyData() const;
+    ITPThirdPartyDataVector aggregatedThirdPartyData() const;
     void updateCookieBlocking(CompletionHandler<void()>&&);
     void processStatisticsAndDataRecords(CompletionHandler<void()>&&);
     NODELETE void cancelPendingStatisticsProcessingRequest();
@@ -128,27 +266,27 @@ public:
     std::optional<HashMap<RegistrableDomain, WallTime>> loadWebsitesWithUserInteraction();
 
     void grandfatherExistingWebsiteData(CompletionHandler<void()>&&);
-    void setGrandfathered(const RegistrableDomain&, bool value);
-    bool isGrandfathered(const RegistrableDomain&) const;
+    void setGrandfathered(RegistrableDomain, bool value);
+    bool isGrandfathered(RegistrableDomain) const;
     NODELETE void setGrandfatheringTime(Seconds);
 
-    bool isRegisteredAsSubresourceUnder(const SubResourceDomain&, const TopFrameDomain&) const;
-    bool isRegisteredAsSubFrameUnder(const SubFrameDomain&, const TopFrameDomain&) const;
-    bool isRegisteredAsRedirectingTo(const RedirectedFromDomain&, const RedirectedToDomain&) const;
+    bool isRegisteredAsSubresourceUnder(SubResourceDomain, TopFrameDomain) const;
+    bool isRegisteredAsSubFrameUnder(SubFrameDomain, TopFrameDomain) const;
+    bool isRegisteredAsRedirectingTo(RedirectedFromDomain, RedirectedToDomain) const;
 
-    void clearPrevalentResource(const RegistrableDomain&);
-    bool isPrevalentResource(const RegistrableDomain&) const;
-    bool isVeryPrevalentResource(const RegistrableDomain&) const;
-    void setPrevalentResource(const RegistrableDomain&);
-    void setVeryPrevalentResource(const RegistrableDomain&);
-    void setMostRecentWebPushInteractionTime(const RegistrableDomain&);
+    void clearPrevalentResource(RegistrableDomain);
+    bool isPrevalentResource(RegistrableDomain) const;
+    bool isVeryPrevalentResource(RegistrableDomain) const;
+    void setPrevalentResource(RegistrableDomain);
+    void setVeryPrevalentResource(RegistrableDomain);
+    void setMostRecentWebPushInteractionTime(RegistrableDomain);
 
-    void setSubframeUnderTopFrameDomain(const SubFrameDomain&, const TopFrameDomain&);
-    void setSubresourceUnderTopFrameDomain(const SubResourceDomain&, const TopFrameDomain&);
-    void setSubresourceUniqueRedirectTo(const SubResourceDomain&, const RedirectDomain&);
-    void setSubresourceUniqueRedirectFrom(const SubResourceDomain&, const RedirectDomain&);
-    void setTopFrameUniqueRedirectTo(const TopFrameDomain&, const RedirectDomain&);
-    void setTopFrameUniqueRedirectFrom(const TopFrameDomain&, const RedirectDomain&);
+    void setSubframeUnderTopFrameDomain(SubFrameDomain, TopFrameDomain);
+    void setSubresourceUnderTopFrameDomain(SubResourceDomain, TopFrameDomain);
+    void setSubresourceUniqueRedirectTo(SubResourceDomain, RedirectDomain);
+    void setSubresourceUniqueRedirectFrom(SubResourceDomain, RedirectDomain);
+    void setTopFrameUniqueRedirectTo(TopFrameDomain, RedirectDomain);
+    void setTopFrameUniqueRedirectFrom(TopFrameDomain, RedirectDomain);
 
     NODELETE void setIsRunningTest(bool);
     void logTestingEvent(String&&);
@@ -158,13 +296,13 @@ public:
     NODELETE void setPruneEntriesDownTo(size_t pruneTargetCount);
     void resetParametersToDefaultValues();
 
-    bool shouldSkip(const RegistrableDomain&) const;
+    bool shouldSkip(RegistrableDomain) const;
     NODELETE void setShouldClassifyResourcesBeforeDataRecordsRemoval(bool);
     NODELETE void setTimeToLiveUserInteraction(Seconds);
     NODELETE void setMinimumTimeBetweenDataRecordsRemoval(Seconds);
     void setResourceLoadStatisticsDebugMode(bool);
     bool isDebugModeEnabled() const { return m_debugModeEnabled; };
-    void setPrevalentResourceForDebugMode(const RegistrableDomain&);
+    void setPrevalentResourceForDebugMode(RegistrableDomain);
     void setThirdPartyCookieBlockingMode(WebCore::ThirdPartyCookieBlockingMode mode) { m_thirdPartyCookieBlockingMode = mode; };
     WebCore::ThirdPartyCookieBlockingMode thirdPartyCookieBlockingMode() const { return m_thirdPartyCookieBlockingMode; };
     void setSameSiteStrictEnforcementEnabled(WebCore::SameSiteStrictEnforcementEnabled enabled) { m_sameSiteStrictEnforcementEnabled = enabled; };
@@ -184,23 +322,24 @@ public:
     void requestStorageAccess(SubFrameDomain&&, TopFrameDomain&&, WebCore::FrameIdentifier, WebPageProxyIdentifier, WebCore::StorageAccessScope, CanRequestStorageAccessWithoutUserInteraction, CompletionHandler<void(StorageAccessStatus)>&&);
     void queryStorageAccessPermission(const SubFrameDomain&, const TopFrameDomain&, CompletionHandler<void(WebCore::PermissionState)>&&);
     enum class AddedRecord : bool { No, Yes };
-    std::pair<AddedRecord, std::optional<unsigned>> grantStorageAccessPermission(const RegistrableDomain& topFrameDomain, const RegistrableDomain& subFrameDomain);
-    void revokeStorageAccessPermission(const RegistrableDomain&);
+    using AddedRecordAndDomainID = std::pair<AddedRecord, std::optional<unsigned>>;
+    AddedRecordAndDomainID grantStorageAccessPermission(RegistrableDomain topFrameDomain, RegistrableDomain subFrameDomain);
+    void revokeStorageAccessPermission(RegistrableDomain);
     void grantStorageAccess(SubFrameDomain&&, TopFrameDomain&&, WebCore::FrameIdentifier, WebPageProxyIdentifier, WebCore::StorageAccessPromptWasShown, WebCore::StorageAccessScope, CompletionHandler<void(WebCore::StorageAccessWasGranted)>&&);
 
-    void logFrameNavigation(const NavigatedToDomain&, const TopFrameDomain&, const NavigatedFromDomain&, bool isRedirect, bool isMainFrame, Seconds delayAfterMainFrameDocumentLoad, bool wasPotentiallyInitiatedByUser);
-    void logCrossSiteLoadWithLinkDecoration(const NavigatedFromDomain&, const NavigatedToDomain&, DidFilterKnownLinkDecoration);
+    void logFrameNavigation(NavigatedToDomain, TopFrameDomain, NavigatedFromDomain, bool isRedirect, bool isMainFrame, Seconds delayAfterMainFrameDocumentLoad, bool wasPotentiallyInitiatedByUser);
+    void logCrossSiteLoadWithLinkDecoration(NavigatedFromDomain, NavigatedToDomain, DidFilterKnownLinkDecoration);
 
     void logUserInteraction(const TopFrameDomain&, CompletionHandler<void()>&&);
     void clearUserInteraction(const RegistrableDomain&, CompletionHandler<void()>&&);
-    bool hasHadUserInteraction(const RegistrableDomain&, OperatingDatesWindow);
+    bool hasHadUserInteraction(RegistrableDomain, OperatingDatesWindow);
 
-    void setLastSeen(const RegistrableDomain& primaryDomain, Seconds);
-    bool isCorrectSubStatisticsCount(const RegistrableDomain&, const TopFrameDomain&);
+    void setLastSeen(RegistrableDomain primaryDomain, Seconds);
+    bool isCorrectSubStatisticsCount(RegistrableDomain, TopFrameDomain);
 
-    void removeDataForDomain(const RegistrableDomain&);
+    void removeDataForDomain(RegistrableDomain);
 
-    Vector<RegistrableDomain> allDomains() const;
+    RegistrableDomainVector allDomains() const;
     HashMap<RegistrableDomain, WallTime> allDomainsWithLastAccessedTime() const;
     HashSet<RegistrableDomain> domainsExemptFromWebsiteDataDeletion() const;
 
@@ -213,8 +352,23 @@ public:
     std::optional<Vector<String>> checkForMissingTablesInSchema();
 
     void includeTodayAsOperatingDateIfNecessary();
-    void insertExpiredStatisticForTesting(const RegistrableDomain&, unsigned numberOfOperatingDaysPassed, bool hasUserInteraction, bool isScheduledForAllButCookieDataRemoval, bool);
+    void insertExpiredStatisticForTesting(RegistrableDomain, unsigned numberOfOperatingDaysPassed, bool hasUserInteraction,
+        bool isScheduledForAllButCookieDataRemoval, bool);
     static void interruptAllDatabases();
+
+    // Public: when DomainData is private, the Swift compiler crashes while serializing the module (in SerializeSILPass).
+    struct DomainData {
+        unsigned domainID;
+        RegistrableDomain registrableDomain;
+        WallTime mostRecentUserInteractionTime;
+        WallTime mostRecentWebPushInteractionTime;
+        bool hadUserInteraction;
+        bool grandfathered;
+        DataRemovalFrequency dataRemovalFrequency;
+        unsigned topFrameUniqueRedirectsToSinceSameSiteStrictEnforcement;
+    };
+    using DomainDataVector = Vector<DomainData>;
+    DomainDataVector domains() const;
 
 private:
     ResourceLoadStatisticsStore(WebResourceLoadStatisticsStore&, SuspendableWorkQueue&, ShouldIncludeLocalhost, const String& storageDirectoryPath, PAL::SessionID);
@@ -235,91 +389,57 @@ private:
         bool shouldClassifyResourcesBeforeDataRecordsRemoval { true };
         bool isRunningTest { false };
     };
-    const Parameters& parameters() const LIFETIME_BOUND { return m_parameters; }
-    WallTime& endOfGrandfatheringTimestamp() LIFETIME_BOUND { return m_endOfGrandfatheringTimestamp; }
-    const WallTime& endOfGrandfatheringTimestamp() const LIFETIME_BOUND { return m_endOfGrandfatheringTimestamp; }
+    // For Swift, which imports a returned reference as a pointer.
+    static String string(const RegistrableDomain& domain) { return domain.string(); }
+    static String emptyString() { return WTF::emptyString(); }
+    // For Swift, which does not accept a call named unchecked*.
+    static RegistrableDomain registrableDomainFromHost(const String& host) { return RegistrableDomain::uncheckedCreateFromHost(host); }
+    // For Swift, which sees StringBuilder::toString()'s reference result as a pointer: the builder's text, moved out.
+    static String stringFromBuilder(StringBuilder&);
+    static Seconds reduceTimeResolution(Seconds t) { return ResourceLoadStatistics::reduceTimeResolution(WallTime { } + t) - WallTime { }; }
     void clearEndOfGrandfatheringTimeStamp() { m_endOfGrandfatheringTimestamp = { }; }
-    const RegistrableDomain& debugManualPrevalentResource() const LIFETIME_BOUND { return m_debugManualPrevalentResource; }
-    const RegistrableDomain& debugStaticPrevalentResource() const LIFETIME_BOUND { return m_debugStaticPrevalentResource; }
     void debugBroadcastConsoleMessage(MessageSource, MessageLevel, const String& message);
-    void debugLogDomainsInBatches(ASCIILiteral action, const RegistrableDomainsToBlockCookiesFor&);
+    void debugLogDomainsInBatches(String action, RegistrableDomainVector, RegistrableDomainVector);
     bool debugLoggingEnabled() const { return m_debugLoggingEnabled; }
     bool debugModeEnabled() const { return m_debugModeEnabled; }
     bool shouldExemptFromWebsiteDataDeletion(const RegistrableDomain&) const;
 
-    bool hasStorageAccess(const TopFrameDomain&, const SubFrameDomain&) const;
-    Vector<ITPThirdPartyDataForSpecificFirstParty> getThirdPartyDataForSpecificFirstPartyDomains(unsigned, const RegistrableDomain&) const;
     String getDomainStringFromDomainID(unsigned) const final;
-    void resourceToString(StringBuilder&, const String&) const;
-    ASCIILiteral getSubStatisticStatement(ASCIILiteral) const;
-    void appendSubStatisticList(StringBuilder&, ASCIILiteral tableName, const String& domain) const;
-    void mergeStatistic(const ResourceLoadStatistics&);
-    void merge(WebCore::SQLiteStatement*, const ResourceLoadStatistics&);
+    String dumpResourceLoadStatisticsText() const;
+    void mergeStatistic(RegistrableDomain, WallTime lastSeen, bool hadUserInteraction, WallTime mostRecentUserInteractionTime, bool grandfathered, bool isPrevalentResource, bool isVeryPrevalentResource, unsigned dataRecordsRemoved, bool gotLinkDecorationFromPrevalentResource);
     void incrementRecordsDeletedCountForDomains(HashSet<RegistrableDomain>&&);
-    [[nodiscard]] bool insertObservedDomain(const ResourceLoadStatistics&);
-    void insertDomainRelationships(const ResourceLoadStatistics&);
-    void insertDomainRelationshipList(const String&, const HashSet<RegistrableDomain>&, unsigned);
-    bool relationshipExists(WebCore::SQLiteStatementAutoResetScope&, std::optional<unsigned> firstDomainID, const RegistrableDomain& secondDomain) const;
-    std::optional<unsigned> domainID(const RegistrableDomain&) const;
+    [[nodiscard]] bool insertObservedDomainRecord(RegistrableDomain, double lastSeen, bool hadUserInteraction, double mostRecentUserInteractionTime, bool grandfathered, bool isPrevalent, bool isVeryPrevalent, unsigned dataRecordsRemoved, unsigned timesAccessedAsFirstPartyDueToUserInteraction, unsigned timesAccessedAsFirstPartyDueToStorageAccessAPI, bool gotLinkDecorationFromPrevalentResource);
+    void insertDomainRelationshipsRecord(RegistrableDomain, RegistrableDomainVector storageAccessUnderTopFrameDomains,
+        RegistrableDomainVector topFrameUniqueRedirectsTo, RegistrableDomainVector topFrameUniqueRedirectsToSinceSameSiteStrictEnforcement,
+        RegistrableDomainVector topFrameUniqueRedirectsFrom, RegistrableDomainVector subframeUnderTopFrameDomains,
+        RegistrableDomainVector subresourceUnderTopFrameDomains, RegistrableDomainVector subresourceUniqueRedirectsTo,
+        RegistrableDomainVector subresourceUniqueRedirectsFrom, RegistrableDomainVector topFrameLinkDecorationsFrom,
+        RegistrableDomainVector topFrameLoadedThirdPartyScripts);
+    OptionalDomainID domainID(RegistrableDomain) const;
     bool domainExists(const RegistrableDomain&) const;
-    void updateLastSeen(const RegistrableDomain&, WallTime);
-    void updateDataRecordsRemoved(const RegistrableDomain&, int);
-    void setUserInteraction(const RegistrableDomain&, bool hadUserInteraction, WallTime);
+    void setUserInteraction(RegistrableDomain, bool hadUserInteraction, WallTime);
+    bool logUserInteractionRecord(TopFrameDomain);
+    void clearUserInteractionRecords(RegistrableDomain);
+    void updateCookieBlockingWithoutCompletion();
     Vector<RegistrableDomain> domainsToBlockAndDeleteCookiesFor() const;
     Vector<RegistrableDomain> domainsToBlockButKeepCookiesFor() const;
     Vector<RegistrableDomain> domainsWithUserInteractionAsFirstParty() const;
     HashMap<TopFrameDomain, Vector<SubResourceDomain>> domainsWithStorageAccess() const;
-    void updateObservedDomainsList(ASCIILiteral updateClause, const HashSet<RegistrableDomain>&, ASCIILiteral logContext);
+    void updateObservedDomainsList(String updateClause, RegistrableDomainVector, String logContext);
 
-    struct DomainData {
-        unsigned domainID;
-        RegistrableDomain registrableDomain;
-        WallTime mostRecentUserInteractionTime;
-        WallTime mostRecentWebPushInteractionTime;
-        bool hadUserInteraction;
-        bool grandfathered;
-        DataRemovalFrequency dataRemovalFrequency;
-        unsigned topFrameUniqueRedirectsToSinceSameSiteStrictEnforcement;
-    };
-    Vector<DomainData> domains() const;
-    bool hasHadRecentWebPushInteraction(const DomainData&) const;
-    bool hasHadUnexpiredRecentUserInteraction(const DomainData&, OperatingDatesWindow);
-    void clearGrandfathering(Vector<unsigned>&&);
-    WebCore::StorageAccessPromptWasShown hasUserGrantedStorageAccessThroughPrompt(unsigned domainID, const RegistrableDomain&);
+    bool hasUserGrantedStorageAccessThroughPrompt(unsigned domainID, RegistrableDomain);
 
-    void reclassifyResources();
-    struct NotVeryPrevalentResources {
-        RegistrableDomain registrableDomain;
-        ResourceLoadPrevalence prevalence;
-        unsigned subresourceUnderTopFrameDomainsCount;
-        unsigned subresourceUniqueRedirectsToCount;
-        unsigned subframeUnderTopFrameDomainsCount;
-        unsigned topFrameUniqueRedirectsToCount;
-    };
-    HashMap<unsigned, NotVeryPrevalentResources> findNotVeryPrevalentResources();
+    // For Swift, which cannot spell a HashMap: the indexes of keys in the order a HashMap<unsigned, T> filled from them visits them.
+    static DomainIDVector hashMapIterationOrder(DomainIDVector keys);
 
-    int predicateValueForDomain(WebCore::SQLiteStatementAutoResetScope&, const RegistrableDomain&) const;
-    bool predicateBoolValueForDomain(WebCore::SQLiteStatementAutoResetScope&, const RegistrableDomain&) const;
-
-    CookieAccess cookieAccess(const SubResourceDomain&, const TopFrameDomain&, CanRequestStorageAccessWithoutUserInteraction);
+    CookieAccess cookieAccess(SubResourceDomain, TopFrameDomain, CanRequestStorageAccessWithoutUserInteraction);
     void updateCookieBlockingForDomains(RegistrableDomainsToBlockCookiesFor&&, CompletionHandler<void()>&&);
 
-    void setPrevalentResource(const RegistrableDomain&, ResourceLoadPrevalence);
     void classifyPrevalentResources();
-    unsigned recursivelyFindNonPrevalentDomainsThatRedirectedToThisDomain(unsigned primaryDomainID, StdSet<unsigned>& nonPrevalentRedirectionSources, unsigned numberOfRecursiveCalls);
-    void setDomainsAsPrevalent(StdSet<unsigned>&&);
     void grantStorageAccessInternal(SubFrameDomain&&, TopFrameDomain&&, std::optional<WebCore::FrameIdentifier>, WebPageProxyIdentifier, WebCore::StorageAccessPromptWasShown, WebCore::StorageAccessScope, CanRequestStorageAccessWithoutUserInteraction, CompletionHandler<void(WebCore::StorageAccessWasGranted)>&&);
-    void markAsPrevalentIfHasRedirectedToPrevalent();
     
     // reason is used for logging purpose.
-    [[nodiscard]] std::pair<AddedRecord, std::optional<unsigned>> ensureResourceStatisticsForRegistrableDomain(const RegistrableDomain&, ASCIILiteral reason);
-    bool shouldRemoveAllWebsiteDataFor(const DomainData&, bool shouldCheckForGrandfathering);
-    bool shouldRemoveAllButCookiesFor(const DomainData&, bool shouldCheckForGrandfathering);
-    bool shouldEnforceSameSiteStrictFor(DomainData&, bool shouldCheckForGrandfathering);
-    void setIsScheduledForAllScriptWrittenStorageRemoval(const RegistrableDomain&, DataRemovalFrequency);
-    DataRemovalFrequency dataRemovalFrequency(const RegistrableDomain&) const;
-    void clearTopFrameUniqueRedirectsToSinceSameSiteStrictEnforcement(const NavigatedToDomain&, CompletionHandler<void()>&&);
-    NODELETE bool shouldEnforceSameSiteStrictForSpecificDomain(const RegistrableDomain&) const;
+    [[nodiscard]] AddedRecordAndDomainID ensureResourceStatisticsForRegistrableDomain(RegistrableDomain, String reason);
     RegistrableDomainsToDeleteOrRestrictWebsiteDataFor registrableDomainsToDeleteOrRestrictWebsiteDataFor();
 
     bool shouldRemoveDataRecords() const;
@@ -330,15 +450,9 @@ private:
     void setCacheMaxAgeCap(Seconds);
     void updateCacheMaxAgeCap();
     void updateClientSideCookiesAgeCap();
-    void updateOperatingDatesParameters();
-    Seconds getMostRecentlyUpdatedTimestamp(const RegistrableDomain&, const TopFrameDomain&) const;
     const MemoryCompactLookupOnlyRobinHoodHashMap<String, TableAndIndexPair>& expectedTableAndIndexQueries() final;
     std::span<const ASCIILiteral> sortedTables() final;
-    Vector<RegistrableDomain> ensureAndMakeDomainList(const HashSet<RegistrableDomain>&);
-    NODELETE std::optional<WallTime> mostRecentUserInteractionTime(const DomainData&);
     void grandfatherDataForDomains(const HashSet<RegistrableDomain>&);
-    bool areAllUnpartitionedThirdPartyCookiesBlockedUnder(const TopFrameDomain&);
-    bool hasStatisticsExpired(WallTime mostRecentUserInteractionTime, OperatingDatesWindow) const;
     void scheduleStatisticsProcessingRequestIfNecessary();
     void pruneStatisticsIfNeeded();
 
@@ -352,9 +466,49 @@ private:
     bool missingReferenceToObservedDomains();
     void migrateDataToPCMDatabaseIfNecessary();
     void openAndUpdateSchemaIfNecessary();
-    bool tableExists(StringView);
+    bool tableExists(String);
     void deleteTable(StringView);
     void destroyStatements() final;
+
+    // commitTransactionForSwift(true) commits what beginTransactionIfNecessaryForSwift() started.
+    bool beginTransactionIfNecessaryForSwift();
+    void commitTransactionForSwift(bool didBeginTransaction);
+
+    // The columns of ObservedDomains, in the order of its CREATE TABLE and insertObservedDomainQuery.
+    enum class ObservedDomainsColumn : int {
+        RegistrableDomain = 1,
+        LastSeen = 2,
+        HadUserInteraction = 3,
+        MostRecentUserInteractionTime = 4,
+        Grandfathered = 5,
+        IsPrevalent = 6,
+        IsVeryPrevalent = 7,
+        DataRecordsRemoved = 8,
+        TimesAccessedAsFirstPartyDueToUserInteraction = 9,
+        TimesAccessedAsFirstPartyDueToStorageAccessAPI = 10,
+        IsScheduledForAllButCookieDataRemoval = 11,
+        MostRecentWebPushInteractionTime = 12,
+    };
+    // For missingUniqueIndices(): createUniqueIndices()'s 12 commands, plus the index SQLite makes for ObservedDomains.
+    static constexpr int expectedIndexCount() { return 13; }
+
+    // The SQLite access of ResourceLoadStatisticsStore.swift, through handles that the .cpp checks on every use.
+    SQLStatementHandle openCachedStatement(ResourceLoadStatisticsCachedStatement, ResourceLoadStatisticsStatementLogLabel) const;
+    SQLStatementHandle openStatement(String query) const;
+    SQLStatementHandle openRelationshipStatement(ResourceLoadStatisticsRelationshipQuery, uint32_t domainCount) const;
+    void closeStatement(SQLStatementHandle) const;
+    int bindInt(SQLStatementHandle, int index, int value) const;
+    int bindText(SQLStatementHandle, int index, String value) const;
+    int bindDouble(SQLStatementHandle, int index, double value) const;
+    int step(SQLStatementHandle) const;
+    int reset(SQLStatementHandle) const;
+    int columnInt(SQLStatementHandle, int column) const;
+    String columnText(SQLStatementHandle, int column) const;
+    double columnDouble(SQLStatementHandle, int column) const;
+    int databaseLastError() const { return m_database->lastError(); }
+    String databaseLastErrorMsg() const { return String::fromLatin1(m_database->lastErrorMsg()); }
+    int databaseRunIncrementalVacuumCommand() const { return m_database->runIncrementalVacuumCommand(); }
+    void databaseClearAllTables() const { m_database->clearAllTables(); }
 
     CheckedRef<WebResourceLoadStatisticsStore> m_store;
     const Ref<SuspendableWorkQueue> m_workQueue;
@@ -374,45 +528,11 @@ private:
     HashSet<RegistrableDomain> m_appBoundDomains;
     HashSet<RegistrableDomain> m_managedDomains;
     HashSet<RegistrableDomain> m_persistedDomains;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_observedDomainCountStatement;
-    std::unique_ptr<WebCore::SQLiteStatement> m_insertObservedDomainStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_domainIDFromStringStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_topFrameLinkDecorationsFromExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_topFrameLoadedThirdPartyScriptsExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_subframeUnderTopFrameDomainExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_subresourceUnderTopFrameDomainExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_subresourceUniqueRedirectsToExistsStatement;
-    std::unique_ptr<WebCore::SQLiteStatement> m_mostRecentUserInteractionStatement;
-    std::unique_ptr<WebCore::SQLiteStatement> m_updateLastSeenStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_updateDataRecordsRemovedStatement;
-    std::unique_ptr<WebCore::SQLiteStatement> m_updatePrevalentResourceStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_isPrevalentResourceStatement;
-    std::unique_ptr<WebCore::SQLiteStatement> m_updateVeryPrevalentResourceStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_isVeryPrevalentResourceStatement;
-    std::unique_ptr<WebCore::SQLiteStatement> m_clearPrevalentResourceStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_hadUserInteractionStatement;
-    std::unique_ptr<WebCore::SQLiteStatement> m_updateGrandfatheredStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_isScheduledForAllButCookieDataRemovalStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_updateIsScheduledForAllButCookieDataRemovalStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_updateMostRecentWebPushInteractionTimeStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_isGrandfatheredStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_countPrevalentResourcesStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_countPrevalentResourcesWithUserInteractionStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_countPrevalentResourcesWithoutUserInteractionStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_getResourceDataByDomainNameStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_getAllDomainsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_domainStringFromDomainIDStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_getAllSubStatisticsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_storageAccessExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_getMostRecentlyUpdatedTimestampStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_linkDecorationExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_scriptLoadExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_subFrameExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_subResourceExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_uniqueRedirectExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_observedDomainsExistsStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_removeAllDataStatement;
-    mutable std::unique_ptr<WebCore::SQLiteStatement> m_checkIfTableExistsStatement;
+    struct __attribute__((availability(swift, unavailable))) StatementSlot {
+        std::unique_ptr<WebCore::SQLiteStatement> statement;
+        uint64_t generation { 1 };
+    };
+    mutable Vector<StatementSlot> m_statements __attribute__((availability(swift, unavailable))) { Vector<StatementSlot>(resourceLoadStatisticsCachedStatementCount) };
 
     Vector<CompletionHandler<void()>> m_dataRecordRemovalCompletionHandlers;
     Seconds m_timeAdvanceForTesting;

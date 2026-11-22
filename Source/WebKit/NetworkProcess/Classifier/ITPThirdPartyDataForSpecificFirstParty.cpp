@@ -35,9 +35,4 @@ String ITPThirdPartyDataForSpecificFirstParty::toString() const
     return makeString("Has been granted storage access under "_s, firstPartyDomain.string(), ": "_s, storageAccessGranted ? '1' : '0', "; Has been seen under "_s, firstPartyDomain.string(), " in the last 24 hours: "_s, WallTime::now().secondsSinceEpoch() - timeLastUpdated < 24_h ? '1' : '0');
 }
 
-bool ITPThirdPartyDataForSpecificFirstParty::operator==(const ITPThirdPartyDataForSpecificFirstParty& other) const
-{
-    return firstPartyDomain == other.firstPartyDomain && storageAccessGranted == other.storageAccessGranted;
-}
-
 } // namespace WebKit

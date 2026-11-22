@@ -1814,6 +1814,7 @@
 		7AFA6F6E2A9F584A0055322A /* DisplayLinkProcessProxyClient.h in Headers */ = {isa = PBXBuildFile; fileRef = 7AFA6F6C2A9F58300055322A /* DisplayLinkProcessProxyClient.h */; };
 		7AFA6F712A9F590A0055322A /* WebDisplayRefreshMonitor.h in Headers */ = {isa = PBXBuildFile; fileRef = 7AFA6F702A9F58FB0055322A /* WebDisplayRefreshMonitor.h */; };
 		7AFBD36321E50F39005DBACB /* WebResourceLoadStatisticsStore.h in Headers */ = {isa = PBXBuildFile; fileRef = 7AFBD36221E50F39005DBACB /* WebResourceLoadStatisticsStore.h */; };
+		4F723CF78DC040AE98532353 /* ResourceLoadStatisticsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AAC0939395845FBB9F01048 /* ResourceLoadStatisticsStore.swift */; };
 		7AFBD36F21E546F8005DBACB /* PersistencyUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = 7AFBD36D21E546E3005DBACB /* PersistencyUtils.h */; };
 		7B483F1F25CDDA9C00120486 /* MessageReceiveQueueMap.h in Headers */ = {isa = PBXBuildFile; fileRef = 7B483F1B25CDDA9B00120486 /* MessageReceiveQueueMap.h */; };
 		7B483F2025CDDA9C00120486 /* MessageReceiveQueue.h in Headers */ = {isa = PBXBuildFile; fileRef = 7B483F1C25CDDA9B00120486 /* MessageReceiveQueue.h */; };
@@ -7275,6 +7276,7 @@
 		7AB6EA461EEAB6B000037B2B /* APIGeolocationProvider.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = APIGeolocationProvider.h; sourceTree = "<group>"; };
 		7ACE82E7221CAE06000DA94C /* ResourceLoadStatisticsStore.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = ResourceLoadStatisticsStore.h; path = Classifier/ResourceLoadStatisticsStore.h; sourceTree = "<group>"; };
 		7ACE82E8221CAE07000DA94C /* ResourceLoadStatisticsStore.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = ResourceLoadStatisticsStore.cpp; path = Classifier/ResourceLoadStatisticsStore.cpp; sourceTree = "<group>"; };
+		6AAC0939395845FBB9F01048 /* ResourceLoadStatisticsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = ResourceLoadStatisticsStore.swift; path = Classifier/ResourceLoadStatisticsStore.swift; sourceTree = "<group>"; };
 		7AE42B412954E1DE00B20510 /* APIURL.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = APIURL.serialization.in; sourceTree = "<group>"; };
 		7AE42B422954E8C200B20510 /* APIURLRequest.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = APIURLRequest.serialization.in; sourceTree = "<group>"; };
 		7AE42B432954E8C200B20510 /* APIURLResponse.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = APIURLResponse.serialization.in; sourceTree = "<group>"; };
@@ -15629,6 +15631,7 @@
 				46DBC2862AF96B9600E6B63A /* ITPThirdPartyDataForSpecificFirstParty.serialization.in */,
 				7ACE82E8221CAE07000DA94C /* ResourceLoadStatisticsStore.cpp */,
 				7ACE82E7221CAE06000DA94C /* ResourceLoadStatisticsStore.h */,
+				6AAC0939395845FBB9F01048 /* ResourceLoadStatisticsStore.swift */,
 				7A41E9FA21F81DAC00B88CDB /* ShouldGrandfatherStatistics.h */,
 				022A83DC2E4405DD00F3E092 /* StorageAccessPermissionChangeObserver.h */,
 				7A3FECA121F7C09700F267CD /* StorageAccessStatus.h */,
@@ -22863,6 +22866,7 @@
 				1FF4AA60F957403FB37DD314 /* RemoteXRSubImageMessageReceiver.swift in Sources */,
 				EB57C99445F845F5B0BE21C5 /* RemoteXRView.swift in Sources */,
 				D0BCC1BF4CC341B99CD2C0EA /* RemoteXRViewMessageReceiver.swift in Sources */,
+				4F723CF78DC040AE98532353 /* ResourceLoadStatisticsStore.swift in Sources */,
 				0738ABBD304BD9CA00987FFB /* RunJavaScriptParameters.swift in Sources */,
 				0782B70C304680930011880F /* RunJavaScriptResult.swift in Sources */,
 				7BCF70DE2615D06E00E4FB70 /* ScopedRenderingResourcesRequestCocoa.mm in Sources */,

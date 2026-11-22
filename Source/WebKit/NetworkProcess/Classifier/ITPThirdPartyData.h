@@ -36,9 +36,6 @@ struct ITPThirdPartyData {
     Vector<ITPThirdPartyDataForSpecificFirstParty> underFirstParties;
 
     String toString() const;
-
-    // FIXME: This sorts by number of underFirstParties, so it probably should be a named function, not operator<.
-    bool operator<(const ITPThirdPartyData&) const;
 };
 
 } // namespace WebKit

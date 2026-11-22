@@ -39,9 +39,4 @@ String ITPThirdPartyData::toString() const
     return stringBuilder.toString();
 }
 
-bool ITPThirdPartyData::operator<(const ITPThirdPartyData& other) const
-{
-    return underFirstParties.size() < other.underFirstParties.size();
-}
-
 } // namespace WebKit
