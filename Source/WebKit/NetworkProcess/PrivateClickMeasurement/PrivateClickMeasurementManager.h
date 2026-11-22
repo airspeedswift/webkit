@@ -49,25 +49,25 @@ public:
     using ApplicationBundleIdentifier = String;
 
     void storeUnattributed(PrivateClickMeasurement&&, CompletionHandler<void()>&&) final;
-    void handleAttribution(AttributionTriggerData&&, const URL& requestURL, WebCore::RegistrableDomain&& redirectDomain, const URL& firstPartyURL, const ApplicationBundleIdentifier&) final;
+    void handleAttribution(AttributionTriggerData, URL requestURL, WebCore::RegistrableDomain redirectDomain, URL firstPartyURL, ApplicationBundleIdentifier) final;
     void checkAttributionTimer() final;
     void clear(CompletionHandler<void()>&&) final;
     void clearForRegistrableDomain(RegistrableDomain&&, CompletionHandler<void()>&&) final;
-    void migratePrivateClickMeasurementFromLegacyStorage(PrivateClickMeasurement&&, PrivateClickMeasurementAttributionType) final;
+    void migratePrivateClickMeasurementFromLegacyStorage(PrivateClickMeasurement, PrivateClickMeasurementAttributionType) final;
     void setDebugModeIsEnabled(bool) final;
     void setPrivateRelayEnforcementIsEnabled(bool) final;
     void firePendingAttributionRequests();
 
     void toStringForTesting(CompletionHandler<void(String)>&&) const final;
     void setOverrideTimerForTesting(bool value) final { m_isRunningTest = value; }
-    void setTokenPublicKeyURLForTesting(URL&&) final;
-    void setTokenSignatureURLForTesting(URL&&) final;
-    void setAttributionReportURLsForTesting(URL&& sourceURL, URL&& destinationURL) final;
+    void setTokenPublicKeyURLForTesting(URL) final;
+    void setTokenSignatureURLForTesting(URL) final;
+    void setAttributionReportURLsForTesting(URL sourceURL, URL destinationURL) final;
     void markAllUnattributedAsExpiredForTesting() final;
     void markAttributedPrivateClickMeasurementsAsExpiredForTesting(CompletionHandler<void()>&&) final;
-    void setPCMFraudPreventionValuesForTesting(String&& unlinkableToken, String&& secretToken, String&& signature, String&& keyID) final;
+    void setPCMFraudPreventionValuesForTesting(String unlinkableToken, String secretToken, String signature, String keyID) final;
     void startTimerImmediatelyForTesting() final;
-    void setPrivateClickMeasurementAppBundleIDForTesting(ApplicationBundleIdentifier&&);
+    void setPrivateClickMeasurementAppBundleIDForTesting(ApplicationBundleIdentifier);
     void destroyStoreForTesting(CompletionHandler<void()>&&) final;
     void allowTLSCertificateChainForLocalPCMTesting(const WebCore::CertificateInfo&) final;
     void fetchRegistrableDomains(CompletionHandler<void(Vector<WebCore::RegistrableDomain>&&)>&&);

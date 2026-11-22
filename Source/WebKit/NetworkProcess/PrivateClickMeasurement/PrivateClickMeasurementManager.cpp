@@ -357,7 +357,7 @@ void PrivateClickMeasurementManager::insertPrivateClickMeasurement(PrivateClickM
     protect(store())->insertPrivateClickMeasurement(WTF::move(measurement), type, WTF::move(completionHandler));
 }
 
-void PrivateClickMeasurementManager::migratePrivateClickMeasurementFromLegacyStorage(PrivateClickMeasurement&& measurement, PrivateClickMeasurementAttributionType type)
+void PrivateClickMeasurementManager::migratePrivateClickMeasurementFromLegacyStorage(PrivateClickMeasurement measurement, PrivateClickMeasurementAttributionType type)
 {
     protect(store())->insertPrivateClickMeasurement(WTF::move(measurement), type, [] { });
 }
@@ -378,7 +378,7 @@ void PrivateClickMeasurementManager::setPrivateRelayEnforcementIsEnabled(bool en
     m_client->broadcastConsoleMessage(MessageLevel::Info, message);
 }
 
-void PrivateClickMeasurementManager::handleAttribution(AttributionTriggerData&& attributionTriggerData, const URL& requestURL, WebCore::RegistrableDomain&& redirectDomain, const URL& firstPartyURL, const ApplicationBundleIdentifier& applicationBundleIdentifier)
+void PrivateClickMeasurementManager::handleAttribution(AttributionTriggerData attributionTriggerData, URL requestURL, WebCore::RegistrableDomain redirectDomain, URL firstPartyURL, ApplicationBundleIdentifier applicationBundleIdentifier)
 {
     if (!featureEnabled())
         return;
@@ -452,7 +452,7 @@ void PrivateClickMeasurementManager::startTimerImmediatelyForTesting()
     startTimer(0_s);
 }
 
-void PrivateClickMeasurementManager::setPrivateClickMeasurementAppBundleIDForTesting(ApplicationBundleIdentifier&& appBundleID)
+void PrivateClickMeasurementManager::setPrivateClickMeasurementAppBundleIDForTesting(ApplicationBundleIdentifier appBundleID)
 {
     if (appBundleID.isEmpty())
         m_privateClickMeasurementAppBundleIDForTesting = std::nullopt;
@@ -728,14 +728,14 @@ void PrivateClickMeasurementManager::toStringForTesting(CompletionHandler<void(S
     protect(store())->privateClickMeasurementToStringForTesting(WTF::move(completionHandler));
 }
 
-void PrivateClickMeasurementManager::setTokenPublicKeyURLForTesting(URL&& testURL)
+void PrivateClickMeasurementManager::setTokenPublicKeyURLForTesting(URL testURL)
 {
     if (testURL.isEmpty())
         return;
     m_tokenPublicKeyURLForTesting = WTF::move(testURL);
 }
 
-void PrivateClickMeasurementManager::setTokenSignatureURLForTesting(URL&& testURL)
+void PrivateClickMeasurementManager::setTokenSignatureURLForTesting(URL testURL)
 {
     if (testURL.isEmpty())
         m_tokenSignatureURLForTesting = { };
@@ -743,7 +743,7 @@ void PrivateClickMeasurementManager::setTokenSignatureURLForTesting(URL&& testUR
         m_tokenSignatureURLForTesting = WTF::move(testURL);
 }
 
-void PrivateClickMeasurementManager::setAttributionReportURLsForTesting(URL&& sourceURL, URL&& destinationURL)
+void PrivateClickMeasurementManager::setAttributionReportURLsForTesting(URL sourceURL, URL destinationURL)
 {
     if (sourceURL.isEmpty() || destinationURL.isEmpty())
         m_attributionReportTestConfig = std::nullopt;
@@ -759,7 +759,7 @@ void PrivateClickMeasurementManager::markAllUnattributedAsExpiredForTesting()
     protect(store())->markAllUnattributedPrivateClickMeasurementAsExpiredForTesting();
 }
 
-void PrivateClickMeasurementManager::setPCMFraudPreventionValuesForTesting(String&& unlinkableToken, String&& secretToken, String&& signature, String&& keyID)
+void PrivateClickMeasurementManager::setPCMFraudPreventionValuesForTesting(String unlinkableToken, String secretToken, String signature, String keyID)
 {
     if (unlinkableToken.isEmpty() || secretToken.isEmpty() || signature.isEmpty() || keyID.isEmpty())
         return;

@@ -55,12 +55,12 @@ public:
 
     SWIFT_UNSAFE static void interruptAllDatabases();
 
-    void insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement&&, PrivateClickMeasurementAttributionType);
-    std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo> attributePrivateClickMeasurement(const WebCore::PCM::SourceSite&, const WebCore::PCM::AttributionDestinationSite&, const ApplicationBundleIdentifier&, WebCore::PCM::AttributionTriggerData&&, WebCore::PrivateClickMeasurement::IsRunningLayoutTest);
+    void insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement, PrivateClickMeasurementAttributionType);
+    std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo> attributePrivateClickMeasurement(WebCore::PCM::SourceSite, WebCore::PCM::AttributionDestinationSite, ApplicationBundleIdentifier, WebCore::PCM::AttributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest);
     Vector<WebCore::PrivateClickMeasurement> allAttributedPrivateClickMeasurement();
     void clearPrivateClickMeasurement(std::optional<WebCore::RegistrableDomain>);
     void clearExpiredPrivateClickMeasurement();
-    void clearSentAttribution(WebCore::PrivateClickMeasurement&&, WebCore::PCM::AttributionReportEndpoint);
+    void clearSentAttribution(WebCore::PrivateClickMeasurement, WebCore::PCM::AttributionReportEndpoint);
 
     String privateClickMeasurementToStringForTesting() const;
     void markAllUnattributedPrivateClickMeasurementAsExpiredForTesting();

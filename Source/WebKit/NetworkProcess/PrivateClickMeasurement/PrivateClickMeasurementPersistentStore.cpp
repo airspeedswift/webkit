@@ -104,7 +104,7 @@ void PersistentStore::attributePrivateClickMeasurement(WebCore::PCM::SourceSite&
             });
         }
 
-        auto [seconds, debugInfo] = database->attributePrivateClickMeasurement(sourceSite, destinationSite, applicationBundleIdentifier, WTF::move(attributionTriggerData), isRunningTest);
+        auto [seconds, debugInfo] = database->attributePrivateClickMeasurement(WTF::move(sourceSite), WTF::move(destinationSite), WTF::move(applicationBundleIdentifier), WTF::move(attributionTriggerData), isRunningTest);
 
         postTaskReply([seconds = WTF::move(seconds), debugInfo = WTF::move(debugInfo).isolatedCopy(), completionHandler = WTF::move(completionHandler)]() mutable {
             completionHandler(WTF::move(seconds), WTF::move(debugInfo));

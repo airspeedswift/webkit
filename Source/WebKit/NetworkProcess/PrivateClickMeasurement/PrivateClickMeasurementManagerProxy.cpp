@@ -96,7 +96,7 @@ void ManagerProxy::storeUnattributed(WebCore::PrivateClickMeasurement&& pcm, Com
     sendMessageWithReply<MessageType::StoreUnattributed>(WTF::move(completionHandler), pcm);
 }
 
-void ManagerProxy::handleAttribution(WebCore::PCM::AttributionTriggerData&& triggerData, const URL& requestURL, WebCore::RegistrableDomain&& redirectDomain, const URL& firstPartyURL, const ApplicationBundleIdentifier& applicationBundleIdentifier)
+void ManagerProxy::handleAttribution(WebCore::PCM::AttributionTriggerData triggerData, URL requestURL, WebCore::RegistrableDomain redirectDomain, URL firstPartyURL, ApplicationBundleIdentifier applicationBundleIdentifier)
 {
     sendMessage<MessageType::HandleAttribution>(triggerData, requestURL, redirectDomain, firstPartyURL, applicationBundleIdentifier);
 }
@@ -121,7 +121,7 @@ void ManagerProxy::setPrivateRelayEnforcementIsEnabled(bool enabled)
     sendMessage<MessageType::SetPrivateRelayEnforcementIsEnabled>(enabled);
 }
 
-void ManagerProxy::migratePrivateClickMeasurementFromLegacyStorage(WebCore::PrivateClickMeasurement&& pcm, PrivateClickMeasurementAttributionType type)
+void ManagerProxy::migratePrivateClickMeasurementFromLegacyStorage(WebCore::PrivateClickMeasurement pcm, PrivateClickMeasurementAttributionType type)
 {
     sendMessage<MessageType::MigratePrivateClickMeasurementFromLegacyStorage>(pcm, type);
 }
@@ -136,17 +136,17 @@ void ManagerProxy::setOverrideTimerForTesting(bool value)
     sendMessage<MessageType::SetOverrideTimerForTesting>(value);
 }
 
-void ManagerProxy::setTokenPublicKeyURLForTesting(URL&& url)
+void ManagerProxy::setTokenPublicKeyURLForTesting(URL url)
 {
     sendMessage<MessageType::SetTokenPublicKeyURLForTesting>(url);
 }
 
-void ManagerProxy::setTokenSignatureURLForTesting(URL&& url)
+void ManagerProxy::setTokenSignatureURLForTesting(URL url)
 {
     sendMessage<MessageType::SetTokenSignatureURLForTesting>(url);
 }
 
-void ManagerProxy::setAttributionReportURLsForTesting(URL&& sourceURL, URL&& destinationURL)
+void ManagerProxy::setAttributionReportURLsForTesting(URL sourceURL, URL destinationURL)
 {
     sendMessage<MessageType::SetAttributionReportURLsForTesting>(sourceURL, destinationURL);
 }
@@ -161,7 +161,7 @@ void ManagerProxy::markAttributedPrivateClickMeasurementsAsExpiredForTesting(Com
     sendMessageWithReply<MessageType::MarkAttributedPrivateClickMeasurementsAsExpiredForTesting>(WTF::move(completionHandler));
 }
 
-void ManagerProxy::setPCMFraudPreventionValuesForTesting(String&& unlinkableToken, String&& secretToken, String&& signature, String&& keyID)
+void ManagerProxy::setPCMFraudPreventionValuesForTesting(String unlinkableToken, String secretToken, String signature, String keyID)
 {
     sendMessage<MessageType::SetPCMFraudPreventionValuesForTesting>(unlinkableToken, secretToken, signature, keyID);
 }
@@ -171,7 +171,7 @@ void ManagerProxy::startTimerImmediatelyForTesting()
     sendMessage<MessageType::StartTimerImmediatelyForTesting>();
 }
 
-void ManagerProxy::setPrivateClickMeasurementAppBundleIDForTesting(ApplicationBundleIdentifier&& appBundleID)
+void ManagerProxy::setPrivateClickMeasurementAppBundleIDForTesting(ApplicationBundleIdentifier appBundleID)
 {
     sendMessage<MessageType::SetPrivateClickMeasurementAppBundleIDForTesting>(appBundleID);
 }

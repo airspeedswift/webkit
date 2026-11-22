@@ -173,7 +173,7 @@ bool Database::createSchema()
     return true;
 }
 
-void Database::insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement&& attribution, PrivateClickMeasurementAttributionType attributionType)
+void Database::insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement attribution, PrivateClickMeasurementAttributionType attributionType)
 {
     ASSERT(!RunLoop::isMain());
 
@@ -285,7 +285,7 @@ std::pair<std::optional<Database::UnattributedPrivateClickMeasurement>, std::opt
     return std::make_pair(unattributedPrivateClickMeasurement, attributedPrivateClickMeasurement);
 }
 
-std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo> Database::attributePrivateClickMeasurement(const WebCore::PCM::SourceSite& sourceSite, const WebCore::PCM::AttributionDestinationSite& destinationSite, const ApplicationBundleIdentifier& applicationBundleIdentifier, WebCore::PCM::AttributionTriggerData&& attributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest isRunningTest)
+std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo> Database::attributePrivateClickMeasurement(WebCore::PCM::SourceSite sourceSite, WebCore::PCM::AttributionDestinationSite destinationSite, ApplicationBundleIdentifier applicationBundleIdentifier, WebCore::PCM::AttributionTriggerData attributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest isRunningTest)
 {
     ASSERT(!RunLoop::isMain());
 
@@ -552,7 +552,7 @@ void Database::clearExpiredPrivateClickMeasurement()
     }
 }
 
-void Database::clearSentAttribution(WebCore::PrivateClickMeasurement&& attribution, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint)
+void Database::clearSentAttribution(WebCore::PrivateClickMeasurement attribution, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint)
 {
     ASSERT(!RunLoop::isMain());
     auto timesToSend = earliestTimesToSend(attribution);

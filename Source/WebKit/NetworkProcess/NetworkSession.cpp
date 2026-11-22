@@ -638,12 +638,12 @@ void NetworkSession::handlePrivateClickMeasurementConversion(WebCore::PCM::Attri
             CheckedPtr checkedThis = weakThis.get();
             if (!checkedThis)
                 return;
-            checkedThis->m_privateClickMeasurement->handleAttribution(WTF::move(attributionTriggerData), requestURL, WTF::move(redirectDomain), firstPartyForCookies, appBundleID);
+            checkedThis->m_privateClickMeasurement->handleAttribution(WTF::move(attributionTriggerData), requestURL, WTF::move(redirectDomain), WTF::move(firstPartyForCookies), WTF::move(appBundleID));
         });
         return;
     }
 
-    m_privateClickMeasurement->handleAttribution(WTF::move(attributionTriggerData), requestURL, RegistrableDomain(redirectRequest.url()), redirectRequest.firstPartyForCookies(), appBundleID);
+    m_privateClickMeasurement->handleAttribution(WTF::move(attributionTriggerData), requestURL, RegistrableDomain(redirectRequest.url()), redirectRequest.firstPartyForCookies(), WTF::move(appBundleID));
 }
 
 void NetworkSession::simulatePrivateClickMeasurementConversion(int priority, int triggerData, const URL& sourceURL, const URL& destinationURL)
