@@ -31,6 +31,7 @@
 #include <WebCore/Timer.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/JSONValues.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
@@ -39,7 +40,7 @@ namespace WebKit {
 
 using ApplicationBundleIdentifiersOrAuditToken = Variant<std::pair<String, String>, Vector<uint8_t>>;
 
-class PrivateClickMeasurementManager : public PCM::ManagerInterface, public CanMakeWeakPtr<PrivateClickMeasurementManager> {
+class SWIFT_PRIVATE_FILEID("WebKit/PrivateClickMeasurementManager.swift") PrivateClickMeasurementManager : public PCM::ManagerInterface, public CanMakeWeakPtr<PrivateClickMeasurementManager> {
     WTF_MAKE_TZONE_ALLOCATED(PrivateClickMeasurementManager);
 public:
     static Ref<PrivateClickMeasurementManager> create(UniqueRef<PCM::Client>&&, const String& storageDirectory, const ApplicationBundleIdentifiersOrAuditToken&);

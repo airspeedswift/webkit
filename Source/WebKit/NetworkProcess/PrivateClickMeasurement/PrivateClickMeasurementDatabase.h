@@ -44,7 +44,7 @@ namespace WebKit::PCM {
 struct DebugInfo;
 
 // This is created, used, and destroyed on the Store's queue.
-class Database : public DatabaseUtilities, public RefCountedAndCanMakeWeakPtr<Database> {
+class SWIFT_PRIVATE_FILEID("WebKit/PrivateClickMeasurementDatabase.swift") Database : public DatabaseUtilities, public RefCountedAndCanMakeWeakPtr<Database> {
     WTF_MAKE_TZONE_ALLOCATED(Database);
 public:
     SWIFT_UNSAFE static Ref<Database> create(const String& storageDirectory);
