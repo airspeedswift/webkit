@@ -38,7 +38,7 @@ std::optional<String> PrivateClickMeasurement::calculateAndUpdateSourceUnlinkabl
     return calculateAndUpdateUnlinkableToken(serverPublicKeyBase64URL, m_sourceUnlinkableToken, "source"_s);
 }
 
-std::expected<PCM::DestinationUnlinkableToken, String> PrivateClickMeasurement::calculateAndUpdateDestinationUnlinkableToken(const String& serverPublicKeyBase64URL)
+std::expected<PCM::DestinationUnlinkableToken, String> PrivateClickMeasurement::calculateAndUpdateDestinationUnlinkableToken(String serverPublicKeyBase64URL)
 {
     PCM::DestinationUnlinkableToken destinationToken;
     auto errorMessage = calculateAndUpdateUnlinkableToken(serverPublicKeyBase64URL, destinationToken, "destination"_s);

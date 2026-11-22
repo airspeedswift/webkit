@@ -75,7 +75,7 @@ public:
     
     NODELETE WEBCORE_EXPORT static const Seconds maxAge();
     WEBCORE_EXPORT bool isNeitherSameSiteNorCrossSiteTriggeringEvent(const RegistrableDomain& redirectDomain, const URL& firstPartyURL, const PCM::AttributionTriggerData&);
-    WEBCORE_EXPORT static std::expected<PCM::AttributionTriggerData, String> parseAttributionRequest(const URL& redirectURL);
+    WEBCORE_EXPORT static std::expected<PCM::AttributionTriggerData, String> parseAttributionRequest(URL redirectURL);
     WEBCORE_EXPORT PCM::AttributionSecondsUntilSendData attributeAndGetEarliestTimeToSend(PCM::AttributionTriggerData&&, IsRunningLayoutTest);
     NODELETE WEBCORE_EXPORT bool hasHigherPriorityThan(const PrivateClickMeasurement&) const;
     WEBCORE_EXPORT URL attributionReportClickSourceURL() const;
@@ -98,9 +98,9 @@ public:
 
     // MARK: - Fraud Prevention
     WEBCORE_EXPORT std::optional<URL> tokenPublicKeyURL() const;
-    WEBCORE_EXPORT static std::optional<URL> tokenPublicKeyURL(const RegistrableDomain&);
+    WEBCORE_EXPORT static std::optional<URL> tokenPublicKeyURL(RegistrableDomain);
     WEBCORE_EXPORT std::optional<URL> tokenSignatureURL() const;
-    WEBCORE_EXPORT static std::optional<URL> tokenSignatureURL(const RegistrableDomain&);
+    WEBCORE_EXPORT static std::optional<URL> tokenSignatureURL(RegistrableDomain);
 
     WEBCORE_EXPORT Ref<JSON::Object> tokenSignatureJSON() const;
 
@@ -110,7 +110,7 @@ public:
 
 #if PLATFORM(COCOA)
     WEBCORE_EXPORT std::optional<String> calculateAndUpdateSourceUnlinkableToken(const String& serverPublicKeyBase64URL);
-    WEBCORE_EXPORT static std::expected<PCM::DestinationUnlinkableToken, String> calculateAndUpdateDestinationUnlinkableToken(const String& serverPublicKeyBase64URL);
+    WEBCORE_EXPORT static std::expected<PCM::DestinationUnlinkableToken, String> calculateAndUpdateDestinationUnlinkableToken(String serverPublicKeyBase64URL);
     WEBCORE_EXPORT std::optional<String> calculateAndUpdateSourceSecretToken(const String& serverResponseBase64URL);
     WEBCORE_EXPORT static std::expected<PCM::DestinationSecretToken, String> calculateAndUpdateDestinationSecretToken(const String& serverResponseBase64URL, PCM::DestinationUnlinkableToken&);
 #endif
@@ -121,7 +121,7 @@ public:
     WEBCORE_EXPORT void setSourceSecretToken(PCM::SourceSecretToken&&);
     WEBCORE_EXPORT void setDestinationSecretToken(PCM::DestinationSecretToken&&);
 
-    static std::optional<uint64_t> appStoreURLAdamID(const URL&);
+    static std::optional<uint64_t> appStoreURLAdamID(URL);
     bool isSKAdNetworkAttribution() const { return !!m_adamID; }
     std::optional<uint64_t> adamID() const { return m_adamID; };
     void setAdamID(uint64_t adamID) { m_adamID = adamID; };
@@ -130,7 +130,7 @@ public:
     WEBCORE_EXPORT PrivateClickMeasurement isolatedCopy() &&;
 
 private:
-    static std::expected<PCM::AttributionTriggerData, String> parseAttributionRequestQuery(const URL&);
+    static std::expected<PCM::AttributionTriggerData, String> parseAttributionRequestQuery(URL);
     bool isValid() const;
 
 #if PLATFORM(COCOA)
