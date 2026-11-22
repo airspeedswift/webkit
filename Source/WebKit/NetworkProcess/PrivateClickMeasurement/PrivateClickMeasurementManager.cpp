@@ -470,21 +470,21 @@ void PrivateClickMeasurementManager::attribute(SourceSite&& sourceSite, Attribut
     if (!featureEnabled())
         return;
 
-    protect(store())->attributePrivateClickMeasurement(WTF::move(sourceSite), WTF::move(destinationSite), applicationBundleIdentifier, WTF::move(attributionTriggerData), m_isRunningTest ? WebCore::PrivateClickMeasurement::IsRunningLayoutTest::Yes : WebCore::PrivateClickMeasurement::IsRunningLayoutTest::No, [weakThis = WeakPtr { *this }] (auto attributionSecondsUntilSendData, auto debugInfo) {
+    protect(store())->attributePrivateClickMeasurement(WTF::move(sourceSite), WTF::move(destinationSite), applicationBundleIdentifier, WTF::move(attributionTriggerData), m_isRunningTest ? WebCore::PrivateClickMeasurement::IsRunningLayoutTest::Yes : WebCore::PrivateClickMeasurement::IsRunningLayoutTest::No, [weakThis = WeakPtr { *this }] (auto result) {
         RefPtr protectedThis = weakThis;
         if (!protectedThis)
             return;
         
-        if (!attributionSecondsUntilSendData)
+        if (!result.attributionSecondsUntilSendData)
             return;
 
         if (protectedThis->debugModeEnabled()) [[unlikely]] {
-            for (auto& message : borrow(debugInfo.messages))
+            for (auto& message : borrow(result.debugInfo.messages))
                 protectedThis->m_client->broadcastConsoleMessage(message.messageLevel, message.message);
         }
 
-        if (attributionSecondsUntilSendData.value().hasValidSecondsUntilSendValues()) {
-            auto minSecondsUntilSend = attributionSecondsUntilSendData.value().minSecondsUntilSend();
+        if (result.attributionSecondsUntilSendData.value().hasValidSecondsUntilSendValues()) {
+            auto minSecondsUntilSend = result.attributionSecondsUntilSendData.value().minSecondsUntilSend();
 
             ASSERT(minSecondsUntilSend);
             if (!minSecondsUntilSend)

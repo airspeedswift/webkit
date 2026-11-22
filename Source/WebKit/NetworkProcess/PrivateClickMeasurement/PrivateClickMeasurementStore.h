@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "PrivateClickMeasurementDebugInfo.h"
 #include <WebCore/PrivateClickMeasurement.h>
 
 namespace WebKit {
@@ -34,7 +35,11 @@ enum class PrivateClickMeasurementAttributionType : bool;
 namespace PCM {
 
 class Database;
-struct DebugInfo;
+
+struct AttributionResult {
+    std::optional<WebCore::PCM::AttributionSecondsUntilSendData> attributionSecondsUntilSendData;
+    DebugInfo debugInfo;
+};
 
 class Store : public ThreadSafeRefCounted<Store> {
 public:
@@ -43,13 +48,13 @@ public:
     using ApplicationBundleIdentifier = String;
 
     virtual void insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement&&, WebKit::PrivateClickMeasurementAttributionType, CompletionHandler<void()>&&) = 0;
-    virtual void attributePrivateClickMeasurement(WebCore::PCM::SourceSite&&, WebCore::PCM::AttributionDestinationSite&&, const ApplicationBundleIdentifier&, WebCore::PCM::AttributionTriggerData&&, WebCore::PrivateClickMeasurement::IsRunningLayoutTest, CompletionHandler<void(std::optional<WebCore::PCM::AttributionSecondsUntilSendData>&&, DebugInfo&&)>&&) = 0;
+    virtual void attributePrivateClickMeasurement(WebCore::PCM::SourceSite&&, WebCore::PCM::AttributionDestinationSite&&, const ApplicationBundleIdentifier&, WebCore::PCM::AttributionTriggerData&&, WebCore::PrivateClickMeasurement::IsRunningLayoutTest, CompletionHandler<void(AttributionResult)>&&) = 0;
 
     virtual void privateClickMeasurementToStringForTesting(CompletionHandler<void(String)>&&) const = 0;
     virtual void markAllUnattributedPrivateClickMeasurementAsExpiredForTesting() = 0;
     virtual void markAttributedPrivateClickMeasurementsAsExpiredForTesting(CompletionHandler<void()>&&) = 0;
 
-    virtual void allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>&&)>&&) = 0;
+    virtual void allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>)>&&) = 0;
     virtual void clearExpiredPrivateClickMeasurement() = 0;
     virtual void clearPrivateClickMeasurement(CompletionHandler<void()>&&) = 0;
     virtual void clearPrivateClickMeasurementForRegistrableDomain(WebCore::RegistrableDomain&&, CompletionHandler<void()>&&) = 0;

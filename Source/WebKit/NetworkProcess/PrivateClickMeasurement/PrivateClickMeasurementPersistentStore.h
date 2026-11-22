@@ -34,7 +34,6 @@ enum class PrivateClickMeasurementAttributionType : bool;
 namespace PCM {
 
 class Database;
-struct DebugInfo;
 
 class PersistentStore : public Store {
 public:
@@ -51,13 +50,13 @@ public:
     static void processDidResume();
 
     void insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement&&, WebKit::PrivateClickMeasurementAttributionType, CompletionHandler<void()>&&) final;
-    void attributePrivateClickMeasurement(WebCore::PCM::SourceSite&&, WebCore::PCM::AttributionDestinationSite&&, const ApplicationBundleIdentifier&, WebCore::PCM::AttributionTriggerData&&, WebCore::PrivateClickMeasurement::IsRunningLayoutTest, CompletionHandler<void(std::optional<WebCore::PCM::AttributionSecondsUntilSendData>&&, DebugInfo&&)>&&) final;
+    void attributePrivateClickMeasurement(WebCore::PCM::SourceSite&&, WebCore::PCM::AttributionDestinationSite&&, const ApplicationBundleIdentifier&, WebCore::PCM::AttributionTriggerData&&, WebCore::PrivateClickMeasurement::IsRunningLayoutTest, CompletionHandler<void(AttributionResult)>&&) final;
 
     void privateClickMeasurementToStringForTesting(CompletionHandler<void(String)>&&) const final;
     void markAllUnattributedPrivateClickMeasurementAsExpiredForTesting() final;
     void markAttributedPrivateClickMeasurementsAsExpiredForTesting(CompletionHandler<void()>&&) final;
 
-    void allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>&&)>&&) final;
+    void allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>)>&&) final;
     void clearExpiredPrivateClickMeasurement() final;
     void clearPrivateClickMeasurement(CompletionHandler<void()>&&) final;
     void clearPrivateClickMeasurementForRegistrableDomain(WebCore::RegistrableDomain&&, CompletionHandler<void()>&&) final;

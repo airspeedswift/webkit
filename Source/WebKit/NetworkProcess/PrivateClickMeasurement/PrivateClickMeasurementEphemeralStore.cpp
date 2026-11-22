@@ -49,19 +49,19 @@ void EphemeralStore::markAllUnattributedPrivateClickMeasurementAsExpiredForTesti
         reset();
 }
 
-void EphemeralStore::attributePrivateClickMeasurement(WebCore::PCM::SourceSite&& sourceSite, WebCore::PCM::AttributionDestinationSite&& destinationSite, const ApplicationBundleIdentifier& applicationBundleIdentifier, WebCore::PCM::AttributionTriggerData&& attributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest isLayoutTest, CompletionHandler<void(std::optional<WebCore::PCM::AttributionSecondsUntilSendData>&&, DebugInfo&&)>&& completionHandler)
+void EphemeralStore::attributePrivateClickMeasurement(WebCore::PCM::SourceSite&& sourceSite, WebCore::PCM::AttributionDestinationSite&& destinationSite, const ApplicationBundleIdentifier& applicationBundleIdentifier, WebCore::PCM::AttributionTriggerData&& attributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest isLayoutTest, CompletionHandler<void(AttributionResult)>&& completionHandler)
 {
     DebugInfo debugInfo;
     if (!m_clickMeasurement)
-        return completionHandler(std::nullopt, WTF::move(debugInfo));
+        return completionHandler({ std::nullopt, WTF::move(debugInfo) });
 
     if (m_clickMeasurement->sourceSite() != sourceSite || m_clickMeasurement->destinationSite() != destinationSite)
-        return completionHandler(std::nullopt, WTF::move(debugInfo));
+        return completionHandler({ std::nullopt, WTF::move(debugInfo) });
 
     if (!applicationBundleIdentifier.isEmpty() && m_clickMeasurement->sourceApplicationBundleID() != applicationBundleIdentifier)
-        return completionHandler(std::nullopt, WTF::move(debugInfo));
+        return completionHandler({ std::nullopt, WTF::move(debugInfo) });
 
-    completionHandler(m_clickMeasurement->attributeAndGetEarliestTimeToSend(WTF::move(attributionTriggerData), isLayoutTest), WTF::move(debugInfo));
+    completionHandler({ m_clickMeasurement->attributeAndGetEarliestTimeToSend(WTF::move(attributionTriggerData), isLayoutTest), WTF::move(debugInfo) });
 }
 
 void EphemeralStore::privateClickMeasurementToStringForTesting(CompletionHandler<void(String)>&& completionHandler) const
@@ -81,7 +81,7 @@ void EphemeralStore::privateClickMeasurementToStringForTesting(CompletionHandler
     return completionHandler(builder.toString());
 }
 
-void EphemeralStore::allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>&&)>&& completionHandler)
+void EphemeralStore::allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>)>&& completionHandler)
 {
     if (m_clickMeasurement && m_clickMeasurement->attributionTriggerData())
         completionHandler({ *m_clickMeasurement });

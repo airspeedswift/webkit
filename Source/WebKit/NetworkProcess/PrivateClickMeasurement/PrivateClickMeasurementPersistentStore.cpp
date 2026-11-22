@@ -94,20 +94,20 @@ void PersistentStore::markAllUnattributedPrivateClickMeasurementAsExpiredForTest
     });
 }
 
-void PersistentStore::attributePrivateClickMeasurement(WebCore::PCM::SourceSite&& sourceSite, WebCore::PCM::AttributionDestinationSite&& destinationSite, const ApplicationBundleIdentifier& applicationBundleIdentifier, WebCore::PCM::AttributionTriggerData&& attributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest isRunningTest, CompletionHandler<void(std::optional<WebCore::PCM::AttributionSecondsUntilSendData>&&, DebugInfo&&)>&& completionHandler)
+void PersistentStore::attributePrivateClickMeasurement(WebCore::PCM::SourceSite&& sourceSite, WebCore::PCM::AttributionDestinationSite&& destinationSite, const ApplicationBundleIdentifier& applicationBundleIdentifier, WebCore::PCM::AttributionTriggerData&& attributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest isRunningTest, CompletionHandler<void(AttributionResult)>&& completionHandler)
 {
     postTask([this, protectedThis = Ref { *this }, sourceSite = WTF::move(sourceSite).isolatedCopy(), destinationSite = WTF::move(destinationSite).isolatedCopy(), applicationBundleIdentifier = applicationBundleIdentifier.isolatedCopy(), attributionTriggerData = WTF::move(attributionTriggerData), isRunningTest, completionHandler = WTF::move(completionHandler)] () mutable {
         RefPtr database = m_database;
         if (!database) {
             return postTaskReply([completionHandler = WTF::move(completionHandler)] () mutable {
-                completionHandler(std::nullopt, { });
+                completionHandler({ });
             });
         }
 
         auto [seconds, debugInfo] = database->attributePrivateClickMeasurement(WTF::move(sourceSite), WTF::move(destinationSite), WTF::move(applicationBundleIdentifier), WTF::move(attributionTriggerData), isRunningTest);
 
         postTaskReply([seconds = WTF::move(seconds), debugInfo = WTF::move(debugInfo).isolatedCopy(), completionHandler = WTF::move(completionHandler)]() mutable {
-            completionHandler(WTF::move(seconds), WTF::move(debugInfo));
+            completionHandler({ WTF::move(seconds), WTF::move(debugInfo) });
         });
     });
 }
@@ -124,7 +124,7 @@ void PersistentStore::privateClickMeasurementToStringForTesting(CompletionHandle
     });
 }
 
-void PersistentStore::allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>&&)>&& completionHandler)
+void PersistentStore::allAttributedPrivateClickMeasurement(CompletionHandler<void(Vector<WebCore::PrivateClickMeasurement>)>&& completionHandler)
 {
     postTask([this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)]() mutable {
         Vector<WebCore::PrivateClickMeasurement> convertedAttributions;
