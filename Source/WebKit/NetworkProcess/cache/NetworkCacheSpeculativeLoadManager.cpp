@@ -72,6 +72,8 @@ static void printSpeculativeLoadingDiagnosticMessageCounts()
 
 static void logSpeculativeLoadingDiagnosticMessage(const GlobalFrameID& frameID, const String& message)
 {
+    if (dryRunSpeculativeLoad(SpeculativeLoadDryRun::Diagnostic, message))
+        return;
 #if !LOG_DISABLED
     if (WebKit2LogNetworkCacheSpeculativePreloading.state == WTFLogChannelState::On)
         allSpeculativeLoadingDiagnosticMessages().add(message);
@@ -480,6 +482,8 @@ bool SpeculativeLoadManager::satisfyPendingRequests(const Key& key, Entry* entry
 
 void SpeculativeLoadManager::preconnectForSubresource(const SubresourceInfo& subresourceInfo, Entry* entry, const GlobalFrameID& frameID, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, bool allowPrivacyProxy, OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections)
 {
+    if (dryRunSpeculativeLoad(SpeculativeLoadDryRun::Preconnect, subresourceInfo.key().identifier()))
+        return;
 #if ENABLE(SERVER_PRECONNECT)
     Ref cache = m_cache.get();
     CheckedPtr networkSession = NetworkProcess::singleton().networkSession(cache->sessionID());
@@ -537,6 +541,10 @@ void SpeculativeLoadManager::revalidateSubresource(const SubresourceInfo& subres
     ResourceRequest revalidationRequest = constructRevalidationRequest(key, subresourceInfo, entry.get());
 
     LOG_WITH_STREAM(NetworkCacheSpeculativePreloading, stream << "(NetworkProcess) Speculatively revalidating '"_s << key.identifier() << "':"_s);
+
+    // A dry run starts no load: the revalidation ends at once, with no response.
+    if (dryRunSpeculativeRevalidation(revalidationRequest))
+        return;
 
     Ref revalidator = SpeculativeLoad::create(protect(m_cache), frameID, revalidationRequest, WTF::move(entry), isNavigatingToAppBoundDomain, allowPrivacyProxy, advancedPrivacyProtections, [weakThis = WeakPtr { *this }, key, revalidationRequest, frameID](std::unique_ptr<Entry> revalidatedEntry) {
         ASSERT(!revalidatedEntry || !revalidatedEntry->needsValidation());

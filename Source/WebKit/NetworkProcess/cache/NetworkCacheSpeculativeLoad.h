@@ -93,5 +93,12 @@ private:
 
 bool requestsHeadersMatch(const WebCore::ResourceRequest& speculativeValidationRequest, const WebCore::ResourceRequest& actualRequest);
 
+// The test support's dry run of the speculative load manager (defined in NetworkCacheTestSupport.cpp). While it is on, the
+// manager starts no network load or preconnect and logs no diagnostic message: it passes each to the test support, which
+// records it. Each returns false when the dry run is off, and the manager goes on as it does without one.
+enum class SpeculativeLoadDryRun : uint8_t { Preconnect, Diagnostic };
+bool dryRunSpeculativeRevalidation(const WebCore::ResourceRequest&);
+bool dryRunSpeculativeLoad(SpeculativeLoadDryRun, const String& subject);
+
 } // namespace NetworkCache
 } // namespace WebKit

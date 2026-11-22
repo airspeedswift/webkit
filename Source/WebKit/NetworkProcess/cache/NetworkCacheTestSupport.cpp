@@ -32,6 +32,8 @@
 #include "NetworkCacheCompressionDictionaryEntry.h"
 #include "NetworkCacheEntry.h"
 #include "NetworkCacheKey.h"
+#include "NetworkCacheSpeculativeLoad.h"
+#include "NetworkCacheSpeculativeLoadManager.h"
 #include "NetworkCacheSubresourcesEntry.h"
 #include "NetworkProcess.h"
 #include "NetworkSession.h"
@@ -43,6 +45,8 @@
 #include <pal/SessionID.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HashMap.h>
+#include <wtf/MonotonicTime.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
 #include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/persistence/PersistentDecoder.h>
@@ -50,6 +54,7 @@
 #include <wtf/Threading.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringToIntegerConversion.h>
+#include <limits>
 
 // The facade calls the cache's own entry points and nothing else: Cache::open, retrieve, store, storeRedirect, update, remove,
 // traverseRecords, clear; Key's constructor and stringToHash; Entry::encodeAsStorageRecord and decodeStorageRecord;
@@ -74,6 +79,7 @@ struct TestSupportAccess {
     static Storage& storage(Cache& cache) { return cache.m_storage.get(); }
     static Data encodeRecord(Storage& storage, const Storage::Record& record, std::optional<BlobStorage::Blob>&& blob) { return storage.encodeRecord(record, WTF::move(blob)); }
     static Storage::Record readRecord(Storage& storage, const Data& data) { return storage.readRecord(data); }
+    static bool isReading(Storage& storage) { return !storage.m_pendingReadOperations.isEmpty() || !storage.m_activeReadOperations.isEmpty(); }
     static bool isIdle(Storage& storage) { return storage.m_pendingWriteOperations.isEmpty() && storage.m_activeWriteOperations.isEmpty() && !storage.m_synchronizationInProgress && !storage.m_shrinkInProgress; }
 };
 
@@ -280,6 +286,40 @@ using namespace WebKit;
 using namespace WebKit::NetworkCache;
 using namespace WebKit::NetworkCache::NCTSSupport;
 
+// The speculative load manager's dry run (NetworkCacheSpeculativeLoad.h), on from the first NCTS_Spec call, for the process.
+namespace WebKit::NetworkCache {
+
+// The decisions recorded since the last NCTS_SpecDecisions; null until the first NCTS_Spec call, while the dry run is off.
+static StringBuilder* speculativeLoadDecisions;
+
+bool dryRunSpeculativeRevalidation(const WebCore::ResourceRequest& request)
+{
+    if (!speculativeLoadDecisions)
+        return false;
+    speculativeLoadDecisions->append("revalidate "_s, request.url().string(), "\n  priority="_s, static_cast<int>(request.priority()), " firstParty="_s, request.firstPartyForCookies().string(), " sameSite="_s, (request.isSameSite() ? 1 : 0), " topSite="_s, (request.isTopSite() ? 1 : 0), " appInitiated="_s, (request.isAppInitiated() ? 1 : 0), " blockThirdPartyStorage="_s, (request.shouldBlockThirdPartyStorage() ? 1 : 0), '\n');
+    for (auto& header : request.httpHeaderFields())
+        speculativeLoadDecisions->append("  "_s, header.key, ": "_s, header.value, '\n');
+    return true;
+}
+
+bool dryRunSpeculativeLoad(SpeculativeLoadDryRun kind, const String& subject)
+{
+    if (speculativeLoadDecisions)
+        speculativeLoadDecisions->append(kind == SpeculativeLoadDryRun::Preconnect ? "preconnect "_s : "diagnostic "_s, subject, '\n');
+    return !!speculativeLoadDecisions;
+}
+
+static std::optional<GlobalFrameID> frameForTesting(uint64_t frame)
+{
+    if (!frame || frame == std::numeric_limits<uint64_t>::max())
+        return std::nullopt;
+    static NeverDestroyed<StringBuilder> decisions;
+    speculativeLoadDecisions = &decisions.get();
+    return GlobalFrameID { WebPageProxyIdentifier { frame }, WebCore::PageIdentifier { frame }, WebCore::FrameIdentifier { frame } };
+}
+
+} // namespace WebKit::NetworkCache
+
 extern "C" {
 
 int NCTS_InstallSession(uint64_t sessionID, int withNetworkSession)
@@ -368,18 +408,21 @@ static bool canRetrieve(const WebCore::ResourceRequest& request, PAL::SessionID 
     return allowsExpired || NetworkProcess::singleton().networkSession(sessionID);
 }
 
-int NCTS_CacheRetrieve(uint64_t handle, const NCTSRequest* requestSpec, NCTSRetrieveResult* result, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity)
+// NCTS_CacheRetrieve, and NCTS_SpecRetrieve in a frame.
+static int retrieveInFrame(uint64_t handle, std::optional<GlobalFrameID> frameID, bool isMainResource, const NCTSRequest* requestSpec, NCTSRetrieveResult* result, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity)
 {
     RefPtr cache = cacheForHandle(handle);
     if (!cache || !requestSpec || !result || !textLength || !requestSpec->url)
         return -1;
     auto request = makeRequest(*requestSpec);
+    if (isMainResource)
+        request.setRequester(WebCore::ResourceRequestRequester::Main);
     if (!canRetrieve(request, cache->sessionID()))
         return -1;
     *result = { 0, -1, -1, -1, 0, 0 };
     *textLength = 0;
     bool done = false;
-    cache->retrieve(request, std::nullopt, std::nullopt, false, { }, [&](std::unique_ptr<Entry> entry, const Cache::RetrieveInfo& info) {
+    cache->retrieve(request, frameID, std::nullopt, false, { }, [&](std::unique_ptr<Entry> entry, const Cache::RetrieveInfo& info) {
         result->retrieveDecision = info.retrieveDecision ? static_cast<int>(*info.retrieveDecision) : -1;
         result->speculativeLoadDecision = info.speculativeLoadDecision ? static_cast<int>(*info.speculativeLoadDecision) : -1;
         result->useDecision = info.useDecision ? static_cast<int>(*info.useDecision) : -1;
@@ -392,6 +435,11 @@ int NCTS_CacheRetrieve(uint64_t handle, const NCTSRequest* requestSpec, NCTSRetr
     });
     spinUntil(done);
     return 0;
+}
+
+int NCTS_CacheRetrieve(uint64_t handle, const NCTSRequest* requestSpec, NCTSRetrieveResult* result, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity)
+{
+    return retrieveInFrame(handle, std::nullopt, false, requestSpec, result, text, textCapacity, textLength, body, bodyCapacity);
 }
 
 int NCTS_CacheUpdate(uint64_t handle, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec)
@@ -919,6 +967,43 @@ long long NCTS_BlobAddGet(const char* directory, const uint8_t* salt, const uint
             memcpy(out, got.data.span().data(), got.data.size());
     })->waitForCompletion();
     return result;
+}
+
+int NCTS_SpecRetrieve(uint64_t handle, uint64_t frame, int isMainResource, const NCTSRequest* requestSpec, NCTSRetrieveResult* result, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity)
+{
+    auto frameID = frameForTesting(frame);
+    return frameID ? retrieveInFrame(handle, frameID, !!isMainResource, requestSpec, result, text, textCapacity, textLength, body, bodyCapacity) : -1;
+}
+
+int NCTS_SpecMainResourceResponse(uint64_t handle, uint64_t frame, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec)
+{
+    RefPtr cache = cacheForHandle(handle);
+    auto frameID = frameForTesting(frame);
+    if (!cache || !frameID || !requestSpec || !requestSpec->url || !responseSpec)
+        return -1;
+    if (CheckedPtr manager = cache->speculativeLoadManager())
+        manager->registerMainResourceLoadResponse(*frameID, makeRequest(*requestSpec), makeResponse(*responseSpec, 0));
+    return 0;
+}
+
+long long NCTS_SpecDecisions(uint64_t handle, char* text, size_t textCapacity)
+{
+    RefPtr cache = cacheForHandle(handle);
+    if (!cache || !speculativeLoadDecisions)
+        return -1;
+    auto& storage = TestSupportAccess::storage(*cache);
+    auto deadline = MonotonicTime::now() + 10_s;
+    // Three rounds of the main loop in a row with no read in flight and no new decision.
+    for (unsigned quietRounds = 0; quietRounds < 3;) {
+        if (MonotonicTime::now() > deadline)
+            return -1;
+        auto length = speculativeLoadDecisions->length();
+        bool ran = false;
+        RunLoop::mainSingleton().dispatch([&ran] { ran = true; });
+        spinUntil(ran);
+        quietRounds = TestSupportAccess::isReading(storage) || length != speculativeLoadDecisions->length() ? 0 : quietRounds + 1;
+    }
+    return textOut(std::exchange(*speculativeLoadDecisions, { }).toString(), text, textCapacity);
 }
 
 } // extern "C"

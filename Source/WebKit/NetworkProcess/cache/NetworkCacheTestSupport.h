@@ -95,6 +95,18 @@ NCTS_EXPORT int NCTS_CacheStoreRedirect(uint64_t cache, const NCTSRequest*, cons
 // Retrieves and awaits. Writes the entry's description (UTF-8 text) to `text` and its body to `body`, up to the capacities;
 // the lengths needed are in *textLength and result->bodyLength. Returns 0 on success, -1 on a refused call (see header).
 NCTS_EXPORT int NCTS_CacheRetrieve(uint64_t cache, const NCTSRequest*, NCTSRetrieveResult*, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity);
+
+// The speculative load manager (a cache opened with option bit 2), run dry: from the first NCTS_Spec call, for the process,
+// the manager starts no network load or preconnect and logs no diagnostic message, and the facade records each as a line of
+// NCTS_SpecDecisions. A frame is any number but 0 and UINT64_MAX. A frame's load stops 5 s after its last subresource load.
+// As NCTS_CacheRetrieve, for a load in `frame`; isMainResource makes it the frame's main resource. -1 for a bad frame.
+NCTS_EXPORT int NCTS_SpecRetrieve(uint64_t cache, uint64_t frame, int isMainResource, const NCTSRequest*, NCTSRetrieveResult*, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity);
+// The response to the main resource load of `frame`. 0, or -1 for a bad argument.
+NCTS_EXPORT int NCTS_SpecMainResourceResponse(uint64_t cache, uint64_t frame, const NCTSRequest*, const NCTSResponse*);
+// Runs the main loop until the storage has no read in flight (the manager's lookups), then gives the lines recorded since the
+// last call: "revalidate <url>" with the request's fields and headers, "preconnect <url>", "diagnostic <message>". Returns the
+// length needed, and clears them (lines past the capacity are lost); -1 if the reads do not settle in 10 s.
+NCTS_EXPORT long long NCTS_SpecDecisions(uint64_t cache, char* text, size_t textCapacity);
 // Retrieves the stored entry (history policy), updates it with a validating response, awaits the write. 1 if updated.
 NCTS_EXPORT int NCTS_CacheUpdate(uint64_t cache, const NCTSRequest*, const NCTSResponse* validatingResponse);
 // Waits until no write of the cache is pending dispatch (a dispatched write finishes on the IO queue, unobservably).
