@@ -23,7 +23,7 @@
 
 // FIXME: (rdar://164119356) Move this file into WTF.
 
-#if compiler(>=6.4) && !SWIFT_WEBKIT_TOOLCHAIN
+#if compiler(>=6.4)
 
 import wtf.Core.CompletionHandler
 
@@ -324,4 +324,4 @@ extension WTF.BoolCompletionHandler: @unsafe CxxCompletionHandler {
     typealias Argument = Bool
 }
 
-#endif // compiler(>=6.4) && !SWIFT_WEBKIT_TOOLCHAIN
+#endif // compiler(>=6.4)
