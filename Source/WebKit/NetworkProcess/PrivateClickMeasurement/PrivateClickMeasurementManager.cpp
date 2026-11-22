@@ -154,24 +154,24 @@ void PrivateClickMeasurementManager::getTokenPublicKey(PrivateClickMeasurement&&
     RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a token public key request.");
     m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a token public key request."_s);
 
-    PCM::NetworkLoader::start(WTF::move(tokenPublicKeyURL), nullptr, pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, attribution = WTF::move(attribution), callback = WTF::move(callback)] (auto& errorDescription, auto& jsonObject) mutable {
+    PCM::NetworkLoader::start(WTF::move(tokenPublicKeyURL), nullptr, pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, attribution = WTF::move(attribution), callback = WTF::move(callback)] (auto&& response) mutable {
         RefPtr protectedThis = weakThis;
         if (!protectedThis)
             return;
 
-        if (!errorDescription.isNull()) {
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, errorDescription, "' for token public key request."_s));
+        if (!response.errorDescription.isNull()) {
+            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, response.errorDescription, "' for token public key request."_s));
             return;
         }
 
-        if (!jsonObject) {
+        if (!response.jsonObject) {
             protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] JSON response is empty for token public key request."_s));
             return;
         }
 
         protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, makeString("[Private Click Measurement] Got JSON response for token public key request."_s));
 
-        callback(WTF::move(attribution), jsonObject->getString("token_public_key"_s));
+        callback(WTF::move(attribution), response.jsonObject->getString("token_public_key"_s));
     });
 }
 
@@ -203,24 +203,24 @@ void PrivateClickMeasurementManager::getTokenPublicKey(AttributionTriggerData&& 
     RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a token public key request.");
     m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a token public key request."_s);
 
-    PCM::NetworkLoader::start(WTF::move(tokenPublicKeyURL), nullptr, pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, attributionTriggerData = WTF::move(attributionTriggerData), callback = WTF::move(callback)] (auto& errorDescription, auto& jsonObject) mutable {
+    PCM::NetworkLoader::start(WTF::move(tokenPublicKeyURL), nullptr, pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, attributionTriggerData = WTF::move(attributionTriggerData), callback = WTF::move(callback)] (auto&& response) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
 
-        if (!errorDescription.isNull()) {
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, errorDescription, "' for token public key request."_s));
+        if (!response.errorDescription.isNull()) {
+            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, response.errorDescription, "' for token public key request."_s));
             return;
         }
 
-        if (!jsonObject) {
+        if (!response.jsonObject) {
             protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] JSON response is empty for token public key request."_s));
             return;
         }
 
         protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, makeString("[Private Click Measurement] Got JSON response for token public key request."_s));
 
-        callback(WTF::move(attributionTriggerData), jsonObject->getString("token_public_key"_s));
+        callback(WTF::move(attributionTriggerData), response.jsonObject->getString("token_public_key"_s));
     });
 }
 
@@ -273,12 +273,12 @@ void PrivateClickMeasurementManager::getSignedUnlinkableTokenForSource(PrivateCl
     RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a unlinkable token signing request for the click source.");
     m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a unlinkable token signing request for the click source."_s);
 
-    PCM::NetworkLoader::start(WTF::move(tokenSignatureURL), measurement.tokenSignatureJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, measurement = WTF::move(measurement)] (auto& errorDescription, auto& jsonObject) mutable {
+    PCM::NetworkLoader::start(WTF::move(tokenSignatureURL), measurement.tokenSignatureJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, measurement = WTF::move(measurement)] (auto&& response) mutable {
         RefPtr protectedThis = weakThis;
         if (!protectedThis)
             return;
 
-        auto signatureBase64URL = protectedThis->getSignatureBase64URLFromTokenSignatureResponse(errorDescription, jsonObject);
+        auto signatureBase64URL = protectedThis->getSignatureBase64URLFromTokenSignatureResponse(response.errorDescription, response.jsonObject);
         if (!signatureBase64URL)
             return;
 
@@ -320,12 +320,12 @@ void PrivateClickMeasurementManager::getSignedUnlinkableTokenForDestination(Sour
     RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a unlinkable token signing request for the click destination.");
     m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a unlinkable token signing request for the click destination."_s);
 
-    PCM::NetworkLoader::start(WTF::move(tokenSignatureURL), attributionTriggerData.tokenSignatureJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, sourceSite = WTF::move(sourceSite), destinationSite = WTF::move(destinationSite), attributionTriggerData = WTF::move(attributionTriggerData), applicationBundleIdentifier = applicationBundleIdentifier.isolatedCopy()] (auto& errorDescription, auto& jsonObject) mutable {
+    PCM::NetworkLoader::start(WTF::move(tokenSignatureURL), attributionTriggerData.tokenSignatureJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, sourceSite = WTF::move(sourceSite), destinationSite = WTF::move(destinationSite), attributionTriggerData = WTF::move(attributionTriggerData), applicationBundleIdentifier = applicationBundleIdentifier.isolatedCopy()] (auto&& response) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
 
-        auto signatureBase64URL = protectedThis->getSignatureBase64URLFromTokenSignatureResponse(errorDescription, jsonObject);
+        auto signatureBase64URL = protectedThis->getSignatureBase64URLFromTokenSignatureResponse(response.errorDescription, response.jsonObject);
         if (!signatureBase64URL)
             return;
 
@@ -607,13 +607,13 @@ void PrivateClickMeasurementManager::fireConversionRequestImpl(const PrivateClic
     RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire an attribution request.");
     m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire an attribution request."_s);
 
-    PCM::NetworkLoader::start(WTF::move(attributionURL), attribution.attributionReportJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }](auto& errorDescription, auto&) {
+    PCM::NetworkLoader::start(WTF::move(attributionURL), attribution.attributionReportJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }](auto&& response) {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
 
-        if (!errorDescription.isNull())
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, errorDescription, "' for ad click attribution request."_s));
+        if (!response.errorDescription.isNull())
+            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, response.errorDescription, "' for ad click attribution request."_s));
     });
 }
 

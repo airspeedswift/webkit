@@ -40,7 +40,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(NetworkLoader);
 void NetworkLoader::start(URL&&, RefPtr<JSON::Object>&&, WebCore::PrivateClickMeasurement::PcmDataCarried, const ApplicationBundleIdentifiersOrAuditToken&, Callback&& completionHandler)
 {
     notImplemented();
-    completionHandler({ }, { });
+    completionHandler({ });
 }
 
 void NetworkLoader::allowTLSCertificateChainForLocalPCMTesting(const WebCore::CertificateInfo&)

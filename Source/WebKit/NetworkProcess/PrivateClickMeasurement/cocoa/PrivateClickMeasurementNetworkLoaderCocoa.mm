@@ -125,7 +125,7 @@ void NetworkLoader::start(URL&& url, RefPtr<JSON::Object>&& jsonPayload, WebCore
     // Prevent contacting non-local servers when a test certificate chain is used for 127.0.0.1.
     // FIXME: Use a proxy server to have tests cover the reports sent to the destination, too.
     if (allowedLocalTestServerTrust() && url.host() != "127.0.0.1"_s)
-        return callback({ }, { });
+        return callback({ });
 
     auto request = adoptNS([[NSMutableURLRequest alloc] initWithURL:url.createNSURL().get()]);
     [request setValue:WebCore::HTTPHeaderValues::maxAge0().createNSString().get() forHTTPHeaderField:@"Cache-Control"];
@@ -148,10 +148,10 @@ void NetworkLoader::start(URL&& url, RefPtr<JSON::Object>&& jsonPayload, WebCore
     RetainPtr task = [statelessSessionWithoutRedirectsSingleton(applicationBundleIdentifier) dataTaskWithRequest:request.get() completionHandler:makeBlockPtr([callback = WTF::move(callback), identifier](NSData *data, NSURLResponse *response, NSError *error) mutable {
         taskMap().remove(identifier);
         if (error)
-            return callback(error.localizedDescription, { });
+            return callback({ error.localizedDescription, { } });
         if (auto jsonValue = JSON::Value::parseJSON(String::fromUTF8(span(data))))
-            return callback({ }, jsonValue->asObject());
-        callback({ }, nullptr);
+            return callback({ { }, jsonValue->asObject() });
+        callback({ });
     }).get()];
     [task resume];
     taskMap().add(identifier, task.get());

@@ -44,7 +44,11 @@ using ApplicationBundleIdentifiersOrAuditToken = Variant<std::pair<String, Strin
 class NetworkLoader {
     WTF_MAKE_TZONE_ALLOCATED(NetworkLoader);
 public:
-    using Callback = CompletionHandler<void(const String&, const RefPtr<JSON::Object>&)>;
+    struct Response {
+        String errorDescription;
+        RefPtr<JSON::Object> jsonObject;
+    };
+    using Callback = CompletionHandler<void(Response)>;
     SWIFT_UNSAFE static void start(URL&&, RefPtr<JSON::Object>&&, WebCore::PrivateClickMeasurement::PcmDataCarried, const ApplicationBundleIdentifiersOrAuditToken&, Callback&&);
     SWIFT_UNSAFE static void allowTLSCertificateChainForLocalPCMTesting(const WebCore::CertificateInfo&);
 };
