@@ -28,6 +28,7 @@
 #include "DatabaseUtilities.h"
 #include <WebCore/PrivateClickMeasurement.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/WeakPtr.h>
@@ -46,13 +47,13 @@ struct DebugInfo;
 class Database : public DatabaseUtilities, public RefCountedAndCanMakeWeakPtr<Database> {
     WTF_MAKE_TZONE_ALLOCATED(Database);
 public:
-    static Ref<Database> create(const String& storageDirectory);
+    SWIFT_UNSAFE static Ref<Database> create(const String& storageDirectory);
 
     virtual ~Database();
 
     using ApplicationBundleIdentifier = String;
 
-    static void interruptAllDatabases();
+    SWIFT_UNSAFE static void interruptAllDatabases();
 
     void insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement&&, PrivateClickMeasurementAttributionType);
     std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo> attributePrivateClickMeasurement(const WebCore::PCM::SourceSite&, const WebCore::PCM::AttributionDestinationSite&, const ApplicationBundleIdentifier&, WebCore::PCM::AttributionTriggerData&&, WebCore::PrivateClickMeasurement::IsRunningLayoutTest);

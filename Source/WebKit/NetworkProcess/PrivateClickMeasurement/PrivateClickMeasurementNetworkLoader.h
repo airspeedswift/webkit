@@ -28,6 +28,7 @@
 #include <WebCore/PrivateClickMeasurement.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/JSONValues.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
@@ -44,8 +45,8 @@ class NetworkLoader {
     WTF_MAKE_TZONE_ALLOCATED(NetworkLoader);
 public:
     using Callback = CompletionHandler<void(const String&, const RefPtr<JSON::Object>&)>;
-    static void start(URL&&, RefPtr<JSON::Object>&&, WebCore::PrivateClickMeasurement::PcmDataCarried, const ApplicationBundleIdentifiersOrAuditToken&, Callback&&);
-    static void allowTLSCertificateChainForLocalPCMTesting(const WebCore::CertificateInfo&);
+    SWIFT_UNSAFE static void start(URL&&, RefPtr<JSON::Object>&&, WebCore::PrivateClickMeasurement::PcmDataCarried, const ApplicationBundleIdentifiersOrAuditToken&, Callback&&);
+    SWIFT_UNSAFE static void allowTLSCertificateChainForLocalPCMTesting(const WebCore::CertificateInfo&);
 };
 
 } // namespace WebKit::PCM

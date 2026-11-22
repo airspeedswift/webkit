@@ -27,6 +27,7 @@
 
 #include <WebCore/PrivateClickMeasurement.h>
 #include <WebCore/RegistrableDomain.h>
+#include <wtf/SwiftBridging.h>
 
 namespace WebCore {
 class CertificateInfo;
@@ -113,10 +114,10 @@ constexpr auto protocolEncodedMessageKey { "encoded message"_s };
 using EncodedMessage = Vector<uint8_t>;
 
 void decodeMessageAndSendToManager(const Daemon::Connection&, MessageType, std::span<const uint8_t> encodedMessage, CompletionHandler<void(Vector<uint8_t>&&)>&&);
-void doDailyActivityInManager();
+SWIFT_UNSAFE void doDailyActivityInManager();
 NODELETE bool messageTypeSendsReply(MessageType);
 
-void initializePCMStorageInDirectory(const String& storageDirectory, const String& applicationBundleIdentifier, const String& secondaryApplicationBundleIdentifier);
+SWIFT_UNSAFE void initializePCMStorageInDirectory(const String& storageDirectory, const String& applicationBundleIdentifier, const String& secondaryApplicationBundleIdentifier);
 
 } // namespace PCM
 

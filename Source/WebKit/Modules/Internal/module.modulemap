@@ -567,6 +567,42 @@ module WebKit_Internal [system] {
         export *
     }
 
+    module PrivateClickMeasurementClient {
+        requires cplusplus20
+        header "../../NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementClient.h"
+        export *
+    }
+
+    module PrivateClickMeasurementDatabase {
+        requires cplusplus20
+        header "../../NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.h"
+        export *
+    }
+
+    module PrivateClickMeasurementManager {
+        requires cplusplus20
+        header "../../NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementManager.h"
+        export *
+    }
+
+    module PrivateClickMeasurementManagerInterface {
+        requires cplusplus20
+        header "../../NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementManagerInterface.h"
+        export *
+    }
+
+    module PrivateClickMeasurementNetworkLoader {
+        requires cplusplus20
+        header "../../NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementNetworkLoader.h"
+        export *
+    }
+
+    module PrivateClickMeasurementStore {
+        requires cplusplus20
+        header "../../NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementStore.h"
+        export *
+    }
+
     // FIXME: These parts of the module map needs work as discussed in https://github.com/WebKit/WebKit/pull/54322
 
     module WebKit_Internal_Cxx {
