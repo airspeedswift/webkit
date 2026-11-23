@@ -27,17 +27,13 @@
 #include "NetworkCacheTestSupport.h"
 
 #include "NetworkCache.h"
-#include "NetworkCacheBlobStorage.h"
 #include "NetworkCacheCoders.h"
-#include "NetworkCacheCompressionDictionaryEntry.h"
-#include "NetworkCacheEntry.h"
 #include "NetworkCacheKey.h"
 #include "NetworkCacheSpeculativeLoad.h"
-#include "NetworkCacheSpeculativeLoadManager.h"
-#include "NetworkCacheSubresourcesEntry.h"
+#include "NetworkCacheTestSupportInternal.h"
 #include "NetworkProcess.h"
 #include "NetworkSession.h"
-#include "PrefetchCache.h"
+#include "WebKit-Swift.h"
 #include "WebsiteDataStoreParameters.h"
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/ResourceResponse.h>
@@ -49,45 +45,28 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
 #include <wtf/RuntimeApplicationChecks.h>
+#include <wtf/Threading.h>
 #include <wtf/persistence/PersistentDecoder.h>
 #include <wtf/persistence/PersistentEncoder.h>
-#include <wtf/Threading.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/StringToIntegerConversion.h>
 #include <limits>
 
-// The facade calls the cache's own entry points and nothing else: Cache::open, retrieve, store, storeRedirect, update, remove,
-// traverseRecords, clear; Key's constructor and stringToHash; Entry::encodeAsStorageRecord and decodeStorageRecord;
-// SubresourcesEntry's encode and decode; BlobStorage::add and get. It names no implementation of them: both arms of the
-// netcache island link the same file. It runs on the main thread, awaiting each asynchronous operation by spinning the
-// main RunLoop; it is a test aid, never called by the product.
+// Test entry points for the cache. They run on the main thread and spin the main RunLoop to await each operation; the
+// product never calls them.
 
 namespace WebKit {
 
-// The one access the facade needs to production state: the network process's cache model, which sizes the cache (the default,
-// DocumentViewer, gives capacity 0 and a cache that stores nothing); the product sets it when the network process initialises.
+// The tests set the cache model, which sizes the cache (the default, DocumentViewer, gives capacity 0).
 struct NetworkCacheTestSupportAccess {
     static void setCacheModel(NetworkProcess& process, CacheModel model) { process.setCacheModel(model); }
 };
 
 }
 
-// The access the facade needs to the cache's storage and its record coding (friend of Cache and Storage).
-namespace WebKit::NetworkCache {
+namespace WebKit::NetworkCache::TestSupport {
 
-struct TestSupportAccess {
-    static Storage& storage(Cache& cache) { return cache.m_storage.get(); }
-    static Data encodeRecord(Storage& storage, const Storage::Record& record, std::optional<BlobStorage::Blob>&& blob) { return storage.encodeRecord(record, WTF::move(blob)); }
-    static Storage::Record readRecord(Storage& storage, const Data& data) { return storage.readRecord(data); }
-    static bool isReading(Storage& storage) { return !storage.m_pendingReadOperations.isEmpty() || !storage.m_activeReadOperations.isEmpty(); }
-    static bool isIdle(Storage& storage) { return storage.m_pendingWriteOperations.isEmpty() && storage.m_activeWriteOperations.isEmpty() && !storage.m_synchronizationInProgress && !storage.m_shrinkInProgress; }
-};
-
-}
-
-namespace WebKit::NetworkCache::NCTSSupport {
-
-using TestSupportCacheMap = HashMap<uint64_t, RefPtr<Cache>>;
+using TestSupportCacheMap = HashMap<uint64_t, NetworkCachePtr>;
 
 static TestSupportCacheMap& caches()
 {
@@ -97,11 +76,14 @@ static TestSupportCacheMap& caches()
 
 static uint64_t nextHandle { 1 };
 
-static RefPtr<Cache> cacheForHandle(uint64_t handle)
+static std::optional<Cache> cacheForHandle(uint64_t handle)
 {
     if (!RunLoop::isMain())
-        return nullptr;
-    return caches().get(handle);
+        return std::nullopt;
+    auto* cache = caches().get(handle);
+    if (!cache)
+        return std::nullopt;
+    return *cache;
 }
 
 static void spinUntil(const bool& done)
@@ -233,8 +215,22 @@ static String describeKey(const Key& key)
 
 static PrefetchCache& prefetchCache()
 {
-    static NeverDestroyed<PrefetchCache> cache;
-    return cache.get();
+    static NeverDestroyed<PrefetchCachePtr> cache { makePrefetchCache() };
+    return *cache.get();
+}
+
+// SubresourceInfo's coder is the Swift type's (NetworkCacheSubresources.swift).
+static long long subresourceInfoRoundTrip(std::span<const uint8_t> input, uint8_t* out, size_t capacity)
+{
+    auto result = WebKit::NetworkCacheSubresourcesEntry::infoCoderRoundTrip(Data { input });
+    auto encoded = result.getData();
+    if (encoded.isNull())
+        return -1;
+    if (!result.getConsumedAll())
+        return -2;
+    if (encoded.size() <= capacity && out)
+        std::ranges::copy(encoded.span(), out);
+    return encoded.size();
 }
 
 template<typename T> static long long coderRoundTrip(std::span<const uint8_t> input, uint8_t* out, size_t capacity)
@@ -254,15 +250,15 @@ template<typename T> static long long coderRoundTrip(std::span<const uint8_t> in
     return encoded.size();
 }
 
-static String describeEntry(const Entry& entry)
+// Called by NetworkCacheEntry.swift's descriptionForTesting(), which passes the entry's fields in place.
+String describeEntry(const WebCore::ResourceResponse& response, WallTime timeStamp, bool needsValidation, bool isPrivateRelayed, const OptionalRequest& redirectRequest, const Key& key, const HeaderPairs& varyingRequestHeaders)
 {
     StringBuilder builder;
-    auto& response = entry.response();
-    builder.append("status="_s, response.httpStatusCode(), "\nurl="_s, response.url().string(), "\nmime="_s, response.mimeType(), "\ntimestampMs="_s, millisecondsOut(entry.timeStamp()), "\nneedsValidation="_s, entry.needsValidation() ? 1 : 0, "\nprivateRelayed="_s, static_cast<int>(entry.privateRelayed()), "\nredirect="_s);
-    if (entry.redirectRequest())
-        builder.append(entry.redirectRequest()->url().string());
-    builder.append("\nkeyHash="_s, entry.key().hashAsString(), "\nvary:\n"_s);
-    for (auto& [name, value] : entry.varyingRequestHeaders())
+    builder.append("status="_s, response.httpStatusCode(), "\nurl="_s, response.url().string(), "\nmime="_s, response.mimeType(), "\ntimestampMs="_s, millisecondsOut(timeStamp), "\nneedsValidation="_s, needsValidation ? 1 : 0, "\nprivateRelayed="_s, isPrivateRelayed ? 1 : 0, "\nredirect="_s);
+    if (redirectRequest)
+        builder.append(redirectRequest->url().string());
+    builder.append("\nkeyHash="_s, key.hashAsString(), "\nvary:\n"_s);
+    for (auto& [name, value] : varyingRequestHeaders)
         builder.append(name, ": "_s, value, '\n');
     builder.append("headers:\n"_s);
     for (auto& header : response.httpHeaderFields())
@@ -270,21 +266,32 @@ static String describeEntry(const Entry& entry)
     return builder.toString();
 }
 
-static void describeAndCopy(const Entry& entry, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity, size_t* bodyLength)
+// Called by NetworkCacheSubresources.swift's describeForTesting(), once per info, with the info's fields in place.
+void describeSubresource(StringBuilder& builder, const Key& key, WallTime lastSeen, WallTime firstSeen, bool isTransient, bool isSameSite, bool isAppInitiated, const URL& firstPartyForCookies, const WebCore::HTTPHeaderMap& requestHeaders, WebCore::ResourceLoadPriority priority)
 {
-    *textLength = copyOut(describeEntry(entry).utf8(), text, textCapacity);
-    auto* buffer = entry.buffer();
+    builder.append(key.hashAsString(), " transient="_s, isTransient ? 1 : 0, " lastSeenMs="_s, millisecondsOut(lastSeen), " firstSeenMs="_s, millisecondsOut(firstSeen), '\n');
+    if (isTransient)
+        return;
+    builder.append(" firstParty="_s, firstPartyForCookies.string(), " sameSite="_s, isSameSite ? 1 : 0, " appInitiated="_s, isAppInitiated ? 1 : 0, " priority="_s, static_cast<int>(priority), '\n');
+    for (auto& header : requestHeaders)
+        builder.append("  "_s, header.key, ": "_s, header.value, '\n');
+}
+
+static void describeAndCopy(Entry& entry, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity, size_t* bodyLength)
+{
+    *textLength = copyOut(entry.descriptionForTesting().utf8(), text, textCapacity);
+    RefPtr buffer = entry.buffer();
     size_t length = buffer ? buffer->size() : 0;
     *bodyLength = length;
     if (buffer && body)
         buffer->copyTo(std::span { body, std::min(length, bodyCapacity) });
 }
 
-} // namespace WebKit::NetworkCache::NCTSSupport
+} // namespace WebKit::NetworkCache::TestSupport
 
 using namespace WebKit;
 using namespace WebKit::NetworkCache;
-using namespace WebKit::NetworkCache::NCTSSupport;
+using namespace WebKit::NetworkCache::TestSupport;
 
 // The speculative load manager's dry run (NetworkCacheSpeculativeLoad.h), on from the first NCTS_Spec call, for the process.
 namespace WebKit::NetworkCache {
@@ -361,7 +368,7 @@ uint64_t NCTS_CacheOpen(const char* path, unsigned options, uint64_t sessionID)
         return 0;
     if (options & 4)
         cacheOptions.add(CacheOption::SpeculativeRevalidation);
-    RefPtr cache = Cache::open(stringFromUTF8(path), cacheOptions, id);
+    auto cache = openNetworkCache(stringFromUTF8(path), cacheOptions, id);
     if (!cache)
         return 0;
     auto handle = nextHandle++;
@@ -377,7 +384,7 @@ void NCTS_CacheClose(uint64_t handle)
 
 int NCTS_CacheStore(uint64_t handle, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec, const uint8_t* body, size_t bodyLength)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !requestSpec || !responseSpec || !body)
         return 0;
     // With capacity 0 the storage drops the write.
@@ -385,12 +392,12 @@ int NCTS_CacheStore(uint64_t handle, const NCTSRequest* requestSpec, const NCTSR
         return -1;
     // The write is not awaited: the storage calls the completion handler only for a body stored as a blob, and answers
     // retrieves from its pending and active writes, so a retrieve after the store sees it. NCTS_CacheFlush waits for dispatch.
-    return !!cache->store(makeRequest(*requestSpec), makeResponse(*responseSpec, bodyLength), PrivateRelayed::No, makeBuffer(body, bodyLength));
+    return !!cache->store(makeRequest(*requestSpec), makeResponse(*responseSpec, bodyLength), PrivateRelayed::No, makeBuffer(body, bodyLength), NetworkCache::MappedBodyHandlerBox::create().ptr());
 }
 
 int NCTS_CacheStoreRedirect(uint64_t handle, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec, const NCTSRequest* redirectSpec)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !requestSpec || !responseSpec || !redirectSpec)
         return 0;
     return !!cache->storeRedirect(makeRequest(*requestSpec), makeResponse(*responseSpec, 0), makeRequest(*redirectSpec), std::nullopt);
@@ -411,18 +418,19 @@ static bool canRetrieve(const WebCore::ResourceRequest& request, PAL::SessionID 
 // NCTS_CacheRetrieve, and NCTS_SpecRetrieve in a frame.
 static int retrieveInFrame(uint64_t handle, std::optional<GlobalFrameID> frameID, bool isMainResource, const NCTSRequest* requestSpec, NCTSRetrieveResult* result, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !requestSpec || !result || !textLength || !requestSpec->url)
         return -1;
     auto request = makeRequest(*requestSpec);
     if (isMainResource)
         request.setRequester(WebCore::ResourceRequestRequester::Main);
-    if (!canRetrieve(request, cache->sessionID()))
+    if (!canRetrieve(request, cache->getSessionID()))
         return -1;
     *result = { 0, -1, -1, -1, 0, 0 };
     *textLength = 0;
     bool done = false;
-    cache->retrieve(request, frameID, std::nullopt, false, { }, [&](std::unique_ptr<Entry> entry, const Cache::RetrieveInfo& info) {
+    cache->retrieve(request, frameID, std::nullopt, false, { }, NetworkCache::RetrieveHandlerBox::create([&](uint64_t token, const RetrieveInfo& info) {
+        auto entry = token ? entryPointer(cache->takeRetrievedEntry(token)) : nullptr;
         result->retrieveDecision = info.retrieveDecision ? static_cast<int>(*info.retrieveDecision) : -1;
         result->speculativeLoadDecision = info.speculativeLoadDecision ? static_cast<int>(*info.speculativeLoadDecision) : -1;
         result->useDecision = info.useDecision ? static_cast<int>(*info.useDecision) : -1;
@@ -432,7 +440,7 @@ static int retrieveInFrame(uint64_t handle, std::optional<GlobalFrameID> frameID
             describeAndCopy(*entry, text, textCapacity, textLength, body, bodyCapacity, &result->bodyLength);
         }
         done = true;
-    });
+    }).ptr());
     spinUntil(done);
     return 0;
 }
@@ -444,48 +452,49 @@ int NCTS_CacheRetrieve(uint64_t handle, const NCTSRequest* requestSpec, NCTSRetr
 
 int NCTS_CacheUpdate(uint64_t handle, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !requestSpec || !responseSpec || !requestSpec->url)
         return 0;
     auto request = makeRequest(*requestSpec);
     request.setCachePolicy(WebCore::ResourceRequestCachePolicy::ReturnCacheDataElseLoad);
     std::unique_ptr<Entry> existing;
     bool done = false;
-    cache->retrieve(request, std::nullopt, std::nullopt, false, { }, [&](std::unique_ptr<Entry> entry, const Cache::RetrieveInfo&) {
-        existing = WTF::move(entry);
+    cache->retrieve(request, std::nullopt, std::nullopt, false, { }, NetworkCache::RetrieveHandlerBox::create([&](uint64_t token, const RetrieveInfo&) {
+        existing = token ? entryPointer(cache->takeRetrievedEntry(token)) : nullptr;
         done = true;
-    });
+    }).ptr());
     spinUntil(done);
     if (!existing)
         return 0;
-    return !!cache->update(request, *existing, makeResponse(*responseSpec, 0), PrivateRelayed::No);
+    cache->update(request, *existing, makeResponse(*responseSpec, 0), PrivateRelayed::No);
+    return 1;
 }
 
 void NCTS_CacheFlush(uint64_t handle)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache)
         return;
     // Until no write is pending (each pending write becomes active, on the IO queue). The production API has no
     // completion for a write in flight; callers needing the files on disk poll NCTS_CacheTraverse.
-    while (!cache->pendingKeys({ RecordType::Resource, RecordType::CompressionDictionary }).isEmpty())
+    while (!cache->pendingKeys(OptionSet<RecordType> { RecordType::Resource, RecordType::CompressionDictionary }.toRaw(), false, String()).isEmpty())
         RunLoop::cycle();
 }
 
 void NCTS_CacheRemove(uint64_t handle, const NCTSRequest* requestSpec)
 {
-    if (RefPtr cache = cacheForHandle(handle); cache && requestSpec && requestSpec->url)
-        cache->remove(makeRequest(*requestSpec));
+    if (auto cache = cacheForHandle(handle); cache && requestSpec && requestSpec->url)
+        cache->removeRequest(makeRequest(*requestSpec));
 }
 
 size_t NCTS_CacheTraverse(uint64_t handle, NCTSTraverseCallback callback, void* context)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !callback)
         return 0;
     size_t count = 0;
     bool done = false;
-    cache->traverseRecords([&](const Cache::TraversalRecord* traversal) {
+    cache->traverseRecords(NetworkCache::TraversalHandlerBox::create([&](const TraversalRecord* traversal) {
         if (!traversal) {
             done = true;
             return;
@@ -495,20 +504,20 @@ size_t NCTS_CacheTraverse(uint64_t handle, NCTSTraverseCallback callback, void* 
         ++count;
         auto urlString = url ? url->string().utf8() : UTF8CString { };
         callback(context, url ? rawChars(urlString) : "", record.key.hash().data(), record.header.size(), record.body.size());
-    });
+    }).ptr());
     spinUntil(done);
     return count;
 }
 
 void NCTS_CacheClear(uint64_t handle)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache)
         return;
     bool done = false;
-    cache->clear(-WallTime::infinity(), [&done] {
+    cache->clear(-WallTime::infinity(), NetworkCache::VoidHandlerBox::create([&done] {
         done = true;
-    });
+    }).ptr());
     spinUntil(done);
 }
 
@@ -516,7 +525,7 @@ int NCTS_StoreDecision(const NCTSRequest* requestSpec, const NCTSResponse* respo
 {
     if (!requestSpec || !responseSpec || !requestSpec->url || !responseSpec->url)
         return -1;
-    return static_cast<int>(makeStoreDecision(makeRequest(*requestSpec), makeResponse(*responseSpec, bodySize), bodySize));
+    return static_cast<int>(Cache::makeStoreDecision(makeRequest(*requestSpec), makeResponse(*responseSpec, bodySize), bodySize));
 }
 
 int NCTS_RetrieveDecision(const NCTSRequest* requestSpec)
@@ -527,7 +536,7 @@ int NCTS_RetrieveDecision(const NCTSRequest* requestSpec)
     // The decision asserts the policy is not DoNotUseAnyCache (Cache::retrieve is never called with it).
     if (request.cachePolicy() == WebCore::ResourceRequestCachePolicy::DoNotUseAnyCache)
         return -1;
-    return static_cast<int>(makeRetrieveDecision(request));
+    return static_cast<int>(Cache::makeRetrieveDecision(request));
 }
 
 int NCTS_UseDecision(uint64_t sessionID, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec, const char* varyingHeaders, double timestampMs, double nowMs, int hasRedirect)
@@ -552,20 +561,15 @@ int NCTS_UseDecision(uint64_t sessionID, const NCTSRequest* requestSpec, const N
     auto varying = parseHeaders(varyingHeaders);
     // The entry goes through its record, so its timestamp is the one given, moved so that the age the decision reads
     // (the wall clock at the call minus the timestamp) is nowMs - timestampMs; nowMs 0 is the real clock.
-    std::unique_ptr<Entry> built;
-    if (hasRedirect)
-        built = makeUnique<Entry>(key, response, request, varying);
-    else
-        built = makeUnique<Entry>(key, response, PrivateRelayed::No, makeBuffer(nullptr, 0), varying);
-    auto record = built->encodeAsStorageRecord();
+    constexpr bool isPrivateRelayed = false;
+    auto built = hasRedirect ? Entry::makeRedirect(key, response, request, varying) : Entry::make(key, response, isPrivateRelayed, makeBuffer(nullptr, 0), varying);
+    auto record = built.encodeAsStorageRecord();
     auto ageSeconds = (nowMs - timestampMs) / 1000;
     if (!std::isfinite(ageSeconds))
         return -1;
     record.timeStamp = nowMs ? WallTime::now() - Seconds { ageSeconds } : WallTime::fromRawSeconds(timestampMs / 1000);
-    auto entry = Entry::decodeStorageRecord(record);
-    if (!entry)
-        return -1;
-    return static_cast<int>(makeUseDecision(id, *entry, request));
+    // Decoded and decided in Swift, as the cache's retrieve does: -1 when the record does not decode.
+    return Cache::useDecisionForTesting(id, record, request);
 }
 
 size_t NCTS_KeyHash(const char16_t* partition, size_t partitionLength, const char16_t* type, size_t typeLength, const char16_t* range, size_t rangeLength, const char16_t* identifier, size_t identifierLength, const uint8_t* salt, int includesCredentials, uint8_t* hash, uint8_t* partitionHash, char* hashString)
@@ -582,9 +586,10 @@ int NCTS_KeyStringToHash(const char16_t* string, size_t length, uint8_t* hash)
 {
     if (!hash || !validRange(string, length))
         return 0;
-    Key::HashType result;
-    if (!Key::stringToHash(String(std::span { string, length }), result))
+    auto optionalResult = Key::stringToHash(String(std::span { string, length }));
+    if (!optionalResult)
         return 0;
+    auto& result = *optionalResult;
     memcpy(hash, result.data(), result.size());
     return 1;
 }
@@ -593,7 +598,8 @@ long long NCTS_EntryEncode(const char* partition, const char* type, const char* 
 {
     if (!salt || !responseSpec || !body || !headerLength || !bodyHash || !hasBodyHash || !validRange(out, outCapacity))
         return -1;
-    Entry entry { makeKey(partition, type, range, identifier, salt), makeResponse(*responseSpec, bodyLength), PrivateRelayed::No, makeBuffer(body, bodyLength), parseHeaders(varyingHeaders) };
+    constexpr bool isPrivateRelayed = false;
+    auto entry = Entry::make(makeKey(partition, type, range, identifier, salt), makeResponse(*responseSpec, bodyLength), isPrivateRelayed, makeBuffer(body, bodyLength), parseHeaders(varyingHeaders));
     auto record = entry.encodeAsStorageRecord();
     *headerLength = record.header.size();
     *hasBodyHash = !!record.bodyHash;
@@ -618,9 +624,10 @@ int NCTS_EntryDecode(const char* partition, const char* type, const char* range,
         digest = value;
     }
     Storage::Record record { makeKey(partition, type, range, identifier, salt), WallTime::fromRawSeconds(timestampMs / 1000), Data { std::span { header, headerLength } }, Data { std::span { body, bodyLength } }, digest };
-    auto entry = Entry::decodeStorageRecord(record);
-    if (!entry)
+    auto decoded = Entry::decodeStorageRecordForTesting(record);
+    if (!decoded.isDecoded())
         return -1;
+    auto entry = entryPointer(decoded.take());
     describeAndCopy(*entry, text, textCapacity, textLength, bodyOut, bodyOutCapacity, bodyOutLength);
     return 0;
 }
@@ -630,32 +637,22 @@ long long NCTS_SubresourcesDecode(const char* partition, const char* type, const
     if (!salt || !validRange(header, headerLength))
         return -1;
     Storage::Record record { makeKey(partition, type, range, identifier, salt), WallTime::fromRawSeconds(timestampMs / 1000), Data { std::span { header, headerLength } }, Data { }, std::nullopt };
-    auto entry = SubresourcesEntry::decodeStorageRecord(record);
+    auto entry = WebKit::NetworkCacheSubresourcesEntry::decodeStorageRecord(record);
     if (!entry)
         return -1;
-    StringBuilder builder;
-    builder.append("count="_s, entry->subresources().size(), '\n');
-    for (auto& info : entry->subresources()) {
-        builder.append(info.key().hashAsString(), " transient="_s, info.isTransient() ? 1 : 0, " lastSeenMs="_s, millisecondsOut(info.lastSeen()), " firstSeenMs="_s, millisecondsOut(info.firstSeen()), '\n');
-        if (!info.isTransient()) {
-            builder.append(" firstParty="_s, info.firstPartyForCookies().string(), " sameSite="_s, info.isSameSite() ? 1 : 0, " appInitiated="_s, info.isAppInitiated() ? 1 : 0, " priority="_s, static_cast<int>(info.priority()), '\n');
-            for (auto& header : info.requestHeaders())
-                builder.append("  "_s, header.key, ": "_s, header.value, '\n');
-        }
-    }
-    return copyOut(builder.toString().utf8(), text, textCapacity);
+    return copyOut(entry.get().describeForTesting().utf8(), text, textCapacity);
 }
 
 long long NCTS_SubresourcesEncode(const char* partition, const char* type, const char* range, const char* identifier, const uint8_t* salt, const char* urls, uint8_t* out, size_t outCapacity, size_t* headerLength)
 {
     if (!salt || !urls || !headerLength || !validRange(out, outCapacity))
         return -1;
-    Vector<std::unique_ptr<SubresourceLoad>> loads;
+    auto loads = WebKit::NetworkCacheSubresourceLoadList::init();
     for (auto line : StringView::fromLatin1(urls).split('\n')) {
         auto request = WebCore::ResourceRequest { URL { line.toString() } };
-        loads.append(makeUnique<SubresourceLoad>(request, makeKey("", "Resource", "", rawChars(line.toString().utf8()), salt)));
+        loads.append(request, makeKey("", "Resource", "", rawChars(line.toString().utf8()), salt));
     }
-    SubresourcesEntry entry { makeKey(partition, type, range, identifier, salt), loads };
+    auto entry = WebKit::NetworkCacheSubresourcesEntry::makeForTesting(makeKey(partition, type, range, identifier, salt), loads);
     auto record = entry.encodeAsStorageRecord();
     *headerLength = record.header.size();
     size_t total = record.header.size() + record.body.size();
@@ -668,12 +665,12 @@ long long NCTS_SubresourcesEncode(const char* partition, const char* type, const
 
 int NCTS_CacheSync(uint64_t handle)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache)
         return -1;
-    auto& storage = TestSupportAccess::storage(*cache);
+    auto storage = cache->getStorage();
     auto deadline = MonotonicTime::now() + 60_s;
-    while (!TestSupportAccess::isIdle(storage)) {
+    while (!storage.isIdle()) {
         if (MonotonicTime::now() > deadline)
             return -1;
         RunLoop::cycle();
@@ -683,7 +680,7 @@ int NCTS_CacheSync(uint64_t handle)
 
 long long NCTS_CacheRecordsPath(uint64_t handle, char* out, size_t capacity)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache)
         return -1;
     return textOut(cache->recordsPathIsolatedCopy(), out, capacity);
@@ -691,7 +688,7 @@ long long NCTS_CacheRecordsPath(uint64_t handle, char* out, size_t capacity)
 
 size_t NCTS_CacheTraverseEx(uint64_t handle, unsigned flags, NCTSTraverseExCallback callback, void* context)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !callback)
         return 0;
     OptionSet<Storage::TraverseFlag> traverseFlags;
@@ -701,7 +698,7 @@ size_t NCTS_CacheTraverseEx(uint64_t handle, unsigned flags, NCTSTraverseExCallb
         traverseFlags.add(Storage::TraverseFlag::ShareCount);
     size_t count = 0;
     bool done = false;
-    TestSupportAccess::storage(*cache).traverse(emptyString(), traverseFlags, [&](const Storage::Record* record, const Storage::RecordInfo& info) {
+    cache->getStorage().traverse(emptyString(), traverseFlags.toRaw(), NetworkCache::StorageTraverseHandlerBox::create([&](const Storage::Record* record, const Storage::RecordInfo& info) {
         if (!record) {
             done = true;
             return;
@@ -712,25 +709,25 @@ size_t NCTS_CacheTraverseEx(uint64_t handle, unsigned flags, NCTSTraverseExCallb
         auto identifier = record->key.identifier().utf8();
         auto bodyHash = info.bodyHash.utf8();
         callback(context, rawChars(type), rawChars(partition), rawChars(identifier), record->key.hash().data(), record->timeStamp.secondsSinceEpoch().milliseconds(), record->header.size(), record->body.size(), rawChars(bodyHash), info.bodyShareCount, info.worth, info.lastAccessTime.secondsSinceEpoch().milliseconds());
-    });
+    }).ptr());
     spinUntil(done);
     return count;
 }
 
 int NCTS_CacheStoreCompressionDictionary(uint64_t handle, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec, const uint8_t* body, size_t bodyLength, const char* match, const char* id, uint32_t destinationBits, double expirationMs)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !requestSpec || !responseSpec || !requestSpec->url || !responseSpec->url || !body || !std::isfinite(expirationMs))
         return 0;
     if (!cache->capacity())
         return -1;
-    cache->storeCompressionDictionary(makeRequest(*requestSpec), makeResponse(*responseSpec, bodyLength), makeBuffer(body, bodyLength), { stringFromUTF8(match), stringFromUTF8(id), CompressionDictionaryEntry::DestinationSet::fromRaw(destinationBits), WallTime::fromRawSeconds(expirationMs / 1000) });
+    cache->storeCompressionDictionary(makeRequest(*requestSpec), makeResponse(*responseSpec, bodyLength), makeBuffer(body, bodyLength), { stringFromUTF8(match), stringFromUTF8(id), CompressionDictionaryDestinationSet::fromRaw(destinationBits), WallTime::fromRawSeconds(expirationMs / 1000) });
     return 1;
 }
 
 int NCTS_CacheCompressionDictionaryMatch(uint64_t handle, const NCTSRequest* requestSpec, unsigned destination, char* text, size_t textCapacity, size_t* textLength, uint8_t* body, size_t bodyCapacity, size_t* bodyLength)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !requestSpec || !requestSpec->url || !textLength || !bodyLength || destination > 255 || !WTF::isValidEnum<WebCore::FetchOptions::Destination>(static_cast<uint8_t>(destination)))
         return -1;
     *textLength = 0;
@@ -740,14 +737,14 @@ int NCTS_CacheCompressionDictionaryMatch(uint64_t handle, const NCTSRequest* req
         return 0;
     *textLength = textOut(makeString("key:\n"_s, describeKey(match->key), "dictionaryHash="_s, hexString(match->hash), "\nid="_s, match->id, '\n'), text, textCapacity);
     bool done = false;
-    cache->retrieveCompressionDictionary(match->key, match->hash, [&](RefPtr<WebCore::SharedBuffer>&& buffer) {
+    cache->retrieveCompressionDictionary(match->key, match->hash, NetworkCache::SharedBufferHandlerBox::create([&](RefPtr<WebCore::SharedBuffer>&& buffer) {
         if (buffer) {
             *bodyLength = buffer->size();
             if (body)
                 buffer->copyTo(std::span { body, std::min(buffer->size(), bodyCapacity) });
         }
         done = true;
-    });
+    }).ptr());
     spinUntil(done);
     return 1;
 }
@@ -769,12 +766,13 @@ int NCTS_PrefetchTake(const char* url, char* text, size_t textCapacity, size_t* 
     auto entry = prefetchCache().take(URL { stringFromUTF8(url) });
     if (!entry)
         return 0;
+    auto response = entry.get().getResponse();
     StringBuilder builder;
-    builder.append("status="_s, entry->response.httpStatusCode(), "\nurl="_s, entry->response.url().string(), "\nmime="_s, entry->response.mimeType(), "\nprivateRelayed="_s, static_cast<int>(entry->privateRelayed), "\nheaders:\n"_s);
-    for (auto& header : entry->response.httpHeaderFields())
+    builder.append("status="_s, response.httpStatusCode(), "\nurl="_s, response.url().string(), "\nmime="_s, response.mimeType(), "\nprivateRelayed="_s, static_cast<int>(entry.get().privateRelayed()), "\nheaders:\n"_s);
+    for (auto& header : response.httpHeaderFields())
         builder.append(header.key, ": "_s, header.value, '\n');
     *textLength = textOut(builder.toString(), text, textCapacity);
-    if (RefPtr buffer = entry->buffer) {
+    if (RefPtr buffer = entry.get().buffer()) {
         *bodyLength = buffer->size();
         if (body)
             buffer->copyTo(std::span { body, std::min(buffer->size(), bodyCapacity) });
@@ -820,7 +818,7 @@ long long NCTS_CoderRoundTrip(int kind, const uint8_t* bytes, size_t length, uin
     case 2:
         return coderRoundTrip<Vector<uint8_t>>(input, out, outCapacity);
     case 3:
-        return coderRoundTrip<SubresourceInfo>(input, out, outCapacity);
+        return subresourceInfoRoundTrip(input, out, outCapacity);
     case 4:
         return coderRoundTrip<Vector<std::pair<String, String>>>(input, out, outCapacity);
     }
@@ -829,18 +827,16 @@ long long NCTS_CoderRoundTrip(int kind, const uint8_t* bytes, size_t length, uin
 
 long long NCTS_RecordEncode(uint64_t handle, const char* partition, const char* type, const char* range, const char* identifier, double timestampMs, const uint8_t* header, size_t headerLength, const uint8_t* body, size_t bodyLength, const uint8_t* blobHash, uint8_t* out, size_t outCapacity)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !header || !body || !std::isfinite(timestampMs))
         return -1;
-    auto& storage = TestSupportAccess::storage(*cache);
-    Storage::Record record { makeKey(partition, type, range, identifier, storage.salt().data()), WallTime::fromRawSeconds(timestampMs / 1000), Data { std::span { header, headerLength } }, Data { std::span { body, bodyLength } }, std::nullopt };
-    std::optional<BlobStorage::Blob> blob;
-    if (blobHash) {
-        SHA1::Digest digest;
+    auto storage = cache->getStorage();
+    Storage::Record record { makeKey(partition, type, range, identifier, storage.getSalt().data()), WallTime::fromRawSeconds(timestampMs / 1000), Data { std::span { header, headerLength } }, Data { std::span { body, bodyLength } }, std::nullopt };
+    SHA1::Digest digest { };
+    if (blobHash)
         memcpy(digest.data(), blobHash, digest.size());
-        blob = BlobStorage::Blob { record.body, digest };
-    }
-    auto encoded = TestSupportAccess::encodeRecord(storage, record, WTF::move(blob));
+    bool hasBlob = blobHash;
+    auto encoded = storage.testEncodeRecord(record, hasBlob, digest);
     if (encoded.size() <= outCapacity && !encoded.isEmpty() && out)
         memcpy(out, encoded.span().data(), encoded.size());
     return encoded.size();
@@ -848,14 +844,14 @@ long long NCTS_RecordEncode(uint64_t handle, const char* partition, const char* 
 
 long long NCTS_RecordRead(uint64_t handle, const uint8_t* file, size_t length, char* text, size_t textCapacity)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !file || !validRange(file, length))
         return -1;
-    auto& storage = TestSupportAccess::storage(*cache);
+    auto storage = cache->getStorage();
     Storage::Record record;
     // Storage::readRecord is for the IO queue, not the main thread.
     Thread::create("NCTS record"_s, [&] {
-        record = TestSupportAccess::readRecord(storage, Data { std::span { file, length } });
+        record = storage.testReadRecord(Data { std::span { file, length } });
     })->waitForCompletion();
     if (record.isNull())
         return -1;
@@ -872,10 +868,10 @@ long long NCTS_EntryDecodeResponseURL(const char* partition, const char* type, c
     if (!salt || !validRange(header, headerLength) || !std::isfinite(timestampMs))
         return -1;
     Storage::Record record { makeKey(partition, type, range, identifier, salt), WallTime::fromRawSeconds(timestampMs / 1000), Data { std::span { header, headerLength } }, Data { }, std::nullopt };
-    auto url = Entry::decodeStorageRecordResponseURL(record);
+    auto url = Entry::decodeStorageRecordResponseURL(record.header);
     if (!url)
         return -1;
-    return textOut(url->string(), text, textCapacity);
+    return textOut(url.get().string(), text, textCapacity);
 }
 
 long long NCTS_CompressionDictionaryDecode(const char* partition, const char* type, const char* range, const char* identifier, const uint8_t* salt, double timestampMs, const uint8_t* header, size_t headerLength, const uint8_t* body, size_t bodyLength, char* text, size_t textCapacity)
@@ -883,10 +879,10 @@ long long NCTS_CompressionDictionaryDecode(const char* partition, const char* ty
     if (!salt || !validRange(header, headerLength) || !validRange(body, bodyLength) || !std::isfinite(timestampMs))
         return -1;
     Storage::Record record { makeKey(partition, type, range, identifier, salt), WallTime::fromRawSeconds(timestampMs / 1000), Data { std::span { header, headerLength } }, Data { std::span { body, bodyLength } }, std::nullopt };
-    auto entry = CompressionDictionaryEntry::decodeStorageRecord(record);
+    auto entry = decodeNetworkCacheEntry<CompressionDictionaryEntry>(record);
     if (!entry)
         return -1;
-    auto& info = entry->info();
+    auto info = entry->info();
     RefPtr buffer = entry->buffer();
     return textOut(makeString(describeKey(entry->key()), "timestampMs="_s, millisecondsOut(entry->timeStamp()), "\nmatch="_s, info.match, "\nid="_s, info.id, "\ndestinations="_s, info.matchDest.toRaw(), "\nexpirationMs="_s, millisecondsOut(info.expirationTime), "\nhash="_s, hexString(entry->hash()), "\nbodyLength="_s, buffer ? buffer->size() : 0, '\n'), text, textCapacity);
 }
@@ -895,7 +891,7 @@ long long NCTS_CompressionDictionaryEncode(const char* partition, const char* ty
 {
     if (!salt || !body || !headerLength || !std::isfinite(expirationMs))
         return -1;
-    CompressionDictionaryEntry entry { makeKey(partition, type, range, identifier, salt), { stringFromUTF8(match), stringFromUTF8(id), CompressionDictionaryEntry::DestinationSet::fromRaw(destinationBits), WallTime::fromRawSeconds(expirationMs / 1000) }, makeBuffer(body, bodyLength) };
+    auto entry = CompressionDictionaryEntry::make(makeKey(partition, type, range, identifier, salt), { stringFromUTF8(match), stringFromUTF8(id), CompressionDictionaryDestinationSet::fromRaw(destinationBits), WallTime::fromRawSeconds(expirationMs / 1000) }, makeBuffer(body, bodyLength));
     auto record = entry.encodeAsStorageRecord();
     *headerLength = record.header.size();
     size_t total = record.header.size() + record.body.size();
@@ -911,7 +907,7 @@ long long NCTS_SubresourcesEncodeEx(const char* partition, const char* type, con
 {
     if (!salt || !loadLines || !headerLength || rounds < 1)
         return -1;
-    Vector<std::unique_ptr<SubresourceLoad>> loads;
+    auto loads = WebKit::NetworkCacheSubresourceLoadList::init();
     for (auto line : StringView::fromLatin1(loadLines).split('\n')) {
         Vector<String> fields;
         for (auto field : line.split('|'))
@@ -930,12 +926,12 @@ long long NCTS_SubresourcesEncodeEx(const char* partition, const char* type, con
             if (colon != notFound)
                 request.setHTTPHeaderField(fields[i].left(colon), StringView(fields[i]).substring(colon + 1).trim(isASCIIWhitespace<char16_t>).toString());
         }
-        loads.append(makeUnique<SubresourceLoad>(request, makeKey("", "Resource", "", rawChars(fields[0].utf8()), salt)));
+        loads.append(request, makeKey("", "Resource", "", rawChars(fields[0].utf8()), salt));
     }
-    SubresourcesEntry entry { makeKey(partition, type, range, identifier, salt), loads };
+    auto entry = WebKit::NetworkCacheSubresourcesEntry::makeForTesting(makeKey(partition, type, range, identifier, salt), loads);
     // Each further round sees the infos of the one before: they become non-transient.
     for (int round = 1; round < std::min(rounds, 2); ++round)
-        entry.updateSubresourceLoads(loads);
+        entry = entry.updatingSubresourceLoadsForTesting(loads);
     auto record = entry.encodeAsStorageRecord();
     *headerLength = record.header.size();
     size_t total = record.header.size() + record.body.size();
@@ -951,17 +947,16 @@ long long NCTS_BlobAddGet(const char* directory, const uint8_t* salt, const uint
 {
     if (!directory || !salt || !hash || !shareCount || !validRange(data, length) || !validRange(out, outCapacity))
         return -1;
+    // The storage's blobs directory name (NetworkCacheStorageIO.swift's blobsDirectoryName).
     auto blobDirectory = FileSystem::pathByAppendingComponent(stringFromUTF8(directory), "Blobs"_s);
     auto recordPath = FileSystem::pathByAppendingComponent(stringFromUTF8(directory), "record"_s);
     FileSystem::makeAllDirectories(blobDirectory);
     long long result = -1;
     // BlobStorage is synchronous and not for the main thread.
     Thread::create("NCTS blob"_s, [&] {
-        BlobStorage storage { blobDirectory, makeSalt(salt) };
-        auto added = storage.add(recordPath, Data { std::span { data, length } });
-        memcpy(hash, added.hash.data(), added.hash.size());
-        *shareCount = storage.shareCount(recordPath);
-        auto got = storage.get(recordPath);
+        auto got = NetworkCacheStorage::testBlobAddGet(blobDirectory, makeSalt(salt), recordPath, Data { std::span { data, length } });
+        memcpySpan(unsafeMakeSpan(hash, got.hash.size()), std::span { got.hash });
+        *shareCount = got.shareCount;
         result = got.data.size();
         if (got.data.size() <= outCapacity && !got.data.isEmpty())
             memcpy(out, got.data.span().data(), got.data.size());
@@ -977,21 +972,20 @@ int NCTS_SpecRetrieve(uint64_t handle, uint64_t frame, int isMainResource, const
 
 int NCTS_SpecMainResourceResponse(uint64_t handle, uint64_t frame, const NCTSRequest* requestSpec, const NCTSResponse* responseSpec)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     auto frameID = frameForTesting(frame);
     if (!cache || !frameID || !requestSpec || !requestSpec->url || !responseSpec)
         return -1;
-    if (CheckedPtr manager = cache->speculativeLoadManager())
-        manager->registerMainResourceLoadResponse(*frameID, makeRequest(*requestSpec), makeResponse(*responseSpec, 0));
+    cache->registerMainResourceLoadResponse(*frameID, makeRequest(*requestSpec), makeResponse(*responseSpec, 0));
     return 0;
 }
 
 long long NCTS_SpecDecisions(uint64_t handle, char* text, size_t textCapacity)
 {
-    RefPtr cache = cacheForHandle(handle);
+    auto cache = cacheForHandle(handle);
     if (!cache || !speculativeLoadDecisions)
         return -1;
-    auto& storage = TestSupportAccess::storage(*cache);
+    auto storage = cache->getStorage();
     auto deadline = MonotonicTime::now() + 10_s;
     // Three rounds of the main loop in a row with no read in flight and no new decision.
     for (unsigned quietRounds = 0; quietRounds < 3;) {
@@ -1001,7 +995,7 @@ long long NCTS_SpecDecisions(uint64_t handle, char* text, size_t textCapacity)
         bool ran = false;
         RunLoop::mainSingleton().dispatch([&ran] { ran = true; });
         spinUntil(ran);
-        quietRounds = TestSupportAccess::isReading(storage) || length != speculativeLoadDecisions->length() ? 0 : quietRounds + 1;
+        quietRounds = storage.isReading() || length != speculativeLoadDecisions->length() ? 0 : quietRounds + 1;
     }
     return textOut(std::exchange(*speculativeLoadDecisions, { }).toString(), text, textCapacity);
 }

@@ -45,7 +45,7 @@
 namespace WebKit {
 namespace NetworkCache {
 
-Data::Data(std::span<const uint8_t> data)
+Data::Data(NOESCAPE std::span<const uint8_t> data)
 {
     auto span = MallocSpan<uint8_t>::malloc(data.size());
     memcpySpan(span.mutableSpan(), data);

@@ -38,6 +38,7 @@
 #include "NetworkLoadParameters.h"
 #include "NetworkProcess.h"
 #include "NetworkSession.h"
+#include "PrivateRelayed.h"
 #include <WebCore/ResourceError.h>
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/ResourceResponse.h>

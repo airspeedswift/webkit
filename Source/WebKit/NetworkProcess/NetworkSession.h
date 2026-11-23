@@ -28,10 +28,10 @@
 #include "AppPrivacyReport.h"
 #include "DataTaskIdentifier.h"
 #include "NavigatingToAppBoundDomain.h"
+#include "NetworkCacheForward.h"
 #include "NetworkNotificationManager.h"
 #include "NetworkResourceLoadIdentifier.h"
 #include "NetworkStorageSession.h"
-#include "PrefetchCache.h"
 #include "PrivateClickMeasurementManagerInterface.h"
 #include "SandboxExtension.h"
 #include "ServiceWorkerSoftUpdateLoader.h"
@@ -46,6 +46,7 @@
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/SWServerDelegate.h>
 #include <WebCore/StoredCredentialsPolicy.h>
+#include <WebCore/Timer.h>
 #include <pal/SessionID.h>
 #include <wtf/CheckedPtr.h>
 #include <wtf/Deque.h>
@@ -105,10 +106,6 @@ enum class WebsiteDataType : uint32_t;
 
 namespace CacheStorage {
 class Engine;
-}
-
-namespace NetworkCache {
-class Cache;
 }
 
 class NetworkSession : public WebCore::SWServerDelegate, public CanMakeCheckedPtr<NetworkSession> {
@@ -240,8 +237,10 @@ public:
 
     NetworkCache::Cache* cache() { return m_cache.get(); }
 
+// Hidden from Swift: Swift's PrefetchCache is the class in PrefetchCache.swift; only C++ calls this.
+#ifndef __swift__
     NODELETE PrefetchCache& prefetchCache();
-    void clearPrefetchCache() { m_prefetchCache->clear(); }
+#endif
 
     virtual RefPtr<WebSocketTask> createWebSocketTask(WebPageProxyIdentifier, std::optional<WebCore::FrameIdentifier>, std::optional<WebCore::PageIdentifier>, NetworkSocketChannel&, const WebCore::ResourceRequest&, const String& protocol, const WebCore::ClientOrigin&, bool hadMainFrameMainResourcePrivateRelayed, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>, WebCore::StoredCredentialsPolicy, WebCore::IsInitiatedByWorker);
     virtual void removeWebSocketTask(WebSocketTask&) { }
@@ -439,10 +438,10 @@ protected:
     };
     HashMap<NetworkResourceLoadIdentifier, Ref<CachedNetworkResourceLoader>> m_loadersAwaitingWebProcessTransfer;
 
-    const UniqueRef<PrefetchCache> m_prefetchCache;
+    const NetworkCache::PrefetchCachePtr m_prefetchCache;
 
     bool m_isInvalidated { false };
-    RefPtr<NetworkCache::Cache> m_cache;
+    NetworkCache::NetworkCachePtr m_cache;
     const RefPtr<NetworkLoadScheduler> m_networkLoadScheduler;
     WebCore::BlobRegistryImpl m_blobRegistry;
     const Ref<NetworkBroadcastChannelRegistry> m_broadcastChannelRegistry;

@@ -59,7 +59,7 @@ namespace NetworkCache {
 class Data {
 public:
     Data() { }
-    Data(std::span<const uint8_t>);
+    Data(NOESCAPE std::span<const uint8_t>); // NOESCAPE: Swift passes a Span.
     Data(Vector<uint8_t>&& data);
 
     ~Data() { }
@@ -117,10 +117,27 @@ Data concatenate(const Data&, const Data&);
 bool bytesEqual(const Data&, const Data&);
 Data mapFile(const String& path);
 
+#if PLATFORM(COCOA)
+// A Data over the dispatch data, for the blob memory cache.
+Data dataWithDispatchData(dispatch_data_t, bool isMap);
+#endif
+
 using Salt = FileSystem::Salt;
 SHA1::Digest computeSHA1(const Data&, const Salt&);
 
-using NetworkCacheFileReadCompletion = Function<void(Data)>;
+using FileReadCompletion = Function<void(Data)>;
+
+// The size of the first region of a Cocoa dispatch_data, the whole size elsewhere. Data::apply takes a
+// Function<bool(span)> that needs a mutable capture, which a Swift closure passed as Sendable cannot make.
+inline size_t firstSegmentSize(const Data& data)
+{
+    size_t size = 0;
+    data.apply([&size](std::span<const uint8_t> span) {
+        size = span.size();
+        return false;
+    });
+    return size;
+}
 
 }
 

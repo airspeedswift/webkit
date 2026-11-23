@@ -39,6 +39,7 @@
 #import "SandboxExtension.h"
 #import "SecurityFlags.h"
 #import "WebCookieManager.h"
+#import "WebKit-Swift.h"
 #import <WebCore/PublicSuffixStore.h>
 #import <WebCore/ResourceRequestCFNet.h>
 #import <WebCore/SecurityOrigin.h>
@@ -242,8 +243,8 @@ void NetworkProcess::clearDiskCache(WallTime modifiedSince, CompletionHandler<vo
     dispatch_group_async(group.get(), mainDispatchQueueSingleton(), makeBlockPtr([this, protectedThis = Ref { *this }, modifiedSince, completionHandler = WTF::move(completionHandler)] () mutable {
         auto aggregator = CallbackAggregator::create(WTF::move(completionHandler));
         forEachNetworkSession([modifiedSince, &aggregator](NetworkSession& session) {
-            if (RefPtr cache = session.cache())
-                cache->clear(modifiedSince, [aggregator] () { });
+            if (auto* cache = session.cache())
+                cache->clear(modifiedSince, NetworkCache::VoidHandlerBox::create([aggregator] { }).ptr());
         });
     }).get());
 }

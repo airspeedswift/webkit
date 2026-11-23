@@ -32,6 +32,7 @@
 #include "NetworkLoad.h"
 #include "NetworkSession.h"
 #include "PrivateRelayed.h"
+#include "WebKit-Swift.h"
 #include <WebCore/HTTPStatusCodes.h>
 #include <WebCore/NavigationPreloadState.h>
 #include <wtf/TZoneMallocInlines.h>
@@ -70,9 +71,9 @@ void ServiceWorkerNavigationPreloader::start()
         return;
     }
 
-    if (RefPtr cache = session->cache()) {
+    if (auto* sessionCache = session->cache()) {
         NetworkCache::GlobalFrameID globalID { *m_parameters.webPageProxyID, *m_parameters.webPageID, *m_parameters.webFrameID };
-        cache->retrieve(m_parameters.request, globalID, m_parameters.isNavigatingToAppBoundDomain, m_parameters.allowPrivacyProxy, m_parameters.advancedPrivacyProtections, [weakThis = WeakPtr { *this }](auto&& entry, auto&&) mutable {
+        NetworkCache::retrieveFromNetworkCache(*sessionCache, m_parameters.request, globalID, m_parameters.isNavigatingToAppBoundDomain, m_parameters.allowPrivacyProxy, m_parameters.advancedPrivacyProtections, [weakThis = WeakPtr { *this }](std::unique_ptr<NetworkCache::Entry> entry, const NetworkCache::RetrieveInfo&) mutable {
             RefPtr protectedThis = weakThis.get();
             if (!protectedThis || protectedThis->m_isCancelled)
                 return;

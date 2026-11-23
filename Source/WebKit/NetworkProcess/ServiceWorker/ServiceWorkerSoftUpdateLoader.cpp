@@ -30,6 +30,7 @@
 #include "NetworkCache.h"
 #include "NetworkLoad.h"
 #include "NetworkSession.h"
+#include "WebKit-Swift.h"
 #include <WebCore/AdvancedPrivacyProtections.h>
 #include <WebCore/HTTPStatusCodes.h>
 #include <WebCore/ServiceWorkerJob.h>
@@ -56,13 +57,13 @@ ServiceWorkerSoftUpdateLoader::ServiceWorkerSoftUpdateLoader(NetworkSession& ses
 {
     ASSERT(!request.isConditional());
 
-    if (RefPtr cache = session.cache()) {
+    if (auto* sessionCache = session.cache()) {
         // We set cache policy to disable speculative loading/async revalidation from the cache.
         request.setCachePolicy(ResourceRequestCachePolicy::ReturnCacheDataDontLoad);
 
         OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections;
         bool allowPrivacyProxy { true };
-        cache->retrieve(request, std::nullopt, NavigatingToAppBoundDomain::No, allowPrivacyProxy, advancedPrivacyProtections, [weakThis = WeakPtr { *this }, request, shouldRefreshCache](auto&& entry, auto&&) mutable {
+        NetworkCache::retrieveFromNetworkCache(*sessionCache, request, std::nullopt, NavigatingToAppBoundDomain::No, allowPrivacyProxy, advancedPrivacyProtections, [weakThis = WeakPtr { *this }, request, shouldRefreshCache](std::unique_ptr<NetworkCache::Entry> entry, const NetworkCache::RetrieveInfo&) mutable {
             RefPtr protectedThis = weakThis;
             if (!protectedThis)
                 return;

@@ -27,11 +27,11 @@
 #import "NetworkCacheIOChannel.h"
 
 #import "Logging.h"
-#import "NetworkCacheFileSystem.h"
 #import <mach/vm_param.h>
 #import <sys/mman.h>
 #import <sys/stat.h>
 #import <wtf/BlockPtr.h>
+#import <wtf/FileSystem.h>
 #import <wtf/darwin/DispatchExtras.h>
 #import <wtf/posix/POSIXExtras.h>
 #import <wtf/text/CString.h>

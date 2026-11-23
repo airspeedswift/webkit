@@ -30,6 +30,7 @@
 #include "NetworkProcessCreationParameters.h"
 #include "NetworkSessionCurl.h"
 #include "NetworkStorageSession.h"
+#include "WebKit-Swift.h"
 #include <WebCore/CurlContext.h>
 #include <WebCore/NotImplemented.h>
 #include <wtf/CallbackAggregator.h>
@@ -52,7 +53,7 @@ void NetworkProcess::clearDiskCache(WallTime modifiedSince, CompletionHandler<vo
     auto aggregator = CallbackAggregator::create(WTF::move(completionHandler));
     forEachNetworkSession([modifiedSince, &aggregator](NetworkSession& session) {
         if (auto* cache = session.cache())
-            cache->clear(modifiedSince, [aggregator] () { });
+            cache->clear(modifiedSince, NetworkCache::VoidHandlerBox::create([aggregator] { }).ptr());
     });
 }
 

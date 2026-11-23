@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Apple Inc. All rights reserved.
  * Copyright (C) 2026 Igalia S.L. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,87 +26,103 @@
 
 #pragma once
 
-#include "NetworkCacheStorage.h"
+#include "NetworkCacheKey.h"
 #include <WebCore/FetchOptions.h>
-#include <wtf/Noncopyable.h>
-#include <wtf/Seconds.h>
-#include <wtf/TZoneMalloc.h>
+#include <WebCore/SharedBuffer.h>
+#include <array>
+#include <optional>
+#include <pal/crypto/CryptoDigest.h>
+#include <wtf/RefPtr.h>
+#include <wtf/StdLibExtras.h>
+#include <wtf/URL.h>
+#include <wtf/WallTime.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
-class FragmentedSharedBuffer;
-class SharedBuffer;
+class URLPattern;
 }
 
 namespace WebKit::NetworkCache {
 
 // A dictionary registered by Use-As-Dictionary, stored beside the regular cache entry for the
-// same URL. https://www.rfc-editor.org/rfc/rfc9842#name-use-as-dictionary
-//
-// A dictionary is found by matching its pattern against an outbound request rather than by
-// retrieving its own URL, so the record holds neither the response it arrived with nor anything
-// else that only applies to a resource retrieved by a request.
-class CompressionDictionaryEntry {
-    WTF_MAKE_TZONE_ALLOCATED(CompressionDictionaryEntry);
-    WTF_MAKE_NONCOPYABLE(CompressionDictionaryEntry);
+// same URL (NetworkCacheCompressionDictionaryEntry.swift). https://www.rfc-editor.org/rfc/rfc9842#name-use-as-dictionary
+
+inline constexpr size_t compressionDictionaryHashSize = 32;
+using CompressionDictionaryHash = std::array<uint8_t, compressionDictionaryHashSize>;
+
+// FetchOptions::Destination values are not powers of two, so OptionSet cannot hold them.
+class CompressionDictionaryDestinationSet {
 public:
-    // Incrementing this discards only the stored dictionaries, not the whole cache like Storage::version does.
-    static constexpr uint8_t version = 1;
-    static constexpr size_t hashSize = 32;
+    constexpr CompressionDictionaryDestinationSet() = default;
+    static constexpr CompressionDictionaryDestinationSet fromRaw(uint32_t bits) { return CompressionDictionaryDestinationSet { bits }; }
+    constexpr uint32_t toRaw() const { return m_bits; }
 
-    // FetchOptions::Destination values are not powers of two, so OptionSet cannot hold them.
-    class DestinationSet {
-    public:
-        constexpr DestinationSet() = default;
-        static constexpr DestinationSet fromRaw(uint32_t bits) { return DestinationSet { bits }; }
-        constexpr uint32_t toRaw() const { return m_bits; }
-
-        constexpr bool isEmpty() const { return !m_bits; }
-        constexpr bool contains(WebCore::FetchOptions::Destination destination) const { return m_bits & bit(destination); }
-        constexpr void add(WebCore::FetchOptions::Destination destination) { m_bits |= bit(destination); }
-
-    private:
-        constexpr explicit DestinationSet(uint32_t bits)
-            : m_bits(bits)
-        {
-        }
-
-        static constexpr uint32_t bit(WebCore::FetchOptions::Destination destination) { return 1u << std::to_underlying(destination); }
-        static_assert(std::to_underlying(WTF::EnumTraitsForPersistence<WebCore::FetchOptions::Destination>::values::max) < 32);
-
-        uint32_t m_bits { 0 };
-    };
-
-    struct Info {
-        String match;
-        String id;
-        DestinationSet matchDest;
-        WallTime expirationTime;
-    };
-
-    CompressionDictionaryEntry(const Key&, Info&&, RefPtr<WebCore::FragmentedSharedBuffer>&&);
-    explicit CompressionDictionaryEntry(const Storage::Record&);
-
-    Storage::Record encodeAsStorageRecord() const;
-    static std::unique_ptr<CompressionDictionaryEntry> decodeStorageRecord(const Storage::Record&);
-
-    const Key& key() const LIFETIME_BOUND { return m_key; }
-    WallTime timeStamp() const { return m_timeStamp; }
-    const Info& info() const LIFETIME_BOUND { return m_info; }
-    const std::array<uint8_t, hashSize>& hash() const LIFETIME_BOUND { return m_hash; }
-    RefPtr<WebCore::SharedBuffer> buffer() const;
-
-    void asJSON(StringBuilder&, const Storage::RecordInfo&) const;
+    constexpr bool isEmpty() const { return !m_bits; }
+    constexpr bool contains(WebCore::FetchOptions::Destination destination) const { return m_bits & bit(destination); }
+    constexpr void add(WebCore::FetchOptions::Destination destination) { m_bits |= bit(destination); }
 
 private:
-    Key m_key;
-    WallTime m_timeStamp;
-    Info m_info;
-    std::array<uint8_t, hashSize> m_hash { };
-    Storage::Record m_sourceStorageRecord { };
-    mutable RefPtr<WebCore::SharedBuffer> m_buffer;
+    constexpr explicit CompressionDictionaryDestinationSet(uint32_t bits)
+        : m_bits(bits)
+    {
+    }
+
+    static constexpr uint32_t bit(WebCore::FetchOptions::Destination destination) { return 1u << std::to_underlying(destination); }
+    static_assert(std::to_underlying(WTF::EnumTraitsForPersistence<WebCore::FetchOptions::Destination>::values::max) < 32);
+
+    uint32_t m_bits { 0 };
+};
+
+struct CompressionDictionaryInfo {
+    String match;
+    String id;
+    CompressionDictionaryDestinationSet matchDest;
+    WallTime expirationTime;
 };
 
 std::optional<WebCore::FetchOptions::Destination> parseFetchDestination(const String&);
 
+struct CompressionDictionaryMatch {
+    Key key;
+    CompressionDictionaryHash hash;
+    String id;
+};
+using OptionalDictionaryMatch = std::optional<CompressionDictionaryMatch>;
+inline OptionalDictionaryMatch makeDictionaryMatch(const Key& key, const CompressionDictionaryHash& hash, const String& id) { return CompressionDictionaryMatch { key, hash, id }; }
+
+// Swift holds the pattern, and URLPattern is incomplete here (its header does not build in the Swift module): the
+// copy, assignment and destruction are defined in NetworkCacheCompressionDictionaryEntry.cpp.
+class DictionaryPattern {
+public:
+    DictionaryPattern();
+    explicit DictionaryPattern(RefPtr<WebCore::URLPattern>&&);
+    DictionaryPattern(const DictionaryPattern&);
+    DictionaryPattern& operator=(const DictionaryPattern&);
+    ~DictionaryPattern();
+
+    bool isNull() const { return !m_pattern; }
+    bool test(const URL&) const;
+
+private:
+    RefPtr<WebCore::URLPattern> m_pattern;
+};
+// The compression dictionary index's match pattern; null when the match does not parse.
+DictionaryPattern makeDictionaryPattern(const String& match, const String& baseURL);
+
+// The dump file's "matchDest" list of a compression dictionary: its destinations' names as JSON strings, in the order
+// they persist.
+String dumpMatchDestinations(const CompressionDictionaryDestinationSet&);
+
+inline bool dictionaryHashEquals(const CompressionDictionaryHash& a, const CompressionDictionaryHash& b) { return a == b; }
+
+inline CompressionDictionaryHash networkCacheSHA256(const RefPtr<WebCore::SharedBuffer>& buffer)
+{
+    auto digest = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
+    if (buffer)
+        digest->addBytes(buffer->span());
+    CompressionDictionaryHash hash { };
+    memcpySpan(std::span { hash }, digest->computeHash().span());
+    return hash;
 }
+
+} // namespace WebKit::NetworkCache

@@ -1013,6 +1013,19 @@ if (NOT APPLE)
 endif ()
 
 set(WebKit_SWIFT_INTEROP_SOURCES
+    NetworkProcess/NetworkConnectionToWebProcess.cpp
+    NetworkProcess/NetworkProcess.cpp
+    NetworkProcess/NetworkResourceLoader.cpp
+    NetworkProcess/NetworkSession.cpp
+
+    NetworkProcess/ServiceWorker/ServiceWorkerNavigationPreloader.cpp
+    NetworkProcess/ServiceWorker/ServiceWorkerSoftUpdateLoader.cpp
+
+    NetworkProcess/cache/NetworkCache.cpp
+    NetworkProcess/cache/NetworkCacheSpeculativeLoad.cpp
+    NetworkProcess/cache/NetworkCacheTestSupport.cpp
+    NetworkProcess/cache/NetworkCacheWebsiteData.cpp
+
     Shared/IPCStreamTester.cpp
     Shared/IPCTester.cpp
     UIProcess/ProvisionalPageProxy.cpp
@@ -1030,8 +1043,19 @@ set(WebKit_SWIFT_INTEROP_SOURCES
 if (NOT WIN32 AND NOT PORT STREQUAL "WPE")
     list(APPEND WebKit_SWIFT_INTEROP_SOURCES UIProcess/ViewGestureController.cpp)
 endif ()
+if (PORT STREQUAL "GTK" OR PORT STREQUAL "WPE")
+    list(APPEND WebKit_SWIFT_INTEROP_SOURCES
+        NetworkProcess/soup/NetworkDataTaskSoup.cpp
+        NetworkProcess/soup/NetworkProcessSoup.cpp
+    )
+endif ()
+if (USE_CURL)
+    list(APPEND WebKit_SWIFT_INTEROP_SOURCES NetworkProcess/curl/NetworkProcessCurl.cpp)
+endif ()
 if (APPLE)
     list(APPEND WebKit_SWIFT_INTEROP_SOURCES
+        NetworkProcess/cocoa/NetworkDataTaskCocoa.mm
+        NetworkProcess/cocoa/NetworkProcessCocoa.mm
 
         ${WebKit_DERIVED_SOURCES_DIR}/GPUProcess/media/RemoteAudioDestinationManagerMessageReceiver.cpp
         ${WebKit_DERIVED_SOURCES_DIR}/GPUProcess/webrtc/LibWebRTCCodecsProxyMessageReceiver.cpp
@@ -1681,6 +1705,35 @@ list(APPEND WebKit_SOURCES
     ${WEBKIT_DIR}/GPUProcess/media/RemoteVideoFrameObjectHeap.swift
     ${WebKit_DERIVED_SOURCES_DIR}/RemoteVideoFrameObjectHeapMessageReceiver.swift
     ${WebKit_DERIVED_SOURCES_DIR}/WebBackForwardListMessageReceiver.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCache.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheAsyncRevalidation.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheBlobStorage.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheCompressionDictionaryEntry.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheCompressionDictionaryIndex.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheDecisions.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheDump.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheEntry.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheFileSystem.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheHandlerBox.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheIsolatedString.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheKey.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCachePendingFrameLoad.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheRecordFormat.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheRetrieve.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheSpeculativeLoad.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheSpeculativeLoadDiagnostics.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheSpeculativeLoadHeaders.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheSpeculativeLoadManager.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheStorage.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheStorageIO.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheStorageReads.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheStorageTraversal.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheStorageWrites.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheSubresources+TestSupport.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheSubresources.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheTraverseOperation.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/NetworkCacheWallTime.swift
+    ${WEBKIT_DIR}/NetworkProcess/cache/PrefetchCache.swift
     ${WEBKIT_DIR}/Platform/Logging.swift
     ${WEBKIT_DIR}/Shared/API/APIArray.swift
     ${WEBKIT_DIR}/UIProcess/StdlibExtras.swift
@@ -1710,7 +1763,9 @@ set_source_files_properties(
     ${WebKit_DERIVED_SOURCES_DIR}/IPCTesterReceiverMessageReceiver.swift
     PROPERTIES GENERATED TRUE)
 list(APPEND WebKit_SOURCES
+    ${WEBKIT_DIR}/Shared/Array+Extras.swift
     ${WEBKIT_DIR}/Shared/Concurrency+Extras.swift
+    ${WEBKIT_DIR}/Shared/CxxOptional+Extras.swift
     ${WEBKIT_DIR}/Shared/Foundation+Extras.swift
     ${WEBKIT_DIR}/Shared/IPCSwiftStreamTester.swift
     ${WEBKIT_DIR}/Shared/IPCSwiftWorkQueueTester.swift

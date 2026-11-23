@@ -56,6 +56,7 @@ struct DataKey {
 class Key {
 public:
     typedef SHA1::Digest HashType;
+    using OptionalHashType = std::optional<HashType>; // Named for Swift.
 
     enum class IncludesCredentials : bool { No, Yes };
 
@@ -76,12 +77,19 @@ public:
     const String& partition() const LIFETIME_BOUND { return m_partition; }
     const String& identifier() const LIFETIME_BOUND { return m_identifier; }
     const String& type() const LIFETIME_BOUND { return m_type; }
+    bool typeEquals(const String& type) const { return m_type == type; } // Compared in place, with no copy (NetworkCacheStorage.swift).
     const String& range() const LIFETIME_BOUND { return m_range; }
 
     const HashType& hash() const LIFETIME_BOUND { return m_hash; }
     const HashType& partitionHash() const LIFETIME_BOUND { return m_partitionHash; }
 
-    NODELETE static bool stringToHash(const String&, HashType&);
+    // By value for Swift, which imports the const& getters as pointers.
+    String partitionCopy() const { return m_partition; }
+    String identifierCopy() const { return m_identifier; }
+    String typeCopy() const { return m_type; }
+    String rangeCopy() const { return m_range; }
+    HashType hashCopy() const { return m_hash; }
+    HashType partitionHashCopy() const { return m_partitionHash; }
 
     static size_t hashStringLength() { return 2 * sizeof(m_hash); }
     String hashAsString() const { return hashAsString(m_hash); }
@@ -89,7 +97,16 @@ public:
 
     bool operator==(const Key&) const;
 
-    static String partitionToPartitionHashAsString(const String& partition, const Salt&);
+    // Implemented in Swift.
+    static HashType computeHash(String partition, String type, String identifier, String range, Salt, IncludesCredentials);
+    static HashType partitionToPartitionHash(String partition, Salt);
+    static Key computeKey(String partition, String type, String identifier, String range, Salt, IncludesCredentials);
+    static String partitionToPartitionHashAsString(String partition, Salt);
+    static String hashAsString(HashType);
+    static std::optional<HashType> stringToHash(String);
+
+    // A key rebuilt on an IO queue from its strings and hashes (NetworkCacheStorageIO.swift).
+    static Key makeWithHashes(String partition, String type, String identifier, String range, HashType hash, HashType partitionHash) { return { WTF::move(partition), WTF::move(type), WTF::move(identifier), WTF::move(range), hash, partitionHash }; }
 
     Key isolatedCopy() && { return {
         crossThreadCopy(WTF::move(m_partition)),
@@ -111,10 +128,6 @@ public:
 
 private:
     friend struct WTF::Persistence::Coder<Key>;
-    static String hashAsString(const HashType&);
-    HashType computeHash(const Salt&, IncludesCredentials) const;
-    HashType computePartitionHash(const Salt&) const;
-    static HashType partitionToPartitionHash(const String& partition, const Salt&);
     Key(String&& partition, String&& type, String&& identifier, String&& range, HashType hash, HashType partitionHash)
         : m_partition(WTF::move(partition))
         , m_type(WTF::move(type))

@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Apple Inc. All rights reserved.
  * Copyright (C) 2026 Igalia S.L. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,14 +27,9 @@
 #include "config.h"
 #include "NetworkCacheCompressionDictionaryEntry.h"
 
-#include "Logging.h"
-#include "NetworkCacheCoders.h"
-#include <WebCore/SharedBuffer.h>
-#include <pal/crypto/CryptoDigest.h>
-#include <wtf/HexNumber.h>
-#include <wtf/TZoneMallocInlines.h>
-#include <wtf/persistence/PersistentDecoder.h>
-#include <wtf/persistence/PersistentEncoder.h>
+#include <WebCore/ExceptionOr.h>
+#include <WebCore/URLPattern.h>
+#include <WebCore/URLPatternOptions.h>
 #include <wtf/text/StringBuilder.h>
 
 namespace WebCore {
@@ -42,8 +38,6 @@ String convertEnumerationToString(FetchOptions::Destination);
 }
 
 namespace WebKit::NetworkCache {
-
-WTF_MAKE_TZONE_ALLOCATED_IMPL(CompressionDictionaryEntry);
 
 std::optional<WebCore::FetchOptions::Destination> parseFetchDestination(const String& string)
 {
@@ -55,140 +49,39 @@ std::optional<WebCore::FetchOptions::Destination> parseFetchDestination(const St
     return result;
 }
 
-CompressionDictionaryEntry::CompressionDictionaryEntry(const Key& key, Info&& info, RefPtr<WebCore::FragmentedSharedBuffer>&& buffer)
-    : m_key(key)
-    , m_timeStamp(WallTime::now())
-    , m_info(WTF::move(info))
-    , m_buffer(buffer ? RefPtr { buffer->makeContiguous() } : nullptr)
-{
-    auto digest = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
-    if (RefPtr buffer = m_buffer)
-        digest->addBytes(buffer->span());
-    memcpySpan(std::span { m_hash }, digest->computeHash().span());
-}
-
-CompressionDictionaryEntry::CompressionDictionaryEntry(const Storage::Record& storageEntry)
-    : m_key(storageEntry.key)
-    , m_timeStamp(storageEntry.timeStamp)
-    , m_sourceStorageRecord(storageEntry)
+DictionaryPattern::DictionaryPattern() = default;
+DictionaryPattern::DictionaryPattern(RefPtr<WebCore::URLPattern>&& pattern)
+    : m_pattern(WTF::move(pattern))
 {
 }
+DictionaryPattern::DictionaryPattern(const DictionaryPattern&) = default;
+DictionaryPattern& DictionaryPattern::operator=(const DictionaryPattern&) = default;
+DictionaryPattern::~DictionaryPattern() = default;
 
-RefPtr<WebCore::SharedBuffer> CompressionDictionaryEntry::buffer() const
+DictionaryPattern makeDictionaryPattern(const String& match, const String& baseURL)
 {
-    if (!m_buffer)
-        m_buffer = WebCore::SharedBuffer::create(m_sourceStorageRecord.body.span());
-    return m_buffer;
+    auto patternOrException = WebCore::URLPattern::createWithoutRegExpSupport(match, String { baseURL }, { });
+    if (patternOrException.hasException())
+        return { };
+    return DictionaryPattern { patternOrException.releaseReturnValue().ptr() };
 }
 
-Storage::Record CompressionDictionaryEntry::encodeAsStorageRecord() const
+bool DictionaryPattern::test(const URL& url) const
 {
-    WTF::Persistence::Encoder encoder;
-    encoder << version;
-    encoder << m_info.match;
-    encoder << m_info.id;
-    encoder << m_info.matchDest.toRaw();
-    encoder << m_info.expirationTime;
-    encoder.encodeFixedLengthData(m_hash);
-
-    encoder.encodeChecksum();
-
-    Data header(encoder.span());
-    Data body;
-    if (RefPtr buffer = m_buffer)
-        body = { buffer->span() };
-
-    return { m_key, m_timeStamp, header, body, { } };
+    return protect(m_pattern)->testWithoutRegExp(url);
 }
 
-std::unique_ptr<CompressionDictionaryEntry> CompressionDictionaryEntry::decodeStorageRecord(const Storage::Record& storageEntry)
+String dumpMatchDestinations(const CompressionDictionaryDestinationSet& matchDest)
 {
-    auto entry = makeUnique<CompressionDictionaryEntry>(storageEntry);
-
-    WTF::Persistence::Decoder decoder(storageEntry.header.span());
-
-    std::optional<uint8_t> recordVersion;
-    decoder >> recordVersion;
-    if (recordVersion != version)
-        return nullptr;
-
-    std::optional<String> match;
-    decoder >> match;
-    if (!match)
-        return nullptr;
-
-    std::optional<String> id;
-    decoder >> id;
-    if (!id)
-        return nullptr;
-
-    std::optional<uint32_t> matchDest;
-    decoder >> matchDest;
-    if (!matchDest)
-        return nullptr;
-
-    std::optional<WallTime> expirationTime;
-    decoder >> expirationTime;
-    if (!expirationTime)
-        return nullptr;
-
-    std::array<uint8_t, hashSize> hash { };
-    if (!decoder.decodeFixedLengthData(hash))
-        return nullptr;
-
-    if (!decoder.verifyChecksum()) {
-        LOG(NetworkCache, "(NetworkProcess) compression dictionary checksum verification failure\n");
-        return nullptr;
-    }
-
-    entry->m_info = Info { WTF::move(*match), WTF::move(*id), DestinationSet::fromRaw(*matchDest), *expirationTime };
-    entry->m_hash = hash;
-
-    return entry;
-}
-
-void CompressionDictionaryEntry::asJSON(StringBuilder& json, const Storage::RecordInfo& info) const
-{
-    json.append("{\n"
-        "\"hash\": "_s);
-    json.appendQuotedJSONString(m_key.hashAsString());
-    json.append(",\n"
-        "\"bodySize\": "_s, info.bodySize,
-        ",\n"
-        "\"worth\": "_s, info.worth,
-        ",\n"
-        "\"partition\": "_s);
-    json.appendQuotedJSONString(m_key.partition());
-    json.append(",\n"
-        "\"timestamp\": "_s, m_timeStamp.secondsSinceEpoch().milliseconds(),
-        ",\n"
-        "\"URL\": "_s);
-    json.appendQuotedJSONString(m_key.identifier());
-    json.append(",\n"
-        "\"bodyShareCount\": "_s, info.bodyShareCount,
-        ",\n"
-        "\"match\": "_s);
-    json.appendQuotedJSONString(m_info.match);
-    json.append(",\n"
-        "\"id\": "_s);
-    json.appendQuotedJSONString(m_info.id);
-    json.append(",\n"
-        "\"dictionaryHash\": "_s);
-    json.appendQuotedJSONString(toHexString(m_hash));
-    json.append(",\n"
-        "\"expirationTime\": "_s, m_info.expirationTime.secondsSinceEpoch().milliseconds(),
-        ",\n"
-        "\"matchDest\": [\n"_s);
+    StringBuilder json;
     bool firstDestination = true;
     WTF::EnumTraitsForPersistence<WebCore::FetchOptions::Destination>::values::forEach([&](auto destination) {
-        if (!m_info.matchDest.contains(destination))
+        if (!matchDest.contains(destination))
             return;
         json.append(std::exchange(firstDestination, false) ? ""_s : ",\n"_s, "    "_s);
         json.appendQuotedJSONString(WebCore::convertEnumerationToString(destination));
     });
-    json.append("\n"
-        "]\n"
-        "}"_s);
+    return json.toString();
 }
 
-}
+} // namespace WebKit::NetworkCache

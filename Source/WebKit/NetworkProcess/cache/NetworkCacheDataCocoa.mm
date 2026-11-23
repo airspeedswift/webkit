@@ -38,7 +38,7 @@
 namespace WebKit {
 namespace NetworkCache {
 
-Data::Data(std::span<const uint8_t> data)
+Data::Data(NOESCAPE std::span<const uint8_t> data)
     : m_dispatchData(adoptOSObject(dispatch_data_create(data.data(), data.size(), nullptr, DISPATCH_DATA_DESTRUCTOR_DEFAULT)))
 {
 }
@@ -57,6 +57,11 @@ Data::Data(Vector<uint8_t>&& data)
 Data Data::copyData() const
 {
     return { protect(dispatchData()), m_isMap ? Backing::Map : Backing::Buffer };
+}
+
+Data dataWithDispatchData(dispatch_data_t dispatchData, bool isMap)
+{
+    return { protect(dispatchData), isMap ? Data::Backing::Map : Data::Backing::Buffer };
 }
 
 Data Data::empty()

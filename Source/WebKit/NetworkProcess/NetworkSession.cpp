@@ -49,6 +49,7 @@
 #include "RemoteWorkerType.h"
 #include "ServiceWorkerFetchTask.h"
 #include "WebErrors.h"
+#include "WebKit-Swift.h"
 #include "WebPageProxy.h"
 #include "WebPageProxyMessages.h"
 #include "WebProcessProxy.h"
@@ -250,7 +251,7 @@ NetworkSession::NetworkSession(NetworkProcess& networkProcess, const NetworkSess
     , m_privateClickMeasurement(managerOrProxy(*this, networkProcess, parameters))
     , m_privateClickMeasurementDebugModeEnabled(parameters.enablePrivateClickMeasurementDebugMode)
     , m_privateClickMeasurementPrivateRelayEnforcementEnabled(parameters.enablePrivateClickMeasurementPrivateRelayEnforcement)
-    , m_prefetchCache(makeUniqueRef<PrefetchCache>())
+    , m_prefetchCache(NetworkCache::makePrefetchCache())
     , m_broadcastChannelRegistry(NetworkBroadcastChannelRegistry::create(networkProcess))
     , m_testSpeedMultiplier(parameters.testSpeedMultiplier)
     , m_allowsServerPreconnect(parameters.allowsServerPreconnect)
@@ -290,7 +291,7 @@ NetworkSession::NetworkSession(NetworkProcess& networkProcess, const NetworkSess
             if (parameters.shouldUseTestingNetworkSession)
                 cacheOptions.add(NetworkCache::CacheOption::TestingMode);
 
-            m_cache = NetworkCache::Cache::open(networkCacheDirectory, cacheOptions, m_sessionID);
+            m_cache = NetworkCache::openNetworkCache(networkCacheDirectory, cacheOptions, m_sessionID);
 
             if (!m_cache)
                 RELEASE_LOG_ERROR(NetworkCache, "Failed to initialize the WebKit network disk cache");
@@ -414,7 +415,7 @@ void NetworkSession::invalidateAndCancel()
     m_isInvalidated = true;
 
     if (m_cache) {
-        auto networkCacheDirectory = m_cache->storageDirectory();
+        auto networkCacheDirectory = m_cache->getStorageDirectory();
         m_cache = nullptr;
         FileSystem::markPurgeable(networkCacheDirectory);
     }
@@ -990,7 +991,7 @@ void NetworkSession::reportNetworkIssue(WebPageProxyIdentifier pageIdentifier, c
 
 void NetworkSession::lowMemoryHandler(Critical)
 {
-    clearPrefetchCache();
+    m_prefetchCache->clear();
 
     if (RefPtr swServer = m_swServer)
         swServer->handleLowMemoryWarning();
@@ -1219,7 +1220,7 @@ void NetworkSession::setPersistedDomains(HashSet<WebCore::RegistrableDomain>&& d
 
 PrefetchCache& NetworkSession::prefetchCache()
 {
-    return m_prefetchCache.get();
+    return *m_prefetchCache;
 }
 
 #if ENABLE(CONTENT_EXTENSIONS)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,34 +25,28 @@
 
 #pragma once
 
-#include "NetworkCacheBlobStorage.h"
 #include "NetworkCacheData.h"
 #include "NetworkCacheKey.h"
+#include "NetworkCacheRecordFormat.h"
 #include <WebCore/Timer.h>
 #include <wtf/BloomFilter.h>
 #include <wtf/CompletionHandler.h>
-#include <wtf/Deque.h>
 #include <wtf/Function.h>
-#include <wtf/HashCountedSet.h>
 #include <wtf/HashSet.h>
 #include <wtf/MonotonicTime.h>
-#include <wtf/PriorityQueue.h>
+#include <wtf/ObjectIdentifier.h>
+#include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/Vector.h>
 #include <wtf/WallTime.h>
-#include <wtf/WorkQueue.h>
 #include <wtf/text/WTFString.h>
 
-namespace WebKit {
-namespace NetworkCache {
+// The value types, timer and hash table orders of the Swift storage (NetworkCacheStorage.swift).
 
-class IOChannel;
+namespace WebKit::NetworkCache {
 
-class Storage : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<Storage, WTF::DestructionThread::MainRunLoop> {
-    WTF_DEPRECATED_MAKE_FAST_ALLOCATED(Storage);
-    friend struct TestSupportAccess;
-public:
+struct Storage {
     enum class Mode { Normal, AvoidRandomness };
-    static RefPtr<Storage> open(const String& cachePath, Mode, size_t capacity, size_t mainResourceBlobMemoryCacheFileLimit);
 
     enum class ReadOperationIdentifierType { };
     using ReadOperationIdentifier = ObjectIdentifier<ReadOperationIdentifierType>;
@@ -101,16 +95,7 @@ public:
 
     // This may call completion handler synchronously on failure.
     using RetrieveCompletionHandler = CompletionHandler<bool(Record&&, const Timings&)>;
-    void retrieve(const Key&, unsigned priority, RetrieveCompletionHandler&&);
-    NODELETE bool mayContain(const Key&) const;
-
     using MappedBodyHandler = Function<void (const Data& mappedBody)>;
-    void store(const Record&, MappedBodyHandler&&, bool storeBlobInMemoryCache = false);
-
-    void remove(const Key&);
-    void remove(const Vector<Key>&, CompletionHandler<void()>&&);
-    void clear(String&& type, WallTime modifiedSinceTime, CompletionHandler<void()>&&);
-    Vector<Key> pendingWriteKeys(const String& type, const std::optional<String>& partition) const;
 
     struct RecordInfo {
         size_t bodySize;
@@ -125,122 +110,111 @@ public:
         LastAccessedRecordPerPartition = 1 << 2,
     };
     using TraverseHandler = Function<void (const Record*, const RecordInfo&)>;
-    // Null record signals end.
-    void traverse(const String& type, OptionSet<TraverseFlag>, TraverseHandler&&);
-    void traverse(const String& type, const String& partition, OptionSet<TraverseFlag>, TraverseHandler&&);
-
-    void setCapacity(size_t);
-    size_t capacity() const { return m_capacity; }
-    NODELETE size_t approximateSize() const;
 
     // Incrementing this number will delete all existing cache content for everyone. Do you really need to do it?
     static const unsigned version = 18;
-
-    String basePathIsolatedCopy() const;
-    String versionPath() const;
-    String recordsPathIsolatedCopy() const;
-
-    const Salt& salt() const LIFETIME_BOUND { return m_salt; }
-
-    ~Storage();
-
-    void writeWithoutWaiting() { m_initialWriteDelay = 0_s; };
-
-private:
-    Storage(const String& directoryPath, Mode, Salt, size_t capacity, size_t mainResourceBlobMemoryCacheFileLimit);
-
-    String recordDirectoryPathForKey(const Key&) const;
-    String recordPathForKey(const Key&) const;
-    String blobPathForKey(const Key&) const;
-
-    void traverseInternal(const String& partitionName, const String& type, OptionSet<TraverseFlag>, TraverseHandler&&);
-
-    void synchronize();
-    void deleteOldVersions();
-    void shrinkIfNeeded();
-    void shrink();
-
-    class ReadOperation;
-    void dispatchReadOperation(std::unique_ptr<ReadOperation>);
-    void dispatchPendingReadOperations();
-    void finishReadOperation(Storage::ReadOperationIdentifier);
-    void cancelAllReadOperations();
-
-    class WriteOperation;
-    void dispatchWriteOperation(std::unique_ptr<WriteOperation>);
-    void dispatchPendingWriteOperations();
-    void addWriteOperationActivity(WriteOperationIdentifier);
-    bool removeWriteOperationActivity(WriteOperationIdentifier);
-    void finishWriteOperationActivity(WriteOperationIdentifier);
-
-    bool shouldStoreBodyAsBlob(const Data& bodyData);
-    std::optional<BlobStorage::Blob> storeBodyAsBlob(WriteOperationIdentifier, const Storage::Record&, bool);
-    Data encodeRecord(const Record&, std::optional<BlobStorage::Blob>);
-    Record readRecord(const Data&);
-    void readRecordFromData(Storage::ReadOperationIdentifier, MonotonicTime, std::optional<Vector<uint8_t>>&&);
-    void readBlobIfNecessary(Storage::ReadOperationIdentifier, const String& blobPath);
-
-    void updateFileModificationTime(String&& path);
-    void removeFromPendingWriteOperations(const Key&);
-
-    ConcurrentWorkQueue& ioQueue() { return m_ioQueue.get(); }
-    ConcurrentWorkQueue& backgroundIOQueue() { return m_backgroundIOQueue.get(); }
-    WorkQueue& serialBackgroundIOQueue() { return m_serialBackgroundIOQueue.get(); }
-
-    NODELETE bool mayContainBlob(const Key&) const;
-
-    void addToRecordFilter(const Key&);
-    void deleteFiles(const Key&);
-
-    struct ReadOperationIsLowerPriority {
-        NODELETE bool operator()(const std::unique_ptr<ReadOperation>&, const std::unique_ptr<ReadOperation>&) const;
-    };
-
-    size_t estimateRecordsSize(unsigned recordCount, unsigned blobCount) const;
-    uint32_t volumeBlockSize() const;
-
-    const String m_basePath;
-    const String m_recordsPath;
-    
-    const Mode m_mode;
-    const Salt m_salt;
-
-    size_t m_capacity { std::numeric_limits<size_t>::max() };
-    size_t m_approximateRecordsSize { 0 };
-    mutable std::optional<uint32_t> m_volumeBlockSize;
-
-    // 2^18 bit filter can support up to 26000 entries with false positive rate < 1%.
-    using ContentsFilter = BloomFilter<18>;
-    std::unique_ptr<ContentsFilter> m_recordFilter;
-    std::unique_ptr<ContentsFilter> m_blobFilter;
-
-    bool m_synchronizationInProgress { false };
-    bool m_shrinkInProgress { false };
-    size_t m_readOperationDispatchCount { 0 };
-
-    Vector<Key::HashType> m_recordFilterHashesAddedDuringSynchronization;
-    Vector<Key::HashType> m_blobFilterHashesAddedDuringSynchronization;
-
-    PriorityQueue<std::unique_ptr<ReadOperation>, ReadOperationIsLowerPriority> m_pendingReadOperations;
-    HashMap<ReadOperationIdentifier, std::unique_ptr<ReadOperation>> m_activeReadOperations;
-    WebCore::Timer m_readOperationTimeoutTimer;
-
-    Lock m_activitiesLock;
-    HashCountedSet<WriteOperationIdentifier> m_writeOperationActivities WTF_GUARDED_BY_LOCK(m_activitiesLock);
-    Deque<std::unique_ptr<WriteOperation>> m_pendingWriteOperations;
-    HashMap<WriteOperationIdentifier, std::unique_ptr<WriteOperation>> m_activeWriteOperations;
-    WebCore::Timer m_writeOperationDispatchTimer;
-
-    const Ref<ConcurrentWorkQueue> m_ioQueue;
-    const Ref<ConcurrentWorkQueue> m_backgroundIOQueue;
-    const Ref<WorkQueue> m_serialBackgroundIOQueue;
-
-    BlobStorage m_blobStorage;
-
-    // By default, delay the start of writes a bit to avoid affecting early page load.
-    // Completing writes will dispatch more writes without delay.
-    Seconds m_initialWriteDelay { 1_s };
 };
 
-}
-}
+// 2^18 bit filter can support up to 26000 entries with false positive rate < 1%.
+using ContentsFilter = BloomFilter<18>;
+// A heap-allocated filter (32 KB), moved and never copied; null before the first synchronization, when it adds nothing
+// and may contain anything. Swift holds this owner because the importer drops std::unique_ptr<ContentsFilter>.
+class ContentsFilterPointer {
+public:
+    ContentsFilterPointer() = default;
+    static ContentsFilterPointer create() { return ContentsFilterPointer { makeUnique<ContentsFilter>() }; }
+
+    // SHA1::Digest overloads of BloomFilter are templates, which Swift cannot call.
+    void add(const SHA1::Digest& hash)
+    {
+        if (m_filter)
+            m_filter->add(hash);
+    }
+    bool mayContain(const SHA1::Digest& hash) const { return !m_filter || m_filter->mayContain(hash); }
+    void clear()
+    {
+        if (m_filter)
+            m_filter->clear();
+    }
+
+private:
+    explicit ContentsFilterPointer(std::unique_ptr<ContentsFilter>&& filter)
+        : m_filter(WTF::move(filter))
+    {
+    }
+    std::unique_ptr<ContentsFilter> m_filter;
+};
+using KeyVector = Vector<Key>;
+
+// NetworkCacheRecordFormat.swift writes a 20-byte blob hash.
+static_assert(std::tuple_size_v<SHA1::Digest> == 20);
+
+inline bool optionalDigestEquals(const SHA1::Digest& digest, const std::optional<SHA1::Digest>& other) { return digest == other; }
+
+// The identifiers of the storage's operations, from the process's ObjectIdentifier counter.
+inline uint64_t generateReadOperationIdentifier() { return Storage::ReadOperationIdentifier::generate().toUInt64(); }
+inline uint64_t generateWriteOperationIdentifier() { return Storage::WriteOperationIdentifier::generate().toUInt64(); }
+
+// The active reads, in the order they are canceled in; reference-counted, since Swift cannot hold a HashSet safely.
+class ReadOperationOrder : public RefCounted<ReadOperationOrder> {
+public:
+    // Out of line: inline, two create() functions merge into one unnamed function that the Windows Debug Swift
+    // compile cannot emit.
+    static Ref<ReadOperationOrder> create();
+    void add(uint64_t identifier) { m_identifiers.add(Storage::ReadOperationIdentifier { identifier }); }
+    void remove(uint64_t identifier) { m_identifiers.remove(Storage::ReadOperationIdentifier { identifier }); }
+    Vector<uint64_t> inOrder() const { return WTF::map(m_identifiers, [](auto identifier) { return identifier.toUInt64(); }); }
+private:
+    ReadOperationOrder() = default;
+    HashSet<Storage::ReadOperationIdentifier> m_identifiers;
+};
+
+// A traversal's record directories in a HashMap<String, PartitionEntry>'s iteration order.
+class RecordDirectoryOrder : public RefCounted<RecordDirectoryOrder> {
+public:
+    static Ref<RecordDirectoryOrder> create();
+    void add(const String& path) { m_paths.add(path); }
+    Vector<String> inOrder() const { return copyToVector(m_paths); }
+private:
+    RecordDirectoryOrder() = default;
+    HashSet<String> m_paths;
+};
+
+// The storage's timer. The handler runs once, when the timer fires or, if still set, when the timer is destroyed, since
+// a CompletionHandler must be called.
+class OneShotTimer : public RefCounted<OneShotTimer> {
+public:
+    static Ref<OneShotTimer> create() { return adoptRef(*new OneShotTimer); }
+    ~OneShotTimer()
+    {
+        if (m_handler)
+            m_handler();
+    }
+    bool hasHandler() const { return !!m_handler; }
+    bool isActive() const { return m_timer.isActive(); }
+    void setHandler(CompletionHandler<void()>&& handler) { m_handler = WTF::move(handler); }
+    void startOneShot(double delay) { m_timer.startOneShot(Seconds { delay }); }
+    void stop() { m_timer.stop(); }
+
+private:
+    OneShotTimer()
+        : m_timer([this] { fired(); }) { }
+    void fired()
+    {
+        if (auto handler = std::exchange(m_handler, { }))
+            handler();
+    }
+    WebCore::Timer m_timer;
+    CompletionHandler<void()> m_handler;
+};
+
+#if ENABLE(NETWORK_CACHE_BLOB_STORAGE_MEMORY_CACHE)
+constexpr bool networkCacheBlobMemoryCacheEnabled = true;
+#else
+constexpr bool networkCacheBlobMemoryCacheEnabled = false;
+#endif
+
+// The hash WTF's HashMap<Key, ...> uses.
+inline unsigned networkCacheKeyHash(const Key& key) { return WTF::NetworkCacheKeyHash::hash(key); }
+
+} // namespace WebKit::NetworkCache

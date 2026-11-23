@@ -65,6 +65,7 @@
 #include "ShouldGrandfatherStatistics.h"
 #include "StorageAccessStatus.h"
 #include "WebCookieManager.h"
+#include "WebKit-Swift.h"
 #include "WebPageProxyMessages.h"
 #include "WebProcessPoolMessages.h"
 #include "WebPushMessage.h"
@@ -121,6 +122,7 @@
 
 #include "NetworkCache.h"
 #include "NetworkCacheCoders.h"
+#include "NetworkCacheWebsiteData.h"
 
 #if PLATFORM(COCOA)
 #include "CookieStorageUtilsCF.h"
@@ -846,8 +848,8 @@ void NetworkProcess::registrableDomainsWithLastAccessedTime(PAL::SessionID sessi
 void NetworkProcess::diskCacheOriginAccessTimes(PAL::SessionID sessionID, CompletionHandler<void(HashMap<WebCore::RegistrableDomain, WallTime>&&)>&& completionHandler)
 {
     if (CheckedPtr session = networkSession(sessionID)) {
-        if (RefPtr cache = session->cache()) {
-            cache->fetchOriginAccessTimes(WTF::move(completionHandler));
+        if (auto* cache = session->cache()) {
+            NetworkCache::fetchOriginAccessTimes(*cache, WTF::move(completionHandler));
             return;
         }
     }
@@ -1962,8 +1964,8 @@ void NetworkProcess::fetchWebsiteData(PAL::SessionID sessionID, OptionSet<Websit
         });
     }
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && session) {
-        if (RefPtr cache = session->cache()) {
-            cache->fetchData(fetchOptions.contains(WebsiteDataFetchOption::ComputeSizes), [callbackAggregator](auto entries) mutable {
+        if (auto* cache = session->cache()) {
+            NetworkCache::fetchData(*cache, fetchOptions.contains(WebsiteDataFetchOption::ComputeSizes), [callbackAggregator](auto entries) mutable {
                 callbackAggregator->m_websiteData.entries.appendVector(entries);
             });
         }
@@ -2114,8 +2116,8 @@ void NetworkProcess::deleteWebsiteDataImpl(PAL::SessionID sessionID, OptionSet<W
         CrossOriginPreflightResultCache::singleton().clear();
 
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && session) {
-        if (RefPtr cache = session->cache())
-            cache->clear(modifiedSince, [clearTasksHandler] { });
+        if (auto* cache = session->cache())
+            cache->clear(modifiedSince, NetworkCache::VoidHandlerBox::create([clearTasksHandler] { }).ptr());
     }
 
     if (websiteDataTypes.contains(WebsiteDataType::PrivateClickMeasurements) && session)
@@ -2135,53 +2137,6 @@ void NetworkProcess::deleteWebsiteDataImpl(PAL::SessionID sessionID, OptionSet<W
         session->storageManager().deleteDataModifiedSince(websiteDataTypes, modifiedSince, [clearTasksHandler] { });
 }
 
-enum class CacheRecordsToDelete : bool { AllTypes, CompressionDictionariesOnly };
-
-static void deleteCacheRecordsForOrigin(NetworkCache::Cache& cache, const ClientOrigin& origin, CacheRecordsToDelete recordsToDelete, Ref<WTF::CallbackAggregator>&& clearTasksHandler)
-{
-    Vector<NetworkCache::Key> cacheKeysToDelete;
-    RegistrableDomain topDomain = RegistrableDomain::uncheckedCreateFromHost(origin.topOrigin.host());
-    String cachePartition = origin.clientOrigin == origin.topOrigin ? emptyString() : (topDomain.isEmpty() ? emptyString() : topDomain.string());
-    // A first-party origin has no partition of its own, so its traversal sees every origin's
-    // records; only whole-disk-cache removal is allowed to take them all.
-    bool shouldClearAllEntriesInPartition = origin.clientOrigin == origin.topOrigin && recordsToDelete == CacheRecordsToDelete::AllTypes;
-    auto matches = [shouldClearAllEntriesInPartition, clientOrigin = origin.clientOrigin](const std::optional<URL>& url) {
-        return shouldClearAllEntriesInPartition || (url && SecurityOriginData::fromURLWithoutStrictOpaqueness(*url) == clientOrigin);
-    };
-    // A dictionary is indexed when it is registered, before its record has been written, so the
-    // traversal below cannot see one that was registered moments ago. Take those now, and remove
-    // only what was registered by this point, since the same key is reused when a dictionary is
-    // registered again.
-    auto deletionTime = WallTime::now();
-    for (auto& key : cache.compressionDictionaryKeys(cachePartition)) {
-        if (matches(URL { key.identifier() }))
-            cacheKeysToDelete.append(key);
-    }
-    // Likewise, a resource stored moments ago may still be waiting to be written.
-    if (recordsToDelete == CacheRecordsToDelete::AllTypes) {
-        for (auto& key : cache.pendingKeys({ NetworkCache::RecordType::Resource }, cachePartition)) {
-            if (matches(URL { key.identifier() }))
-                cacheKeysToDelete.append(key);
-        }
-    }
-
-    auto recordHandler = [cache = Ref { cache }, clearTasksHandler = WTF::move(clearTasksHandler), shouldClearAllEntriesInPartition, matches = WTF::move(matches), cachePartition, deletionTime, cacheKeysToDelete = WTF::move(cacheKeysToDelete)](auto* traversalRecord) mutable {
-        if (traversalRecord) {
-            ASSERT_UNUSED(cachePartition, equalIgnoringNullity(traversalRecord->record.key.partition(), cachePartition));
-            if (shouldClearAllEntriesInPartition || matches(traversalRecord->url()))
-                cacheKeysToDelete.append(traversalRecord->record.key);
-            return;
-        }
-
-        cache->remove(cacheKeysToDelete, [clearTasksHandler] { }, deletionTime);
-    };
-
-    if (recordsToDelete == CacheRecordsToDelete::CompressionDictionariesOnly)
-        cache.traverseCompressionDictionaryRecords(cachePartition, WTF::move(recordHandler));
-    else
-        cache.traverseRecords(cachePartition, WTF::move(recordHandler));
-}
-
 void NetworkProcess::deleteWebsiteDataForOrigin(PAL::SessionID sessionID, OptionSet<WebsiteDataType> websiteDataTypes, const ClientOrigin& origin, CompletionHandler<void()>&& completionHandler)
 {
     auto clearTasksHandler = WTF::CallbackAggregator::create([completionHandler = WTF::move(completionHandler)]() mutable {
@@ -2198,13 +2153,13 @@ void NetworkProcess::deleteWebsiteDataForOrigin(PAL::SessionID sessionID, Option
         // Compression dictionaries are cleared along with cookies, see
         // https://github.com/w3c/webappsec-clear-site-data/pull/94.
         if (!websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral() && session) {
-            if (RefPtr cache = session->cache())
-                deleteCacheRecordsForOrigin(*cache, origin, CacheRecordsToDelete::CompressionDictionariesOnly, clearTasksHandler.copyRef());
+            if (auto* cache = session->cache())
+                NetworkCache::deleteRecordsForOrigin(*cache, origin, NetworkCache::CacheRecordsToDelete::CompressionDictionariesOnly, clearTasksHandler.copyRef());
         }
     }
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && !sessionID.isEphemeral() && session) {
-        if (RefPtr cache = session->cache())
-            deleteCacheRecordsForOrigin(*cache, origin, CacheRecordsToDelete::AllTypes, clearTasksHandler.copyRef());
+        if (auto* cache = session->cache())
+            NetworkCache::deleteRecordsForOrigin(*cache, origin, NetworkCache::CacheRecordsToDelete::AllTypes, clearTasksHandler.copyRef());
     }
     if (NetworkStorageManager::canHandleTypes(websiteDataTypes) && session)
         session->storageManager().deleteData(websiteDataTypes, origin, [clearTasksHandler] { });
@@ -2266,8 +2221,8 @@ void NetworkProcess::deleteWebsiteDataForOrigins(PAL::SessionID sessionID, Optio
         CrossOriginPreflightResultCache::singleton().clear();
 
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && session) {
-        if (RefPtr cache = session->cache())
-            cache->deleteData(originDatas, [clearTasksHandler] { });
+        if (auto* cache = session->cache())
+            NetworkCache::deleteData(*cache, originDatas, [clearTasksHandler] { });
     }
 
     if (websiteDataTypes.contains(WebsiteDataType::Credentials)) {
@@ -2448,8 +2403,8 @@ void NetworkProcess::deleteAndRestrictWebsiteDataForRegistrableDomains(PAL::Sess
     }
 
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && session) {
-        if (RefPtr cache = session->cache()) {
-            cache->deleteDataForRegistrableDomains(domainsToDeleteAllScriptWrittenStorageFor, [callbackAggregator](auto&& deletedDomains) mutable {
+        if (auto* cache = session->cache()) {
+            NetworkCache::deleteDataForRegistrableDomains(*cache, domainsToDeleteAllScriptWrittenStorageFor, [callbackAggregator](auto&& deletedDomains) mutable {
                 for (auto domain : deletedDomains)
                     callbackAggregator->m_domains.add(WTF::move(domain));
             });
@@ -2557,8 +2512,8 @@ void NetworkProcess::registrableDomainsWithWebsiteData(PAL::SessionID sessionID,
     }
     
     if (websiteDataTypes.contains(WebsiteDataType::DiskCache) && session) {
-        if (RefPtr cache = session->cache()) {
-            cache->fetchData(false, [callbackAggregator](auto entries) mutable {
+        if (auto* cache = session->cache()) {
+            NetworkCache::fetchData(*cache, false, [callbackAggregator](auto entries) mutable {
                 callbackAggregator->m_websiteData.entries.appendVector(entries);
             });
         }
@@ -2706,7 +2661,7 @@ void NetworkProcess::setCacheModel(CacheModel cacheModel)
     m_cacheModel = cacheModel;
 
     forEachNetworkSession([](auto& session) {
-        if (RefPtr cache = session.cache())
+        if (auto* cache = session.cache())
             cache->updateCapacity();
     });
 }

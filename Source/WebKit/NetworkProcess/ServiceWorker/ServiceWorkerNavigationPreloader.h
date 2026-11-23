@@ -26,7 +26,7 @@
 #pragma once
 
 #include "DownloadID.h"
-#include "NetworkCacheEntry.h"
+#include "NetworkCacheForward.h"
 #include "NetworkLoadClient.h"
 #include "NetworkLoadParameters.h"
 #include <WebCore/NavigationPreloadState.h>

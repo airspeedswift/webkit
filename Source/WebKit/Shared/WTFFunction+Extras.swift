@@ -28,21 +28,14 @@ import wtf.Core.Function
 
 // How Swift builds a `WTF::Function` from a closure.
 //
-// The protocols below are `fileprivate`, and every conformance to them is declared in this file, each with its
-// `Output` and `Argument` stated equal to the C++ specialization's return and parameter types: the generic
-// initializers write an `Output` into, and read an `Argument` from, C++ storage of those types, so a conformance
-// with any other type would be a memory-safety hole. A conformance's `callAsFunction` requirement is witnessed by the
-// imported C++ `operator()`, which makes the compiler check those types. Each conformer gets a non-generic
-// `init(sendable:)` that forwards to the generic one; that is the only way the rest of the module makes a Function.
-//
-// A conformance also states the C++ shape it belongs to: a `Function<void(A)>` conforms only to `CxxArgumentFunction`,
-// never to `CxxResultArgumentFunction` with `Output = Void`, because the two read a different argument frame.
-//
-// To let Swift build another specialization, add its conformance and its `init(sendable:)` here.
+// Conformances state `Output` and `Argument` equal to the C++ specialization's types (the compiler checks them against
+// `operator()`); a wrong type would read or write the wrong storage. A `Function<void(A)>` conforms only to
+// `CxxArgumentFunction`, never to `CxxResultArgumentFunction` with `Output = Void`, which reads another argument frame.
+// Each conformer adds an `init(sendable:)` beside its user, the one a caller should use.
 
 /// The machinery shared by ``CxxVoidFunction``, ``CxxResultFunction``, ``CxxArgumentFunction`` and
 /// ``CxxResultArgumentFunction``.
-fileprivate protocol CxxFunctionBase: ~Copyable {
+protocol CxxFunctionBase: ~Copyable {
     /// Creates a function from the C ABI a Swift closure reduces to: a function pointer, an opaque context, and a
     /// destructor for that context.
     ///
@@ -54,10 +47,10 @@ fileprivate protocol CxxFunctionBase: ~Copyable {
 }
 
 /// A `WTF::Function` specialization that takes no argument and returns `void`, which Swift can build from a closure.
-fileprivate protocol CxxVoidFunction: CxxFunctionBase, ~Copyable {}
+protocol CxxVoidFunction: CxxFunctionBase, ~Copyable {}
 
 /// A `WTF::Function<Output()>`, which Swift can build from a closure that returns the `Output` (move-only or not).
-fileprivate protocol CxxResultFunction: CxxFunctionBase, ~Copyable {
+protocol CxxResultFunction: CxxFunctionBase, ~Copyable {
     /// State this explicitly, matching the C++ return type: `typealias Output = Reply`.
     associatedtype Output: ~Copyable
 
@@ -69,7 +62,7 @@ fileprivate protocol CxxResultFunction: CxxFunctionBase, ~Copyable {
 }
 
 /// A `WTF::Function<void(Argument)>` with a by-value, copyable argument, which Swift can build from a closure.
-fileprivate protocol CxxArgumentFunction: CxxFunctionBase, ~Copyable {
+protocol CxxArgumentFunction: CxxFunctionBase, ~Copyable {
     /// State this explicitly, matching the C++ parameter type: `typealias Argument = CInt`.
     associatedtype Argument: Copyable
 
@@ -82,7 +75,7 @@ fileprivate protocol CxxArgumentFunction: CxxFunctionBase, ~Copyable {
 
 /// A `WTF::Function<Output(Argument)>` with a by-value, copyable argument, which Swift can build from a closure that
 /// returns the `Output` (move-only or not).
-fileprivate protocol CxxResultArgumentFunction: CxxFunctionBase, ~Copyable {
+protocol CxxResultArgumentFunction: CxxFunctionBase, ~Copyable {
     /// State this explicitly, matching the C++ parameter type.
     associatedtype Argument: Copyable
 
@@ -121,7 +114,7 @@ extension CxxVoidFunction where Self: ~Copyable {
     ///
     /// - Parameter body: The Swift closure to call.
     @safe
-    fileprivate init(cxxSendable body: @escaping @Sendable () -> Void) {
+    init(cxxSendable body: @escaping @Sendable () -> Void) {
         self.init(box: unsafe SwiftSendableClosureBox { argument in
             unsafe precondition(argument == nil)
             body()
@@ -137,7 +130,7 @@ extension CxxResultFunction where Self: ~Copyable {
     ///
     /// - Parameter body: The Swift closure to call.
     @safe
-    fileprivate init(cxxSendable body: @escaping @Sendable () -> Output) {
+    init(cxxSendable body: @escaping @Sendable () -> Output) {
         self.init(box: unsafe SwiftSendableClosureBox { argument in
             // Safe because the C++ caller passes non-nil, aligned, uninitialized storage for an `Output`, and the
             // closure is called once per call.
@@ -152,7 +145,7 @@ extension CxxArgumentFunction where Self: ~Copyable {
     ///
     /// - Parameter body: The Swift closure to call.
     @safe
-    fileprivate init(cxxSendable body: @escaping @Sendable (Argument) -> Void) {
+    init(cxxSendable body: @escaping @Sendable (Argument) -> Void) {
         self.init(box: unsafe SwiftSendableClosureBox { argument in
             // Safe because the C++ caller passes the address of its live argument, which is only read here.
             unsafe precondition(argument != nil)
@@ -169,7 +162,7 @@ extension CxxResultArgumentFunction where Self: ~Copyable {
     ///
     /// - Parameter body: The Swift closure to call.
     @safe
-    fileprivate init(cxxSendable body: @escaping @Sendable (Argument) -> Output) {
+    init(cxxSendable body: @escaping @Sendable (Argument) -> Output) {
         self.init(box: unsafe SwiftSendableClosureBox { argument in
             // Safe because the C++ caller passes a `WTF::SwiftClosureResultFrame` holding the address of its live
             // argument, which is only read here, and of non-nil, aligned, uninitialized storage for an `Output`; the
@@ -220,16 +213,6 @@ extension WTF.VoidFunction: @unsafe CxxVoidFunction {}
 extension WTF.VoidFunction {
     /// Creates a `WTF::Function<void()>` from a Swift closure.
     init(sendable body: @escaping @Sendable () -> Void) {
-        self.init(cxxSendable: body)
-    }
-}
-
-// A whole-file read (NetworkCacheStorage.h), which hands the file's bytes to its completion.
-
-extension WebKit.NetworkCache.NetworkCacheFileReadCompletion: CxxArgumentFunction {
-    typealias Argument = WebKit.NetworkCache.Data
-
-    init(sendable body: @escaping @Sendable (WebKit.NetworkCache.Data) -> Void) {
         self.init(cxxSendable: body)
     }
 }

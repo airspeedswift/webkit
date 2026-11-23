@@ -37,6 +37,7 @@
 #import "NetworkProcess.h"
 #import "NetworkSessionCocoa.h"
 #import "NetworkStorageSession.h"
+#import "WebKit-Swift.h"
 #import "WebPrivacyHelpers.h"
 #import <WebCore/AdvancedPrivacyProtections.h>
 #import <WebCore/AuthenticationChallenge.h>
@@ -605,7 +606,7 @@ void NetworkDataTaskCocoa::updateCompressionDictionaryForRedirect(WebCore::Resou
         return;
 
     CheckedPtr session = networkSession();
-    RefPtr cache = session ? session->cache() : nullptr;
+    auto* cache = session ? session->cache() : nullptr;
     if (!cache)
         return;
 
@@ -620,20 +621,20 @@ void NetworkDataTaskCocoa::updateCompressionDictionaryForRedirect(WebCore::Resou
 void NetworkDataTaskCocoa::needsCompressionDictionary(std::span<const uint8_t> sha256, CompletionHandler<void(RefPtr<WebCore::SharedBuffer>&&)>&& completionHandler)
 {
     CheckedPtr session = networkSession();
-    RefPtr cache = session ? session->cache() : nullptr;
+    auto* cache = session ? session->cache() : nullptr;
     if (!cache || !m_compressionDictionary || !m_compressionDictionary->match || !equalSpans(sha256, std::span { m_compressionDictionary->match->hash })) {
         failForUnavailableCompressionDictionary();
         return completionHandler(nullptr);
     }
 
     auto& match = *m_compressionDictionary->match;
-    cache->retrieveCompressionDictionary(match.key, match.hash, [weakThis = ThreadSafeWeakPtr { *this }, completionHandler = WTF::move(completionHandler)](RefPtr<WebCore::SharedBuffer>&& buffer) mutable {
+    cache->retrieveCompressionDictionary(match.key, match.hash, NetworkCache::SharedBufferHandlerBox::create([weakThis = ThreadSafeWeakPtr { *this }, completionHandler = WTF::move(completionHandler)](RefPtr<WebCore::SharedBuffer>&& buffer) mutable {
         if (!buffer) {
             if (RefPtr protectedThis = weakThis)
                 protectedThis->failForUnavailableCompressionDictionary();
         }
         completionHandler(WTF::move(buffer));
-    });
+    }).ptr());
 }
 
 void NetworkDataTaskCocoa::failForUnavailableCompressionDictionary()

@@ -83,10 +83,6 @@ enum class ViolationReportType : uint8_t;
 
 struct ResourceLoadInfo;
 
-namespace NetworkCache {
-class Entry;
-}
-
 class NetworkResourceLoader final
     : public RefCounted<NetworkResourceLoader>
     , public NetworkLoadClient
@@ -315,7 +311,7 @@ private:
     void startPreconnectTaskAfterContentRuleListCheck(NetworkLoadParameters&&, const URL& mainDocumentURL);
     void startPreconnectTaskIgnoringContentRuleLists(NetworkLoadParameters&&);
 
-    void logSlowCacheRetrieveIfNeeded(const NetworkCache::Cache::RetrieveInfo&);
+    void logSlowCacheRetrieveIfNeeded(const NetworkCache::RetrieveInfo&);
 
     std::optional<Seconds> validateCacheEntryForMaxAgeCapValidation(const WebCore::ResourceRequest&, const WebCore::ResourceRequest& redirectRequest, const WebCore::ResourceResponse&);
 
@@ -382,9 +378,9 @@ private:
 #endif
 
     WebCore::Timer m_bufferingTimer;
-    RefPtr<NetworkCache::Cache> m_cache;
+    NetworkCache::NetworkCachePtr m_cache;
     WebCore::SharedBufferBuilder m_bufferedDataForCache;
-    std::optional<NetworkCache::CompressionDictionaryEntry::Info> m_compressionDictionaryInfoForCache;
+    std::optional<NetworkCache::CompressionDictionaryInfo> m_compressionDictionaryInfoForCache;
     std::unique_ptr<NetworkCache::Entry> m_cacheEntryForValidation;
     std::unique_ptr<NetworkCache::Entry> m_cacheEntryForMaxAgeCapValidation;
     bool m_isWaitingContinueWillSendRequestForCachedRedirect { false };

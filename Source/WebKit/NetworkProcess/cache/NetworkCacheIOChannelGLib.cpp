@@ -26,7 +26,7 @@
 #include "config.h"
 #include "NetworkCacheIOChannel.h"
 
-#include "NetworkCacheFileSystem.h"
+#include <wtf/FileSystem.h>
 #include <wtf/MainThread.h>
 #include <wtf/RunLoop.h>
 #include <wtf/Threading.h>

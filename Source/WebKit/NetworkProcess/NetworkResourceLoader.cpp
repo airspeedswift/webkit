@@ -34,7 +34,6 @@
 #include "MessageSenderInlines.h"
 #include "NavigationResponseProcessSwap.h"
 #include "NetworkCache.h"
-#include "NetworkCacheSpeculativeLoadManager.h"
 #include "NetworkConnectionToWebProcess.h"
 #include "NetworkConnectionToWebProcessMessages.h"
 #include "NetworkLoad.h"
@@ -56,6 +55,7 @@
 #include "SharedBufferReference.h"
 #include "WebErrors.h"
 #include "WebFrameProxyFromNetworkProcessMessages.h"
+#include "WebKit-Swift.h"
 #include "WebLoaderStrategy.h"
 #include "WebPageMessages.h"
 #include "WebResourceLoaderMessages.h"
@@ -189,8 +189,10 @@ NetworkResourceLoader::NetworkResourceLoader(NetworkResourceLoadParameters&& par
 {
     ASSERT(RunLoop::isMain());
 
-    if (CheckedPtr session = NetworkProcess::singleton().networkSession(sessionID()))
-        m_cache = session->cache();
+    if (CheckedPtr session = NetworkProcess::singleton().networkSession(sessionID())) {
+        if (auto* cache = session->cache())
+            m_cache = NetworkCache::retainedCopy(*cache);
+    }
 
     NetworkLoadChecker::LoadType requestLoadType = isMainFrameLoad() ? NetworkLoadChecker::LoadType::MainFrame : NetworkLoadChecker::LoadType::Other;
     lazyInitialize(m_networkLoadChecker, NetworkLoadChecker::create(this,  &connection.schemeRegistry(), FetchOptions { m_parameters.options },
@@ -355,30 +357,34 @@ void NetworkResourceLoader::retrieveCacheEntry(const ResourceRequest& request)
     ASSERT(canUseCache(request));
 
     Ref protectedThis { *this };
-    RefPtr cache = m_cache;
+    // Kept for the store and the completion below.
+    auto cache = *m_cache;
     if (isMainFrameLoad()) {
         ASSERT(m_parameters.options.mode == FetchOptions::Mode::Navigate);
         if (CheckedPtr session = protect(NetworkProcess::singleton())->networkSession(sessionID())) {
             if (auto entry = session->prefetchCache().take(request.url())) {
-                LOADER_RELEASE_LOG("retrieveCacheEntry: retrieved an entry from the prefetch cache (isRedirect=%d)", !entry->redirectRequest.isNull());
-                if (!entry->redirectRequest.isNull()) {
-                    auto cacheEntry = cache->makeRedirectEntry(request, entry->response, entry->redirectRequest);
+                auto response = entry.get().getResponse();
+                auto redirectRequest = entry.get().redirectRequest();
+                LOADER_RELEASE_LOG("retrieveCacheEntry: retrieved an entry from the prefetch cache (isRedirect=%d)", !redirectRequest.isNull());
+                if (!redirectRequest.isNull()) {
+                    auto cacheEntry = NetworkCache::entryPointer(cache.makeRedirectEntry(request, response, redirectRequest));
                     retrieveCacheEntryInternal(WTF::move(cacheEntry), ResourceRequest { request });
-                    auto maxAgeCap = validateCacheEntryForMaxAgeCapValidation(request, entry->redirectRequest, entry->response);
-                    cache->storeRedirect(request, entry->response, entry->redirectRequest, maxAgeCap);
+                    auto maxAgeCap = validateCacheEntryForMaxAgeCapValidation(request, redirectRequest, response);
+                    cache.storeRedirect(request, response, redirectRequest, maxAgeCap);
                     return;
                 }
-                auto buffer = entry->releaseBuffer();
-                auto cacheEntry = cache->makeEntry(request, entry->response, entry->privateRelayed, buffer.copyRef());
+                auto buffer = entry.get().buffer().releaseNonNull();
+                auto privateRelayed = entry.get().privateRelayed();
+                auto cacheEntry = NetworkCache::entryPointer(cache.makeEntry(request, response, privateRelayed, buffer.copyRef()));
                 retrieveCacheEntryInternal(WTF::move(cacheEntry), ResourceRequest { request });
-                cache->store(request, entry->response, entry->privateRelayed, WTF::move(buffer));
+                cache.store(request, response, privateRelayed, WTF::move(buffer), NetworkCache::MappedBodyHandlerBox::create().ptr());
                 return;
             }
         }
     }
 
     LOADER_RELEASE_LOG("retrieveCacheEntry: Checking the HTTP disk cache");
-    cache->retrieve(request, globalFrameID(), m_parameters.isNavigatingToAppBoundDomain, m_parameters.allowPrivacyProxy, m_parameters.advancedPrivacyProtections, [weakThis = WeakPtr { *this }, request = ResourceRequest { request }](auto entry, auto info) mutable {
+    NetworkCache::retrieveFromNetworkCache(cache, request, globalFrameID(), m_parameters.isNavigatingToAppBoundDomain, m_parameters.allowPrivacyProxy, m_parameters.advancedPrivacyProtections, [weakThis = WeakPtr { *this }, request = ResourceRequest { request }](std::unique_ptr<NetworkCache::Entry> entry, const NetworkCache::RetrieveInfo& info) mutable {
         RefPtr protectedThis = weakThis.get();
         if (!protectedThis)
             return;
@@ -513,7 +519,7 @@ void NetworkResourceLoader::startNetworkLoad(ResourceRequest&& request, FirstLoa
         // 9. If bestMatch is null, then return the result of running fallback.
         // 10-12. Available-Dictionary, Dictionary-ID and the Accept-Encoding update are left to
         //        the network layer, which has to redo this for a redirect anyway.
-        if (auto match = protect(m_cache)->bestCompressionDictionaryMatch(request, destination))
+        if (auto match = m_cache->bestCompressionDictionaryMatch(request, destination))
             parameters.compressionDictionary->match = CompressionDictionaryParameters::Match { match->key, match->hash, match->id };
     }
 
@@ -780,7 +786,7 @@ void NetworkResourceLoader::abort()
         if (canUseCache(networkLoad->currentRequest())) {
             // We might already have used data from this incomplete load. Ensure older versions don't remain in the cache after cancel.
             if (!m_response.isNull())
-                protect(m_cache)->remove(networkLoad->currentRequest());
+                m_cache->removeRequest(networkLoad->currentRequest());
         }
         LOADER_RELEASE_LOG("abort: Cancelling network load");
         networkLoad->cancel();
@@ -1159,7 +1165,7 @@ void NetworkResourceLoader::processUseAsDictionaryHeader(const ResourceResponse&
     if (!dictionaryValue)
         return;
 
-    NetworkCache::CompressionDictionaryEntry::Info info;
+    NetworkCache::CompressionDictionaryInfo info;
     for (auto& [name, valueAndParameters] : *dictionaryValue) {
         auto& value = valueAndParameters.first;
         if (name == "match"_s) {
@@ -1237,7 +1243,7 @@ void NetworkResourceLoader::storeCompressionDictionaryIfNeeded(const ResourceRes
 
     LOADER_RELEASE_LOG("storeCompressionDictionaryIfNeeded: Storing compression dictionary in HTTP disk cache");
     auto info = std::exchange(m_compressionDictionaryInfoForCache, std::nullopt);
-    protect(m_cache)->storeCompressionDictionary(m_networkLoad ? m_networkLoad->currentRequest() : originalRequest(), response, WTF::move(body), WTF::move(*info));
+    m_cache->storeCompressionDictionary(m_networkLoad ? m_networkLoad->currentRequest() : originalRequest(), response, WTF::move(body), WTF::move(*info));
 }
 
 NODELETE static BrowsingContextGroupSwitchDecision toBrowsingContextGroupSwitchDecision(const std::optional<CrossOriginOpenerPolicyEnforcementResult>& currentCoopEnforcementResult)
@@ -1468,7 +1474,7 @@ void NetworkResourceLoader::didReceiveResponse(ResourceResponse&& receivedRespon
         bool validationSucceeded = m_response.httpStatusCode() == httpStatus304NotModified;
         LOADER_RELEASE_LOG("didReceiveResponse: Received revalidation response (validationSucceeded=%d, wasOriginalRequestConditional=%d)", validationSucceeded, originalRequest().isConditional());
         if (validationSucceeded) {
-            m_cacheEntryForValidation = protect(m_cache)->update(originalRequest(), *m_cacheEntryForValidation, m_response, m_privateRelayed);
+            m_cacheEntryForValidation = NetworkCache::entryPointer(m_cache->update(originalRequest(), *m_cacheEntryForValidation, m_response, m_privateRelayed));
             if (protect(connectionToWebProcess())->compressionDictionaryEnabled()) {
                 processUseAsDictionaryHeader(m_cacheEntryForValidation->response());
                 storeCompressionDictionaryIfNeeded(m_cacheEntryForValidation->response(), m_cacheEntryForValidation->buffer());
@@ -1945,7 +1951,7 @@ std::optional<Seconds> NetworkResourceLoader::validateCacheEntryForMaxAgeCapVali
         if (redirectResponse.httpHeaderField(WebCore::HTTPHeaderName::Location) == m_cacheEntryForMaxAgeCapValidation->response().httpHeaderField(WebCore::HTTPHeaderName::Location))
             existingCacheEntryMatchesNewResponse = true;
 
-        protect(m_cache)->remove(m_cacheEntryForMaxAgeCapValidation->key());
+        m_cache->removeKey(m_cacheEntryForMaxAgeCapValidation->key());
         m_cacheEntryForMaxAgeCapValidation = nullptr;
     }
     
@@ -2018,7 +2024,7 @@ void NetworkResourceLoader::continueWillSendRedirectedRequestAfterLocalNetworkAc
     if (isFromServiceWorker == IsFromServiceWorker::No) {
         auto maxAgeCap = validateCacheEntryForMaxAgeCapValidation(request, redirectRequest, redirectResponse);
         if (redirectResponse.source() == ResourceResponse::Source::Network && canUseCachedRedirect(request))
-            protect(m_cache)->storeRedirect(request, redirectResponse, redirectRequest, maxAgeCap);
+            m_cache->storeRedirect(request, redirectResponse, redirectRequest, maxAgeCap);
     }
 
     if (auto error = doCrossOriginOpenerHandlingOfResponse(redirectResponse)) {
@@ -2487,21 +2493,21 @@ void NetworkResourceLoader::tryStoreAsCacheEntry()
     storeCompressionDictionaryIfNeeded(m_response, m_bufferedDataForCache.copyBuffer());
 
     LOADER_RELEASE_LOG("tryStoreAsCacheEntry: Storing entry in HTTP disk cache");
-    protect(m_cache)->store(m_networkLoad->currentRequest(), m_response, m_privateRelayed, m_bufferedDataForCache.takeBuffer(), [loader = Ref { *this }](auto&& mappedBody) mutable {
+    m_cache->store(m_networkLoad->currentRequest(), m_response, m_privateRelayed, m_bufferedDataForCache.takeBuffer(), NetworkCache::MappedBodyHandlerBox::create([loader = Ref { *this }](auto&& mappedBody) mutable {
 #if ENABLE(SHAREABLE_RESOURCE)
         if (!mappedBody.shareableResourceHandle)
             return;
         LOG(NetworkCache, "(NetworkProcess) sending DidCacheResource");
         loader->send(Messages::NetworkProcessConnection::DidCacheResource(loader->originalRequest(), WTF::move(*mappedBody.shareableResourceHandle)));
 #endif
-    });
+    }).ptr());
 }
 
 void NetworkResourceLoader::didReceiveMainResourceResponse(const WebCore::ResourceResponse& response)
 {
     LOADER_RELEASE_LOG("didReceiveMainResourceResponse:");
-    if (CheckedPtr speculativeLoadManager = m_cache ? m_cache->speculativeLoadManager() : nullptr)
-        speculativeLoadManager->registerMainResourceLoadResponse(globalFrameID(), originalRequest(), response);
+    if (m_cache)
+        m_cache->registerMainResourceLoadResponse(globalFrameID(), originalRequest(), response);
     if (auto& certificateInfo = response.certificateInfo(); certificateInfo && !certificateInfo->isEmpty())
         protect(NetworkProcess::singleton())->parentProcessConnection()->send(Messages::WebFrameProxyFromNetworkProcess::ReceivedMainResourceResponseWithCertificateInfo(response.url().hostAndPort(), *certificateInfo), frameID());
 }
@@ -2614,7 +2620,7 @@ void NetworkResourceLoader::continueDidRetrieveCacheEntryAfterLocalNetworkAccess
     response = sanitizeResponseIfPossible(WTF::move(response), ResourceResponse::SanitizationType::CrossOriginSafe);
     if (isSynchronous()) {
         m_synchronousLoadData->response = WTF::move(response);
-        sendReplyToSynchronousRequest(*m_synchronousLoadData, protect(entry->buffer()).get(), { });
+        sendReplyToSynchronousRequest(*m_synchronousLoadData, entry->buffer().get(), { });
         cleanup(LoadResult::Success);
         return;
     }
@@ -2661,9 +2667,10 @@ void NetworkResourceLoader::sendResultForCacheEntry(std::unique_ptr<NetworkCache
 #endif
 
 #if ENABLE(SHAREABLE_RESOURCE)
-    if (auto handle = entry->shareableResourceHandle()) {
+    RefPtr shareableResource = entry->shareableResource();
+    if (auto handle = shareableResource ? shareableResource->createHandle() : std::nullopt) {
 #if ENABLE(CONTENT_FILTERING)
-        if (contentFilter && !contentFilter->continueAfterDataReceived(protect(entry->buffer())->makeContiguous())) {
+        if (contentFilter && !contentFilter->continueAfterDataReceived(entry->buffer()->makeContiguous())) {
             contentFilter->continueAfterNotifyFinished(m_parameters.request.url());
             contentFilter->stopFilteringMainResource();
             dispatchDidFinishResourceLoad();
@@ -2916,7 +2923,7 @@ void NetworkResourceLoader::enqueueSecurityPolicyViolationEvent(WebCore::Securit
     send(Messages::WebPage::EnqueueSecurityPolicyViolationEvent { frameID(), WTF::move(eventInit) }, pageID());
 }
 
-void NetworkResourceLoader::logSlowCacheRetrieveIfNeeded(const NetworkCache::Cache::RetrieveInfo& info)
+void NetworkResourceLoader::logSlowCacheRetrieveIfNeeded(const NetworkCache::RetrieveInfo& info)
 {
 #if RELEASE_LOG_DISABLED
     UNUSED_PARAM(info);

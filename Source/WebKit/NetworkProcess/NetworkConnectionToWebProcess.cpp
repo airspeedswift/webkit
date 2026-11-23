@@ -62,6 +62,7 @@
 #include "RemoteWorkerType.h"
 #include "ServiceWorkerFetchTaskMessages.h"
 #include "WebErrors.h"
+#include "WebKit-Swift.h"
 #include "WebPreferencesDefaultValues.h"
 #include "WebProcessMessages.h"
 #include "WebProcessPoolMessages.h"
@@ -790,8 +791,8 @@ void NetworkConnectionToWebProcess::pageLoadCompleted(PageIdentifier webPageID)
 void NetworkConnectionToWebProcess::browsingContextRemoved(WebPageProxyIdentifier webPageProxyID, PageIdentifier webPageID, FrameIdentifier webFrameID)
 {
     if (CheckedPtr session = NetworkProcess::singleton().networkSession(sessionID())) {
-        if (RefPtr cache = session->cache())
-            cache->browsingContextRemoved(webPageProxyID, webPageID, webFrameID);
+        if (auto* cache = session->cache())
+            cache->browsingContextRemoved({ webPageProxyID, webPageID, webFrameID });
     }
     m_lastRootActivityCompletionCodesForTesting.remove(webPageID);
 }

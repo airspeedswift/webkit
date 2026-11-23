@@ -26,16 +26,14 @@
 #include "config.h"
 #include "NetworkCacheSpeculativeLoad.h"
 
-#include "Logging.h"
 #include "NetworkCache.h"
 #include "NetworkLoad.h"
 #include "NetworkProcess.h"
 #include "NetworkSession.h"
-#include <WebCore/HTTPStatusCodes.h>
+#include "NetworkStorageSession.h"
+#include "PreconnectTask.h"
 #include <pal/SessionID.h>
-#include <wtf/RunLoop.h>
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/text/TextStream.h>
 
 namespace WebKit {
 namespace NetworkCache {
@@ -44,179 +42,80 @@ using namespace WebCore;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(SpeculativeLoad);
 
-Ref<SpeculativeLoad> SpeculativeLoad::create(Cache& cache, const GlobalFrameID& globalFrameID, const ResourceRequest& request, std::unique_ptr<NetworkCache::Entry> cacheEntryForValidation, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections, RevalidationCompletionHandler&& completionHandler)
+Ref<SpeculativeLoad> SpeculativeLoad::create()
 {
-    return adoptRef(*new SpeculativeLoad(cache, globalFrameID, request, WTF::move(cacheEntryForValidation), isNavigatingToAppBoundDomain, allowPrivacyProxy, advancedPrivacyProtections, WTF::move(completionHandler)));
-}
-
-SpeculativeLoad::SpeculativeLoad(Cache& cache, const GlobalFrameID& globalFrameID, const ResourceRequest& request, std::unique_ptr<NetworkCache::Entry> cacheEntryForValidation, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, bool allowPrivacyProxy, OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections, RevalidationCompletionHandler&& completionHandler)
-    : m_cache(cache)
-    , m_completionHandler(WTF::move(completionHandler))
-    , m_originalRequest(request)
-    , m_bufferedDataForCache(SharedBuffer::create())
-    , m_cacheEntry(WTF::move(cacheEntryForValidation))
-{
-    ASSERT(!m_cacheEntry || m_cacheEntry->needsValidation());
-
-    CheckedPtr networkSession = NetworkProcess::singleton().networkSession(m_cache->sessionID());
-    if (!networkSession) {
-        RunLoop::mainSingleton().dispatch([completionHandler = WTF::move(m_completionHandler)]() mutable {
-            completionHandler(nullptr);
-        });
-        return;
-    }
-
-    NetworkLoadParameters parameters;
-    parameters.webPageProxyID = globalFrameID.webPageProxyID;
-    parameters.webPageID = globalFrameID.webPageID;
-    parameters.webFrameID = globalFrameID.frameID;
-    parameters.storedCredentialsPolicy = StoredCredentialsPolicy::Use;
-    parameters.contentSniffingPolicy = ContentSniffingPolicy::DoNotSniffContent;
-    parameters.contentEncodingSniffingPolicy = ContentEncodingSniffingPolicy::Default;
-    parameters.request = m_originalRequest;
-    parameters.isNavigatingToAppBoundDomain = isNavigatingToAppBoundDomain;
-    parameters.allowPrivacyProxy = allowPrivacyProxy;
-    parameters.advancedPrivacyProtections = advancedPrivacyProtections;
-    Ref networkLoad = NetworkLoad::create(*this, WTF::move(parameters), *networkSession);
-    m_networkLoad = networkLoad.copyRef();
-    networkLoad->startWithScheduling();
+    return adoptRef(*new SpeculativeLoad);
 }
 
 SpeculativeLoad::~SpeculativeLoad()
 {
-    ASSERT(!m_networkLoad);
+    // At teardown the handler is the Swift load's empty one (set by its deinit) or one whose load is gone, so
+    // calling it does nothing; an uncalled CompletionHandler asserts in its destructor.
+    if (auto handler = std::exchange(m_eventHandler, { }))
+        handler();
 }
 
-void SpeculativeLoad::cancel()
+NetworkLoadParameters SpeculativeLoad::makeParameters(const GlobalFrameID& frameID, const ResourceRequest& request, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, bool allowPrivacyProxy, OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections)
 {
-    if (RefPtr networkLoad = std::exchange(m_networkLoad, nullptr)) {
-        networkLoad->cancel();
-        m_completionHandler(nullptr);
-    }
+    NetworkLoadParameters parameters;
+    parameters.webPageProxyID = frameID.webPageProxyID;
+    parameters.webPageID = frameID.webPageID;
+    parameters.webFrameID = frameID.frameID;
+    parameters.storedCredentialsPolicy = StoredCredentialsPolicy::Use;
+    parameters.contentSniffingPolicy = ContentSniffingPolicy::DoNotSniffContent;
+    parameters.contentEncodingSniffingPolicy = ContentEncodingSniffingPolicy::Default;
+    parameters.request = request;
+    parameters.isNavigatingToAppBoundDomain = isNavigatingToAppBoundDomain;
+    parameters.allowPrivacyProxy = allowPrivacyProxy;
+    parameters.advancedPrivacyProtections = advancedPrivacyProtections;
+    return parameters;
 }
 
-void SpeculativeLoad::willSendRedirectedRequest(ResourceRequest&& request, ResourceRequest&& redirectRequest, ResourceResponse&& redirectResponse, CompletionHandler<void(WebCore::ResourceRequest&&)>&& completionHandler)
+RefPtr<NetworkLoad> SpeculativeLoad::createNetworkLoad(const GlobalFrameID& frameID, const ResourceRequest& request, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, bool allowPrivacyProxy, OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections, PAL::SessionID sessionID)
 {
-    LOG_WITH_STREAM(NetworkCacheSpeculativePreloading, stream << "Speculative redirect "_s << request.url().string() << " -> "_s << redirectRequest.url().string());
-
-    std::optional<Seconds> maxAgeCap;
-    if (CheckedPtr networkStorageSession = NetworkProcess::singleton().storageSession(m_cache->sessionID()))
-        maxAgeCap = networkStorageSession->maxAgeCacheCap(request, NetworkSession::isRequestToKnownCrossSiteTracker(request));
-    m_cacheEntry = m_cache->storeRedirect(request, redirectResponse, redirectRequest, maxAgeCap);
-    // Create a synthetic cache entry if we can't store.
-    if (!m_cacheEntry)
-        m_cacheEntry = m_cache->makeRedirectEntry(request, redirectResponse, redirectRequest);
-
-    // Don't follow the redirect. The redirect target will be registered for speculative load when it is loaded.
-    didComplete();
-    completionHandler({ });
+    CheckedPtr networkSession = NetworkProcess::singleton().networkSession(sessionID);
+    if (!networkSession)
+        return nullptr;
+    return NetworkLoad::create(*this, makeParameters(frameID, request, isNavigatingToAppBoundDomain, allowPrivacyProxy, advancedPrivacyProtections), *networkSession);
 }
 
-void SpeculativeLoad::didReceiveResponse(ResourceResponse&& receivedResponse, PrivateRelayed privateRelayed, ResponseCompletionHandler&& completionHandler)
+void SpeculativeLoad::preconnect(const GlobalFrameID& frameID, const ResourceRequest& request, std::optional<NavigatingToAppBoundDomain> isNavigatingToAppBoundDomain, bool allowPrivacyProxy, OptionSet<AdvancedPrivacyProtections> advancedPrivacyProtections, PAL::SessionID sessionID)
 {
-    m_response = receivedResponse;
-    m_privateRelayed = privateRelayed;
-
-    if (m_response.isMultipart())
-        m_bufferedDataForCache.reset();
-
-    bool validationSucceeded = m_response.httpStatusCode() == httpStatus304NotModified;
-    if (validationSucceeded && m_cacheEntry)
-        m_cacheEntry = m_cache->update(m_originalRequest, *m_cacheEntry, m_response, privateRelayed);
-    else
-        m_cacheEntry = nullptr;
-
-    completionHandler(PolicyAction::Use);
-}
-
-void SpeculativeLoad::didReceiveBuffer(const WebCore::FragmentedSharedBuffer& buffer)
-{
-    ASSERT(!m_cacheEntry);
-
-    if (m_bufferedDataForCache) {
-        // Prevent memory growth in case of streaming data.
-        const size_t maximumCacheBufferSize = 10 * 1024 * 1024;
-        if (m_bufferedDataForCache.size() + buffer.size() <= maximumCacheBufferSize)
-            m_bufferedDataForCache.append(buffer);
-        else
-            m_bufferedDataForCache.reset();
-    }
-}
-
-void SpeculativeLoad::didFinishLoading(const WebCore::NetworkLoadMetrics&)
-{
-    if (m_didComplete)
+#if ENABLE(SERVER_PRECONNECT)
+    CheckedPtr networkSession = NetworkProcess::singleton().networkSession(sessionID);
+    if (!networkSession)
         return;
-    if (!m_cacheEntry && m_bufferedDataForCache) {
-        m_cacheEntry = m_cache->store(m_originalRequest, m_response, m_privateRelayed, m_bufferedDataForCache.buffer(), [](auto&& mappedBody) { });
-        // Create a synthetic cache entry if we can't store.
-        if (!m_cacheEntry && isStatusCodeCacheableByDefault(m_response.httpStatusCode()))
-            m_cacheEntry = m_cache->makeEntry(m_originalRequest, m_response, m_privateRelayed, m_bufferedDataForCache.takeBuffer());
-    }
-
-    didComplete();
+    auto parameters = makeParameters(frameID, request, isNavigatingToAppBoundDomain, allowPrivacyProxy, advancedPrivacyProtections);
+    parameters.shouldPreconnectOnly = PreconnectOnly::Yes;
+    Ref preconnectTask = PreconnectTask::create(*networkSession, WTF::move(parameters));
+    preconnectTask->start();
+#else
+    UNUSED_PARAM(frameID);
+    UNUSED_PARAM(request);
+    UNUSED_PARAM(isNavigatingToAppBoundDomain);
+    UNUSED_PARAM(allowPrivacyProxy);
+    UNUSED_PARAM(advancedPrivacyProtections);
+    UNUSED_PARAM(sessionID);
+#endif // ENABLE(SERVER_PRECONNECT)
 }
 
-void SpeculativeLoad::didFailLoading(const ResourceError&)
+std::optional<Seconds> SpeculativeLoad::maxAgeCap(PAL::SessionID sessionID, const ResourceRequest& request)
 {
-    if (m_didComplete)
+    if (CheckedPtr networkStorageSession = NetworkProcess::singleton().storageSession(sessionID))
+        return networkStorageSession->maxAgeCacheCap(request, NetworkSession::isRequestToKnownCrossSiteTracker(request));
+    return std::nullopt;
+}
+
+void SpeculativeLoad::deliver(SpeculativeLoadEvent&& event)
+{
+    // The handler takes the event (takeEvent()) and may free this load: nothing here touches this after the call.
+    auto handler = std::exchange(m_eventHandler, { });
+    // Swift sets the next handler as it takes each event, and an empty one when the load goes away.
+    ASSERT(handler);
+    if (!handler)
         return;
-    m_cacheEntry = nullptr;
-
-    didComplete();
-}
-
-void SpeculativeLoad::didComplete()
-{
-    RELEASE_ASSERT(RunLoop::isMain());
-
-    if (m_didComplete)
-        return;
-    m_didComplete = true;
-    m_networkLoad = nullptr;
-
-    // Make sure speculatively revalidated resources do not get validated by the NetworkResourceLoader again.
-    if (m_cacheEntry)
-        m_cacheEntry->setNeedsValidation(false);
-
-    m_completionHandler(WTF::move(m_cacheEntry));
-}
-
-#if !LOG_DISABLED
-
-static void dumpHTTPHeadersDiff(const HTTPHeaderMap& headersA, const HTTPHeaderMap& headersB)
-{
-    auto aEnd = headersA.end();
-    for (auto it = headersA.begin(); it != aEnd; ++it) {
-        String valueB = headersB.get(it->key);
-        if (valueB.isNull())
-            LOG_WITH_STREAM(NetworkCacheSpeculativePreloading, stream << "* '"_s << it->key << "' HTTP header is only in first request (value: "_s << it->value << ")"_s);
-        else if (it->value != valueB)
-            LOG_WITH_STREAM(NetworkCacheSpeculativePreloading, stream << "* '"_s << it->key << "' HTTP header differs in both requests: "_s << it->value << " != "_s << valueB);
-    }
-    auto bEnd = headersB.end();
-    for (auto it = headersB.begin(); it != bEnd; ++it) {
-        if (!headersA.contains(it->key))
-            LOG_WITH_STREAM(NetworkCacheSpeculativePreloading, stream << "* '"_s << it->key << "' HTTP header is only in second request (value: "_s << it->value << ")"_s);
-    }
-}
-
-#endif
-
-bool requestsHeadersMatch(const ResourceRequest& speculativeValidationRequest, const ResourceRequest& actualRequest)
-{
-    ASSERT(!actualRequest.isConditional());
-    ResourceRequest speculativeRequest = speculativeValidationRequest;
-    speculativeRequest.makeUnconditional();
-
-    if (speculativeRequest.httpHeaderFields() != actualRequest.httpHeaderFields()) {
-        LOG(NetworkCacheSpeculativePreloading, "Cannot reuse speculatively validated entry because HTTP headers used for validation do not match");
-#if !LOG_DISABLED
-        dumpHTTPHeadersDiff(speculativeRequest.httpHeaderFields(), actualRequest.httpHeaderFields());
-#endif
-        return false;
-    }
-    return true;
+    m_event = WTF::move(event);
+    handler();
 }
 
 } // namespace NetworkCache

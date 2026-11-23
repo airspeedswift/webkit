@@ -25,36 +25,31 @@
 
 #pragma once
 
+#include "NavigatingToAppBoundDomain.h"
 #include "NetworkCacheCompressionDictionaryEntry.h"
 #include "NetworkCacheEntry.h"
+#include "NetworkCacheHandlers.h"
 #include "NetworkCacheStorage.h"
-#include "PolicyDecision.h"
 #include "WebPageProxyIdentifier.h"
-#include "WebsiteData.h"
 #include <WebCore/FrameIdentifier.h>
 #include <WebCore/PageIdentifier.h>
 #include <WebCore/ResourceResponse.h>
-#include <WebCore/ShareableResource.h>
+#include <memory>
 #include <pal/SessionID.h>
-#include <wtf/CompletionHandler.h>
 #include <wtf/CrossThreadCopier.h>
 #include <wtf/Hasher.h>
 #include <wtf/Markable.h>
 #include <wtf/OptionSet.h>
-#include <wtf/RefCountedAndCanMakeWeakPtr.h>
+#include <wtf/RefCounted.h>
 #include <wtf/Seconds.h>
-#include <wtf/TZoneMalloc.h>
-#include <wtf/WeakHashSet.h>
+#include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
-class FragmentedSharedBuffer;
 class LowPowerModeNotifier;
 class ResourceRequest;
 class ResourceResponse;
-class SharedBuffer;
 class ThermalMitigationNotifier;
-class URLPattern;
 enum class AdvancedPrivacyProtections : uint16_t;
 }
 
@@ -73,6 +68,10 @@ inline void add(Hasher& hasher, const GlobalFrameID& identifier)
 {
     add(hasher, identifier.webPageID, identifier.frameID);
 }
+
+// The hash WTF's HashMap<GlobalFrameID, ...> uses, for Swift, which cannot call the computeHash template. Here, not in
+// NetworkCacheWTFInterop.h, since it needs the struct and its add().
+inline unsigned globalFrameIDHash(const GlobalFrameID& identifier) { return computeHash(identifier); }
 
 inline bool operator==(const GlobalFrameID& a, const GlobalFrameID& b)
 {
@@ -102,18 +101,6 @@ namespace WebKit {
 class NetworkProcess;
 
 namespace NetworkCache {
-
-class AsyncRevalidation;
-class Cache;
-class Entry;
-class SpeculativeLoadManager;
-
-struct MappedBody {
-#if ENABLE(SHAREABLE_RESOURCE)
-    RefPtr<WebCore::ShareableResource> shareableResource;
-    std::optional<WebCore::ShareableResource::Handle> shareableResourceHandle;
-#endif
-};
 
 enum class RetrieveDecision {
     Yes,
@@ -153,11 +140,6 @@ enum class UseDecision {
     NoDueToRequestContainingFragments
 };
 
-// The cache's decisions, called by Cache and by the test-support layer (NetworkCacheTestSupport.cpp).
-RetrieveDecision makeRetrieveDecision(const WebCore::ResourceRequest&);
-StoreDecision makeStoreDecision(const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, size_t bodySize);
-UseDecision makeUseDecision(PAL::SessionID, const Entry&, const WebCore::ResourceRequest&);
-
 enum class CacheOption : uint8_t {
     // In testing mode we try to eliminate sources of randomness. Cache does not shrink and there are no read timeouts.
     TestingMode = 1 << 0,
@@ -169,166 +151,97 @@ enum class RecordType : uint8_t {
     Resource = 1 << 0,
     CompressionDictionary = 1 << 1,
 };
-const AtomString& recordTypeName(RecordType);
 
-class Cache : public RefCountedAndCanMakeWeakPtr<Cache> {
-    friend struct TestSupportAccess;
-public:
-    ~Cache();
-    static RefPtr<Cache> open(const String& cachePath, OptionSet<CacheOption>, PAL::SessionID);
+// The disk cache is the Swift class WebKit::NetworkDiskCache (NetworkCache.swift), NetworkCache::Cache to C++. A header
+// holds it through NetworkCachePtr; the .cpp files that include WebKit-Swift.h use it by value. The types below are what
+// the cache and its C++ callers exchange.
 
-    NODELETE size_t capacity() const;
-    void updateCapacity();
+// Completion handler may get called back synchronously on failure.
+struct RetrieveInfo {
+    URL url;
+    MonotonicTime startTime;
+    MonotonicTime completionTime;
+    unsigned priority { 0 };
+    Storage::Timings storageTimings;
+    Markable<RetrieveDecision> retrieveDecision;
+    Markable<SpeculativeLoadDecision> speculativeLoadDecision;
+    Markable<UseDecision> useDecision;
 
-    // Completion handler may get called back synchronously on failure.
-    struct RetrieveInfo {
-        WTF_MAKE_STRUCT_TZONE_ALLOCATED(RetrieveInfo);
+    // The Swift cache sets the Markable fields through these.
+    void setRetrieveDecision(RetrieveDecision decision) { retrieveDecision = decision; }
+    void setSpeculativeLoadDecision(SpeculativeLoadDecision decision) { speculativeLoadDecision = decision; }
+    void setUseDecision(UseDecision decision) { useDecision = decision; }
 
-        URL url;
-        MonotonicTime startTime;
-        MonotonicTime completionTime;
-        unsigned priority;
-        Storage::Timings storageTimings;
-        Markable<RetrieveDecision> retrieveDecision;
-        Markable<SpeculativeLoadDecision> speculativeLoadDecision;
-        Markable<UseDecision> useDecision;
-
-        RetrieveInfo isolatedCopy() && { return {
-            crossThreadCopy(WTF::move(url)),
-            startTime,
-            completionTime,
-            priority,
-            storageTimings,
-            retrieveDecision,
-            speculativeLoadDecision,
-            useDecision
-        }; }
-
-        RetrieveInfo isolatedCopy() const & { return {
-            crossThreadCopy(url),
-            startTime,
-            completionTime,
-            priority,
-            storageTimings,
-            retrieveDecision,
-            speculativeLoadDecision,
-            useDecision
-        }; }
-    };
-    using RetrieveCompletionHandler = Function<void(std::unique_ptr<Entry>, const RetrieveInfo&)>;
-    void retrieve(const WebCore::ResourceRequest&, std::optional<GlobalFrameID>, std::optional<NavigatingToAppBoundDomain>, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>, RetrieveCompletionHandler&&);
-    std::unique_ptr<Entry> store(const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, PrivateRelayed, RefPtr<WebCore::FragmentedSharedBuffer>&&, Function<void(MappedBody&&)>&& = nullptr);
-    std::unique_ptr<Entry> storeRedirect(const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, const WebCore::ResourceRequest& redirectRequest, std::optional<Seconds> maxAgeCap);
-    void storeCompressionDictionary(const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, RefPtr<WebCore::FragmentedSharedBuffer>&&, CompressionDictionaryEntry::Info&&);
-
-    using CompressionDictionaryHash = std::array<uint8_t, CompressionDictionaryEntry::hashSize>;
-    struct CompressionDictionaryMatch {
-        Key key;
-        CompressionDictionaryHash hash;
-        String id;
-    };
-    std::optional<CompressionDictionaryMatch> bestCompressionDictionaryMatch(const WebCore::ResourceRequest&, WebCore::FetchOptions::Destination);
-    Vector<Key> compressionDictionaryKeys(const String& partition) const;
-    Vector<Key> pendingKeys(OptionSet<RecordType>, const std::optional<String>& partition = std::nullopt) const;
-    void retrieveCompressionDictionary(const Key&, const CompressionDictionaryHash&, CompletionHandler<void(RefPtr<WebCore::SharedBuffer>&&)>&&);
-
-    std::unique_ptr<Entry> update(const WebCore::ResourceRequest&, const Entry&, const WebCore::ResourceResponse& validatingResponse, PrivateRelayed);
-
-    struct TraversalRecord {
-        const Storage::Record& record;
-        const Storage::RecordInfo& recordInfo;
-        std::optional<RecordType> type() const;
-        std::optional<URL> url() const;
-    };
-    void traverseRecords(Function<void(const TraversalRecord*)>&&);
-    void traverseRecords(const String& partition, Function<void(const TraversalRecord*)>&&);
-    void traverseCompressionDictionaryRecords(const String& partition, Function<void(const TraversalRecord*)>&&);
-
-    void remove(const Key&);
-    void remove(const WebCore::ResourceRequest&);
-    void remove(const Vector<Key>&, Function<void()>&&, WallTime dictionariesRegisteredNotAfter = WallTime::infinity());
-
-    void clear();
-    void clear(WallTime modifiedSince, Function<void()>&&);
-
-    std::unique_ptr<Entry> makeEntry(const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, PrivateRelayed, RefPtr<WebCore::FragmentedSharedBuffer>&&);
-    std::unique_ptr<Entry> makeRedirectEntry(const WebCore::ResourceRequest&, const WebCore::ResourceResponse&, const WebCore::ResourceRequest& redirectRequest);
-
-    void dumpContentsToFile();
-
-    String recordsPathIsolatedCopy() const;
-
-    SpeculativeLoadManager* speculativeLoadManager() { return m_speculativeLoadManager.get(); }
-
-    void startAsyncRevalidationIfNeeded(const WebCore::ResourceRequest&, const NetworkCache::Key&, std::unique_ptr<Entry>&&, const GlobalFrameID&, std::optional<NavigatingToAppBoundDomain>, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>);
-
-    void browsingContextRemoved(WebPageProxyIdentifier, WebCore::PageIdentifier, WebCore::FrameIdentifier);
-
-    NetworkProcess& networkProcess();
-    PAL::SessionID sessionID() const { return m_sessionID; }
-    const String& storageDirectory() const LIFETIME_BOUND { return m_storageDirectory; }
-    void fetchData(bool shouldComputeSize, CompletionHandler<void(Vector<WebsiteData::Entry>&&)>&&);
-    void fetchOriginAccessTimes(CompletionHandler<void(HashMap<WebCore::RegistrableDomain, WallTime>&&)>&&);
-    void deleteData(const Vector<WebCore::SecurityOriginData>&, CompletionHandler<void()>&&);
-    void deleteDataForRegistrableDomains(const Vector<WebCore::RegistrableDomain>&, CompletionHandler<void(HashSet<WebCore::RegistrableDomain>&&)>&&);
-
-private:
-    Cache(const String& storageDirectory, Ref<Storage>&&, OptionSet<CacheOption>, PAL::SessionID);
-
-    Key makeCacheKey(RecordType, const WebCore::ResourceRequest&);
-
-    void traverseRecordsOfTypes(OptionSet<RecordType>, const std::optional<String>& partition, OptionSet<Storage::TraverseFlag>, Function<void(const TraversalRecord*)>&&);
-
-    static void completeRetrieve(RetrieveCompletionHandler&&, std::unique_ptr<Entry>, RetrieveInfo&);
-
-    String dumpFilePath() const;
-    void deleteDumpFile();
-
-    std::optional<Seconds> maxAgeCap(Entry&, const WebCore::ResourceRequest&, PAL::SessionID);
-
-    const Ref<Storage> m_storage;
-
-    bool shouldUseSpeculativeLoadManager() const;
-    void updateSpeculativeLoadManagerEnabledState();
-
-    const std::unique_ptr<WebCore::LowPowerModeNotifier> m_lowPowerModeNotifier;
-    const RefPtr<WebCore::ThermalMitigationNotifier> m_thermalMitigationNotifier;
-    std::unique_ptr<SpeculativeLoadManager> m_speculativeLoadManager;
-
-    HashMap<Key, Ref<AsyncRevalidation>> m_pendingAsyncRevalidations;
-    HashMap<GlobalFrameID, WeakHashSet<AsyncRevalidation>> m_pendingAsyncRevalidationByPage;
-
-    unsigned m_traverseCount { 0 };
-
-    // A storage shrink does not report evictions, so an entry can outlive its record.
-    struct CompressionDictionaryIndexEntry {
-        CompressionDictionaryMatch match;
-        RefPtr<WebCore::URLPattern> pattern;
-        CompressionDictionaryEntry::DestinationSet matchDest;
-        unsigned matchLength { 0 };
-        WallTime expirationTime;
-        WallTime timeStamp;
-    };
-    static bool isBetterCompressionDictionaryMatch(const CompressionDictionaryIndexEntry& candidate, const CompressionDictionaryIndexEntry& best);
-    void populateCompressionDictionaryIndex();
-    void addToCompressionDictionaryIndex(const CompressionDictionaryEntry&);
-    // Returns false, keeping the entry, if it was registered after registeredNotAfter.
-    bool removeFromCompressionDictionaryIndex(const Key&, WallTime registeredNotAfter = WallTime::infinity());
-
-    HashMap<String, Vector<CompressionDictionaryIndexEntry>> m_compressionDictionaryIndex;
-    // What changed while the startup scan ran, so records it delivers late can be skipped.
-    struct CompressionDictionaryIndexPopulation {
-        CompressionDictionaryIndexPopulation()
-            : clearedSince(WallTime::infinity())
-        {
-        }
-        HashMap<Key, WallTime> removedKeys;
-        WallTime clearedSince;
-    };
-    std::optional<CompressionDictionaryIndexPopulation> m_compressionDictionaryIndexPopulation;
-    PAL::SessionID m_sessionID;
-    String m_storageDirectory;
+    RetrieveInfo isolatedCopy() && { return {
+        crossThreadCopy(WTF::move(url)),
+        startTime,
+        completionTime,
+        priority,
+        storageTimings,
+        retrieveDecision,
+        speculativeLoadDecision,
+        useDecision
+    }; }
 };
+
+using OptionalFrameID = std::optional<GlobalFrameID>;
+using OptionalAppBoundDomain = std::optional<NavigatingToAppBoundDomain>;
+using NetworkCacheAdvancedPrivacyProtections = OptionSet<WebCore::AdvancedPrivacyProtections>;
+using OptionalSeconds = std::optional<Seconds>;
+
+// The request's Cache-Control directives the decisions read (WebCore::parseCacheControlDirectives), as plain
+// fields.
+struct RequestDirectives {
+    bool noCache { false };
+    bool noStore { false };
+    OptionalSeconds maxAge;
+    OptionalSeconds maxStale;
+    OptionalSeconds minFresh;
+};
+RequestDirectives parseRequestDirectives(const WebCore::ResourceRequest&);
+bool isGETRequest(const WebCore::ResourceRequest&);
+bool isMediaMIMEType(const String&);
+// The session's storage session and network session, looked up for the decisions (NetworkCacheValidation.h).
+bool networkCacheVerifyVaryingRequestHeaders(PAL::SessionID, const Vector<std::pair<String, String>>&, const WebCore::ResourceRequest&);
+Vector<std::pair<String, String>> networkCacheCollectVaryingRequestHeaders(PAL::SessionID, const WebCore::ResourceRequest&, const WebCore::ResourceResponse&);
+bool isStaleWhileRevalidateEnabled(PAL::SessionID);
+bool isPrimaryWebBrowser();
+size_t computeCapacity(const String& cachePath);
+void signpostRetrieve(const RetrieveInfo&, bool isHit);
+
+// Speculative revalidation's power state notifiers: the changed function runs when low power mode or thermal mitigation
+// changes, and the cache then asks whether to keep its speculative load manager. The notifiers take C++ lambdas.
+class SpeculationNotifiers : public RefCounted<SpeculationNotifiers>, public CanMakeWeakPtr<SpeculationNotifiers> {
+public:
+    static Ref<SpeculationNotifiers> create(Function<void()>&& changed) { return adoptRef(*new SpeculationNotifiers(WTF::move(changed))); }
+    ~SpeculationNotifiers();
+    bool shouldUseSpeculativeLoadManager() const;
+private:
+    explicit SpeculationNotifiers(Function<void()>&&);
+    Function<void()> m_changed;
+    std::unique_ptr<WebCore::LowPowerModeNotifier> m_lowPowerModeNotifier;
+    RefPtr<WebCore::ThermalMitigationNotifier> m_thermalMitigationNotifier;
+};
+
+#ifndef __swift__
+NetworkCachePtr retainedCopy(Cache&);
+PrefetchCachePtr makePrefetchCache();
+
+// Opens the Swift cache and gives it its speculation state and its dump notification (NetworkCache.cpp).
+NetworkCachePtr openNetworkCache(const String& cachePath, OptionSet<CacheOption>, PAL::SessionID);
+
+// The cache's retrieve as its C++ callers call it: it builds the handler box the Swift entry point takes, and the
+// completion gets the entry, which it takes from the cache with the token. A template, so that it compiles before
+// WebKit-Swift.h completes Cache.
+void retrieveFromNetworkCache(auto& cache, const WebCore::ResourceRequest& request, const OptionalFrameID& frameID, const OptionalAppBoundDomain& isNavigatingToAppBoundDomain, bool allowPrivacyProxy, NetworkCacheAdvancedPrivacyProtections advancedPrivacyProtections, auto&& completionHandler)
+{
+    // The completion holds a reference to the cache, which takes the entry when the completion runs.
+    cache.retrieve(request, frameID, isNavigatingToAppBoundDomain, allowPrivacyProxy, advancedPrivacyProtections, RetrieveHandlerBox::create([cache = std::remove_cvref_t<decltype(cache)> { cache }, completionHandler = std::forward<decltype(completionHandler)>(completionHandler)](uint64_t token, const RetrieveInfo& info) mutable {
+        completionHandler(token ? entryPointer(cache.takeRetrievedEntry(token)) : nullptr, info);
+    }).ptr());
+}
+
+#endif
 
 } // namespace NetworkCache
 } // namespace WebKit

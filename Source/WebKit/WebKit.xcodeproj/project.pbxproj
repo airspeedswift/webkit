@@ -275,7 +275,44 @@
 		0773A93B3023B0FB002C57FE /* SpatialShim.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0773A93A3023B0FB002C57FE /* SpatialShim.swift */; };
 		077DBAFF303AAE74000AA8FC /* RunJavaScriptResult.h in Headers */ = {isa = PBXBuildFile; fileRef = 077DBAFE303AAE74000AA8FC /* RunJavaScriptResult.h */; };
 		077DD8E7303AE8A2000AA8FC /* WTFCompletionHandler+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 077DD8E6303AE8A2000AA8FC /* WTFCompletionHandler+Extras.swift */; };
+		7D8627FDB854F4BA1843EE77 /* Array+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766186430F1E8D30B641C30C /* Array+Extras.swift */; };
+		D0F399FA97F7991B05268DDF /* CxxOptional+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CB53970A96DB69B28BADCAE /* CxxOptional+Extras.swift */; };
 		06671AD11C80317FA3B1799D /* WTFFunction+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB13B9046685257BDD640FB /* WTFFunction+Extras.swift */; };
+		7CCB4338BBB8C0171D5BA653 /* NetworkCacheAsyncRevalidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9024ABF3E5ABE0BF61948925 /* NetworkCacheAsyncRevalidation.swift */; };
+		5D63ADC97739AA1F3A15AF67 /* NetworkCacheSpeculativeLoad.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17965CB49E48A10A0093973 /* NetworkCacheSpeculativeLoad.swift */; };
+		8A1D5E3C9B2F4A6071C8D9E0 /* NetworkCacheSpeculativeLoadDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A1D5E3C9B2F4A6071C8D9E1 /* NetworkCacheSpeculativeLoadDiagnostics.swift */; };
+		8A1D5E3C9B2F4A6071C8D9E2 /* NetworkCacheSpeculativeLoadHeaders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A1D5E3C9B2F4A6071C8D9E3 /* NetworkCacheSpeculativeLoadHeaders.swift */; };
+		CE75F83247C35AE14D9085E1 /* NetworkCacheSpeculativeLoadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 075C9E29D58DA6812D512526 /* NetworkCacheSpeculativeLoadManager.swift */; };
+		56D66A8CE74739D8C1068BC3 /* NetworkCacheSubresources.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0BE40E5C9FD759A4662153F /* NetworkCacheSubresources.swift */; };
+		4BFC907A1ABB456FBAF56C99 /* NetworkCacheCompressionDictionaryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5069E7649FED4D0DAF1C85F4 /* NetworkCacheCompressionDictionaryEntry.swift */; };
+		0C95AAED8A7245E8900E8E48 /* NetworkCacheEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF653A26DF8A4F3C8C6CD759 /* NetworkCacheEntry.swift */; };
+		A5F9A8AFE63087BE2A653E6A /* NetworkCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF12AFAC8DB1D3C6344691FD /* NetworkCache.swift */; };
+		1EA627987F384230BA3BD5BD /* PrefetchCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B82E12369848E298C786C9 /* PrefetchCache.swift */; };
+		113E4E768A464254857CC6C8 /* NetworkCacheKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EBC7CB57FF847798D5484DD /* NetworkCacheKey.swift */; };
+		ED7787E132154CB1B0F6DC7E /* NetworkCacheBlobStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 915998E94B684369B9E656EF /* NetworkCacheBlobStorage.swift */; };
+		2A4609C2B5914A7D9F76F0D2 /* NetworkCacheFileSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = B72CAE2B66D34E69933991A9 /* NetworkCacheFileSystem.swift */; };
+		6E8F0C2A4B1D4E5F8A9B0C1D /* NetworkCacheHandlerBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F9A1D3B5C2E4F608B1C2D3E /* NetworkCacheHandlerBox.swift */; };
+		4F0270A5181140F7B1094262 /* NetworkCacheStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 091FAA4F49CE43FD9808788C /* NetworkCacheStorage.swift */; };
+		43681AF7F5365F88302A5549 /* NetworkCacheDump.h in Headers */ = {isa = PBXBuildFile; fileRef = 3624463345A1B7E3428CB0A5 /* NetworkCacheDump.h */; };
+		893A11FB80DE7086C9B2BE46 /* NetworkCacheHandlers.h in Headers */ = {isa = PBXBuildFile; fileRef = 4282DC29E7FAE61A7C5A37CD /* NetworkCacheHandlers.h */; };
+		3876E03183F0198B2125A4F4 /* NetworkCacheStorageIO.h in Headers */ = {isa = PBXBuildFile; fileRef = D54D2B390D91EC91FCEFB01A /* NetworkCacheStorageIO.h */; };
+		78CE55AEF0722627893C66B3 /* NetworkCacheTestSupportInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = A04588CB0F95E8C15187F7FF /* NetworkCacheTestSupportInternal.h */; };
+		F4C7D4B1DCE74FEDA730EEE1 /* NetworkCacheWTFInterop.h in Headers */ = {isa = PBXBuildFile; fileRef = E2969FCA2FA81F440FCC7D59 /* NetworkCacheWTFInterop.h */; };
+		18C938116F7AD52E2C09FC61 /* NetworkCacheWebsiteData.h in Headers */ = {isa = PBXBuildFile; fileRef = 8F0C6BB722F746C47F446926 /* NetworkCacheWebsiteData.h */; };
+		6CE7B9EE4267007A31D44ECC /* NetworkCacheCompressionDictionaryIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7AC14DD878B826E54A66AA /* NetworkCacheCompressionDictionaryIndex.swift */; };
+		C7DDF1E1B4B0C8D584AC353A /* NetworkCacheDecisions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9E09618FD22E53A22B930F /* NetworkCacheDecisions.swift */; };
+		DA6E460FB77CD36B380EC95E /* NetworkCacheRetrieve.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B4F1950693D9F608153201 /* NetworkCacheRetrieve.swift */; };
+		264547330782479B42C22244 /* NetworkCacheWallTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F690F4B4B4A3374E4F63D0C /* NetworkCacheWallTime.swift */; };
+		ADC068271E9756B37198F6F4 /* NetworkCacheDump.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F4CB256DFFD2DBBE4BE6266 /* NetworkCacheDump.swift */; };
+		F5007C1CB263F1E74DDC54A8 /* NetworkCachePendingFrameLoad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D382749B7D3CAA4E510FB9D /* NetworkCachePendingFrameLoad.swift */; };
+		227199B2D1BEF992C19E930E /* NetworkCacheIsolatedString.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9CB27DE498D16B5AC505F9F /* NetworkCacheIsolatedString.swift */; };
+		AE03190C59D601E9E00B1722 /* NetworkCacheStorageIO.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4049BD3B06FD2415A304808C /* NetworkCacheStorageIO.swift */; };
+		FD94863333BF96A8128E4501 /* NetworkCacheStorageReads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83EE9AFCBEEFBDC20EB7834D /* NetworkCacheStorageReads.swift */; };
+		0C99B00CE6B1A948B76CECF1 /* NetworkCacheStorageTraversal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E688BFC2EC250BE0FD5FAA /* NetworkCacheStorageTraversal.swift */; };
+		65AE8E9D4CB177673744102B /* NetworkCacheStorageWrites.swift in Sources */ = {isa = PBXBuildFile; fileRef = 774B86E430BCEAF47E15EABD /* NetworkCacheStorageWrites.swift */; };
+		5F4950954DE37DE98AC52266 /* NetworkCacheSubresources+TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBE5AFEDE4525106D9A8270E /* NetworkCacheSubresources+TestSupport.swift */; };
+		CFC8B5EF29BC432C8859BCFA /* NetworkCacheTraverseOperation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5890B44A8454E1C810D2846 /* NetworkCacheTraverseOperation.swift */; };
+		FE5DD4BAA8874261AAD1317F /* NetworkCacheRecordFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 472DC08C76604314B5D70A9F /* NetworkCacheRecordFormat.swift */; };
 		077F49B63036DE1B00861A64 /* JavaScriptEvaluationResultDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 077F49B53036DE1B00861A64 /* JavaScriptEvaluationResultDecoder.swift */; };
 		077F49B83036DFD800861A64 /* JavaScriptEvaluationGraphDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 077F49B73036DFD800861A64 /* JavaScriptEvaluationGraphDecoder.swift */; };
 		077F49BA3036E01600861A64 /* JavaScriptEvaluationFieldDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 077F49B93036E01600861A64 /* JavaScriptEvaluationFieldDecoder.swift */; };
@@ -1906,11 +1943,9 @@
 		7E70A07B501701FB501FB516 /* GeneratedSerializersSharedWebCoreArgumentCodersPayment.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7E70A07B501701FB501FB517 /* GeneratedSerializersSharedWebCoreArgumentCodersPayment.mm */; };
 		7E70A07B501701FB501FB518 /* GeneratedSerializersSharedWebCoreArgumentCodersStorage.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7E70A07B501701FB501FB519 /* GeneratedSerializersSharedWebCoreArgumentCodersStorage.mm */; };
 		7EB6760501701FB501FB7E05 /* GeneratedSerializersSharedWebGPU.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7EB6760501701FB501FB7E06 /* GeneratedSerializersSharedWebGPU.mm */; };
-		8310428B1BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.h in Headers */ = {isa = PBXBuildFile; fileRef = 831042891BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.h */; };
 		8313F7EC1F7DAE0800B944EB /* SharedStringHashStore.h in Headers */ = {isa = PBXBuildFile; fileRef = 8313F7E91F7DAE0300B944EB /* SharedStringHashStore.h */; };
 		8313F7EE1F7DAE0800B944EB /* SharedStringHashTable.h in Headers */ = {isa = PBXBuildFile; fileRef = 8313F7E71F7DAE0300B944EB /* SharedStringHashTable.h */; };
 		831EEBBD1BD85C4300BB64C3 /* NetworkCacheSpeculativeLoad.h in Headers */ = {isa = PBXBuildFile; fileRef = 831EEBBB1BD85C4300BB64C3 /* NetworkCacheSpeculativeLoad.h */; };
-		832AE2521BE2E8CD00FAAE10 /* NetworkCacheSpeculativeLoadManager.h in Headers */ = {isa = PBXBuildFile; fileRef = 832AE2501BE2E8CD00FAAE10 /* NetworkCacheSpeculativeLoadManager.h */; };
 		832ED18C1E2FE157006BA64A /* PerActivityStateCPUUsageSampler.h in Headers */ = {isa = PBXBuildFile; fileRef = 832ED18A1E2FE13B006BA64A /* PerActivityStateCPUUsageSampler.h */; };
 		834B250F1A831A8D00CFB150 /* NetworkCacheFileSystem.h in Headers */ = {isa = PBXBuildFile; fileRef = 834B250E1A831A8D00CFB150 /* NetworkCacheFileSystem.h */; };
 		836034A01ACB34D600626549 /* WebSQLiteDatabaseTracker.h in Headers */ = {isa = PBXBuildFile; fileRef = 8360349E1ACB34D600626549 /* WebSQLiteDatabaseTracker.h */; };
@@ -2221,8 +2256,6 @@
 		A9D82192AE94106CA8BD4C77 /* SwiftCoding.h in Headers */ = {isa = PBXBuildFile; fileRef = C8E3B43BCEE7D74B03CB891B /* SwiftCoding.h */; };
 		AA1057000000000000000005 /* InspectorStorageAgent.h in Headers */ = {isa = PBXBuildFile; fileRef = AA1057000000000000000002 /* InspectorStorageAgent.h */; };
 		AA1057000000000000000006 /* InspectorCookieStoreHelpers.h in Headers */ = {isa = PBXBuildFile; fileRef = AA1057000000000000000004 /* InspectorCookieStoreHelpers.h */; };
-		AAB145E6223F931200E489D8 /* PrefetchCache.h in Headers */ = {isa = PBXBuildFile; fileRef = AAB145E4223F931200E489D8 /* PrefetchCache.h */; };
-		AAFA634F234F7C6400FFA864 /* AsyncRevalidation.h in Headers */ = {isa = PBXBuildFile; fileRef = AAFA634E234F7C6300FFA864 /* AsyncRevalidation.h */; };
 		ABCC0C21BBF7F90D362ECEB4 /* GeneratedSerializersUIProcess.mm in Sources */ = {isa = PBXBuildFile; fileRef = F98D069BBFD9CAA8FCDA2943 /* GeneratedSerializersUIProcess.mm */; };
 		AD00CE0C2E1A000000000004 /* MessageCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD00CE0C2E1A000000000003 /* MessageCheck.swift */; };
 		AD00CE0C2E1A000000000006 /* Concurrency+Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD00CE0C2E1A000000000005 /* Concurrency+Extras.swift */; };
@@ -2653,10 +2686,12 @@
 		E42E06121AA75ABD00B11699 /* NetworkCacheData.h in Headers */ = {isa = PBXBuildFile; fileRef = E42E06111AA75ABD00B11699 /* NetworkCacheData.h */; };
 		E4436ECC1A0D040B00EAD204 /* NetworkCache.h in Headers */ = {isa = PBXBuildFile; fileRef = E4436EBF1A0CFDB200EAD204 /* NetworkCache.h */; };
 		E4436ECE1A0D040B00EAD204 /* NetworkCacheKey.h in Headers */ = {isa = PBXBuildFile; fileRef = E4436EC11A0CFDB200EAD204 /* NetworkCacheKey.h */; };
+		E94419E3D56E421984835B57 /* NetworkCachePersistence.h in Headers */ = {isa = PBXBuildFile; fileRef = 4C5F577452B64760B21EEDFE /* NetworkCachePersistence.h */; };
+		0DC46EC4BC2943209C16D320 /* NetworkCacheRecordFormat.h in Headers */ = {isa = PBXBuildFile; fileRef = 623F348B30D24D818E903B6F /* NetworkCacheRecordFormat.h */; };
+		4C65A5E3150465679B0EF1B1 /* NetworkCacheForward.h in Headers */ = {isa = PBXBuildFile; fileRef = 866FB2AF94D1CDE012537874 /* NetworkCacheForward.h */; };
 		E4436ECF1A0D040B00EAD204 /* NetworkCacheStorage.h in Headers */ = {isa = PBXBuildFile; fileRef = E4436EC21A0CFDB200EAD204 /* NetworkCacheStorage.h */; };
 		E47FC8A025B8331C005495FC /* NetworkLoadScheduler.h in Headers */ = {isa = PBXBuildFile; fileRef = E47FC89F25B8331C005495FC /* NetworkLoadScheduler.h */; };
 		E489D28C1A0A2DB80078C06A /* NetworkCacheCoders.h in Headers */ = {isa = PBXBuildFile; fileRef = E489D2851A0A2DB80078C06A /* NetworkCacheCoders.h */; };
-		E49D40D71AD3FB170066B7B9 /* NetworkCacheBlobStorage.h in Headers */ = {isa = PBXBuildFile; fileRef = E49D40D61AD3FB170066B7B9 /* NetworkCacheBlobStorage.h */; };
 		E4D54D0421F1D72D007E3C36 /* ScrollingTreeFrameScrollingNodeRemoteIOS.h in Headers */ = {isa = PBXBuildFile; fileRef = E40C1F9321F0B96E00530718 /* ScrollingTreeFrameScrollingNodeRemoteIOS.h */; };
 		E4E57F6B21A83B1200345F3C /* RemoteLayerTreeNode.h in Headers */ = {isa = PBXBuildFile; fileRef = E4E57F6A21A83B1100345F3C /* RemoteLayerTreeNode.h */; };
 		E502E4F82D4810EA00C3D56D /* WKMaterialHostingSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E502E4F72D4810EA00C3D56D /* WKMaterialHostingSupport.swift */; };
@@ -3741,7 +3776,37 @@
 		077BA570260E8F630072F19F /* MediaSessionCoordinatorProxyPrivate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MediaSessionCoordinatorProxyPrivate.h; sourceTree = "<group>"; };
 		077DBAFE303AAE74000AA8FC /* RunJavaScriptResult.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RunJavaScriptResult.h; sourceTree = "<group>"; };
 		077DD8E6303AE8A2000AA8FC /* WTFCompletionHandler+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WTFCompletionHandler+Extras.swift"; sourceTree = "<group>"; };
+		766186430F1E8D30B641C30C /* Array+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Array+Extras.swift"; sourceTree = "<group>"; };
+		4CB53970A96DB69B28BADCAE /* CxxOptional+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CxxOptional+Extras.swift"; sourceTree = "<group>"; };
 		3EB13B9046685257BDD640FB /* WTFFunction+Extras.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WTFFunction+Extras.swift"; sourceTree = "<group>"; };
+		3EBC7CB57FF847798D5484DD /* NetworkCacheKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheKey.swift; sourceTree = "<group>"; };
+		915998E94B684369B9E656EF /* NetworkCacheBlobStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheBlobStorage.swift; sourceTree = "<group>"; };
+		B72CAE2B66D34E69933991A9 /* NetworkCacheFileSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheFileSystem.swift; sourceTree = "<group>"; };
+		7F9A1D3B5C2E4F608B1C2D3E /* NetworkCacheHandlerBox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheHandlerBox.swift; sourceTree = "<group>"; };
+		091FAA4F49CE43FD9808788C /* NetworkCacheStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheStorage.swift; sourceTree = "<group>"; };
+		3624463345A1B7E3428CB0A5 /* NetworkCacheDump.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheDump.h; sourceTree = "<group>"; };
+		4282DC29E7FAE61A7C5A37CD /* NetworkCacheHandlers.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheHandlers.h; sourceTree = "<group>"; };
+		D54D2B390D91EC91FCEFB01A /* NetworkCacheStorageIO.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheStorageIO.h; sourceTree = "<group>"; };
+		A04588CB0F95E8C15187F7FF /* NetworkCacheTestSupportInternal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheTestSupportInternal.h; sourceTree = "<group>"; };
+		E2969FCA2FA81F440FCC7D59 /* NetworkCacheWTFInterop.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheWTFInterop.h; sourceTree = "<group>"; };
+		8F0C6BB722F746C47F446926 /* NetworkCacheWebsiteData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheWebsiteData.h; sourceTree = "<group>"; };
+		6D7A777A86933F92318A261F /* NetworkCacheWebsiteData.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheWebsiteData.cpp; sourceTree = "<group>"; };
+		0C7AC14DD878B826E54A66AA /* NetworkCacheCompressionDictionaryIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheCompressionDictionaryIndex.swift; sourceTree = "<group>"; };
+		7D9E09618FD22E53A22B930F /* NetworkCacheDecisions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheDecisions.swift; sourceTree = "<group>"; };
+		46B4F1950693D9F608153201 /* NetworkCacheRetrieve.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheRetrieve.swift; sourceTree = "<group>"; };
+		2F690F4B4B4A3374E4F63D0C /* NetworkCacheWallTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheWallTime.swift; sourceTree = "<group>"; };
+		5F4CB256DFFD2DBBE4BE6266 /* NetworkCacheDump.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheDump.swift; sourceTree = "<group>"; };
+		3D382749B7D3CAA4E510FB9D /* NetworkCachePendingFrameLoad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCachePendingFrameLoad.swift; sourceTree = "<group>"; };
+		B9CB27DE498D16B5AC505F9F /* NetworkCacheIsolatedString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheIsolatedString.swift; sourceTree = "<group>"; };
+		4049BD3B06FD2415A304808C /* NetworkCacheStorageIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheStorageIO.swift; sourceTree = "<group>"; };
+		83EE9AFCBEEFBDC20EB7834D /* NetworkCacheStorageReads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheStorageReads.swift; sourceTree = "<group>"; };
+		03E688BFC2EC250BE0FD5FAA /* NetworkCacheStorageTraversal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheStorageTraversal.swift; sourceTree = "<group>"; };
+		774B86E430BCEAF47E15EABD /* NetworkCacheStorageWrites.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheStorageWrites.swift; sourceTree = "<group>"; };
+		CBE5AFEDE4525106D9A8270E /* NetworkCacheSubresources+TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NetworkCacheSubresources+TestSupport.swift"; sourceTree = "<group>"; };
+		A5890B44A8454E1C810D2846 /* NetworkCacheTraverseOperation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheTraverseOperation.swift; sourceTree = "<group>"; };
+		472DC08C76604314B5D70A9F /* NetworkCacheRecordFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheRecordFormat.swift; sourceTree = "<group>"; };
+		4C5F577452B64760B21EEDFE /* NetworkCachePersistence.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCachePersistence.h; sourceTree = "<group>"; };
+		623F348B30D24D818E903B6F /* NetworkCacheRecordFormat.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheRecordFormat.h; sourceTree = "<group>"; };
 		077F49B53036DE1B00861A64 /* JavaScriptEvaluationResultDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptEvaluationResultDecoder.swift; sourceTree = "<group>"; };
 		077F49B73036DFD800861A64 /* JavaScriptEvaluationGraphDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptEvaluationGraphDecoder.swift; sourceTree = "<group>"; };
 		077F49B93036E01600861A64 /* JavaScriptEvaluationFieldDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaScriptEvaluationFieldDecoder.swift; sourceTree = "<group>"; };
@@ -7544,8 +7609,6 @@
 		7EB6760501701FB501FB7E06 /* GeneratedSerializersSharedWebGPU.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GeneratedSerializersSharedWebGPU.mm; sourceTree = "<group>"; };
 		7EC4F0F918E4A945008056AF /* NetworkProcessCocoa.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = NetworkProcessCocoa.mm; sourceTree = "<group>"; };
 		816C18758ACB9F66D87FBE39 /* WKImmersiveEnvironmentInternal.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WKImmersiveEnvironmentInternal.h; sourceTree = "<group>"; };
-		831042891BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheSubresourcesEntry.h; sourceTree = "<group>"; };
-		8310428A1BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheSubresourcesEntry.cpp; sourceTree = "<group>"; };
 		34AEE28EE67242ADAADB1A67 /* NetworkCacheTestSupport.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheTestSupport.cpp; sourceTree = "<group>"; };
 		B856FC19C4264C91841D88A0 /* NetworkCacheTestSupport.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheTestSupport.h; sourceTree = "<group>"; };
 		8313F7E71F7DAE0300B944EB /* SharedStringHashTable.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SharedStringHashTable.h; sourceTree = "<group>"; };
@@ -7554,8 +7617,6 @@
 		8313F7EA1F7DAE0400B944EB /* SharedStringHashStore.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SharedStringHashStore.cpp; sourceTree = "<group>"; };
 		831EEBBB1BD85C4300BB64C3 /* NetworkCacheSpeculativeLoad.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheSpeculativeLoad.h; sourceTree = "<group>"; };
 		831EEBBC1BD85C4300BB64C3 /* NetworkCacheSpeculativeLoad.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheSpeculativeLoad.cpp; sourceTree = "<group>"; };
-		832AE2501BE2E8CD00FAAE10 /* NetworkCacheSpeculativeLoadManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheSpeculativeLoadManager.h; sourceTree = "<group>"; };
-		832AE2511BE2E8CD00FAAE10 /* NetworkCacheSpeculativeLoadManager.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheSpeculativeLoadManager.cpp; sourceTree = "<group>"; };
 		832ED1891E2FE13B006BA64A /* PerActivityStateCPUUsageSampler.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PerActivityStateCPUUsageSampler.cpp; sourceTree = "<group>"; };
 		832ED18A1E2FE13B006BA64A /* PerActivityStateCPUUsageSampler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PerActivityStateCPUUsageSampler.h; sourceTree = "<group>"; };
 		83397C6622124BD100B62388 /* WebProcessCache.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebProcessCache.cpp; sourceTree = "<group>"; };
@@ -8160,10 +8221,6 @@
 		AA1057000000000000000002 /* InspectorStorageAgent.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InspectorStorageAgent.h; sourceTree = "<group>"; };
 		AA1057000000000000000003 /* InspectorCookieStoreHelpers.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = InspectorCookieStoreHelpers.cpp; sourceTree = "<group>"; };
 		AA1057000000000000000004 /* InspectorCookieStoreHelpers.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InspectorCookieStoreHelpers.h; sourceTree = "<group>"; };
-		AAB145E4223F931200E489D8 /* PrefetchCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PrefetchCache.h; sourceTree = "<group>"; };
-		AAB145E5223F931200E489D8 /* PrefetchCache.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrefetchCache.cpp; sourceTree = "<group>"; };
-		AAFA634E234F7C6300FFA864 /* AsyncRevalidation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AsyncRevalidation.h; sourceTree = "<group>"; };
-		AAFA6350234F7C7300FFA864 /* AsyncRevalidation.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AsyncRevalidation.cpp; sourceTree = "<group>"; };
 		AB2750C024859B1A00F1C9D8 /* PepperUICoreSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PepperUICoreSPI.h; sourceTree = "<group>"; };
 		ABB6C809249180DB00C50D9A /* ClockKitSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ClockKitSPI.h; sourceTree = "<group>"; };
 		AD00CE0C2E1A000000000003 /* MessageCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCheck.swift; sourceTree = "<group>"; };
@@ -9073,7 +9130,17 @@
 		E40C1F9321F0B96E00530718 /* ScrollingTreeFrameScrollingNodeRemoteIOS.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScrollingTreeFrameScrollingNodeRemoteIOS.h; sourceTree = "<group>"; };
 		E40C1F9521F0B97F00530718 /* ScrollingTreeFrameScrollingNodeRemoteIOS.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = ScrollingTreeFrameScrollingNodeRemoteIOS.mm; sourceTree = "<group>"; };
 		E413F59B1AC1ADB600345360 /* NetworkCacheEntry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheEntry.h; sourceTree = "<group>"; };
-		E413F59E1AC1AF9D00345360 /* NetworkCacheEntry.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheEntry.cpp; sourceTree = "<group>"; };
+		9024ABF3E5ABE0BF61948925 /* NetworkCacheAsyncRevalidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheAsyncRevalidation.swift; sourceTree = "<group>"; };
+		F17965CB49E48A10A0093973 /* NetworkCacheSpeculativeLoad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheSpeculativeLoad.swift; sourceTree = "<group>"; };
+		8A1D5E3C9B2F4A6071C8D9E1 /* NetworkCacheSpeculativeLoadDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheSpeculativeLoadDiagnostics.swift; sourceTree = "<group>"; };
+		8A1D5E3C9B2F4A6071C8D9E3 /* NetworkCacheSpeculativeLoadHeaders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheSpeculativeLoadHeaders.swift; sourceTree = "<group>"; };
+		075C9E29D58DA6812D512526 /* NetworkCacheSpeculativeLoadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheSpeculativeLoadManager.swift; sourceTree = "<group>"; };
+		E0BE40E5C9FD759A4662153F /* NetworkCacheSubresources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheSubresources.swift; sourceTree = "<group>"; };
+		5069E7649FED4D0DAF1C85F4 /* NetworkCacheCompressionDictionaryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheCompressionDictionaryEntry.swift; sourceTree = "<group>"; };
+		CF12AFAC8DB1D3C6344691FD /* NetworkCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCache.swift; sourceTree = "<group>"; };
+		72B82E12369848E298C786C9 /* PrefetchCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrefetchCache.swift; sourceTree = "<group>"; };
+		FF653A26DF8A4F3C8C6CD759 /* NetworkCacheEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkCacheEntry.swift; sourceTree = "<group>"; };
+		866FB2AF94D1CDE012537874 /* NetworkCacheForward.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NetworkCacheForward.h; sourceTree = "<group>"; };
 		E42E060B1AA7440D00B11699 /* NetworkCacheIOChannel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheIOChannel.h; sourceTree = "<group>"; };
 		E42E060D1AA750E500B11699 /* NetworkCacheIOChannelCocoa.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = NetworkCacheIOChannelCocoa.mm; sourceTree = "<group>"; };
 		E42E06111AA75ABD00B11699 /* NetworkCacheData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheData.h; sourceTree = "<group>"; };
@@ -9083,6 +9150,7 @@
 		E4436EC01A0CFDB200EAD204 /* NetworkCacheKey.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheKey.cpp; sourceTree = "<group>"; };
 		E4436EC11A0CFDB200EAD204 /* NetworkCacheKey.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheKey.h; sourceTree = "<group>"; };
 		E4436EC21A0CFDB200EAD204 /* NetworkCacheStorage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheStorage.h; sourceTree = "<group>"; };
+		FE8F5DEFDA5C282DA6D2CEB1 /* NetworkCacheStorageIO.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheStorageIO.cpp; sourceTree = "<group>"; };
 		E4436EC31A0CFDB200EAD204 /* NetworkCacheStorage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheStorage.cpp; sourceTree = "<group>"; };
 		E4697CCC1B25EB8F001B0A6C /* NetworkCacheFileSystem.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheFileSystem.cpp; sourceTree = "<group>"; };
 		E47D1E961B062B66002676A8 /* NetworkCacheData.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheData.cpp; sourceTree = "<group>"; };
@@ -9090,8 +9158,6 @@
 		E47FC89F25B8331C005495FC /* NetworkLoadScheduler.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkLoadScheduler.h; sourceTree = "<group>"; };
 		E489D2841A0A2DB80078C06A /* NetworkCacheCoders.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheCoders.cpp; sourceTree = "<group>"; };
 		E489D2851A0A2DB80078C06A /* NetworkCacheCoders.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheCoders.h; sourceTree = "<group>"; };
-		E49D40D61AD3FB170066B7B9 /* NetworkCacheBlobStorage.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkCacheBlobStorage.h; sourceTree = "<group>"; };
-		E49D40D81AD3FB210066B7B9 /* NetworkCacheBlobStorage.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkCacheBlobStorage.cpp; sourceTree = "<group>"; };
 		E4E57F6821A83B0300345F3C /* RemoteLayerTreeNode.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = RemoteLayerTreeNode.mm; sourceTree = "<group>"; };
 		E4E57F6A21A83B1100345F3C /* RemoteLayerTreeNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RemoteLayerTreeNode.h; sourceTree = "<group>"; };
 		E502E4F72D4810EA00C3D56D /* WKMaterialHostingSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WKMaterialHostingSupport.swift; sourceTree = "<group>"; };
@@ -11097,6 +11163,8 @@
 				5CA6A48B28F6621800F92B6E /* WTFArgumentCoders.serialization.in */,
 				077DD8E6303AE8A2000AA8FC /* WTFCompletionHandler+Extras.swift */,
 				3EB13B9046685257BDD640FB /* WTFFunction+Extras.swift */,
+				4CB53970A96DB69B28BADCAE /* CxxOptional+Extras.swift */,
+				766186430F1E8D30B641C30C /* Array+Extras.swift */,
 				0708B49330413DF90014BF6C /* WTFExpected+Extras.swift */,
 			);
 			path = Shared;
@@ -18204,41 +18272,70 @@
 		E489D2821A0A2BE80078C06A /* cache */ = {
 			isa = PBXGroup;
 			children = (
-				AAFA6350234F7C7300FFA864 /* AsyncRevalidation.cpp */,
-				AAFA634E234F7C6300FFA864 /* AsyncRevalidation.h */,
 				E4436EBE1A0CFDB200EAD204 /* NetworkCache.cpp */,
 				E4436EBF1A0CFDB200EAD204 /* NetworkCache.h */,
-				E49D40D81AD3FB210066B7B9 /* NetworkCacheBlobStorage.cpp */,
-				E49D40D61AD3FB170066B7B9 /* NetworkCacheBlobStorage.h */,
 				E489D2841A0A2DB80078C06A /* NetworkCacheCoders.cpp */,
 				E489D2851A0A2DB80078C06A /* NetworkCacheCoders.h */,
+				CF12AFAC8DB1D3C6344691FD /* NetworkCache.swift */,
 				C0D1C7A02E9000000000C002 /* NetworkCacheCompressionDictionaryEntry.cpp */,
 				C0D1C7A02E9000000000C001 /* NetworkCacheCompressionDictionaryEntry.h */,
+				9024ABF3E5ABE0BF61948925 /* NetworkCacheAsyncRevalidation.swift */,
+				F17965CB49E48A10A0093973 /* NetworkCacheSpeculativeLoad.swift */,
+				8A1D5E3C9B2F4A6071C8D9E1 /* NetworkCacheSpeculativeLoadDiagnostics.swift */,
+				8A1D5E3C9B2F4A6071C8D9E3 /* NetworkCacheSpeculativeLoadHeaders.swift */,
+				075C9E29D58DA6812D512526 /* NetworkCacheSpeculativeLoadManager.swift */,
+				E0BE40E5C9FD759A4662153F /* NetworkCacheSubresources.swift */,
+				5069E7649FED4D0DAF1C85F4 /* NetworkCacheCompressionDictionaryEntry.swift */,
 				E47D1E961B062B66002676A8 /* NetworkCacheData.cpp */,
 				E42E06111AA75ABD00B11699 /* NetworkCacheData.h */,
 				E42E06131AA75B7000B11699 /* NetworkCacheDataCocoa.mm */,
-				E413F59E1AC1AF9D00345360 /* NetworkCacheEntry.cpp */,
-				E413F59B1AC1ADB600345360 /* NetworkCacheEntry.h */,
-				E4697CCC1B25EB8F001B0A6C /* NetworkCacheFileSystem.cpp */,
-				834B250E1A831A8D00CFB150 /* NetworkCacheFileSystem.h */,
+				FF653A26DF8A4F3C8C6CD759 /* NetworkCacheEntry.swift */,
 				E42E060B1AA7440D00B11699 /* NetworkCacheIOChannel.h */,
 				E42E060D1AA750E500B11699 /* NetworkCacheIOChannelCocoa.mm */,
 				E4436EC01A0CFDB200EAD204 /* NetworkCacheKey.cpp */,
 				E4436EC11A0CFDB200EAD204 /* NetworkCacheKey.h */,
+				3EBC7CB57FF847798D5484DD /* NetworkCacheKey.swift */,
+				866FB2AF94D1CDE012537874 /* NetworkCacheForward.h */,
+				E413F59B1AC1ADB600345360 /* NetworkCacheEntry.h */,
+				4C5F577452B64760B21EEDFE /* NetworkCachePersistence.h */,
+				623F348B30D24D818E903B6F /* NetworkCacheRecordFormat.h */,
+				472DC08C76604314B5D70A9F /* NetworkCacheRecordFormat.swift */,
+				915998E94B684369B9E656EF /* NetworkCacheBlobStorage.swift */,
+				B72CAE2B66D34E69933991A9 /* NetworkCacheFileSystem.swift */,
+				7F9A1D3B5C2E4F608B1C2D3E /* NetworkCacheHandlerBox.swift */,
+				091FAA4F49CE43FD9808788C /* NetworkCacheStorage.swift */,
+				A5890B44A8454E1C810D2846 /* NetworkCacheTraverseOperation.swift */,
+				3624463345A1B7E3428CB0A5 /* NetworkCacheDump.h */,
+				E4697CCC1B25EB8F001B0A6C /* NetworkCacheFileSystem.cpp */,
+				834B250E1A831A8D00CFB150 /* NetworkCacheFileSystem.h */,
+				4282DC29E7FAE61A7C5A37CD /* NetworkCacheHandlers.h */,
+				D54D2B390D91EC91FCEFB01A /* NetworkCacheStorageIO.h */,
+				A04588CB0F95E8C15187F7FF /* NetworkCacheTestSupportInternal.h */,
+				E2969FCA2FA81F440FCC7D59 /* NetworkCacheWTFInterop.h */,
+				8F0C6BB722F746C47F446926 /* NetworkCacheWebsiteData.h */,
+				E4436EC31A0CFDB200EAD204 /* NetworkCacheStorage.cpp */,
+				FE8F5DEFDA5C282DA6D2CEB1 /* NetworkCacheStorageIO.cpp */,
+				6D7A777A86933F92318A261F /* NetworkCacheWebsiteData.cpp */,
+				0C7AC14DD878B826E54A66AA /* NetworkCacheCompressionDictionaryIndex.swift */,
+				5F4CB256DFFD2DBBE4BE6266 /* NetworkCacheDump.swift */,
+				46B4F1950693D9F608153201 /* NetworkCacheRetrieve.swift */,
+				2F690F4B4B4A3374E4F63D0C /* NetworkCacheWallTime.swift */,
+				7D9E09618FD22E53A22B930F /* NetworkCacheDecisions.swift */,
+				3D382749B7D3CAA4E510FB9D /* NetworkCachePendingFrameLoad.swift */,
+				B9CB27DE498D16B5AC505F9F /* NetworkCacheIsolatedString.swift */,
+				4049BD3B06FD2415A304808C /* NetworkCacheStorageIO.swift */,
+				83EE9AFCBEEFBDC20EB7834D /* NetworkCacheStorageReads.swift */,
+				03E688BFC2EC250BE0FD5FAA /* NetworkCacheStorageTraversal.swift */,
+				774B86E430BCEAF47E15EABD /* NetworkCacheStorageWrites.swift */,
+				CBE5AFEDE4525106D9A8270E /* NetworkCacheSubresources+TestSupport.swift */,
 				831EEBBC1BD85C4300BB64C3 /* NetworkCacheSpeculativeLoad.cpp */,
 				831EEBBB1BD85C4300BB64C3 /* NetworkCacheSpeculativeLoad.h */,
-				832AE2511BE2E8CD00FAAE10 /* NetworkCacheSpeculativeLoadManager.cpp */,
-				832AE2501BE2E8CD00FAAE10 /* NetworkCacheSpeculativeLoadManager.h */,
-				E4436EC31A0CFDB200EAD204 /* NetworkCacheStorage.cpp */,
 				E4436EC21A0CFDB200EAD204 /* NetworkCacheStorage.h */,
-				8310428A1BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.cpp */,
-				831042891BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.h */,
 				34AEE28EE67242ADAADB1A67 /* NetworkCacheTestSupport.cpp */,
 				B856FC19C4264C91841D88A0 /* NetworkCacheTestSupport.h */,
 				5CB1C0031234567890ABCDEF /* NetworkCacheValidation.cpp */,
 				5CB1C0011234567890ABCDEF /* NetworkCacheValidation.h */,
-				AAB145E5223F931200E489D8 /* PrefetchCache.cpp */,
-				AAB145E4223F931200E489D8 /* PrefetchCache.h */,
+				72B82E12369848E298C786C9 /* PrefetchCache.swift */,
 			);
 			path = cache;
 			sourceTree = "<group>";
@@ -18770,7 +18867,6 @@
 				A175C44A21AA3171000037D0 /* ArgumentCodersCocoa.h in Headers */,
 				4955A6E628076D4D00BB91C4 /* ArrayReferenceTuple.h in Headers */,
 				A1D6156B2B06BBAC002D0E19 /* AssertionCapability.h in Headers */,
-				AAFA634F234F7C6400FFA864 /* AsyncRevalidation.h in Headers */,
 				BCEE966D112FAF57006BCC24 /* Attachment.h in Headers */,
 				512F589712A8838800629530 /* AuthenticationChallengeProxy.h in Headers */,
 				512F589912A8838800629530 /* AuthenticationDecisionListener.h in Headers */,
@@ -19163,19 +19259,25 @@
 				535BCB922069C49C00CCCE02 /* NetworkActivityTracker.h in Headers */,
 				46EE284D269E052500DD48AB /* NetworkBroadcastChannelRegistry.h in Headers */,
 				E4436ECC1A0D040B00EAD204 /* NetworkCache.h in Headers */,
-				E49D40D71AD3FB170066B7B9 /* NetworkCacheBlobStorage.h in Headers */,
 				E489D28C1A0A2DB80078C06A /* NetworkCacheCoders.h in Headers */,
 				C0D1C7A02E9000000000C003 /* NetworkCacheCompressionDictionaryEntry.h in Headers */,
 				E42E06121AA75ABD00B11699 /* NetworkCacheData.h in Headers */,
-				E413F59D1AC1ADC400345360 /* NetworkCacheEntry.h in Headers */,
-				834B250F1A831A8D00CFB150 /* NetworkCacheFileSystem.h in Headers */,
 				E42E06101AA7523B00B11699 /* NetworkCacheIOChannel.h in Headers */,
 				E4436ECE1A0D040B00EAD204 /* NetworkCacheKey.h in Headers */,
+				E94419E3D56E421984835B57 /* NetworkCachePersistence.h in Headers */,
+				0DC46EC4BC2943209C16D320 /* NetworkCacheRecordFormat.h in Headers */,
+				4C65A5E3150465679B0EF1B1 /* NetworkCacheForward.h in Headers */,
+				E413F59D1AC1ADC400345360 /* NetworkCacheEntry.h in Headers */,
 				831EEBBD1BD85C4300BB64C3 /* NetworkCacheSpeculativeLoad.h in Headers */,
-				832AE2521BE2E8CD00FAAE10 /* NetworkCacheSpeculativeLoadManager.h in Headers */,
 				E4436ECF1A0D040B00EAD204 /* NetworkCacheStorage.h in Headers */,
-				8310428B1BD6B66F00A715E4 /* NetworkCacheSubresourcesEntry.h in Headers */,
 				5CB1C0021234567890ABCDEF /* NetworkCacheValidation.h in Headers */,
+				43681AF7F5365F88302A5549 /* NetworkCacheDump.h in Headers */,
+				834B250F1A831A8D00CFB150 /* NetworkCacheFileSystem.h in Headers */,
+				893A11FB80DE7086C9B2BE46 /* NetworkCacheHandlers.h in Headers */,
+				3876E03183F0198B2125A4F4 /* NetworkCacheStorageIO.h in Headers */,
+				78CE55AEF0722627893C66B3 /* NetworkCacheTestSupportInternal.h in Headers */,
+				F4C7D4B1DCE74FEDA730EEE1 /* NetworkCacheWTFInterop.h in Headers */,
+				18C938116F7AD52E2C09FC61 /* NetworkCacheWebsiteData.h in Headers */,
 				513A164D1630A9BF005D7D22 /* NetworkConnectionToWebProcess.h in Headers */,
 				51DD9F2916367DA2001578E9 /* NetworkConnectionToWebProcessMessages.h in Headers */,
 				46DF063C1F3905F8001980BB /* NetworkCORSPreflightChecker.h in Headers */,
@@ -19274,7 +19376,6 @@
 				1D3F2E8A99B47C6E5F7A2D11 /* PreconnectRequest.h in Headers */,
 				83A0ED351F747CCF003299EB /* PreconnectTask.h in Headers */,
 				C15CBB3623F3777100300CC7 /* PreferenceObserver.h in Headers */,
-				AAB145E6223F931200E489D8 /* PrefetchCache.h in Headers */,
 				E1CC1B9012D7EADF00625838 /* PrintInfo.h in Headers */,
 				512ECC3527196ADB00089B66 /* PrivateClickMeasurementConnection.h in Headers */,
 				5C826D6C26D482F2008AEC91 /* PrivateClickMeasurementDatabase.h in Headers */,
@@ -23276,6 +23377,37 @@
 				079A4DA32D72CDB400CA387F /* WKWebViewConfiguration+Extras.swift in Sources */,
 				077DD8E7303AE8A2000AA8FC /* WTFCompletionHandler+Extras.swift in Sources */,
 				06671AD11C80317FA3B1799D /* WTFFunction+Extras.swift in Sources */,
+				D0F399FA97F7991B05268DDF /* CxxOptional+Extras.swift in Sources */,
+				7D8627FDB854F4BA1843EE77 /* Array+Extras.swift in Sources */,
+				7CCB4338BBB8C0171D5BA653 /* NetworkCacheAsyncRevalidation.swift in Sources */,
+				5D63ADC97739AA1F3A15AF67 /* NetworkCacheSpeculativeLoad.swift in Sources */,
+				8A1D5E3C9B2F4A6071C8D9E0 /* NetworkCacheSpeculativeLoadDiagnostics.swift in Sources */,
+				8A1D5E3C9B2F4A6071C8D9E2 /* NetworkCacheSpeculativeLoadHeaders.swift in Sources */,
+				CE75F83247C35AE14D9085E1 /* NetworkCacheSpeculativeLoadManager.swift in Sources */,
+				56D66A8CE74739D8C1068BC3 /* NetworkCacheSubresources.swift in Sources */,
+				4BFC907A1ABB456FBAF56C99 /* NetworkCacheCompressionDictionaryEntry.swift in Sources */,
+				A5F9A8AFE63087BE2A653E6A /* NetworkCache.swift in Sources */,
+				0C95AAED8A7245E8900E8E48 /* NetworkCacheEntry.swift in Sources */,
+				1EA627987F384230BA3BD5BD /* PrefetchCache.swift in Sources */,
+				113E4E768A464254857CC6C8 /* NetworkCacheKey.swift in Sources */,
+				FE5DD4BAA8874261AAD1317F /* NetworkCacheRecordFormat.swift in Sources */,
+				ED7787E132154CB1B0F6DC7E /* NetworkCacheBlobStorage.swift in Sources */,
+				2A4609C2B5914A7D9F76F0D2 /* NetworkCacheFileSystem.swift in Sources */,
+				6E8F0C2A4B1D4E5F8A9B0C1D /* NetworkCacheHandlerBox.swift in Sources */,
+				4F0270A5181140F7B1094262 /* NetworkCacheStorage.swift in Sources */,
+				CFC8B5EF29BC432C8859BCFA /* NetworkCacheTraverseOperation.swift in Sources */,
+				6CE7B9EE4267007A31D44ECC /* NetworkCacheCompressionDictionaryIndex.swift in Sources */,
+				ADC068271E9756B37198F6F4 /* NetworkCacheDump.swift in Sources */,
+				DA6E460FB77CD36B380EC95E /* NetworkCacheRetrieve.swift in Sources */,
+				264547330782479B42C22244 /* NetworkCacheWallTime.swift in Sources */,
+				C7DDF1E1B4B0C8D584AC353A /* NetworkCacheDecisions.swift in Sources */,
+				F5007C1CB263F1E74DDC54A8 /* NetworkCachePendingFrameLoad.swift in Sources */,
+				227199B2D1BEF992C19E930E /* NetworkCacheIsolatedString.swift in Sources */,
+				AE03190C59D601E9E00B1722 /* NetworkCacheStorageIO.swift in Sources */,
+				FD94863333BF96A8128E4501 /* NetworkCacheStorageReads.swift in Sources */,
+				0C99B00CE6B1A948B76CECF1 /* NetworkCacheStorageTraversal.swift in Sources */,
+				65AE8E9D4CB177673744102B /* NetworkCacheStorageWrites.swift in Sources */,
+				5F4950954DE37DE98AC52266 /* NetworkCacheSubresources+TestSupport.swift in Sources */,
 				0708B49430413DF90014BF6C /* WTFExpected+Extras.swift in Sources */,
 				C14D306924B79BE000480387 /* XPCEndpoint.mm in Sources */,
 				C14D306A24B79BE400480387 /* XPCEndpointClient.mm in Sources */,

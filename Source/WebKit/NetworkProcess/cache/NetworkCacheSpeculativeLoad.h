@@ -26,10 +26,11 @@
 #pragma once
 
 #include "NetworkCache.h"
-#include "NetworkCacheEntry.h"
 #include "NetworkLoadClient.h"
+#include "NetworkLoadParameters.h"
 #include "PolicyDecision.h"
 #include "PrivateRelayed.h"
+#include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/ResourceResponse.h>
 #include <WebCore/SharedBuffer.h>
@@ -46,52 +47,61 @@ class NetworkLoad;
 
 namespace NetworkCache {
 
+// NetworkLoadClient's callbacks take references and move-only handlers, which Swift cannot override; each stores its
+// values and calls the handler Swift set.
+struct SpeculativeLoadEvent {
+    enum class Type : uint8_t { None, Redirect, Response, Buffer, Finish, Fail };
+    Type type { Type::None };
+    WebCore::ResourceRequest request;
+    WebCore::ResourceRequest redirectRequest;
+    WebCore::ResourceResponse response;
+    PrivateRelayed privateRelayed { PrivateRelayed::No };
+    RefPtr<const WebCore::FragmentedSharedBuffer> buffer;
+};
+
 class SpeculativeLoad final : public RefCounted<SpeculativeLoad>, public NetworkLoadClient {
     WTF_MAKE_TZONE_ALLOCATED(SpeculativeLoad);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(SpeculativeLoad);
 public:
-    using RevalidationCompletionHandler = CompletionHandler<void(std::unique_ptr<NetworkCache::Entry>)>;
-    static Ref<SpeculativeLoad> create(Cache&, const GlobalFrameID&, const WebCore::ResourceRequest&, std::unique_ptr<NetworkCache::Entry>, std::optional<NavigatingToAppBoundDomain>, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>, RevalidationCompletionHandler&&);
+    // Out of line, with the destructor (the key function): Swift's clang would emit the construction and the vtable,
+    // which name WTF's dllimport inline CanMakeCheckedPtrBase members on Windows.
+    static Ref<SpeculativeLoad> create();
+    ~SpeculativeLoad();
 
     SWIFT_UNSAFE void ref() const final { RefCounted::ref(); }
     SWIFT_UNSAFE void deref() const final { RefCounted::deref(); }
 
-    virtual ~SpeculativeLoad();
+    // The network load of request for frameID with this client, not started; null when the session is gone. The
+    // caller stores it before it calls startWithScheduling(), since the load can call its client inside the start.
+    // Kept in C++: the load is made for the NetworkSession, which Swift does not import (no shared-reference
+    // annotation, and its unique_ptr members and declared destructor leave it neither copyable nor movable).
+    RefPtr<NetworkLoad> createNetworkLoad(const GlobalFrameID&, const WebCore::ResourceRequest&, std::optional<NavigatingToAppBoundDomain>, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>, PAL::SessionID);
+    // Kept in C++: the PreconnectTask is made for the NetworkSession too (with SERVER_PRECONNECT; otherwise nothing).
+    static void preconnect(const GlobalFrameID&, const WebCore::ResourceRequest&, std::optional<NavigatingToAppBoundDomain>, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>, PAL::SessionID);
+    // Kept in C++: NetworkStorageSession is not imported either (noncopyable, with no shared-reference annotation).
+    static std::optional<Seconds> maxAgeCap(PAL::SessionID, const WebCore::ResourceRequest&);
 
-    const WebCore::ResourceRequest& originalRequest() const LIFETIME_BOUND { return m_originalRequest; }
-
-    void cancel();
+    void setEventHandler(CompletionHandler<void()>&& handler) { m_eventHandler = WTF::move(handler); }
+    SpeculativeLoadEvent takeEvent() { return std::exchange(m_event, { }); }
 
 private:
-    SpeculativeLoad(Cache&, const GlobalFrameID&, const WebCore::ResourceRequest&, std::unique_ptr<NetworkCache::Entry>, std::optional<NavigatingToAppBoundDomain>, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>, RevalidationCompletionHandler&&);
+    SpeculativeLoad() = default;
+    static NetworkLoadParameters makeParameters(const GlobalFrameID&, const WebCore::ResourceRequest&, std::optional<NavigatingToAppBoundDomain>, bool allowPrivacyProxy, OptionSet<WebCore::AdvancedPrivacyProtections>);
+    void deliver(SpeculativeLoadEvent&&);
 
     // NetworkLoadClient.
     void didSendData(uint64_t bytesSent, uint64_t totalBytesToBeSent) override { }
     bool isSynchronous() const override { return false; }
     bool isAllowedToAskUserForCredentials() const final { return false; }
-    void willSendRedirectedRequest(WebCore::ResourceRequest&&, WebCore::ResourceRequest&& redirectRequest, WebCore::ResourceResponse&& redirectResponse, CompletionHandler<void(WebCore::ResourceRequest&&)>&&) override;
-    void didReceiveResponse(WebCore::ResourceResponse&&, PrivateRelayed, ResponseCompletionHandler&&) override;
-    void didReceiveBuffer(const WebCore::FragmentedSharedBuffer&) override;
-    void didFinishLoading(const WebCore::NetworkLoadMetrics&) override;
-    void didFailLoading(const WebCore::ResourceError&) override;
+    void willSendRedirectedRequest(WebCore::ResourceRequest&& request, WebCore::ResourceRequest&& redirectRequest, WebCore::ResourceResponse&& redirectResponse, CompletionHandler<void(WebCore::ResourceRequest&&)>&& completionHandler) override { deliver({ .type = SpeculativeLoadEvent::Type::Redirect, .request = WTF::move(request), .redirectRequest = WTF::move(redirectRequest), .response = WTF::move(redirectResponse) }); completionHandler({ }); }
+    void didReceiveResponse(WebCore::ResourceResponse&& response, PrivateRelayed privateRelayed, ResponseCompletionHandler&& completionHandler) override { deliver({ .type = SpeculativeLoadEvent::Type::Response, .response = WTF::move(response), .privateRelayed = privateRelayed }); completionHandler(WebCore::PolicyAction::Use); }
+    void didReceiveBuffer(const WebCore::FragmentedSharedBuffer& buffer) override { deliver({ .type = SpeculativeLoadEvent::Type::Buffer, .buffer = &buffer }); }
+    void didFinishLoading(const WebCore::NetworkLoadMetrics&) override { deliver({ .type = SpeculativeLoadEvent::Type::Finish }); }
+    void didFailLoading(const WebCore::ResourceError&) override { deliver({ .type = SpeculativeLoadEvent::Type::Fail }); }
 
-    void didComplete();
-
-    const Ref<Cache> m_cache;
-    RevalidationCompletionHandler m_completionHandler;
-    WebCore::ResourceRequest m_originalRequest;
-
-    RefPtr<NetworkLoad> m_networkLoad;
-
-    WebCore::ResourceResponse m_response;
-
-    WebCore::SharedBufferBuilder m_bufferedDataForCache;
-    std::unique_ptr<NetworkCache::Entry> m_cacheEntry;
-    bool m_didComplete { false };
-    PrivateRelayed m_privateRelayed { PrivateRelayed::No };
+    CompletionHandler<void()> m_eventHandler;
+    SpeculativeLoadEvent m_event;
 };
-
-bool requestsHeadersMatch(const WebCore::ResourceRequest& speculativeValidationRequest, const WebCore::ResourceRequest& actualRequest);
 
 // The test support's dry run of the speculative load manager (defined in NetworkCacheTestSupport.cpp). While it is on, the
 // manager starts no network load or preconnect and logs no diagnostic message: it passes each to the test support, which

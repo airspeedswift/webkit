@@ -575,17 +575,28 @@ module WebKit_Internal [system] {
         requires cplusplus20
     }
 
-    // The network cache's C++ types its Swift names (Data, IOChannel, Key, Entry, SpeculativeLoad), the loads it
-    // starts, and the sessions its validation reads. Last, so that a header an earlier submodule includes stays in
-    // that submodule. Not explicit: these headers reach types (SerializedScriptValue) that other submodules name.
+    // The network cache's C++ types its Swift names, the loads it starts, and the sessions its validation reads. Last,
+    // so that a header an earlier submodule includes stays in that submodule. Not explicit: these headers reach types
+    // (SerializedScriptValue) that other submodules name.
     module NetworkCacheCxx {
         requires cplusplus20
+        header "../../NetworkProcess/cache/NetworkCacheCompressionDictionaryEntry.h"
         header "../../NetworkProcess/cache/NetworkCacheData.h"
+        header "../../NetworkProcess/cache/NetworkCacheDump.h"
         header "../../NetworkProcess/cache/NetworkCacheEntry.h"
+        header "../../NetworkProcess/cache/NetworkCacheFileSystem.h"
+        header "../../NetworkProcess/cache/NetworkCacheForward.h"
+        header "../../NetworkProcess/cache/NetworkCacheHandlers.h"
         header "../../NetworkProcess/cache/NetworkCacheIOChannel.h"
         header "../../NetworkProcess/cache/NetworkCacheKey.h"
+        header "../../NetworkProcess/cache/NetworkCachePersistence.h"
+        header "../../NetworkProcess/cache/NetworkCacheRecordFormat.h"
         header "../../NetworkProcess/cache/NetworkCacheSpeculativeLoad.h"
+        header "../../NetworkProcess/cache/NetworkCacheStorage.h"
+        header "../../NetworkProcess/cache/NetworkCacheStorageIO.h"
+        header "../../NetworkProcess/cache/NetworkCacheTestSupportInternal.h"
         header "../../NetworkProcess/cache/NetworkCacheValidation.h"
+        header "../../NetworkProcess/cache/NetworkCacheWTFInterop.h"
         header "../../NetworkProcess/NetworkLoad.h"
         header "../../NetworkProcess/NetworkLoadParameters.h"
         header "../../NetworkProcess/NetworkProcess.h"

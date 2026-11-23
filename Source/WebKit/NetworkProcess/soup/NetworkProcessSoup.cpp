@@ -32,6 +32,7 @@
 #include "NetworkProcessProxyMessages.h"
 #include "NetworkSessionSoup.h"
 #include "WebCookieManager.h"
+#include "WebKit-Swift.h"
 #include "WebKitCachedResolver.h"
 #include "WebKitOverridingResolver.h"
 #include <WebCore/CertificateInfo.h>
@@ -173,7 +174,7 @@ void NetworkProcess::clearDiskCache(WallTime modifiedSince, CompletionHandler<vo
     auto aggregator = CallbackAggregator::create(WTF::move(completionHandler));
     forEachNetworkSession([modifiedSince, &aggregator](NetworkSession& session) {
         if (auto* cache = session.cache())
-            cache->clear(modifiedSince, [aggregator] () { });
+            cache->clear(modifiedSince, NetworkCache::VoidHandlerBox::create([aggregator] { }).ptr());
     });
 }
 

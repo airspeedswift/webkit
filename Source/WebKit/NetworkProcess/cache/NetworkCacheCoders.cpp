@@ -27,7 +27,6 @@
 #include "NetworkCacheCoders.h"
 
 #include "NetworkCacheKey.h"
-#include "NetworkCacheSubresourcesEntry.h"
 #include <wtf/persistence/PersistentCoders.h>
 #include <wtf/persistence/PersistentDecoder.h>
 #include <wtf/persistence/PersistentEncoder.h>
@@ -85,77 +84,6 @@ std::optional<WebKit::NetworkCache::Key> Coder<WebKit::NetworkCache::Key>::decod
     key.m_partitionHash = WTF::move(*partitionHash);
 
     return { WTF::move(key) };
-}
-
-void Coder<WebKit::NetworkCache::SubresourceInfo>::encodeForPersistence(WTF::Persistence::Encoder& encoder, const WebKit::NetworkCache::SubresourceInfo& instance)
-{
-    encoder << instance.key();
-    encoder << instance.lastSeen();
-    encoder << instance.firstSeen();
-    encoder << instance.isTransient();
-
-    // Do not bother serializing other data members of transient resources as they are empty.
-    if (instance.isTransient())
-        return;
-
-    encoder << instance.isSameSite();
-    encoder << instance.isAppInitiated();
-    encoder << instance.firstPartyForCookies();
-    encoder << instance.requestHeaders();
-    encoder << instance.priority();
-}
-
-std::optional<WebKit::NetworkCache::SubresourceInfo> Coder<WebKit::NetworkCache::SubresourceInfo>::decodeForPersistence(WTF::Persistence::Decoder& decoder)
-{
-    std::optional<WebKit::NetworkCache::Key> key;
-    decoder >> key;
-    if (!key)
-        return std::nullopt;
-
-    std::optional<WallTime> lastSeen;
-    decoder >> lastSeen;
-    if (!lastSeen)
-        return std::nullopt;
-
-    std::optional<WallTime> firstSeen;
-    decoder >> firstSeen;
-    if (!firstSeen)
-        return std::nullopt;
-
-    std::optional<bool> isTransient;
-    decoder >> isTransient;
-    if (!isTransient)
-        return std::nullopt;
-
-    if (*isTransient)
-        return WebKit::NetworkCache::SubresourceInfo(WTF::move(*key), *lastSeen, *firstSeen);
-
-    std::optional<bool> isSameSite;
-    decoder >> isSameSite;
-    if (!isSameSite)
-        return std::nullopt;
-
-    std::optional<bool> isAppInitiated;
-    decoder >> isAppInitiated;
-    if (!isAppInitiated)
-        return std::nullopt;
-
-    std::optional<URL> firstPartyForCookies;
-    decoder >> firstPartyForCookies;
-    if (!firstPartyForCookies)
-        return std::nullopt;
-
-    std::optional<WebCore::HTTPHeaderMap> requestHeaders;
-    decoder >> requestHeaders;
-    if (!requestHeaders)
-        return std::nullopt;
-
-    std::optional<WebCore::ResourceLoadPriority> priority;
-    decoder >> priority;
-    if (!priority)
-        return std::nullopt;
-
-    return WebKit::NetworkCache::SubresourceInfo(WTF::move(*key), *lastSeen, *firstSeen, *isSameSite, *isAppInitiated, WTF::move(*firstPartyForCookies), WTF::move(*requestHeaders), *priority);
 }
 
 }

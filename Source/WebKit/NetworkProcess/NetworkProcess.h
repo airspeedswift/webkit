@@ -143,7 +143,6 @@ struct WebPushMessage;
 struct WebsiteDataStoreParameters;
 
 namespace NetworkCache {
-class Cache;
 enum class CacheOption : uint8_t;
 }
 

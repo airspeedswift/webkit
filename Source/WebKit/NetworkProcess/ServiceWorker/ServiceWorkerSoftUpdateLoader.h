@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include "NetworkCacheEntry.h"
+#include "NetworkCacheForward.h"
 #include "NetworkLoadClient.h"
 #include <WebCore/ContentSecurityPolicyResponseHeaders.h>
 #include <WebCore/CrossOriginEmbedderPolicy.h>

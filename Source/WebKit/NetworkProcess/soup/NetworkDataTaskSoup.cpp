@@ -37,6 +37,7 @@
 #include "NetworkStorageSession.h"
 #include "PrivateRelayed.h"
 #include "WebErrors.h"
+#include "WebKit-Swift.h"
 #include "WebKitDirectoryInputStream.h"
 #include <WebCore/AuthenticationChallenge.h>
 #include <WebCore/DNS.h>
@@ -931,7 +932,7 @@ void NetworkDataTaskSoup::continueHTTPRedirection()
         if (m_compressionDictionary) {
             m_compressionDictionary->match = std::nullopt;
             if (m_session && request.url().protocolIs("https"_s) && !shouldBlockCookies(request, wasBlockingCookies)) {
-                if (RefPtr cache = m_session->cache()) {
+                if (auto* cache = m_session->cache()) {
                     if (auto match = cache->bestCompressionDictionaryMatch(request, m_compressionDictionary->destination))
                         m_compressionDictionary->match = CompressionDictionaryParameters::Match { match->key, match->hash, match->id };
                 }
@@ -1429,7 +1430,7 @@ gboolean NetworkDataTaskSoup::requestCompressionDictionaryCallback(SoupMessage* 
 
 void NetworkDataTaskSoup::requestCompressionDictionary(SoupCompressionDictionaryRequest* request)
 {
-    RefPtr<NetworkCache::Cache> cache;
+    NetworkCache::Cache* cache = nullptr;
     if (m_state != State::Canceling && m_state != State::Completed && m_session)
         cache = m_session->cache();
     if (!cache) {
@@ -1439,7 +1440,7 @@ void NetworkDataTaskSoup::requestCompressionDictionary(SoupCompressionDictionary
 
     ASSERT(m_compressionDictionary && m_compressionDictionary->match);
     auto& match = *m_compressionDictionary->match;
-    cache->retrieveCompressionDictionary(match.key, match.hash, [this, protectedThis = protect(*this), request = GRefPtr<SoupCompressionDictionaryRequest> { request }](RefPtr<WebCore::SharedBuffer>&& buffer) {
+    cache->retrieveCompressionDictionary(match.key, match.hash, NetworkCache::SharedBufferHandlerBox::create([this, protectedThis = protect(*this), request = GRefPtr<SoupCompressionDictionaryRequest> { request }](RefPtr<WebCore::SharedBuffer>&& buffer) {
         if (!buffer || m_state == State::Canceling || m_state == State::Completed) {
             soup_compression_dictionary_request_cancel(request.get());
             return;
@@ -1450,7 +1451,7 @@ void NetworkDataTaskSoup::requestCompressionDictionary(SoupCompressionDictionary
             static_cast<WebCore::SharedBuffer*>(buffer)->deref();
         }, buffer.leakRef()));
         soup_compression_dictionary_request_set_dictionary(request.get(), bytes.get());
-    });
+    }).ptr());
 }
 #endif
 

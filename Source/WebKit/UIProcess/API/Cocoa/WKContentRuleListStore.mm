@@ -28,12 +28,12 @@
 #import "WKContentRuleListStoreInternal.h"
 
 #import "APIContentRuleListStore.h"
-#import "NetworkCacheFileSystem.h"
 #import "WKErrorInternal.h"
 #import "WebPrivacyHelpers.h"
 #import <WebCore/WebCoreObjCExtras.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/CompletionHandler.h>
+#import <wtf/FileSystem.h>
 #import <wtf/cocoa/VectorCocoa.h>
 
 #if ENABLE(CONTENT_EXTENSIONS)

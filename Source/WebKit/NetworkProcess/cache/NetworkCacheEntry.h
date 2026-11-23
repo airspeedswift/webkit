@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Apple Inc. All rights reserved.
+ * Copyright (C) 2015-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,73 +25,114 @@
 
 #pragma once
 
+#include "NetworkCacheData.h"
+#include "NetworkCacheForward.h"
 #include "NetworkCacheStorage.h"
 #include "PrivateRelayed.h"
+#include <WebCore/CacheValidation.h>
+#include <WebCore/HTTPStatusCodes.h>
 #include <WebCore/ResourceRequest.h>
-#include <WebCore/ResourceResponse.h>
 #include <WebCore/ShareableResource.h>
-#include <wtf/Noncopyable.h>
+#include <WebCore/SharedBuffer.h>
+#include <memory>
+#include <optional>
 #include <wtf/Seconds.h>
-#include <wtf/TZoneMalloc.h>
+#include <wtf/StdLibExtras.h>
+#include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
-namespace WebCore {
-class FragmentedSharedBuffer;
-}
+// C++ holds a network cache entry (NetworkCacheEntry.swift) or compression dictionary entry
+// (NetworkCacheCompressionDictionaryEntry.swift) by std::unique_ptr of the class in WebKit-Swift.h, which
+// only a .cpp in WebKit_SWIFT_INTEROP_SOURCES includes; a header names it through NetworkCacheForward.h. The aliases
+// name the template types the entries store, and the helpers are templates so that they compile before WebKit-Swift.h.
 
 namespace WebKit::NetworkCache {
 
-class Entry {
-    WTF_MAKE_TZONE_ALLOCATED(Entry);
-public:
-    Entry(const Key&, const WebCore::ResourceResponse&, PrivateRelayed, RefPtr<WebCore::FragmentedSharedBuffer>&&, const Vector<std::pair<String, String>>& varyingRequestHeaders);
-    Entry(const Key&, const WebCore::ResourceResponse&, const WebCore::ResourceRequest& redirectRequest, const Vector<std::pair<String, String>>& varyingRequestHeaders);
-    explicit Entry(const Storage::Record&);
-    Entry(const Entry&);
+using HeaderPairs = Vector<std::pair<String, String>>;
+using OptionalRequest = std::optional<WebCore::ResourceRequest>;
+using FragmentedBufferPtr = RefPtr<WebCore::FragmentedSharedBuffer>;
+using ShareableResourcePtr = RefPtr<WebCore::ShareableResource>;
+using SharedBufferPtr = RefPtr<WebCore::SharedBuffer>;
 
-    Storage::Record encodeAsStorageRecord() const;
-    static std::unique_ptr<Entry> decodeStorageRecord(const Storage::Record&);
-    static std::optional<URL> decodeStorageRecordResponseURL(const Storage::Record&);
-
-    PrivateRelayed privateRelayed() const { return m_privateRelayed; }
-    const Key& key() const LIFETIME_BOUND { return m_key; }
-    WallTime timeStamp() const { return m_timeStamp; }
-    const WebCore::ResourceResponse& response() const LIFETIME_BOUND { return m_response; }
-    const Vector<std::pair<String, String>>& varyingRequestHeaders() const LIFETIME_BOUND { return m_varyingRequestHeaders; }
-
-    WebCore::FragmentedSharedBuffer* buffer() const;
-    const std::optional<WebCore::ResourceRequest>& redirectRequest() const LIFETIME_BOUND { return m_redirectRequest; }
-
-#if ENABLE(SHAREABLE_RESOURCE)
-    std::optional<WebCore::ShareableResource::Handle> shareableResourceHandle() const;
-#endif
-
-    bool needsValidation() const;
-    NODELETE void setNeedsValidation(bool);
-
-    void asJSON(StringBuilder&, const Storage::RecordInfo&) const;
-
-    bool hasReachedPrevalentResourceAgeCap() const;
-    NODELETE void capMaxAge(const Seconds);
-
-private:
-    void initializeBufferFromStorageRecord() const;
-
-    Key m_key;
-    WallTime m_timeStamp;
-    WebCore::ResourceResponse m_response;
-    Vector<std::pair<String, String>> m_varyingRequestHeaders;
-
-    std::optional<WebCore::ResourceRequest> m_redirectRequest;
-    mutable RefPtr<WebCore::FragmentedSharedBuffer> m_buffer;
-#if ENABLE(SHAREABLE_RESOURCE)
-    mutable RefPtr<WebCore::ShareableResource> m_shareableResource;
-#endif
-
-    Storage::Record m_sourceStorageRecord { };
-    
-    std::optional<Seconds> m_maxAgeCap;
-    PrivateRelayed m_privateRelayed { PrivateRelayed::No };
-};
-
+template<typename EntryType>
+std::unique_ptr<EntryType> decodeNetworkCacheEntry(const Storage::Record& record)
+{
+    auto entry = EntryType::decodeStorageRecord(record);
+    if (!entry)
+        return nullptr;
+    return makeUniqueWithoutFastMallocCheck<EntryType>(entry.get());
 }
+
+// An isolated copy of the request without its body: the redirect body is not needed even if it exists.
+inline OptionalRequest redirectRequestForEntry(const WebCore::ResourceRequest& redirectRequest)
+{
+    OptionalRequest result;
+    result.emplace();
+    result->setAsIsolatedCopy(redirectRequest);
+    result->setHTTPBody(nullptr);
+    return result;
+}
+
+// Makes `buffer` contiguous and returns its bytes.
+inline Data makeContiguousData(FragmentedBufferPtr& buffer)
+{
+    buffer = buffer->makeContiguous();
+    return { downcast<WebCore::SharedBuffer>(*buffer).span() };
+}
+
+// The shareable resource's memory where there is one, else a copy of the body.
+inline FragmentedBufferPtr bufferFromStorageBody(const ShareableResourcePtr& shareableResource, const Data& body)
+{
+#if ENABLE(SHAREABLE_RESOURCE)
+    if (shareableResource) {
+        if (auto handle = shareableResource->createHandle()) {
+            if (RefPtr buffer = WTF::move(*handle).tryWrapInSharedBuffer())
+                return buffer;
+        }
+    }
+#else
+    UNUSED_PARAM(shareableResource);
+#endif
+    return WebCore::SharedBuffer::create(body.span());
+}
+
+inline SharedBufferPtr contiguousSharedBuffer(const FragmentedBufferPtr& buffer)
+{
+    return buffer ? RefPtr { buffer->makeContiguous() } : nullptr;
+}
+
+inline Data dataFromSharedBuffer(const SharedBufferPtr& buffer)
+{
+    if (!buffer)
+        return { };
+    return { buffer->span() };
+}
+
+inline SharedBufferPtr sharedBufferFromData(const Data& body)
+{
+    return WebCore::SharedBuffer::create(body.span());
+}
+
+// A shareable resource over the body's shared memory; null where there is none.
+inline ShareableResourcePtr shareableResourceFromBody(const Data& body)
+{
+#if ENABLE(SHAREABLE_RESOURCE)
+    auto sharedMemory = body.tryCreateSharedMemory();
+    if (!sharedMemory)
+        return nullptr;
+    return WebCore::ShareableResource::create(sharedMemory.releaseNonNull(), 0, body.size());
+#else
+    UNUSED_PARAM(body);
+    return nullptr;
+#endif
+}
+
+#ifndef __swift__
+// A C++ caller's unique_ptr to an entry the Swift cache returned (in files that include WebKit-Swift.h).
+// A template, so that it compiles before WebKit-Swift.h completes Entry.
+template<typename EntryType>
+requires std::same_as<EntryType, Entry>
+std::unique_ptr<EntryType> entryPointer(EntryType&& entry) { return makeUniqueWithoutFastMallocCheck<EntryType>(WTF::move(entry)); }
+#endif
+
+} // namespace WebKit::NetworkCache
