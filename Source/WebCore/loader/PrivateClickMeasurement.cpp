@@ -26,37 +26,15 @@
 #include "config.h"
 #include "PrivateClickMeasurement.h"
 
-#include "Logging.h"
+#include "PrivateClickMeasurementSwift.h"
+#include "WebCore-Swift.h"
 #include <wtf/CrossThreadCopier.h>
-#include <wtf/CryptographicallyRandomNumber.h>
-#include <wtf/URL.h>
-#include <wtf/text/MakeString.h>
-#include <wtf/text/StringToIntegerConversion.h>
-#include <wtf/text/StringView.h>
 
 namespace WebCore {
 
-static constexpr auto privateClickMeasurementTriggerAttributionPath = "/.well-known/private-click-measurement/trigger-attribution/"_s;
-static constexpr auto privateClickMeasurementTokenSignaturePath = "/.well-known/private-click-measurement/sign-unlinkable-token/"_s;
-static constexpr auto privateClickMeasurementTokenPublicKeyPath = "/.well-known/private-click-measurement/get-token-public-key/"_s;
-static constexpr auto privateClickMeasurementReportAttributionPath = "/.well-known/private-click-measurement/report-attribution/"_s;
-static constexpr auto privateClickMeasurementToSKAdNetworkURLPrefix = "https://apps.apple.com/app/id"_s;
-const size_t privateClickMeasurementAttributionTriggerDataPathSegmentSize = 2;
-const size_t privateClickMeasurementPriorityPathSegmentSize = 2;
-const uint8_t privateClickMeasurementVersion = 3;
-
-const Seconds PrivateClickMeasurement::maxAge()
-{
-    return 24_h * 7;
-};
-
 bool PrivateClickMeasurement::isValid() const
 {
-    return m_attributionTriggerData
-        && m_attributionTriggerData.value().isValid()
-        && !m_sourceSite.registrableDomain.isEmpty()
-        && !m_destinationSite.registrableDomain.isEmpty()
-        && (m_timesToSend.sourceEarliestTimeToSend || m_timesToSend.destinationEarliestTimeToSend);
+    return pcmIsValid(m_attributionTriggerData && m_attributionTriggerData->isValid(), m_sourceSite.registrableDomain.isEmpty(), m_destinationSite.registrableDomain.isEmpty(), m_timesToSend);
 }
 
 PCM::UnlinkableToken PCM::UnlinkableToken::isolatedCopy() const &
@@ -137,110 +115,12 @@ PrivateClickMeasurement PrivateClickMeasurement::isolatedCopy() &&
 
 bool PrivateClickMeasurement::isNeitherSameSiteNorCrossSiteTriggeringEvent(const RegistrableDomain& redirectDomain, const URL& firstPartyURL, const PCM::AttributionTriggerData& attributionTriggerData)
 {
-    auto isSameSiteTriggeringEvent = redirectDomain.matches(firstPartyURL) && attributionTriggerData.sourceRegistrableDomain;
-    if (isSameSiteTriggeringEvent)
-        return false;
-    auto isCrossSiteTriggeringEvent = sourceSite().registrableDomain == redirectDomain && !attributionTriggerData.sourceRegistrableDomain;
-    return !isCrossSiteTriggeringEvent;
-}
-
-std::expected<PCM::AttributionTriggerData, String> PrivateClickMeasurement::parseAttributionRequestQuery(URL redirectURL)
-{
-    if (!redirectURL.hasQuery())
-        return PCM::AttributionTriggerData { };
-
-    auto parameters = queryParameters(redirectURL);
-    if (!parameters.size())
-        return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL had a query string but it didn't contain supported parameters."_s);
-
-    if (parameters.size() > 2)
-        return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's query string contained unsupported parameters."_s);
-
-    PCM::EphemeralNonce destinationNonce;
-    RegistrableDomain sourceDomain;
-    for (auto& parameter : parameters) {
-        if (parameter.key == "attributionSource"_s) {
-            if (parameter.value.isEmpty())
-                return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's attributionSource query parameter had no value."_s);
-            if (!sourceDomain.isEmpty())
-                return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL had multiple attributionSource query parameters."_s);
-
-            URL attributionSourceURL { parameter.value };
-            if (!attributionSourceURL.isValid() || (attributionSourceURL.hasPath() && attributionSourceURL.path().length() > 1) || attributionSourceURL.hasCredentials() || attributionSourceURL.hasQuery() || attributionSourceURL.hasFragmentIdentifier())
-                return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's attributionSource query parameter was not a valid URL or was a URL with a path, credentials, query string, or fragment."_s);
-            sourceDomain = RegistrableDomain { attributionSourceURL };
-
-            if (sourceDomain.isEmpty())
-                return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's attributionSource query parameter had no registrable domain."_s);
-        } else if (parameter.key == "attributionDestinationNonce"_s) {
-            if (parameter.value.isEmpty())
-                return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's attributionDestinationNonce query parameter had no value."_s);
-            if (!destinationNonce.nonce.isEmpty())
-                return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL had multiple attributionDestinationNonce query parameters."_s);
-
-            destinationNonce.nonce = parameter.value;
-        } else
-            return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's query string contained unsupported parameters."_s);
-    }
-
-    PCM::AttributionTriggerData attributionTriggerData;
-    if (!sourceDomain.isEmpty())
-        attributionTriggerData.sourceRegistrableDomain = WTF::move(sourceDomain);
-
-    if (!destinationNonce.nonce.isEmpty())
-        attributionTriggerData.ephemeralDestinationNonce = WTF::move(destinationNonce);
-
-    return { WTF::move(attributionTriggerData) };
-}
-
-std::expected<PCM::AttributionTriggerData, String> PrivateClickMeasurement::parseAttributionRequest(URL redirectURL)
-{
-    auto path = StringView(redirectURL.string()).substring(redirectURL.pathStart(), redirectURL.pathEnd() - redirectURL.pathStart());
-    if (path.isEmpty() || !path.startsWith(privateClickMeasurementTriggerAttributionPath))
-        return makeUnexpected(nullString());
-
-    if (!redirectURL.protocolIs("https"_s) || redirectURL.hasCredentials() || redirectURL.hasFragmentIdentifier())
-        return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's protocol is not HTTPS or the URL contains one or more of username, password, and fragment."_s);
-
-    auto result = parseAttributionRequestQuery(redirectURL);
-    if (!result) {
-        if (!result.error().isEmpty())
-            return result;
-        return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL's query string could not be parsed."_s);
-    }
-    auto attributionTriggerData = result.value();
-
-    auto prefixLength = privateClickMeasurementTriggerAttributionPath.length();
-    if (path.length() == prefixLength + privateClickMeasurementAttributionTriggerDataPathSegmentSize) {
-        auto attributionTriggerDataUInt64 = parseInteger<uint64_t>(path.substring(prefixLength, privateClickMeasurementAttributionTriggerDataPathSegmentSize));
-        if (!attributionTriggerDataUInt64 || *attributionTriggerDataUInt64 > PCM::AttributionTriggerData::MaxEntropy)
-            return makeUnexpected(makeString("[Private Click Measurement] Triggering event was not accepted because the conversion data could not be parsed or was higher than the allowed maximum of "_s, PCM::AttributionTriggerData::MaxEntropy, "."_s));
-
-        attributionTriggerData.data = static_cast<uint8_t>(*attributionTriggerDataUInt64);
-        attributionTriggerData.priority = 0;
-        return attributionTriggerData;
-    }
-    
-    if (path.length() == prefixLength + privateClickMeasurementAttributionTriggerDataPathSegmentSize + 1 + privateClickMeasurementPriorityPathSegmentSize) {
-        auto attributionTriggerDataUInt64 = parseInteger<uint64_t>(path.substring(prefixLength, privateClickMeasurementAttributionTriggerDataPathSegmentSize));
-        if (!attributionTriggerDataUInt64 || *attributionTriggerDataUInt64 > PCM::AttributionTriggerData::MaxEntropy)
-            return makeUnexpected(makeString("[Private Click Measurement] Triggering event was not accepted because the conversion data could not be parsed or was higher than the allowed maximum of "_s, PCM::AttributionTriggerData::MaxEntropy, "."_s));
-
-        auto attributionPriorityUInt64 = parseInteger<uint64_t>(path.substring(prefixLength + privateClickMeasurementAttributionTriggerDataPathSegmentSize + 1, privateClickMeasurementPriorityPathSegmentSize));
-        if (!attributionPriorityUInt64 || *attributionPriorityUInt64 > PCM::AttributionTriggerData::Priority::MaxEntropy)
-            return makeUnexpected(makeString("[Private Click Measurement] Triggering event was not accepted because the priority could not be parsed or was higher than the allowed maximum of "_s, PCM::AttributionTriggerData::Priority::MaxEntropy, "."_s));
-
-        attributionTriggerData.data = static_cast<uint8_t>(*attributionTriggerDataUInt64);
-        attributionTriggerData.priority = static_cast<uint8_t>(*attributionPriorityUInt64);
-        return attributionTriggerData;
-    }
-
-    return makeUnexpected("[Private Click Measurement] Triggering event was not accepted because the URL path contained unrecognized parts."_s);
+    return pcmIsNeitherSameSiteNorCrossSiteTriggeringEvent(m_sourceSite.registrableDomain, redirectDomain, firstPartyURL, !!attributionTriggerData.sourceRegistrableDomain);
 }
 
 bool PrivateClickMeasurement::hasPreviouslyBeenReported()
 {
-    return !m_timesToSend.sourceEarliestTimeToSend || !m_timesToSend.destinationEarliestTimeToSend;
+    return pcmHasPreviouslyBeenReported(m_timesToSend);
 }
 
 void PrivateClickMeasurement::setSourceApplicationBundleIDForTesting(const String& appBundleIDForTesting)
@@ -248,104 +128,45 @@ void PrivateClickMeasurement::setSourceApplicationBundleIDForTesting(const Strin
     m_sourceApplicationBundleID = appBundleIDForTesting;
 }
 
-static Seconds randomlyBetweenTwentyFourAndFortyEightHours(PrivateClickMeasurement::IsRunningLayoutTest isRunningTest)
-{
-    return isRunningTest == PrivateClickMeasurement::IsRunningLayoutTest::Yes ? 1_s : 24_h + Seconds(cryptographicallyRandomUnitInterval() * (24_h).value());
-}
-
 PCM::AttributionSecondsUntilSendData PrivateClickMeasurement::attributeAndGetEarliestTimeToSend(PCM::AttributionTriggerData&& attributionTriggerData, IsRunningLayoutTest isRunningTest)
 {
-    if (!attributionTriggerData.isValid() || (m_attributionTriggerData && m_attributionTriggerData->priority >= attributionTriggerData.priority))
-        return { };
-
+    // The literals in PrivateClickMeasurement.swift (triggerDataMaxEntropy, priorityMaxEntropy) are these values.
+    static_assert(PCM::AttributionTriggerData::MaxEntropy == 15 && PCM::AttributionTriggerData::Priority::MaxEntropy == 63);
+    auto secondsUntilSend = pcmAttributionSecondsUntilSend(attributionTriggerData.isValid(), attributionTriggerData.priority, !!m_attributionTriggerData, m_attributionTriggerData ? m_attributionTriggerData->priority : 0, isRunningTest);
+    if (!secondsUntilSend.hasValidSecondsUntilSendValues())
+        return secondsUntilSend;
     m_attributionTriggerData = WTF::move(attributionTriggerData);
-    // 24-48 hour delay before sending. This helps privacy since the conversion and the attribution
-    // requests are detached and the time of the attribution does not reveal the time of the conversion.
-    auto sourceSecondsUntilSend = randomlyBetweenTwentyFourAndFortyEightHours(isRunningTest);
-    auto destinationSecondsUntilSend = randomlyBetweenTwentyFourAndFortyEightHours(isRunningTest);
-    m_timesToSend = { WallTime::now() + sourceSecondsUntilSend, WallTime::now() + destinationSecondsUntilSend };
-
-    return PCM::AttributionSecondsUntilSendData { sourceSecondsUntilSend, destinationSecondsUntilSend };
+    m_timesToSend = { WallTime::now() + *secondsUntilSend.sourceSeconds, WallTime::now() + *secondsUntilSend.destinationSeconds };
+    return secondsUntilSend;
 }
 
 bool PrivateClickMeasurement::hasHigherPriorityThan(const PrivateClickMeasurement& other) const
 {
-    if (!other.m_attributionTriggerData)
-        return true;
-    
-    if (!m_attributionTriggerData)
-        return false;
-
-    return m_attributionTriggerData->priority > other.m_attributionTriggerData->priority;
-}
-
-static URL makeValidURL(const RegistrableDomain& domain, ASCIILiteral path)
-{
-    URL validURL { makeString("https://"_s, domain.string(), path) };
-    return validURL.isValid() ? validURL : URL { };
-}
-
-static URL attributionReportURL(const RegistrableDomain& domain)
-{
-    return makeValidURL(domain, privateClickMeasurementReportAttributionPath);
+    return pcmHasHigherPriorityThan(!!m_attributionTriggerData, m_attributionTriggerData ? m_attributionTriggerData->priority : 0, !!other.m_attributionTriggerData, other.m_attributionTriggerData ? other.m_attributionTriggerData->priority : 0);
 }
 
 URL PrivateClickMeasurement::attributionReportClickSourceURL() const
 {
-    if (!isValid())
-        return URL();
-
-    return attributionReportURL(m_sourceSite.registrableDomain);
+    return pcmAttributionReportURL(isValid(), m_sourceSite.registrableDomain);
 }
 
 URL PrivateClickMeasurement::attributionReportClickDestinationURL() const
 {
-    if (!isValid())
-        return URL();
-
-    return attributionReportURL(m_destinationSite.registrableDomain);
+    return pcmAttributionReportURL(isValid(), m_destinationSite.registrableDomain);
 }
 
 Ref<JSON::Object> PrivateClickMeasurement::attributionReportJSON() const
 {
-    Ref reportDetails = JSON::Object::create();
     if (!m_attributionTriggerData || !isValid())
-        return reportDetails;
-
-    reportDetails->setString("source_engagement_type"_s, "click"_s);
-    reportDetails->setString("source_site"_s, m_sourceSite.registrableDomain.string());
-    reportDetails->setInteger("source_id"_s, m_sourceID);
-    reportDetails->setString("attributed_on_site"_s, m_destinationSite.registrableDomain.string());
-    reportDetails->setInteger("trigger_data"_s, m_attributionTriggerData->data);
-    reportDetails->setInteger("version"_s, privateClickMeasurementVersion);
-
-    // This token has been kept secret this far and cannot be linked to the unlinkable token.
-    if (m_sourceSecretToken) {
-        reportDetails->setString("source_secret_token"_s, m_sourceSecretToken->tokenBase64URL);
-        reportDetails->setString("source_secret_token_signature"_s, m_sourceSecretToken->signatureBase64URL);
-    }
-
-    // This token has been kept secret this far and cannot be linked to the unlinkable token.
-    if (m_attributionTriggerData->destinationSecretToken) {
-        reportDetails->setString("destination_secret_token"_s, m_attributionTriggerData->destinationSecretToken->tokenBase64URL);
-        reportDetails->setString("destination_secret_token_signature"_s, m_attributionTriggerData->destinationSecretToken->signatureBase64URL);
-    }
-
-    return reportDetails;
+        return JSON::Object::create();
+    return pcmAttributionReportJSON(m_sourceID, m_sourceSite.registrableDomain, m_destinationSite.registrableDomain, m_attributionTriggerData->data,
+        !!m_sourceSecretToken, m_sourceSecretToken ? m_sourceSecretToken->tokenBase64URL : String { }, m_sourceSecretToken ? m_sourceSecretToken->signatureBase64URL : String { },
+        !!m_attributionTriggerData->destinationSecretToken, m_attributionTriggerData->destinationSecretToken ? m_attributionTriggerData->destinationSecretToken->tokenBase64URL : String { }, m_attributionTriggerData->destinationSecretToken ? m_attributionTriggerData->destinationSecretToken->signatureBase64URL : String { });
 }
-
-// MARK: - Fraud Prevention
-
-static constexpr uint32_t EphemeralNonceRequiredNumberOfBytes = 16;
 
 bool PCM::EphemeralNonce::isValid() const
 {
-    // FIXME: Investigate if we can do with a simple length check instead of decoding.
-    // https://bugs.webkit.org/show_bug.cgi?id=221945
-    auto digest = base64URLDecode(nonce);
-    if (!digest)
-        return false;
-    return digest->size() == EphemeralNonceRequiredNumberOfBytes;
+    return pcmEphemeralNonceIsValid(nonce);
 }
 
 void PrivateClickMeasurement::setEphemeralSourceNonce(PCM::EphemeralNonce&& nonce)
@@ -355,65 +176,24 @@ void PrivateClickMeasurement::setEphemeralSourceNonce(PCM::EphemeralNonce&& nonc
     m_ephemeralSourceNonce = WTF::move(nonce);
 }
 
-std::optional<URL> PrivateClickMeasurement::tokenPublicKeyURL(RegistrableDomain registrableDomain)
-{
-    if (registrableDomain.isEmpty())
-        return std::nullopt;
-    return makeValidURL(registrableDomain, privateClickMeasurementTokenPublicKeyPath);
-}
-
 std::optional<URL> PrivateClickMeasurement::tokenPublicKeyURL() const
 {
     return tokenPublicKeyURL(m_sourceSite.registrableDomain);
 }
 
-std::optional<URL> PrivateClickMeasurement::tokenSignatureURL(RegistrableDomain registrableDomain)
-{
-    if (registrableDomain.isEmpty())
-        return std::nullopt;
-    return makeValidURL(registrableDomain, privateClickMeasurementTokenSignaturePath);
-}
-
 std::optional<URL> PrivateClickMeasurement::tokenSignatureURL() const
 {
-    if (!m_ephemeralSourceNonce || !m_ephemeralSourceNonce->isValid())
-        return std::nullopt;
-
-    return tokenSignatureURL(m_sourceSite.registrableDomain);
+    return pcmTokenSignatureURL(m_ephemeralSourceNonce ? m_ephemeralSourceNonce->nonce : String { }, m_sourceSite.registrableDomain);
 }
 
 Ref<JSON::Object> PrivateClickMeasurement::tokenSignatureJSON() const
 {
-    Ref reportDetails = JSON::Object::create();
-    if (!m_ephemeralSourceNonce || !m_ephemeralSourceNonce->isValid())
-        return reportDetails;
-
-    if (m_sourceUnlinkableToken.valueBase64URL.isEmpty())
-        return reportDetails;
-
-    reportDetails->setString("source_engagement_type"_s, "click"_s);
-    reportDetails->setString("source_nonce"_s, m_ephemeralSourceNonce->nonce);
-    // This token can not be linked to the secret token.
-    reportDetails->setString("source_unlinkable_token"_s, m_sourceUnlinkableToken.valueBase64URL);
-    reportDetails->setInteger("version"_s, privateClickMeasurementVersion);
-    return reportDetails;
+    return pcmTokenSignatureJSON(m_ephemeralSourceNonce ? m_ephemeralSourceNonce->nonce : String { }, m_sourceUnlinkableToken.valueBase64URL, PCM::AttributionReportEndpoint::Source);
 }
 
 Ref<JSON::Object> PCM::AttributionTriggerData::tokenSignatureJSON() const
 {
-    Ref reportDetails = JSON::Object::create();
-    if (!ephemeralDestinationNonce || !ephemeralDestinationNonce->isValid())
-        return reportDetails;
-
-    if (!destinationUnlinkableToken || destinationUnlinkableToken->valueBase64URL.isEmpty())
-        return reportDetails;
-
-    reportDetails->setString("source_engagement_type"_s, "click"_s);
-    reportDetails->setString("destination_nonce"_s, ephemeralDestinationNonce->nonce);
-    // This token can not be linked to the secret token.
-    reportDetails->setString("destination_unlinkable_token"_s, destinationUnlinkableToken->valueBase64URL);
-    reportDetails->setInteger("version"_s, privateClickMeasurementVersion);
-    return reportDetails;
+    return pcmTokenSignatureJSON(ephemeralDestinationNonce ? ephemeralDestinationNonce->nonce : String { }, destinationUnlinkableToken ? destinationUnlinkableToken->valueBase64URL : String { }, PCM::AttributionReportEndpoint::Destination);
 }
 
 bool PCM::SecretToken::isValid() const
@@ -437,10 +217,8 @@ void PrivateClickMeasurement::setDestinationSecretToken(PCM::DestinationSecretTo
 
 std::optional<uint64_t> PrivateClickMeasurement::appStoreURLAdamID(URL url)
 {
-    StringView stringView { url.string() };
-    if (!stringView.startsWith(privateClickMeasurementToSKAdNetworkURLPrefix))
-        return std::nullopt;
-    return parseInteger<uint64_t>(stringView.substring(privateClickMeasurementToSKAdNetworkURLPrefix.length()));
+    auto adamID = pcmAppStoreURLAdamID(WTF::move(url));
+    return adamID.second ? std::optional { adamID.first } : std::nullopt;
 }
 
 } // namespace WebCore

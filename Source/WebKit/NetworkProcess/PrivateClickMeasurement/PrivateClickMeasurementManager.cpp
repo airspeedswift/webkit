@@ -26,36 +26,13 @@
 #include "config.h"
 #include "PrivateClickMeasurementManager.h"
 
-#include "Logging.h"
-#include "NetworkSession.h"
-#include "PrivateClickMeasurementDebugInfo.h"
 #include "PrivateClickMeasurementEphemeralStore.h"
-#include "PrivateClickMeasurementNetworkLoader.h"
 #include "PrivateClickMeasurementPersistentStore.h"
-#include <JavaScriptCore/ConsoleTypes.h>
-#include <WebCore/FetchOptions.h>
-#include <WebCore/FormData.h>
-#include <WebCore/ResourceError.h>
-#include <WebCore/ResourceRequest.h>
-#include <WebCore/ResourceResponse.h>
 #include <pal/crypto/CryptoDigest.h>
-#include <wtf/Borrow.h>
-#include <wtf/CryptographicallyRandomNumber.h>
-#include <wtf/RuntimeApplicationChecks.h>
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/text/MakeString.h>
-#include <wtf/text/StringBuilder.h>
-#include <wtf/text/StringHash.h>
 
 namespace WebKit {
 using namespace WebCore;
-
-using SourceSite = WebCore::PCM::SourceSite;
-using AttributionDestinationSite = WebCore::PCM::AttributionDestinationSite;
-using AttributionTriggerData = WebCore::PCM::AttributionTriggerData;
-using EphemeralNonce = WebCore::PCM::EphemeralNonce;
-
-constexpr Seconds debugModeSecondsUntilSend { 10_s };
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(PrivateClickMeasurementManager);
 
@@ -93,263 +70,12 @@ void PrivateClickMeasurementManager::storeUnattributed(PrivateClickMeasurement&&
     if (m_privateClickMeasurementAppBundleIDForTesting)
         measurement.setSourceApplicationBundleIDForTesting(*m_privateClickMeasurementAppBundleIDForTesting);
 
-    if (measurement.ephemeralSourceNonce()) {
-        auto measurementCopy = measurement;
-        // This is guaranteed to be close in time to the navigational click which makes it likely to be personally identifiable.
-        getTokenPublicKey(WTF::move(measurementCopy), WebCore::PCM::AttributionReportEndpoint::Source, PrivateClickMeasurement::PcmDataCarried::PersonallyIdentifiable, [weakThis = WeakPtr { *this }] (PrivateClickMeasurement&& measurement, const String& publicKeyBase64URL) {
-            RefPtr protectedThis = weakThis.get();
-            if (!protectedThis)
-                return;
-
-            if (publicKeyBase64URL.isEmpty())
-                return;
-
-            if (protectedThis->m_fraudPreventionValuesForTesting)
-                measurement.setSourceUnlinkableTokenValue(protectedThis->m_fraudPreventionValuesForTesting->unlinkableTokenForSource);
-#if PLATFORM(COCOA)
-            else {
-                if (auto errorMessage = measurement.calculateAndUpdateSourceUnlinkableToken(publicKeyBase64URL)) {
-                    RELEASE_LOG_INFO(PrivateClickMeasurement, "Got the following error in calculateAndUpdateSourceUnlinkableToken(): '%" PUBLIC_LOG_STRING "'", errorMessage->utf8());
-                    protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] "_s, *errorMessage));
-                    return;
-                }
-            }
-#endif
-
-            protectedThis->getSignedUnlinkableTokenForSource(WTF::move(measurement));
-            return;
-        });
-    }
+    if (measurement.ephemeralSourceNonce())
+        getTokenPublicKeyForUnattributed(measurement);
 
     m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] Storing a click."_s);
 
     insertPrivateClickMeasurement(WTF::move(measurement), PrivateClickMeasurementAttributionType::Unattributed, WTF::move(completionHandler));
-}
-
-void PrivateClickMeasurementManager::getTokenPublicKey(PrivateClickMeasurement&& attribution, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint, PrivateClickMeasurement::PcmDataCarried pcmDataCarried, Function<void(PrivateClickMeasurement&& attribution, const String& publicKeyBase64URL)>&& callback)
-{
-    if (!featureEnabled())
-        return;
-
-    URL tokenPublicKeyURL;
-    if (m_tokenPublicKeyURLForTesting) {
-        if (attributionReportEndpoint == WebCore::PCM::AttributionReportEndpoint::Destination)
-            return;
-        tokenPublicKeyURL = *m_tokenPublicKeyURLForTesting;
-        // FIXME(225364)
-        pcmDataCarried = PrivateClickMeasurement::PcmDataCarried::NonPersonallyIdentifiable;
-    } else {
-        if (auto optURL = attribution.tokenPublicKeyURL())
-            tokenPublicKeyURL = *optURL;
-        else
-            return;
-    }
-
-    if (tokenPublicKeyURL.isEmpty() || !tokenPublicKeyURL.isValid())
-        return;
-
-    if (shouldBypassPrivateRelay())
-        pcmDataCarried = PrivateClickMeasurement::PcmDataCarried::PersonallyIdentifiable;
-
-    RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a token public key request.");
-    m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a token public key request."_s);
-
-    PCM::NetworkLoader::start(WTF::move(tokenPublicKeyURL), nullptr, pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, attribution = WTF::move(attribution), callback = WTF::move(callback)] (auto&& response) mutable {
-        RefPtr protectedThis = weakThis;
-        if (!protectedThis)
-            return;
-
-        if (!response.errorDescription.isNull()) {
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, response.errorDescription, "' for token public key request."_s));
-            return;
-        }
-
-        if (!response.jsonObject) {
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] JSON response is empty for token public key request."_s));
-            return;
-        }
-
-        protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, makeString("[Private Click Measurement] Got JSON response for token public key request."_s));
-
-        callback(WTF::move(attribution), response.jsonObject->getString("token_public_key"_s));
-    });
-}
-
-void PrivateClickMeasurementManager::getTokenPublicKey(AttributionTriggerData&& attributionTriggerData, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint, PrivateClickMeasurement::PcmDataCarried pcmDataCarried, Function<void(AttributionTriggerData&& attributionTriggerData, const String& publicKeyBase64URL)>&& callback)
-{
-    if (!featureEnabled())
-        return;
-
-    URL tokenPublicKeyURL;
-    if (m_tokenPublicKeyURLForTesting) {
-        if (attributionReportEndpoint == WebCore::PCM::AttributionReportEndpoint::Source)
-            return;
-        tokenPublicKeyURL = *m_tokenPublicKeyURLForTesting;
-        // FIXME(225364)
-        pcmDataCarried = PrivateClickMeasurement::PcmDataCarried::NonPersonallyIdentifiable;
-    } else {
-        if (auto optURL = attributionTriggerData.tokenPublicKeyURL())
-            tokenPublicKeyURL = *optURL;
-        else
-            return;
-    }
-
-    if (tokenPublicKeyURL.isEmpty() || !tokenPublicKeyURL.isValid())
-        return;
-
-    if (shouldBypassPrivateRelay())
-        pcmDataCarried = PrivateClickMeasurement::PcmDataCarried::PersonallyIdentifiable;
-
-    RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a token public key request.");
-    m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a token public key request."_s);
-
-    PCM::NetworkLoader::start(WTF::move(tokenPublicKeyURL), nullptr, pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, attributionTriggerData = WTF::move(attributionTriggerData), callback = WTF::move(callback)] (auto&& response) mutable {
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
-            return;
-
-        if (!response.errorDescription.isNull()) {
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, response.errorDescription, "' for token public key request."_s));
-            return;
-        }
-
-        if (!response.jsonObject) {
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] JSON response is empty for token public key request."_s));
-            return;
-        }
-
-        protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, makeString("[Private Click Measurement] Got JSON response for token public key request."_s));
-
-        callback(WTF::move(attributionTriggerData), response.jsonObject->getString("token_public_key"_s));
-    });
-}
-
-void PrivateClickMeasurementManager::configureForTokenSigning(PrivateClickMeasurement::PcmDataCarried& pcmDataCarried, URL& tokenSignatureURL, std::optional<URL> givenTokenSignatureURL)
-{
-    // This is guaranteed to be close in time to a page load which can identify the user, either the source or the destination.
-    pcmDataCarried = PrivateClickMeasurement::PcmDataCarried::PersonallyIdentifiable;
-    if (m_tokenSignatureURLForTesting) {
-        tokenSignatureURL = *m_tokenSignatureURLForTesting;
-        // FIXME(225364)
-        if (!shouldBypassPrivateRelay())
-            pcmDataCarried = PrivateClickMeasurement::PcmDataCarried::NonPersonallyIdentifiable;
-    } else if (givenTokenSignatureURL)
-        tokenSignatureURL = *givenTokenSignatureURL;
-}
-
-std::optional<String> PrivateClickMeasurementManager::getSignatureBase64URLFromTokenSignatureResponse(const String& errorDescription, const RefPtr<JSON::Object>& jsonObject)
-{
-    if (!errorDescription.isNull()) {
-        m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, errorDescription, "' for token signing request."_s));
-        return std::nullopt;
-    }
-
-    if (!jsonObject) {
-        m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] JSON response is empty for token signing request."_s));
-        return std::nullopt;
-    }
-
-    auto signatureBase64URL = jsonObject->getString("unlinkable_token"_s);
-    if (signatureBase64URL.isEmpty()) {
-        m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] JSON response doesn't have the key 'unlinkable_token' for token signing request."_s));
-        return std::nullopt;
-    }
-
-    return signatureBase64URL;
-}
-
-void PrivateClickMeasurementManager::getSignedUnlinkableTokenForSource(PrivateClickMeasurement&& measurement)
-{
-    if (!featureEnabled())
-        return;
-
-    PrivateClickMeasurement::PcmDataCarried pcmDataCarried;
-    URL tokenSignatureURL;
-    configureForTokenSigning(pcmDataCarried, tokenSignatureURL, measurement.tokenSignatureURL());
-
-    if (tokenSignatureURL.isEmpty() || !tokenSignatureURL.isValid())
-        return;
-
-    RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a unlinkable token signing request for the click source.");
-    m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a unlinkable token signing request for the click source."_s);
-
-    PCM::NetworkLoader::start(WTF::move(tokenSignatureURL), measurement.tokenSignatureJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, measurement = WTF::move(measurement)] (auto&& response) mutable {
-        RefPtr protectedThis = weakThis;
-        if (!protectedThis)
-            return;
-
-        auto signatureBase64URL = protectedThis->getSignatureBase64URLFromTokenSignatureResponse(response.errorDescription, response.jsonObject);
-        if (!signatureBase64URL)
-            return;
-
-        if (protectedThis->m_fraudPreventionValuesForTesting) {
-            WebCore::PCM::SourceSecretToken sourceSecretToken;
-            sourceSecretToken.tokenBase64URL = protectedThis->m_fraudPreventionValuesForTesting->secretTokenForSource;
-            sourceSecretToken.signatureBase64URL = protectedThis->m_fraudPreventionValuesForTesting->signatureForSource;
-            sourceSecretToken.keyIDBase64URL = protectedThis->m_fraudPreventionValuesForTesting->keyIDForSource;
-            measurement.setSourceSecretToken(WTF::move(sourceSecretToken));
-#if PLATFORM(COCOA)
-        } else {
-            if (auto errorMessage = measurement.calculateAndUpdateSourceSecretToken(*signatureBase64URL)) {
-                RELEASE_LOG_INFO(PrivateClickMeasurement, "Got the following error in calculateAndUpdateSourceSecretToken(): '%" PUBLIC_LOG_STRING "'", errorMessage->utf8());
-                protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] "_s, *errorMessage));
-                return;
-            }
-#endif
-        }
-
-        protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] Storing a secret token."_s);
-
-        protectedThis->insertPrivateClickMeasurement(WTF::move(measurement), PrivateClickMeasurementAttributionType::Unattributed, [] { });
-    });
-
-}
-
-void PrivateClickMeasurementManager::getSignedUnlinkableTokenForDestination(SourceSite&& sourceSite, AttributionDestinationSite&& destinationSite, AttributionTriggerData&& attributionTriggerData, const ApplicationBundleIdentifier& applicationBundleIdentifier)
-{
-    if (!featureEnabled())
-        return;
-
-    PrivateClickMeasurement::PcmDataCarried pcmDataCarried;
-    URL tokenSignatureURL;
-    configureForTokenSigning(pcmDataCarried, tokenSignatureURL, attributionTriggerData.tokenSignatureURL());
-
-    if (tokenSignatureURL.isEmpty() || !tokenSignatureURL.isValid())
-        return;
-
-    RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire a unlinkable token signing request for the click destination.");
-    m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire a unlinkable token signing request for the click destination."_s);
-
-    PCM::NetworkLoader::start(WTF::move(tokenSignatureURL), attributionTriggerData.tokenSignatureJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }, sourceSite = WTF::move(sourceSite), destinationSite = WTF::move(destinationSite), attributionTriggerData = WTF::move(attributionTriggerData), applicationBundleIdentifier = applicationBundleIdentifier.isolatedCopy()] (auto&& response) mutable {
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
-            return;
-
-        auto signatureBase64URL = protectedThis->getSignatureBase64URLFromTokenSignatureResponse(response.errorDescription, response.jsonObject);
-        if (!signatureBase64URL)
-            return;
-
-#if PLATFORM(COCOA)
-            if (!attributionTriggerData.destinationUnlinkableToken) {
-                RELEASE_LOG_INFO(PrivateClickMeasurement, "Destination unlinkable token is missing.");
-                protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, "[Private Click Measurement] Destination unlinkable token is missing."_s);
-                return;
-            }
-
-            auto result = PrivateClickMeasurement::calculateAndUpdateDestinationSecretToken(*signatureBase64URL, *attributionTriggerData.destinationUnlinkableToken);
-            if (!result) {
-                auto errorMessage = result.error().isEmpty() ? "Unknown"_s : result.error();
-                RELEASE_LOG_INFO(PrivateClickMeasurement, "Got the following error in calculateAndUpdateSourceSecretToken(): '%" PUBLIC_LOG_STRING "'", errorMessage.utf8());
-                protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] "_s, errorMessage));
-                return;
-            }
-
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] Storing a secret token."_s);
-
-            attributionTriggerData.destinationSecretToken = result.value();
-            protectedThis->attribute(WTF::move(sourceSite), WTF::move(destinationSite), WTF::move(attributionTriggerData), protectedThis->m_privateClickMeasurementAppBundleIDForTesting ? *protectedThis->m_privateClickMeasurementAppBundleIDForTesting : applicationBundleIdentifier);
-#endif
-    });
 }
 
 void PrivateClickMeasurementManager::insertPrivateClickMeasurement(PrivateClickMeasurement&& measurement, PrivateClickMeasurementAttributionType type, CompletionHandler<void()>&& completionHandler)
@@ -357,340 +83,31 @@ void PrivateClickMeasurementManager::insertPrivateClickMeasurement(PrivateClickM
     protect(store())->insertPrivateClickMeasurement(WTF::move(measurement), type, WTF::move(completionHandler));
 }
 
-void PrivateClickMeasurementManager::migratePrivateClickMeasurementFromLegacyStorage(PrivateClickMeasurement measurement, PrivateClickMeasurementAttributionType type)
-{
-    protect(store())->insertPrivateClickMeasurement(WTF::move(measurement), type, [] { });
-}
-
-void PrivateClickMeasurementManager::setDebugModeIsEnabled(bool enabled)
-{
-    // This doesn't maintain global state, it just broadcasts a message when debug mode enabled changes.
-    // The state is either stored in NetworkSession when not using the daemon
-    // or in DaemonConnectionSet per-connection when using the daemon.
-
-    auto message = enabled ? "[Private Click Measurement] Turned Debug Mode on."_s : "[Private Click Measurement] Turned Debug Mode off."_s;
-    m_client->broadcastConsoleMessage(MessageLevel::Info, message);
-}
-
-void PrivateClickMeasurementManager::setPrivateRelayEnforcementIsEnabled(bool enabled)
-{
-    auto message = enabled ? "[Private Click Measurement] Turned Private Relay Enforcement on."_s : "[Private Click Measurement] Turned Private Relay Enforcement off."_s;
-    m_client->broadcastConsoleMessage(MessageLevel::Info, message);
-}
-
-void PrivateClickMeasurementManager::handleAttribution(AttributionTriggerData attributionTriggerData, URL requestURL, WebCore::RegistrableDomain redirectDomain, URL firstPartyURL, ApplicationBundleIdentifier applicationBundleIdentifier)
-{
-    if (!featureEnabled())
-        return;
-
-    if (!redirectDomain.matches(requestURL)) {
-        m_client->broadcastConsoleMessage(MessageLevel::Warning, "[Private Click Measurement] Triggering event was not accepted because the HTTP redirect was not same-site."_s);
-        return;
-    }
-
-    RegistrableDomain sourceDomain;
-    if (redirectDomain.matches(firstPartyURL)) {
-        if (!attributionTriggerData.sourceRegistrableDomain) {
-            m_client->broadcastConsoleMessage(MessageLevel::Warning, "[Private Click Measurement] Triggering event was not accepted because it was requested in an HTTP redirect that is same-site as the first-party and no attributionSource query parameter was provided."_s);
-            return;
-        }
-        sourceDomain = *attributionTriggerData.sourceRegistrableDomain;
-    } else if (attributionTriggerData.sourceRegistrableDomain) {
-        m_client->broadcastConsoleMessage(MessageLevel::Warning, "[Private Click Measurement] Triggering event was not accepted because it was requested in an HTTP redirect that is cross-site from the first-party but an attributionSource query parameter was still provided."_s);
-        return;
-    } else
-        sourceDomain = WTF::move(redirectDomain);
-
-    m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] Triggering event accepted."_s);
-
-    // Signing of a destination token must be done unconditionally. Otherwise it becomes a way to discover that there is a pending attribution.
-    if (attributionTriggerData.ephemeralDestinationNonce) {
-        auto attributionTriggerDataCopy = attributionTriggerData;
-        // This is guaranteed to be close in time to the triggering event which makes it likely to be personally identifiable.
-        getTokenPublicKey(WTF::move(attributionTriggerDataCopy), WebCore::PCM::AttributionReportEndpoint::Destination, PrivateClickMeasurement::PcmDataCarried::PersonallyIdentifiable, [weakThis = WeakPtr { *this }, sourceSite = SourceSite { WTF::move(sourceDomain) }, destinationSite = AttributionDestinationSite { firstPartyURL }, applicationBundleIdentifier = applicationBundleIdentifier.isolatedCopy()] (AttributionTriggerData&& attributionTriggerData, const String& publicKeyBase64URL) mutable {
-            RefPtr protectedThis = weakThis;
-            if (!protectedThis)
-                return;
-
-            if (publicKeyBase64URL.isEmpty()) {
-                RELEASE_LOG_INFO(PrivateClickMeasurement, "The public key URL was empty.");
-                protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, "[Private Click Measurement] The public key URL was empty."_s);
-                return;
-            }
-
-            if (protectedThis->m_fraudPreventionValuesForTesting)
-                attributionTriggerData.setDestinationUnlinkableTokenValue(protectedThis->m_fraudPreventionValuesForTesting->unlinkableTokenForDestination);
-#if PLATFORM(COCOA)
-            else {
-                auto result = PrivateClickMeasurement::calculateAndUpdateDestinationUnlinkableToken(publicKeyBase64URL);
-                if (result) {
-                    attributionTriggerData.destinationUnlinkableToken = result.value();
-                    protectedThis->getSignedUnlinkableTokenForDestination(WTF::move(sourceSite), WTF::move(destinationSite), WTF::move(attributionTriggerData), protectedThis->m_privateClickMeasurementAppBundleIDForTesting ? *protectedThis->m_privateClickMeasurementAppBundleIDForTesting : applicationBundleIdentifier);
-                    return;
-                }
-
-                auto errorMessage = result.error().isEmpty() ? "Unknown"_s : result.error();
-                RELEASE_LOG_INFO(PrivateClickMeasurement, "Got the following error in calculateAndUpdateDestinationUnlinkableToken(): '%" PUBLIC_LOG_STRING "'", errorMessage.utf8());
-                protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] "_s, errorMessage));
-                return;
-            }
-#endif
-        });
-        return;
-    }
-
-    attribute(SourceSite { WTF::move(sourceDomain) }, AttributionDestinationSite { firstPartyURL }, WTF::move(attributionTriggerData), m_privateClickMeasurementAppBundleIDForTesting ? *m_privateClickMeasurementAppBundleIDForTesting : applicationBundleIdentifier);
-}
-
-void PrivateClickMeasurementManager::checkAttributionTimer()
-{
-    startTimer(5_s);
-}
-
-void PrivateClickMeasurementManager::startTimerImmediatelyForTesting()
-{
-    startTimer(0_s);
-}
-
-void PrivateClickMeasurementManager::setPrivateClickMeasurementAppBundleIDForTesting(ApplicationBundleIdentifier appBundleID)
-{
-    if (appBundleID.isEmpty())
-        m_privateClickMeasurementAppBundleIDForTesting = std::nullopt;
-    else
-        m_privateClickMeasurementAppBundleIDForTesting = WTF::move(appBundleID);
-}
-
 void PrivateClickMeasurementManager::startTimer(Seconds seconds)
 {
     m_firePendingAttributionRequestsTimer.startOneShot(seconds);
 }
 
-void PrivateClickMeasurementManager::attribute(SourceSite&& sourceSite, AttributionDestinationSite&& destinationSite, AttributionTriggerData&& attributionTriggerData, const ApplicationBundleIdentifier& applicationBundleIdentifier)
+bool PrivateClickMeasurementManager::firePendingAttributionRequestsTimerFiresBefore(Seconds seconds) const
 {
-    if (!featureEnabled())
-        return;
-
-    protect(store())->attributePrivateClickMeasurement(WTF::move(sourceSite), WTF::move(destinationSite), applicationBundleIdentifier, WTF::move(attributionTriggerData), m_isRunningTest ? WebCore::PrivateClickMeasurement::IsRunningLayoutTest::Yes : WebCore::PrivateClickMeasurement::IsRunningLayoutTest::No, [weakThis = WeakPtr { *this }] (auto result) {
-        RefPtr protectedThis = weakThis;
-        if (!protectedThis)
-            return;
-        
-        if (!result.attributionSecondsUntilSendData)
-            return;
-
-        if (protectedThis->debugModeEnabled()) [[unlikely]] {
-            for (auto& message : borrow(result.debugInfo.messages))
-                protectedThis->m_client->broadcastConsoleMessage(message.messageLevel, message.message);
-        }
-
-        if (result.attributionSecondsUntilSendData.value().hasValidSecondsUntilSendValues()) {
-            auto minSecondsUntilSend = result.attributionSecondsUntilSendData.value().minSecondsUntilSend();
-
-            ASSERT(minSecondsUntilSend);
-            if (!minSecondsUntilSend)
-                return;
-
-            if (protectedThis->m_firePendingAttributionRequestsTimer.isActive() && protectedThis->m_firePendingAttributionRequestsTimer.secondsUntilFire() < *minSecondsUntilSend)
-                return;
-
-            if (protectedThis->debugModeEnabled()) [[unlikely]] {
-                protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, makeString("[Private Click Measurement] Setting timer for firing attribution request to the debug mode timeout of "_s, debugModeSecondsUntilSend.seconds(), " seconds where the regular timeout would have been "_s, minSecondsUntilSend.value().seconds(), " seconds."_s));
-                minSecondsUntilSend = debugModeSecondsUntilSend;
-            } else
-                protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Log, makeString("[Private Click Measurement] Setting timer for firing attribution request to the timeout of "_s, minSecondsUntilSend.value().seconds(), " seconds."_s));
-
-            protectedThis->startTimer(*minSecondsUntilSend);
-        }
-    });
+    return m_firePendingAttributionRequestsTimer.isActive() && m_firePendingAttributionRequestsTimer.secondsUntilFire() < seconds;
 }
 
-void PrivateClickMeasurementManager::fireConversionRequest(const PrivateClickMeasurement& attribution, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint)
+void PrivateClickMeasurementManager::startNetworkLoad(URL&& url, RefPtr<JSON::Object>&& jsonPayload, PrivateClickMeasurement::PcmDataCarried pcmDataCarried, PCM::NetworkLoader::Callback&& callback)
 {
-    if (!featureEnabled() || !attribution.attributionTriggerData())
-        return;
-
-    if (!attribution.sourceSecretToken() && !attribution.attributionTriggerData()->destinationSecretToken) {
-        fireConversionRequestImpl(attribution, attributionReportEndpoint);
-        return;
-    }
-
-    auto attributionCopy = attribution;
-    // This happens out of webpage context and with a long delay and is thus unlikely to be personally identifiable.
-    if (attribution.sourceSecretToken()) {
-        getTokenPublicKey(WTF::move(attributionCopy), attributionReportEndpoint, PrivateClickMeasurement::PcmDataCarried::NonPersonallyIdentifiable, [weakThis = WeakPtr { *this }, attributionReportEndpoint] (PrivateClickMeasurement&& attribution, const String& publicKeyBase64URL) {
-            RefPtr protectedThis = weakThis.get();
-            if (!protectedThis)
-                return;
-
-            const auto publicKeyData = base64URLDecode(publicKeyBase64URL);
-            if (!publicKeyData)
-                return;
-
-            auto crypto = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
-            crypto->addBytes(publicKeyData->span());
-
-            auto keyID = base64URLEncodeToString(crypto->computeHash());
-            if (keyID != attribution.sourceSecretToken()->keyIDBase64URL)
-                return;
-
-            if (!attribution.attributionTriggerData())
-                return;
-
-            if (attribution.attributionTriggerData()->destinationSecretToken) {
-                protectedThis->getTokenPublicKey(WTF::move(attribution), attributionReportEndpoint, PrivateClickMeasurement::PcmDataCarried::NonPersonallyIdentifiable, [weakThis = WeakPtr { protectedThis.get() }, attributionReportEndpoint] (PrivateClickMeasurement&& attribution, const String& publicKeyBase64URL) {
-                    RefPtr protectedThis = weakThis.get();
-                    if (!protectedThis)
-                        return;
-
-                    const auto publicKeyData = base64URLDecode(publicKeyBase64URL);
-                    if (!publicKeyData)
-                        return;
-
-                    auto crypto = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
-                    crypto->addBytes(publicKeyData->span());
-
-                    auto keyID = base64URLEncodeToString(crypto->computeHash());
-                    if (keyID != attribution.attributionTriggerData()->destinationSecretToken->keyIDBase64URL)
-                        return;
-
-                    protectedThis->fireConversionRequestImpl(attribution, attributionReportEndpoint);
-                });
-                return;
-            }
-
-            protectedThis->fireConversionRequestImpl(attribution, attributionReportEndpoint);
-        });
-        return;
-    }
-
-    getTokenPublicKey(WTF::move(attributionCopy), attributionReportEndpoint, PrivateClickMeasurement::PcmDataCarried::NonPersonallyIdentifiable, [weakThis = WeakPtr { *this }, attributionReportEndpoint] (PrivateClickMeasurement&& attribution, const String& publicKeyBase64URL) {
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
-            return;
-
-        const auto publicKeyData = base64URLDecode(publicKeyBase64URL);
-        if (!publicKeyData)
-            return;
-
-        auto crypto = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
-        crypto->addBytes(publicKeyData->span());
-
-        auto keyID = base64URLEncodeToString(crypto->computeHash());
-        if (!attribution.attributionTriggerData()->destinationSecretToken || keyID != attribution.attributionTriggerData()->destinationSecretToken->keyIDBase64URL)
-            return;
-
-        protectedThis->fireConversionRequestImpl(attribution, attributionReportEndpoint);
-    });
+    PCM::NetworkLoader::start(WTF::move(url), WTF::move(jsonPayload), pcmDataCarried, m_applicationBundleIdentifier, WTF::move(callback));
 }
 
-void PrivateClickMeasurementManager::fireConversionRequestImpl(const PrivateClickMeasurement& attribution, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint)
+std::optional<String> PrivateClickMeasurementManager::keyIDForPublicKey(const String& publicKeyBase64URL)
 {
-    URL attributionURL;
-    switch (attributionReportEndpoint) {
-    case WebCore::PCM::AttributionReportEndpoint::Source:
-        attributionURL = m_attributionReportTestConfig ? m_attributionReportTestConfig->attributionReportClickSourceURL : attribution.attributionReportClickSourceURL();
-        break;
-    case WebCore::PCM::AttributionReportEndpoint::Destination:
-        attributionURL = m_attributionReportTestConfig ? m_attributionReportTestConfig->attributionReportClickDestinationURL : attribution.attributionReportClickDestinationURL();
-    }
+    const auto publicKeyData = base64URLDecode(publicKeyBase64URL);
+    if (!publicKeyData)
+        return std::nullopt;
 
-    if (attributionURL.isEmpty() || !attributionURL.isValid())
-        return;
+    auto crypto = PAL::Crypto::CryptoDigest::create(PAL::Crypto::CryptoDigest::Algorithm::SHA_256);
+    crypto->addBytes(publicKeyData->span());
 
-    auto pcmDataCarried = shouldBypassPrivateRelay() ? PrivateClickMeasurement::PcmDataCarried::PersonallyIdentifiable : PrivateClickMeasurement::PcmDataCarried::NonPersonallyIdentifiable;
-
-    if (debugModeEnabled()) [[unlikely]] {
-        auto message = shouldBypassPrivateRelay() ? "[Private Click Measurement] Private Relay is not required for the attribution request because Debug Mode is enabled."_s : "[Private Click Measurement] Private Relay is required for the attribution request."_s;
-        m_client->broadcastConsoleMessage(MessageLevel::Log, message);
-    }
-
-    RELEASE_LOG_INFO(PrivateClickMeasurement, "About to fire an attribution request.");
-    m_client->broadcastConsoleMessage(MessageLevel::Log, "[Private Click Measurement] About to fire an attribution request."_s);
-
-    PCM::NetworkLoader::start(WTF::move(attributionURL), attribution.attributionReportJSON(), pcmDataCarried, m_applicationBundleIdentifier, [weakThis = WeakPtr { *this }](auto&& response) {
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
-            return;
-
-        if (!response.errorDescription.isNull())
-            protectedThis->m_client->broadcastConsoleMessage(MessageLevel::Error, makeString("[Private Click Measurement] Received error: '"_s, response.errorDescription, "' for ad click attribution request."_s));
-    });
-}
-
-void PrivateClickMeasurementManager::clearSentAttribution(PrivateClickMeasurement&& sentConversion, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint)
-{
-    if (!featureEnabled())
-        return;
-
-    protect(store())->clearSentAttribution(WTF::move(sentConversion), attributionReportEndpoint);
-}
-
-Seconds PrivateClickMeasurementManager::randomlyBetweenFifteenAndThirtyMinutes() const
-{
-    if (m_isRunningTest)
-        return 0_s;
-
-    return debugModeEnabled() ? debugModeSecondsUntilSend : 15_min + Seconds(cryptographicallyRandomNumber<uint32_t>() % 900);
-}
-
-void PrivateClickMeasurementManager::firePendingAttributionRequests()
-{
-    if (!featureEnabled())
-        return;
-
-    protect(store())->allAttributedPrivateClickMeasurement([weakThis = WeakPtr { *this }] (auto&& attributions) {
-        RefPtr protectedThis = weakThis.get();
-        if (!protectedThis)
-            return;
-        auto nextTimeToFire = Seconds::infinity();
-        bool hasSentAttribution = false;
-
-        for (auto& attribution : borrow(attributions)) {
-            std::optional<WallTime> earliestTimeToSend = attribution.timesToSend().earliestTimeToSend();
-            std::optional<WebCore::PCM::AttributionReportEndpoint> attributionReportEndpoint = attribution.timesToSend().attributionReportEndpoint();
-
-            if (!earliestTimeToSend || !attributionReportEndpoint) {
-                ASSERT_NOT_REACHED();
-                continue;
-            }
-
-            auto now = WallTime::now();
-            if (*earliestTimeToSend <= now || protectedThis->m_isRunningTest || protectedThis->debugModeEnabled()) {
-                if (hasSentAttribution) {
-                    // We've already sent an attribution this round. We should send additional overdue attributions at
-                    // a random time between 15 and 30 minutes to avoid a burst of simultaneous attributions. If debug
-                    // mode is enabled, this should be much shorter for easy testing.
-                    protectedThis->startTimer(protectedThis->randomlyBetweenFifteenAndThirtyMinutes());
-                    return;
-                }
-
-                auto laterTimeToSend = attribution.timesToSend().latestTimeToSend();
-                protectedThis->fireConversionRequest(attribution, *attributionReportEndpoint);
-                protectedThis->clearSentAttribution(WTF::move(attribution), *attributionReportEndpoint);
-                hasSentAttribution = true;
-
-                // Update nextTimeToFire in case the later report time for this attribution is sooner than the scheduled next time to fire.
-                // Or, if debug mode is enabled, we should send the second report on a much shorter delay for easy testing.
-                if (laterTimeToSend) {
-                    Seconds laterTimeToSendInSecondsFromNow = (*laterTimeToSend - WallTime::now());
-                    // Avoid sending expired attributions in bursts by using a random 15-30 minute interval if laterTimeToSend is expired.
-                    laterTimeToSendInSecondsFromNow = laterTimeToSendInSecondsFromNow.value() < 0 ? protectedThis->randomlyBetweenFifteenAndThirtyMinutes() : laterTimeToSendInSecondsFromNow;
-                    nextTimeToFire = protectedThis->debugModeEnabled() ? debugModeSecondsUntilSend : std::min(nextTimeToFire, laterTimeToSendInSecondsFromNow);
-                }
-                continue;
-            }
-
-            auto seconds = *earliestTimeToSend - now;
-            nextTimeToFire = std::min(nextTimeToFire, seconds);
-
-            // Attributions are sorted by earliestTimeToSend, so the first time we hit this there can be no further attributions
-            // due for reporting, and nextTimeToFire is the minimum earliestTimeToSend value for any pending attribution.
-            break;
-        }
-
-        if (nextTimeToFire < Seconds::infinity())
-            protectedThis->startTimer(nextTimeToFire);
-    });
+    return base64URLEncodeToString(crypto->computeHash());
 }
 
 void PrivateClickMeasurementManager::clear(CompletionHandler<void()>&& completionHandler)
@@ -712,58 +129,12 @@ void PrivateClickMeasurementManager::clearForRegistrableDomain(RegistrableDomain
     protect(store())->clearPrivateClickMeasurementForRegistrableDomain(WTF::move(domain), WTF::move(completionHandler));
 }
 
-void PrivateClickMeasurementManager::clearExpired()
-{
-    if (!featureEnabled())
-        return;
-
-    protect(store())->clearExpiredPrivateClickMeasurement();
-}
-
 void PrivateClickMeasurementManager::toStringForTesting(CompletionHandler<void(String)>&& completionHandler) const
 {
     if (!featureEnabled())
         return completionHandler("\nNo stored Private Click Measurement data.\n"_s);
 
     protect(store())->privateClickMeasurementToStringForTesting(WTF::move(completionHandler));
-}
-
-void PrivateClickMeasurementManager::setTokenPublicKeyURLForTesting(URL testURL)
-{
-    if (testURL.isEmpty())
-        return;
-    m_tokenPublicKeyURLForTesting = WTF::move(testURL);
-}
-
-void PrivateClickMeasurementManager::setTokenSignatureURLForTesting(URL testURL)
-{
-    if (testURL.isEmpty())
-        m_tokenSignatureURLForTesting = { };
-    else
-        m_tokenSignatureURLForTesting = WTF::move(testURL);
-}
-
-void PrivateClickMeasurementManager::setAttributionReportURLsForTesting(URL sourceURL, URL destinationURL)
-{
-    if (sourceURL.isEmpty() || destinationURL.isEmpty())
-        m_attributionReportTestConfig = std::nullopt;
-    else
-        m_attributionReportTestConfig = AttributionReportTestConfig { WTF::move(sourceURL), WTF::move(destinationURL) };
-}
-
-void PrivateClickMeasurementManager::markAllUnattributedAsExpiredForTesting()
-{
-    if (!featureEnabled())
-        return;
-
-    protect(store())->markAllUnattributedPrivateClickMeasurementAsExpiredForTesting();
-}
-
-void PrivateClickMeasurementManager::setPCMFraudPreventionValuesForTesting(String unlinkableToken, String secretToken, String signature, String keyID)
-{
-    if (unlinkableToken.isEmpty() || secretToken.isEmpty() || signature.isEmpty() || keyID.isEmpty())
-        return;
-    m_fraudPreventionValuesForTesting = TestingFraudPreventionValues { WTF::move(unlinkableToken), WTF::move(secretToken), WTF::move(signature), WTF::move(keyID), emptyString(), emptyString(), emptyString(), emptyString() };
 }
 
 bool PrivateClickMeasurementManager::featureEnabled() const

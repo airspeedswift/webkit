@@ -439,6 +439,8 @@
 		4CD4AE32F9AB434C9CA780A2 /* IntegrityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89D8E328FBB44B19A6B692A /* IntegrityPolicy.swift */; };
 		76777DF7AE454D3FB48A262F /* DocumentIsolationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33A6E7A64AE04659964846FA /* DocumentIsolationPolicy.swift */; };
 		7DF4E08248144A53B05EF35A /* CrossOriginPreflightResultCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34AB86B3F1C14D61A2AB0B72 /* CrossOriginPreflightResultCache.swift */; };
+		B57612E8F218CF6031C6A3D2 /* PrivateClickMeasurement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 616D29BB70D829D378643CDE /* PrivateClickMeasurement.swift */; };
+		CB7946FD14C721CEEA4A4600 /* PrivateClickMeasurementCocoa.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A557905BAD7052BB136DB0 /* PrivateClickMeasurementCocoa.swift */; };
 		6E21F342A935416A96DE601E /* CrossOriginOpenerPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD3C11F034A44EA68A78DBD7 /* CrossOriginOpenerPolicy.swift */; };
 		D3AD122B89884F7BACE7A703 /* CrossOriginEmbedderPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90A051301C7245FCB3EE63DF /* CrossOriginEmbedderPolicy.swift */; };
 		DFBF5B4347A24B659A925C82 /* CrossOriginAccessControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1759C44A4BB348BF97BCC172 /* CrossOriginAccessControl.swift */; };
@@ -3000,6 +3002,7 @@
 		6A466D7700C459D5869FA7A8 /* PipIn-fullscreen.svg in Copy Modern Media Controls Images */ = {isa = PBXBuildFile; fileRef = 8ABE7EAB2915D1858FA1CDEE /* PipIn-fullscreen.svg */; platformFilters = (macos, ); };
 		6A72798B1F16C29C003F39B8 /* InspectorShaderProgram.h in Headers */ = {isa = PBXBuildFile; fileRef = 6A7279881F16C29B003F39B8 /* InspectorShaderProgram.h */; };
 		6B0A07F221FA4B5C00D57391 /* PrivateClickMeasurement.h in Headers */ = {isa = PBXBuildFile; fileRef = 6B0A07F021FA4B5C00D57391 /* PrivateClickMeasurement.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		1BCCAD9E1FB248C98A34BD6C /* PrivateClickMeasurementSwift.h in Headers */ = {isa = PBXBuildFile; fileRef = 53357DFCB8F74151870BADDA /* PrivateClickMeasurementSwift.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		6B1F48112298A37E00DE8B82 /* CrossSiteNavigationDataTransfer.h in Headers */ = {isa = PBXBuildFile; fileRef = 6B1F480F22989EC400DE8B82 /* CrossSiteNavigationDataTransfer.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		6B4D412D23983F88002494C2 /* LoginStatus.h in Headers */ = {isa = PBXBuildFile; fileRef = 6B4D412B23983F88002494C2 /* LoginStatus.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		6B4E8613221B713F0022F389 /* RegistrableDomain.h in Headers */ = {isa = PBXBuildFile; fileRef = 6B4E8612221B713F0022F389 /* RegistrableDomain.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -12332,6 +12335,7 @@
 		4672413A1FA24B140088BD6D /* SWContextManager.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SWContextManager.cpp; sourceTree = "<group>"; };
 		4672413B1FA24B140088BD6D /* SWContextManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SWContextManager.h; sourceTree = "<group>"; };
 		4672AA9426B0942000E6EC38 /* CrossOriginOpenerPolicy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CrossOriginOpenerPolicy.cpp; sourceTree = "<group>"; };
+		616D29BB70D829D378643CDE /* PrivateClickMeasurement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateClickMeasurement.swift; sourceTree = "<group>"; };
 		CD3C11F034A44EA68A78DBD7 /* CrossOriginOpenerPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossOriginOpenerPolicy.swift; sourceTree = "<group>"; };
 		4672AA9526B0942000E6EC38 /* CrossOriginEmbedderPolicy.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CrossOriginEmbedderPolicy.cpp; sourceTree = "<group>"; };
 		90A051301C7245FCB3EE63DF /* CrossOriginEmbedderPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrossOriginEmbedderPolicy.swift; sourceTree = "<group>"; };
@@ -13854,6 +13858,7 @@
 		57EEAA531EA001B100701124 /* JSEcdsaParams.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSEcdsaParams.h; sourceTree = "<group>"; };
 		57EEAA571EA0AFBB00701124 /* CommonCryptoDERUtilities.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CommonCryptoDERUtilities.cpp; sourceTree = "<group>"; };
 		57F1C8E325DC6EE700E8F6EA /* PrivateClickMeasurementCocoa.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = PrivateClickMeasurementCocoa.mm; sourceTree = "<group>"; };
+		C5A557905BAD7052BB136DB0 /* PrivateClickMeasurementCocoa.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateClickMeasurementCocoa.swift; sourceTree = "<group>"; };
 		57F827391DB72C22009D2BF4 /* RsaHashedKeyGenParams.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = RsaHashedKeyGenParams.idl; sourceTree = "<group>"; };
 		57FE686E26052E3100BF45E4 /* AuthenticatorAttachment.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AuthenticatorAttachment.h; sourceTree = "<group>"; };
 		57FE687026052E3100BF45E4 /* AuthenticatorAttachment.idl */ = {isa = PBXFileReference; lastKnownFileType = text; path = AuthenticatorAttachment.idl; sourceTree = "<group>"; };
@@ -14308,6 +14313,7 @@
 		6A7279881F16C29B003F39B8 /* InspectorShaderProgram.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = InspectorShaderProgram.h; sourceTree = "<group>"; };
 		6A7279891F16C29B003F39B8 /* InspectorShaderProgram.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = InspectorShaderProgram.cpp; sourceTree = "<group>"; };
 		6B0A07F021FA4B5C00D57391 /* PrivateClickMeasurement.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PrivateClickMeasurement.h; sourceTree = "<group>"; };
+		53357DFCB8F74151870BADDA /* PrivateClickMeasurementSwift.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PrivateClickMeasurementSwift.h; sourceTree = "<group>"; };
 		6B0A07F121FA4B5C00D57391 /* PrivateClickMeasurement.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PrivateClickMeasurement.cpp; sourceTree = "<group>"; };
 		6B1F480F22989EC400DE8B82 /* CrossSiteNavigationDataTransfer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CrossSiteNavigationDataTransfer.h; sourceTree = "<group>"; };
 		6B4D412B23983F88002494C2 /* LoginStatus.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = LoginStatus.h; sourceTree = "<group>"; };
@@ -33228,6 +33234,7 @@
 				656D371A0ADBA5DE00A4554D /* LoaderNSURLExtras.h */,
 				656D371B0ADBA5DE00A4554D /* LoaderNSURLExtras.mm */,
 				57F1C8E325DC6EE700E8F6EA /* PrivateClickMeasurementCocoa.mm */,
+				C5A557905BAD7052BB136DB0 /* PrivateClickMeasurementCocoa.swift */,
 				51AA3F6E0BD5AA9E00892971 /* ResourceLoaderCocoa.mm */,
 				7E8FADC3199A95B100714968 /* SubresourceLoaderCocoa.mm */,
 			);
@@ -39598,6 +39605,8 @@
 				466C2DAB26C73AFB00651931 /* PolicyContainer.h */,
 				6B0A07F121FA4B5C00D57391 /* PrivateClickMeasurement.cpp */,
 				6B0A07F021FA4B5C00D57391 /* PrivateClickMeasurement.h */,
+				616D29BB70D829D378643CDE /* PrivateClickMeasurement.swift */,
+				53357DFCB8F74151870BADDA /* PrivateClickMeasurementSwift.h */,
 				1A2A68210B5BEDE70002A480 /* ProgressTracker.cpp */,
 				1A2A68220B5BEDE70002A480 /* ProgressTracker.h */,
 				1ACADD781880D91C00D8B71D /* ProgressTrackerClient.h */,
@@ -49238,6 +49247,7 @@
 				E4605FEC2166480900E53046 /* PrewarmInformation.h in Headers */,
 				B71FE6DF11091CB300DAEF77 /* PrintContext.h in Headers */,
 				6B0A07F221FA4B5C00D57391 /* PrivateClickMeasurement.h in Headers */,
+				1BCCAD9E1FB248C98A34BD6C /* PrivateClickMeasurementSwift.h in Headers */,
 				0F98C8F8286AA8FE00C7F4B2 /* ProcessCapabilities.h in Headers */,
 				51F645D51FECDBCE00B54DED /* ProcessIdentifier.h in Headers */,
 				7BDDA34C275A01310038659E /* ProcessIdentity.h in Headers */,
@@ -52386,6 +52396,8 @@
 				1F95C34F2B644B28006F7B93 /* PlaybackSessionInterfaceAVKitLegacy.mm in Sources */,
 				CDA29A301CBF74D400901CCF /* PlaybackSessionInterfaceCocoa.mm in Sources */,
 				CDA29A161CBDA56C00901CCF /* PlaybackSessionInterfaceMac.mm in Sources */,
+				B57612E8F218CF6031C6A3D2 /* PrivateClickMeasurement.swift in Sources */,
+				CB7946FD14C721CEEA4A4600 /* PrivateClickMeasurementCocoa.swift in Sources */,
 				CD20ED3D27878FFB0038BE44 /* QueuedVideoOutput.mm in Sources */,
 				D0A79ED299B74E33A4B59AC9 /* ReferrerPolicy.swift in Sources */,
 				5EDFB67C16D4423C90F5327F /* ResourceCryptographicDigest.swift in Sources */,

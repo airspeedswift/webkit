@@ -1670,6 +1670,8 @@ list(APPEND WebKit_SOURCES
     ${WebKit_DERIVED_SOURCES_DIR}/GPUProcessMessageReceiver.swift
     ${WEBKIT_DIR}/GPUProcess/media/RemoteVideoFrameObjectHeap.swift
     ${WebKit_DERIVED_SOURCES_DIR}/RemoteVideoFrameObjectHeapMessageReceiver.swift
+    ${WEBKIT_DIR}/NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementDatabase.swift
+    ${WEBKIT_DIR}/NetworkProcess/PrivateClickMeasurement/PrivateClickMeasurementManager.swift
     ${WebKit_DERIVED_SOURCES_DIR}/WebBackForwardListMessageReceiver.swift
     ${WEBKIT_DIR}/Platform/Logging.swift
     ${WEBKIT_DIR}/Shared/API/APIArray.swift

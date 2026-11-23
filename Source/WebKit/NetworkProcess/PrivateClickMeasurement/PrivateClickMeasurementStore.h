@@ -46,6 +46,10 @@ public:
     virtual ~Store() = default;
 
     using ApplicationBundleIdentifier = String;
+    // Names Swift uses for two of the handlers below and the Vector one of them takes.
+    using AttributionHandler = CompletionHandler<void(AttributionResult)>;
+    using PrivateClickMeasurementVector = Vector<WebCore::PrivateClickMeasurement>;
+    using AllAttributedHandler = CompletionHandler<void(PrivateClickMeasurementVector)>;
 
     virtual void insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement&&, WebKit::PrivateClickMeasurementAttributionType, CompletionHandler<void()>&&) = 0;
     virtual void attributePrivateClickMeasurement(WebCore::PCM::SourceSite&&, WebCore::PCM::AttributionDestinationSite&&, const ApplicationBundleIdentifier&, WebCore::PCM::AttributionTriggerData&&, WebCore::PrivateClickMeasurement::IsRunningLayoutTest, CompletionHandler<void(AttributionResult)>&&) = 0;

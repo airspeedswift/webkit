@@ -1633,6 +1633,8 @@
 		58E7CD862E7862A100338ED0 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8DC2EF5B0486A6940098B216 /* WebKit.framework */; };
 		58E7CD882E7862A100338ED0 /* WebContentProcess.xib in Resources */ = {isa = PBXBuildFile; fileRef = E1D26A4C1759634E0095BFD1 /* WebContentProcess.xib */; };
 		5C042DF42F33B06800FA849A /* APIArray.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C042DF32F33B06800FA849A /* APIArray.swift */; };
+		C3B74986A2F3C141D192D88F /* PrivateClickMeasurementDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D60DF54479DC49C54E31E96 /* PrivateClickMeasurementDatabase.swift */; };
+		5C3964D0BD0C5B24E55BA4E3 /* PrivateClickMeasurementManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D30E78166C2650D0B04A74 /* PrivateClickMeasurementManager.swift */; };
 		5C121E842410208D00486F9B /* FrameTreeNodeData.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C121E8324101F7000486F9B /* FrameTreeNodeData.h */; };
 		5C121E89241029C900486F9B /* _WKFrameTreeNode.h in Headers */ = {isa = PBXBuildFile; fileRef = 5C121E882410290D00486F9B /* _WKFrameTreeNode.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		5C139DA629DB82E500D5117B /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8DC2EF5B0486A6940098B216 /* WebKit.framework */; };
@@ -6823,6 +6825,8 @@
 		5C00993B2417FB7E00D53C25 /* ResourceLoadStatisticsParameters.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ResourceLoadStatisticsParameters.h; sourceTree = "<group>"; };
 		5C03D5DD28F765F800D096AF /* SessionState.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = SessionState.serialization.in; sourceTree = "<group>"; };
 		5C042DF32F33B06800FA849A /* APIArray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIArray.swift; sourceTree = "<group>"; };
+		6D60DF54479DC49C54E31E96 /* PrivateClickMeasurementDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateClickMeasurementDatabase.swift; sourceTree = "<group>"; };
+		E4D30E78166C2650D0B04A74 /* PrivateClickMeasurementManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivateClickMeasurementManager.swift; sourceTree = "<group>"; };
 		5C046A17290B268500FF7820 /* GPUProcessSessionParameters.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = GPUProcessSessionParameters.serialization.in; sourceTree = "<group>"; };
 		5C046A19290B26CE00FF7820 /* MediaDescriptionInfo.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MediaDescriptionInfo.h; sourceTree = "<group>"; };
 		5C046A1A290B26CF00FF7820 /* MediaDescriptionInfo.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = MediaDescriptionInfo.serialization.in; sourceTree = "<group>"; };
@@ -15348,12 +15352,14 @@
 				5CB930F626E802150032B1C0 /* PrivateClickMeasurementDaemonClient.h */,
 				5C826D6A26D482EA008AEC91 /* PrivateClickMeasurementDatabase.cpp */,
 				5C826D6926D482EA008AEC91 /* PrivateClickMeasurementDatabase.h */,
+				6D60DF54479DC49C54E31E96 /* PrivateClickMeasurementDatabase.swift */,
 				5CBE909026D7FB7C005A2E95 /* PrivateClickMeasurementDebugInfo.cpp */,
 				5CBE908F26D7FB62005A2E95 /* PrivateClickMeasurementDebugInfo.h */,
 				F4D188EE29B99B4500D838D4 /* PrivateClickMeasurementEphemeralStore.cpp */,
 				F4D188ED29B99B4500D838D4 /* PrivateClickMeasurementEphemeralStore.h */,
 				6BD05864220CE8C2000BED5C /* PrivateClickMeasurementManager.cpp */,
 				6BD05863220CE8C2000BED5C /* PrivateClickMeasurementManager.h */,
+				E4D30E78166C2650D0B04A74 /* PrivateClickMeasurementManager.swift */,
 				5CB9310626E839A90032B1C0 /* PrivateClickMeasurementManagerInterface.cpp */,
 				5CB930FA26E802150032B1C0 /* PrivateClickMeasurementManagerInterface.h */,
 				2D1DE35A2AFA469000D955D4 /* PrivateClickMeasurementManagerInterface.serialization.in */,
@@ -22759,6 +22765,8 @@
 				A1D4D2092B7DE6D00008C40E /* PlaybackSessionInterfaceLMK.mm in Sources */,
 				07AE8FCA2F3BCFB400A4C0CA /* PositionInformationForWebPage.mm in Sources */,
 				C15CBB3723F37ECB00300CC7 /* PreferenceObserver.mm in Sources */,
+				C3B74986A2F3C141D192D88F /* PrivateClickMeasurementDatabase.swift in Sources */,
+				5C3964D0BD0C5B24E55BA4E3 /* PrivateClickMeasurementManager.swift in Sources */,
 				2D54C31B212F4DA60049C174 /* ProcessLauncher.cpp in Sources */,
 				517B5F7B275E97A9002DC22D /* PushClientConnection.mm in Sources */,
 				EB36B16927A7B4500050E00D /* PushService.mm in Sources */,

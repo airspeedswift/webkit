@@ -81,6 +81,7 @@
 #include "HTTPHeaderParsersTypes.h"
 #include "LinkHeader.h"
 #include "ParsedContentRange.h"
+#include "PrivateClickMeasurementSwift.h"
 #include "SecurityPoliciesSwiftTypes.h"
 #include "ServerTiming.h"
 

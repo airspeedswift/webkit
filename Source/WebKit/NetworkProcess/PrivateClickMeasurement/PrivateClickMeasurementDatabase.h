@@ -52,14 +52,18 @@ public:
     virtual ~Database();
 
     using ApplicationBundleIdentifier = String;
+    // The name Swift uses for attributePrivateClickMeasurement()'s result.
+    using AttributionOutcome = std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo>;
 
     SWIFT_UNSAFE static void interruptAllDatabases();
 
     void insertPrivateClickMeasurement(WebCore::PrivateClickMeasurement, PrivateClickMeasurementAttributionType);
-    std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo> attributePrivateClickMeasurement(WebCore::PCM::SourceSite, WebCore::PCM::AttributionDestinationSite, ApplicationBundleIdentifier, WebCore::PCM::AttributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest);
+    // Implemented in PrivateClickMeasurementDatabase.swift.
+    AttributionOutcome attributePrivateClickMeasurement(WebCore::PCM::SourceSite, WebCore::PCM::AttributionDestinationSite, ApplicationBundleIdentifier, WebCore::PCM::AttributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest);
     Vector<WebCore::PrivateClickMeasurement> allAttributedPrivateClickMeasurement();
     void clearPrivateClickMeasurement(std::optional<WebCore::RegistrableDomain>);
     void clearExpiredPrivateClickMeasurement();
+    // Implemented in PrivateClickMeasurementDatabase.swift.
     void clearSentAttribution(WebCore::PrivateClickMeasurement, WebCore::PCM::AttributionReportEndpoint);
 
     String privateClickMeasurementToStringForTesting() const;
@@ -70,6 +74,8 @@ public:
 private:
     using UnattributedPrivateClickMeasurement = WebCore::PrivateClickMeasurement;
     using AttributedPrivateClickMeasurement = WebCore::PrivateClickMeasurement;
+    // The name Swift uses for findPrivateClickMeasurement's out-parameters.
+    using OptionalPrivateClickMeasurement = std::optional<WebCore::PrivateClickMeasurement>;
     using DomainID = unsigned;
     using SourceDomainID = unsigned;
     using DestinationDomainID = unsigned;
@@ -79,11 +85,14 @@ private:
     Database(const String& storageDirectory);
     bool createSchema() final;
     void destroyStatements() final;
-    std::pair<std::optional<UnattributedPrivateClickMeasurement>, std::optional<AttributedPrivateClickMeasurement>> findPrivateClickMeasurement(const WebCore::PCM::SourceSite&, const WebCore::PCM::AttributionDestinationSite&, const ApplicationBundleIdentifier&);
+    // A returned pair of PCMs imports as unsafe, so the results come back through out-parameters.
+    void findPrivateClickMeasurement(const WebCore::PCM::SourceSite&, const WebCore::PCM::AttributionDestinationSite&, const ApplicationBundleIdentifier&, std::optional<UnattributedPrivateClickMeasurement>&, std::optional<AttributedPrivateClickMeasurement>&);
     void removeUnattributed(WebCore::PrivateClickMeasurement&);
     String attributionToStringForTesting(const WebCore::PrivateClickMeasurement&) const;
     void markReportAsSentToDestination(SourceDomainID, DestinationDomainID, const ApplicationBundleIdentifier&);
     void markReportAsSentToSource(SourceDomainID, DestinationDomainID, const ApplicationBundleIdentifier&);
+    // Swift cannot prepare or step a SQLiteStatement.
+    void clearAttributedPrivateClickMeasurement(SourceDomainID, DestinationDomainID, const ApplicationBundleIdentifier&);
     std::pair<std::optional<SourceEarliestTimeToSend>, std::optional<DestinationEarliestTimeToSend>> earliestTimesToSend(const WebCore::PrivateClickMeasurement&);
     std::optional<DomainID> ensureDomainID(const WebCore::RegistrableDomain&);
     std::optional<DomainID> domainID(const WebCore::RegistrableDomain&);

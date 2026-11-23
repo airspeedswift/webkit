@@ -27,14 +27,13 @@
 #include "PrivateClickMeasurementDatabase.h"
 
 #include "Logging.h"
-#include "PrivateClickMeasurementDebugInfo.h"
 #include "PrivateClickMeasurementManager.h"
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/SQLiteStatement.h>
 #include <WebCore/SQLiteStatementAutoResetScope.h>
 #include <WebCore/SQLiteTransaction.h>
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/text/MakeString.h>
+#include <wtf/text/StringBuilder.h>
 
 namespace WebKit::PCM {
 
@@ -248,13 +247,13 @@ void Database::markAllUnattributedPrivateClickMeasurementAsExpiredForTesting()
     }
 }
 
-std::pair<std::optional<Database::UnattributedPrivateClickMeasurement>, std::optional<Database::AttributedPrivateClickMeasurement>> Database::findPrivateClickMeasurement(const WebCore::PCM::SourceSite& sourceSite, const WebCore::PCM::AttributionDestinationSite& destinationSite, const ApplicationBundleIdentifier& applicationBundleIdentifier)
+void Database::findPrivateClickMeasurement(const WebCore::PCM::SourceSite& sourceSite, const WebCore::PCM::AttributionDestinationSite& destinationSite, const ApplicationBundleIdentifier& applicationBundleIdentifier, std::optional<UnattributedPrivateClickMeasurement>& unattributedPrivateClickMeasurement, std::optional<AttributedPrivateClickMeasurement>& attributedPrivateClickMeasurement)
 {
     ASSERT(!RunLoop::isMain());
     auto sourceSiteDomainID = domainID(sourceSite.registrableDomain);
     auto destinationSiteDomainID = domainID(destinationSite.registrableDomain);
     if (!sourceSiteDomainID || !destinationSiteDomainID)
-        return std::make_pair(std::nullopt, std::nullopt);
+        return;
 
     auto findUnattributedScopedStatement = this->scopedStatement(m_findUnattributedStatement, findUnattributedQuery, "findPrivateClickMeasurement"_s);
     if (!findUnattributedScopedStatement
@@ -274,80 +273,11 @@ std::pair<std::optional<Database::UnattributedPrivateClickMeasurement>, std::opt
         ASSERT_NOT_REACHED();
     }
 
-    std::optional<UnattributedPrivateClickMeasurement> unattributedPrivateClickMeasurement;
     if (findUnattributedScopedStatement->step() == SQLITE_ROW)
         unattributedPrivateClickMeasurement = buildPrivateClickMeasurementFromDatabase(*findUnattributedScopedStatement.get(), PrivateClickMeasurementAttributionType::Unattributed);
 
-    std::optional<AttributedPrivateClickMeasurement> attributedPrivateClickMeasurement;
     if (findAttributedScopedStatement->step() == SQLITE_ROW)
         attributedPrivateClickMeasurement = buildPrivateClickMeasurementFromDatabase(*findAttributedScopedStatement.get(), PrivateClickMeasurementAttributionType::Attributed);
-
-    return std::make_pair(unattributedPrivateClickMeasurement, attributedPrivateClickMeasurement);
-}
-
-std::pair<std::optional<WebCore::PCM::AttributionSecondsUntilSendData>, DebugInfo> Database::attributePrivateClickMeasurement(WebCore::PCM::SourceSite sourceSite, WebCore::PCM::AttributionDestinationSite destinationSite, ApplicationBundleIdentifier applicationBundleIdentifier, WebCore::PCM::AttributionTriggerData attributionTriggerData, WebCore::PrivateClickMeasurement::IsRunningLayoutTest isRunningTest)
-{
-    ASSERT(!RunLoop::isMain());
-
-    // We should always clear expired clicks from the database before scheduling an attribution.
-    clearExpiredPrivateClickMeasurement();
-    if (!attributionTriggerData.isValid()) {
-        RELEASE_LOG_INFO(PrivateClickMeasurement, "Got an invalid attribution.");
-        return { std::nullopt, {{{ MessageLevel::Error, "[Private Click Measurement] Got an invalid attribution."_s }}} };
-    }
-
-    DebugInfo debugInfo;
-    auto data = attributionTriggerData.data;
-    auto priority = attributionTriggerData.priority;
-    RELEASE_LOG_INFO(PrivateClickMeasurement, "Got an attribution with attribution trigger data: %u and priority: %u.", data, priority);
-    debugInfo.messages.append({ MessageLevel::Info, makeString("[Private Click Measurement] Got an attribution with attribution trigger data: '"_s, data, "' and priority: '"_s, priority, "'."_s) });
-
-    WebCore::PCM::AttributionSecondsUntilSendData secondsUntilSend { std::nullopt, std::nullopt };
-
-    auto attribution = findPrivateClickMeasurement(sourceSite, destinationSite, applicationBundleIdentifier);
-    auto& previouslyUnattributed = attribution.first;
-    auto& previouslyAttributed = attribution.second;
-
-    if (previouslyUnattributed) {
-        // Always convert the pending attribution and remove it from the unattributed map.
-        removeUnattributed(*previouslyUnattributed);
-        secondsUntilSend = previouslyUnattributed.value().attributeAndGetEarliestTimeToSend(WTF::move(attributionTriggerData), isRunningTest);
-
-        // We should always have a valid secondsUntilSend value for a previouslyUnattributed value because there can be no previous attribution with a higher priority.
-        if (!secondsUntilSend.hasValidSecondsUntilSendValues()) {
-            ASSERT_NOT_REACHED();
-            return { std::nullopt, WTF::move(debugInfo) };
-        }
-
-        RELEASE_LOG_INFO(PrivateClickMeasurement, "Converted a stored ad click with attribution trigger data: %u and priority: %u.", data, priority);
-        debugInfo.messages.append({ MessageLevel::Info, makeString("[Private Click Measurement] Converted a stored ad click with attribution trigger data: '"_s, data, "' and priority: '"_s, priority, "'."_s) });
-
-        // If there is no previous attribution, or the new attribution has higher priority, insert/update the database.
-        if (!previouslyAttributed || previouslyUnattributed.value().hasHigherPriorityThan(*previouslyAttributed)) {
-            insertPrivateClickMeasurement(WTF::move(*previouslyUnattributed), PrivateClickMeasurementAttributionType::Attributed);
-
-            RELEASE_LOG_INFO(PrivateClickMeasurement, "Replaced a previously converted ad click with a new one with attribution data: %u and priority: %u because it had higher priority.", data, priority);
-            debugInfo.messages.append({ MessageLevel::Info, makeString("[Private Click Measurement] Replaced a previously converted ad click with a new one with attribution trigger data: '"_s, data, "' and priority: '"_s, priority, "' because it had higher priority."_s) });
-        }
-    } else if (previouslyAttributed) {
-        // If we have no new attribution, re-attribute the old one to respect the new priority, but only if this report has
-        // not been sent to the source or destination site yet.
-        if (!previouslyAttributed.value().hasPreviouslyBeenReported()) {
-            auto secondsUntilSend = previouslyAttributed.value().attributeAndGetEarliestTimeToSend(WTF::move(attributionTriggerData), isRunningTest);
-            if (!secondsUntilSend.hasValidSecondsUntilSendValues())
-                return { std::nullopt, WTF::move(debugInfo) };
-
-            insertPrivateClickMeasurement(WTF::move(*previouslyAttributed), PrivateClickMeasurementAttributionType::Attributed);
-
-            RELEASE_LOG_INFO(PrivateClickMeasurement, "Re-converted an ad click with a new one with attribution trigger data: %u and priority: %u because it had higher priority.", data, priority);
-            debugInfo.messages.append({ MessageLevel::Info, makeString("[Private Click Measurement] Re-converted an ad click with a new one with attribution trigger data: '"_s, data, "' and priority: '"_s, priority, "'' because it had higher priority."_s) });
-        }
-    }
-
-    if (!secondsUntilSend.hasValidSecondsUntilSendValues())
-        return { std::nullopt, WTF::move(debugInfo) };
-
-    return { secondsUntilSend, WTF::move(debugInfo) };
 }
 
 void Database::removeUnattributed(WebCore::PrivateClickMeasurement& attribution)
@@ -552,46 +482,13 @@ void Database::clearExpiredPrivateClickMeasurement()
     }
 }
 
-void Database::clearSentAttribution(WebCore::PrivateClickMeasurement attribution, WebCore::PCM::AttributionReportEndpoint attributionReportEndpoint)
+void Database::clearAttributedPrivateClickMeasurement(SourceDomainID sourceSiteDomainID, DestinationDomainID destinationSiteDomainID, const ApplicationBundleIdentifier& sourceApplicationBundleID)
 {
     ASSERT(!RunLoop::isMain());
-    auto timesToSend = earliestTimesToSend(attribution);
-    auto sourceEarliestTimeToSend = timesToSend.first;
-    auto destinationEarliestTimeToSend = timesToSend.second;
-
-    auto sourceSiteDomainID = domainID(attribution.sourceSite().registrableDomain);
-    auto destinationSiteDomainID = domainID(attribution.destinationSite().registrableDomain);
-    auto sourceApplicationBundleID = attribution.sourceApplicationBundleID();
-
-    if (!sourceSiteDomainID || !destinationSiteDomainID)
-        return;
-
-    switch (attributionReportEndpoint) {
-    case WebCore::PCM::AttributionReportEndpoint::Source:
-        if (!sourceEarliestTimeToSend) {
-            ASSERT_NOT_REACHED();
-            return;
-        }
-        markReportAsSentToSource(*sourceSiteDomainID, *destinationSiteDomainID, sourceApplicationBundleID);
-        sourceEarliestTimeToSend = std::nullopt;
-        break;
-    case WebCore::PCM::AttributionReportEndpoint::Destination:
-        if (!destinationEarliestTimeToSend) {
-            ASSERT_NOT_REACHED();
-            return;
-        }
-        markReportAsSentToDestination(*sourceSiteDomainID, *destinationSiteDomainID, sourceApplicationBundleID);
-        destinationEarliestTimeToSend = std::nullopt;
-    }
-
-    // Don't clear the attribute from the database unless it has been reported both to the source and destination site.
-    if (destinationEarliestTimeToSend || sourceEarliestTimeToSend)
-        return;
-
     auto clearAttributedStatement = m_database->prepareStatement("DELETE FROM AttributedPrivateClickMeasurement WHERE sourceSiteDomainID = ? AND destinationSiteDomainID = ? AND sourceApplicationBundleID = ?"_s);
     if (!clearAttributedStatement
-        || clearAttributedStatement->bindInt(1, *sourceSiteDomainID) != SQLITE_OK
-        || clearAttributedStatement->bindInt(2, *destinationSiteDomainID) != SQLITE_OK
+        || clearAttributedStatement->bindInt(1, sourceSiteDomainID) != SQLITE_OK
+        || clearAttributedStatement->bindInt(2, destinationSiteDomainID) != SQLITE_OK
         || clearAttributedStatement->bindText(3, sourceApplicationBundleID) != SQLITE_OK
         || clearAttributedStatement->step() != SQLITE_DONE) {
         RELEASE_LOG_ERROR(PrivateClickMeasurement, "%p - Database::clearSentAttribution failed to step, error message: %" PRIVATE_LOG_STRING, this, m_database->lastErrorMsg());

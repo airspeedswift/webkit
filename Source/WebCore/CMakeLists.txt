@@ -3413,7 +3413,11 @@ set(_webcore_swift_interop_sources_apple
     platform/mac/ScrollingEffectsController.mm
     loader/HTTPHeaderField.cpp
     loader/LinkHeader.cpp
+    loader/PrivateClickMeasurement.cpp
     loader/ServerTimingParser.cpp
+
+    loader/cocoa/PrivateClickMeasurementCocoa.mm
+
     platform/ReferrerPolicy.cpp
     platform/network/CacheValidation.cpp
     platform/network/HTTPParsers.cpp
@@ -3651,7 +3655,9 @@ if (APPLE)
     target_sources(WebCore PRIVATE
         ${WEBCORE_DIR}/loader/HTTPHeaderField.swift
         ${WEBCORE_DIR}/loader/LinkHeader.swift
+        ${WEBCORE_DIR}/loader/PrivateClickMeasurement.swift
         ${WEBCORE_DIR}/loader/ServerTimingParser.swift
+        ${WEBCORE_DIR}/loader/cocoa/PrivateClickMeasurementCocoa.swift
         ${WEBCORE_DIR}/platform/ReferrerPolicy.swift
         ${WEBCORE_DIR}/platform/network/CacheValidation.swift
         ${WEBCORE_DIR}/platform/network/HTTPParsers.swift
