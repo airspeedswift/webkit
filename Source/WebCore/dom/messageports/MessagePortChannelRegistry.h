@@ -33,15 +33,16 @@
 #include <wtf/CompletionHandler.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
-class MessagePortChannelRegistry final : public CanMakeWeakPtr<MessagePortChannelRegistry>, public CanMakeCheckedPtr<MessagePortChannelRegistry> {
+class MessagePortChannelRegistry final : public RefCountedAndCanMakeWeakPtr<MessagePortChannelRegistry>, public CanMakeCheckedPtr<MessagePortChannelRegistry> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(MessagePortChannelRegistry, WEBCORE_EXPORT);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(MessagePortChannelRegistry);
 public:
-    WEBCORE_EXPORT MessagePortChannelRegistry();
+    WEBCORE_EXPORT static Ref<MessagePortChannelRegistry> create();
 
     WEBCORE_EXPORT ~MessagePortChannelRegistry();
     
@@ -65,6 +66,8 @@ public:
     WEBCORE_EXPORT bool claimPendingTransferDestination(const MessagePortIdentifier&, ProcessIdentifier expected);
 
 private:
+    MessagePortChannelRegistry();
+
     HashMap<MessagePortIdentifier, WeakRef<MessagePortChannel>> m_openChannels;
     HashMap<MessagePortIdentifier, ProcessIdentifier> m_pendingTransferOrigins;
     HashMap<MessagePortIdentifier, ProcessIdentifier> m_pendingTransferDestinations;

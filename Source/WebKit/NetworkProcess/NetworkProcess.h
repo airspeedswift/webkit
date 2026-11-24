@@ -751,7 +751,7 @@ private:
 #endif
 
     OptionSet<NetworkCache::CacheOption> m_cacheOptions;
-    WebCore::MessagePortChannelRegistry m_messagePortChannelRegistry;
+    const Ref<WebCore::MessagePortChannelRegistry> m_messagePortChannelRegistry { WebCore::MessagePortChannelRegistry::create() };
 
     static const Seconds defaultServiceWorkerFetchTimeout;
     Seconds m_serviceWorkerFetchTimeout { defaultServiceWorkerFetchTimeout };

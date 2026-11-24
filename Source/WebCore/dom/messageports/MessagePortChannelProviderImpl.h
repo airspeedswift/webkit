@@ -49,7 +49,7 @@ private:
     void postMessageToRemote(MessageWithMessagePorts&&, const MessagePortIdentifier& remoteTarget) final;
     void takeAllMessagesForPort(const MessagePortIdentifier&, CompletionHandler<void(Vector<MessageWithMessagePorts>&&, CompletionHandler<void()>&&)>&&) final;
 
-    MessagePortChannelRegistry m_registry;
+    const Ref<MessagePortChannelRegistry> m_registry { MessagePortChannelRegistry::create() };
 };
 
 } // namespace WebCore

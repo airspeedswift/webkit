@@ -3696,7 +3696,7 @@ void NetworkProcess::setCORSDisablingPatternsForPage(WebCore::ProcessIdentifier 
 void NetworkProcess::recordMessagePortTransferDestinationsForSiteIsolation(Vector<WebCore::MessagePortIdentifier>&& ports, WebCore::ProcessIdentifier destination, CompletionHandler<void()>&& completionHandler)
 {
     for (auto& port : borrow(ports))
-        m_messagePortChannelRegistry.recordPendingTransferDestination(port, destination);
+        m_messagePortChannelRegistry->recordPendingTransferDestination(port, destination);
     completionHandler();
 }
 

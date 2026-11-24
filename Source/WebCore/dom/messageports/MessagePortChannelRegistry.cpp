@@ -36,6 +36,11 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(MessagePortChannelRegistry);
 
+Ref<MessagePortChannelRegistry> MessagePortChannelRegistry::create()
+{
+    return adoptRef(*new MessagePortChannelRegistry);
+}
+
 MessagePortChannelRegistry::MessagePortChannelRegistry() = default;
 
 MessagePortChannelRegistry::~MessagePortChannelRegistry()
