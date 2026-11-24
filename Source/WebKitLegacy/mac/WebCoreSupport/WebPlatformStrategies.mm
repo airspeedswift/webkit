@@ -87,21 +87,21 @@ class WebBlobRegistry final : public WebCore::BlobRegistry {
     WTF_MAKE_TZONE_ALLOCATED(WebBlobRegistry);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(WebBlobRegistry);
 private:
-    void registerInternalFileBlobURL(const URL& url, Ref<WebCore::BlobDataFileReference>&& reference, const String&, const String& contentType) final { m_blobRegistry.registerInternalFileBlobURL(url, WTF::move(reference), contentType); }
-    void registerInternalBlobURL(const URL& url, Vector<WebCore::BlobPart>&& parts, const String& contentType) final { m_blobRegistry.registerInternalBlobURL(url, WTF::move(parts), contentType); }
-    void registerBlobURL(const URL& url, const URL& srcURL, const WebCore::PolicyContainer& policyContainer, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry.registerBlobURL(url, srcURL, policyContainer, topOrigin); }
-    void registerInternalBlobURLOptionallyFileBacked(const URL& url, const URL& srcURL, RefPtr<WebCore::BlobDataFileReference>&& reference, const String& contentType) final { m_blobRegistry.registerInternalBlobURLOptionallyFileBacked(url, srcURL, WTF::move(reference), contentType, { }); }
-    void registerInternalBlobURLForSlice(const URL& url, const URL& srcURL, long long start, long long end, const String& contentType) final { m_blobRegistry.registerInternalBlobURLForSlice(url, srcURL, start, end, contentType); }
-    void unregisterBlobURL(const URL& url, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry.unregisterBlobURL(url, topOrigin); }
-    String blobType(const URL& url) final { return m_blobRegistry.blobType(url); }
-    unsigned long long blobSize(const URL& url) final { return m_blobRegistry.blobSize(url); }
-    void writeBlobsToTemporaryFilesForIndexedDB(const Vector<String>& blobURLs, CompletionHandler<void(Vector<String>&& filePaths)>&& completionHandler) final { m_blobRegistry.writeBlobsToTemporaryFilesForIndexedDB(blobURLs, WTF::move(completionHandler)); }
-    void registerBlobURLHandle(const URL& url, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry.registerBlobURLHandle(url, topOrigin); }
-    void unregisterBlobURLHandle(const URL& url, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry.unregisterBlobURLHandle(url, topOrigin); }
+    void registerInternalFileBlobURL(const URL& url, Ref<WebCore::BlobDataFileReference>&& reference, const String&, const String& contentType) final { m_blobRegistry->registerInternalFileBlobURL(url, WTF::move(reference), contentType); }
+    void registerInternalBlobURL(const URL& url, Vector<WebCore::BlobPart>&& parts, const String& contentType) final { m_blobRegistry->registerInternalBlobURL(url, WTF::move(parts), contentType); }
+    void registerBlobURL(const URL& url, const URL& srcURL, const WebCore::PolicyContainer& policyContainer, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry->registerBlobURL(url, srcURL, policyContainer, topOrigin); }
+    void registerInternalBlobURLOptionallyFileBacked(const URL& url, const URL& srcURL, RefPtr<WebCore::BlobDataFileReference>&& reference, const String& contentType) final { m_blobRegistry->registerInternalBlobURLOptionallyFileBacked(url, srcURL, WTF::move(reference), contentType, { }); }
+    void registerInternalBlobURLForSlice(const URL& url, const URL& srcURL, long long start, long long end, const String& contentType) final { m_blobRegistry->registerInternalBlobURLForSlice(url, srcURL, start, end, contentType); }
+    void unregisterBlobURL(const URL& url, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry->unregisterBlobURL(url, topOrigin); }
+    String blobType(const URL& url) final { return m_blobRegistry->blobType(url); }
+    unsigned long long blobSize(const URL& url) final { return m_blobRegistry->blobSize(url); }
+    void writeBlobsToTemporaryFilesForIndexedDB(const Vector<String>& blobURLs, CompletionHandler<void(Vector<String>&& filePaths)>&& completionHandler) final { m_blobRegistry->writeBlobsToTemporaryFilesForIndexedDB(blobURLs, WTF::move(completionHandler)); }
+    void registerBlobURLHandle(const URL& url, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry->registerBlobURLHandle(url, topOrigin); }
+    void unregisterBlobURLHandle(const URL& url, const std::optional<WebCore::SecurityOriginData>& topOrigin) final { m_blobRegistry->unregisterBlobURLHandle(url, topOrigin); }
 
-    WebCore::BlobRegistryImpl* blobRegistryImpl() final { return &m_blobRegistry; }
+    WebCore::BlobRegistryImpl* blobRegistryImpl() final { return m_blobRegistry.ptr(); }
 
-    WebCore::BlobRegistryImpl m_blobRegistry;
+    const Ref<WebCore::BlobRegistryImpl> m_blobRegistry { WebCore::BlobRegistryImpl::create() };
 };
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebBlobRegistry);

@@ -58,6 +58,11 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(BlobRegistryImpl);
 
+Ref<BlobRegistryImpl> BlobRegistryImpl::create()
+{
+    return adoptRef(*new BlobRegistryImpl);
+}
+
 BlobRegistryImpl::~BlobRegistryImpl() = default;
 
 static Ref<ResourceHandle> createBlobResourceHandle(const ResourceRequest& request, ResourceHandleClient* client)

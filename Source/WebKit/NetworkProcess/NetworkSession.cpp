@@ -250,6 +250,7 @@ NetworkSession::NetworkSession(const NetworkSessionCreationParameters& parameter
     , m_privateClickMeasurementDebugModeEnabled(parameters.enablePrivateClickMeasurementDebugMode)
     , m_privateClickMeasurementPrivateRelayEnforcementEnabled(parameters.enablePrivateClickMeasurementPrivateRelayEnforcement)
     , m_prefetchCache(makeUniqueRef<PrefetchCache>())
+    , m_blobRegistry(WebCore::BlobRegistryImpl::create())
     , m_broadcastChannelRegistry(NetworkBroadcastChannelRegistry::create())
     , m_testSpeedMultiplier(parameters.testSpeedMultiplier)
     , m_allowsServerPreconnect(parameters.allowsServerPreconnect)

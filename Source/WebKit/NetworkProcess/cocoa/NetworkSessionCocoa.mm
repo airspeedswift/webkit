@@ -1172,7 +1172,7 @@ NetworkSessionCocoa::NetworkSessionCocoa(const NetworkSessionCreationParameters&
     RetainPtr configuration = configurationForSessionID(m_sessionID, NetworkProcess::singleton().isParentProcessFullWebBrowserOrRunningTest());
 
     if (!m_sessionID.isEphemeral())
-        m_blobRegistry.setFileDirectory(FileSystem::createTemporaryDirectory(@"BlobRegistryFiles"));
+        m_blobRegistry->setFileDirectory(FileSystem::createTemporaryDirectory(@"BlobRegistryFiles"));
 
     if (!!parameters.hstsStorageDirectory && !m_sessionID.isEphemeral()) {
         SandboxExtension::consumePermanently(parameters.hstsStorageDirectoryExtensionHandle);

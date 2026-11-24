@@ -35,6 +35,7 @@
 #include <WebCore/BlobRegistry.h>
 #include <WebCore/SecurityOriginData.h>
 #include <wtf/HashCountedSet.h>
+#include <wtf/RefCounted.h>
 #include <wtf/RobinHoodHashMap.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/URLHash.h>
@@ -50,9 +51,10 @@ class ThreadSafeDataBuffer;
 struct PolicyContainer;
 
 // BlobRegistryImpl is not thread-safe. It should only be called from main thread.
-class WEBCORE_EXPORT BlobRegistryImpl {
+class WEBCORE_EXPORT BlobRegistryImpl : public RefCounted<BlobRegistryImpl> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(BlobRegistryImpl, WEBCORE_EXPORT);
 public:
+    static Ref<BlobRegistryImpl> create();
     virtual ~BlobRegistryImpl();
 
     BlobData* blobDataFromURL(const URL&, const std::optional<SecurityOriginData>& topOrigin = std::nullopt) const;
@@ -81,6 +83,8 @@ public:
     void setFileDirectory(String&&);
 
 private:
+    BlobRegistryImpl() = default;
+
     struct BlobForFileWriting {
         String blobURL;
         Vector<Variant<String, Ref<DataSegment>>> filePathsOrDataBuffers;

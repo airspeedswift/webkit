@@ -442,7 +442,7 @@ protected:
     bool m_isInvalidated { false };
     RefPtr<NetworkCache::Cache> m_cache;
     const RefPtr<NetworkLoadScheduler> m_networkLoadScheduler;
-    WebCore::BlobRegistryImpl m_blobRegistry;
+    const Ref<WebCore::BlobRegistryImpl> m_blobRegistry;
     const Ref<NetworkBroadcastChannelRegistry> m_broadcastChannelRegistry;
     unsigned m_testSpeedMultiplier { 1 };
     bool m_allowsServerPreconnect { true };
