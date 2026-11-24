@@ -1493,6 +1493,7 @@
 				WTF/Markable.cpp,
 				WTF/MathExtras.cpp,
 				WTF/MediaTime.cpp,
+				WTF/MemberContainerOperations.cpp,
 				WTF/MemoryDump.cpp,
 				WTF/MetaAllocator.cpp,
 				WTF/MoveOnlyLifecycleLogger.cpp,

@@ -192,6 +192,7 @@ set(WTF_PUBLIC_HEADERS
     Markable.h
     MathExtras.h
     MediaTime.h
+    MemberContainerOperations.h
     MemoryDump.h
     MemoryFootprint.h
     MemoryPressureHandler.h
