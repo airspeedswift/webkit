@@ -34,6 +34,7 @@
 #include <WebCore/SharedWorkerObjectIdentifier.h>
 #include <WebCore/TransferredMessagePort.h>
 #include <wtf/CheckedPtr.h>
+#include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 
@@ -60,11 +61,11 @@ class WebSharedWorker;
 class WebSharedWorkerServerConnection;
 class WebSharedWorkerServerToContextConnection;
 
-class WebSharedWorkerServer : public CanMakeWeakPtr<WebSharedWorkerServer>, public CanMakeCheckedPtr<WebSharedWorkerServer> {
+class WebSharedWorkerServer : public RefCountedAndCanMakeWeakPtr<WebSharedWorkerServer>, public CanMakeCheckedPtr<WebSharedWorkerServer> {
     WTF_MAKE_TZONE_ALLOCATED(WebSharedWorkerServer);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(WebSharedWorkerServer);
 public:
-    explicit WebSharedWorkerServer(NetworkSession&);
+    static Ref<WebSharedWorkerServer> create(NetworkSession& session) { return adoptRef(*new WebSharedWorkerServer(session)); }
     ~WebSharedWorkerServer();
 
     NODELETE PAL::SessionID sessionID();
@@ -89,6 +90,8 @@ public:
 #endif
 
 private:
+    explicit WebSharedWorkerServer(NetworkSession&);
+
     void createContextConnection(const WebCore::Site&, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, WebCore::CrossOriginEmbedderPolicyValue);
     void forEachContextConnectionForRegistrableDomain(const WebCore::RegistrableDomain&, NOESCAPE const Function<void(WebSharedWorkerServerToContextConnection&)>&);
     bool needsContextConnectionForRegistrableDomain(const WebCore::RegistrableDomain&) const;

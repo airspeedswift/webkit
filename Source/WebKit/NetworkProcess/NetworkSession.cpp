@@ -259,7 +259,7 @@ NetworkSession::NetworkSession(const NetworkSessionCreationParameters& parameter
     , m_overrideServiceWorkerRegistrationCountTestingValue(parameters.overrideServiceWorkerRegistrationCountTestingValue)
     , m_inspectionForServiceWorkersAllowed(parameters.inspectionForServiceWorkersAllowed)
     , m_sharedWorkerServer([](NetworkSession& session, auto& ref) {
-        ref.set(makeUniqueRef<WebSharedWorkerServer>(session));
+        ref.set(WebSharedWorkerServer::create(session));
     }) , m_storageManager(createNetworkStorageManager(parameters))
     , m_mockPushSubscriptionOriginsForTesting(parameters.mockPushSubscriptionOriginsForTesting)
 #if ENABLE(WEB_PUSH_NOTIFICATIONS)

@@ -50,7 +50,7 @@
 #include <wtf/CheckedPtr.h>
 #include <wtf/Deque.h>
 #include <wtf/HashSet.h>
-#include <wtf/LazyUniqueRef.h>
+#include <wtf/LazyRef.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/Seconds.h>
@@ -277,8 +277,8 @@ public:
     void resumeBackgroundFetch(const String&, CompletionHandler<void()>&&);
     void clickBackgroundFetch(const String&, CompletionHandler<void()>&&);
 
-    WebSharedWorkerServer* sharedWorkerServer() { return const_cast<WebSharedWorkerServer*>(m_sharedWorkerServer.getIfExists()); }
-    WebSharedWorkerServer& ensureSharedWorkerServer() { return const_cast<WebSharedWorkerServer&>(m_sharedWorkerServer.get(*this)); }
+    WebSharedWorkerServer* sharedWorkerServer() { return m_sharedWorkerServer.getIfExists(); }
+    WebSharedWorkerServer& ensureSharedWorkerServer() { return m_sharedWorkerServer.get(*this); }
 
     NetworkStorageManager& storageManager() { return m_storageManager.get(); }
     void clearCacheEngine();
@@ -461,7 +461,7 @@ protected:
     RefPtr<WebCore::SWServer> m_swServer;
     const RefPtr<BackgroundFetchStoreImpl> m_backgroundFetchStore;
     bool m_inspectionForServiceWorkersAllowed { true };
-    const LazyUniqueRef<NetworkSession, WebSharedWorkerServer> m_sharedWorkerServer;
+    LazyRef<NetworkSession, WebSharedWorkerServer> m_sharedWorkerServer;
 
     struct RecentHTTPSConnectionTiming {
         static constexpr unsigned maxEntries { 25 };
