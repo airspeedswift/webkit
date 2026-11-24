@@ -31,6 +31,7 @@
 #include <WebCore/HTTPParsers.h>
 #include <wtf/Box.h>
 #include <wtf/Forward.h>
+#include <wtf/SwiftBridging.h>
 #include <wtf/Variant.h>
 #include <wtf/Vector.h>
 
@@ -41,8 +42,12 @@ class BlobDataItem;
 class FileStream;
 class ResourceRequest;
 
-class BlobResourceHandleBase : public FileStreamClient {
+class SWIFT_SHARED_REFERENCE(.ref, .deref) SWIFT_RETURNED_AS_UNRETAINED_BY_DEFAULT SWIFT_PRIVATE_FILEID("WebCore/BlobResourceHandleBase.swift") BlobResourceHandleBase : public FileStreamClient {
 public:
+    // Redeclared here so that Swift can import this class as a reference type.
+    SWIFT_UNSAFE void ref() const override = 0;
+    SWIFT_UNSAFE void deref() const override = 0;
+
     enum class Error {
         NoError = 0,
         NotFoundError = 1,
