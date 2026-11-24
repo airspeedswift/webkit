@@ -104,7 +104,7 @@ void WebSharedWorkerServerToContextConnection::connectionIsNoLongerNeeded()
         connection->sharedWorkerServerToContextConnectionIsNoLongerNeeded();
 }
 
-void WebSharedWorkerServerToContextConnection::postErrorToWorkerObject(WebCore::SharedWorkerIdentifier sharedWorkerIdentifier, const String& errorMessage, int lineNumber, int columnNumber, const String& sourceURL, bool isErrorEvent)
+void WebSharedWorkerServerToContextConnection::postErrorToWorkerObject(WebCore::SharedWorkerIdentifier sharedWorkerIdentifier, String errorMessage, int lineNumber, int columnNumber, String sourceURL, bool isErrorEvent)
 {
     CONTEXT_CONNECTION_RELEASE_LOG("postErrorToWorkerObject: sharedWorkerIdentifier=%" PRIu64, sharedWorkerIdentifier.toUInt64());
     if (CheckedPtr server = m_server.get())

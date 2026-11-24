@@ -141,7 +141,7 @@ void WebSharedWorkerServer::didFinishFetchingSharedWorkerScript(WebSharedWorker&
         createContextConnection(sharedWorker.topSite(), sharedWorker.firstSharedWorkerObjectProcess(), workerCOEP);
 }
 
-bool WebSharedWorkerServer::needsContextConnectionForRegistrableDomain(const WebCore::RegistrableDomain& registrableDomain) const
+bool WebSharedWorkerServer::needsContextConnectionForRegistrableDomain(WebCore::RegistrableDomain registrableDomain) const
 {
     for (auto& sharedWorker : m_sharedWorkers.values()) {
         if (registrableDomain == sharedWorker->topRegistrableDomain())
@@ -226,7 +226,7 @@ void WebSharedWorkerServer::contextConnectionCreated(WebSharedWorkerServerToCont
     }
 }
 
-void WebSharedWorkerServer::sharedWorkerObjectIsGoingAway(const WebCore::SharedWorkerKey& sharedWorkerKey, WebCore::SharedWorkerObjectIdentifier sharedWorkerObjectIdentifier)
+void WebSharedWorkerServer::sharedWorkerObjectIsGoingAway(WebCore::SharedWorkerKey sharedWorkerKey, WebCore::SharedWorkerObjectIdentifier sharedWorkerObjectIdentifier)
 {
     RefPtr sharedWorker = m_sharedWorkers.get(sharedWorkerKey);
     RELEASE_LOG(SharedWorker, "WebSharedWorkerServer::sharedWorkerObjectIsGoingAway: sharedWorkerObjectIdentifier=%" PUBLIC_LOG_STRING ", sharedWorker=%p", sharedWorkerObjectIdentifier.toString().utf8(), sharedWorker.get());
@@ -260,7 +260,7 @@ void WebSharedWorkerServer::resumeForBackForwardCache(const WebCore::SharedWorke
     sharedWorker->resume(sharedWorkerObjectIdentifier);
 }
 
-void WebSharedWorkerServer::shutDownSharedWorker(const WebCore::SharedWorkerKey& key)
+void WebSharedWorkerServer::shutDownSharedWorker(WebCore::SharedWorkerKey key)
 {
     RefPtr sharedWorker = m_sharedWorkers.take(key);
     RELEASE_LOG(SharedWorker, "WebSharedWorkerServer::shutDownSharedWorker: sharedWorkerIdentifier=%" PRIu64 ", sharedWorker=%p", sharedWorker ? sharedWorker->identifier().toUInt64() : 0, sharedWorker.get());
@@ -312,7 +312,7 @@ void WebSharedWorkerServer::forEachContextConnectionForRegistrableDomain(const W
     }
 }
 
-void WebSharedWorkerServer::postErrorToWorkerObject(WebCore::SharedWorkerIdentifier sharedWorkerIdentifier, const String& errorMessage, int lineNumber, int columnNumber, const String& sourceURL, bool isErrorEvent)
+void WebSharedWorkerServer::postErrorToWorkerObject(WebCore::SharedWorkerIdentifier sharedWorkerIdentifier, String errorMessage, int lineNumber, int columnNumber, String sourceURL, bool isErrorEvent)
 {
     RefPtr sharedWorker = WebSharedWorker::fromIdentifier(sharedWorkerIdentifier);
     RELEASE_LOG_ERROR(SharedWorker, "WebSharedWorkerServer::postErrorToWorkerObject: sharedWorkerIdentifier=%" PRIu64 ", sharedWorker=%p", sharedWorkerIdentifier.toUInt64(), sharedWorker.get());

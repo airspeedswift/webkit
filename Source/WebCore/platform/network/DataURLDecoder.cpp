@@ -196,7 +196,7 @@ void decode(const URL& url, const ScheduleContext& scheduleContext, ShouldValida
     });
 }
 
-std::optional<Result> decode(const URL& url, ShouldValidatePadding shouldValidatePadding)
+std::optional<Result> decode(URL url, ShouldValidatePadding shouldValidatePadding)
 {
     ASSERT(url.protocolIsData());
 

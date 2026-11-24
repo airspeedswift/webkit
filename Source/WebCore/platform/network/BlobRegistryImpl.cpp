@@ -129,7 +129,7 @@ void BlobRegistryImpl::appendStorageItems(BlobData* blobData, const BlobDataItem
     ASSERT(!length);
 }
 
-void BlobRegistryImpl::registerInternalFileBlobURL(const URL& url, Ref<BlobDataFileReference>&& file, const String& contentType)
+void BlobRegistryImpl::registerInternalFileBlobURL(URL url, Ref<BlobDataFileReference> file, String contentType)
 {
     ASSERT_WITH_SECURITY_IMPLICATION(isMainThread());
     registerBlobResourceHandleConstructor();
@@ -214,12 +214,12 @@ void BlobRegistryImpl::registerInternalBlobURL(const URL& url, Vector<BlobPart>&
     addBlobData(url.string(), WTF::move(blobData));
 }
 
-void BlobRegistryImpl::registerBlobURL(const URL& url, const URL& srcURL, const PolicyContainer& policyContainer, const std::optional<SecurityOriginData>& topOrigin)
+void BlobRegistryImpl::registerBlobURL(URL url, URL srcURL, PolicyContainer policyContainer, std::optional<SecurityOriginData> topOrigin)
 {
     registerBlobURLOptionallyFileBacked(url, srcURL, nullptr, { }, policyContainer, topOrigin);
 }
 
-void BlobRegistryImpl::registerInternalBlobURLOptionallyFileBacked(const URL& url, const URL& srcURL, RefPtr<BlobDataFileReference>&& file, const String& contentType, const PolicyContainer& policyContainer)
+void BlobRegistryImpl::registerInternalBlobURLOptionallyFileBacked(URL url, URL srcURL, RefPtr<BlobDataFileReference> file, String contentType, PolicyContainer policyContainer)
 {
     registerBlobURLOptionallyFileBacked(url, srcURL, WTF::move(file), contentType, policyContainer);
 }
@@ -251,7 +251,7 @@ void BlobRegistryImpl::registerBlobURLOptionallyFileBacked(const URL& url, const
     addBlobData(url.string(), WTF::move(backingFile), topOrigin);
 }
 
-void BlobRegistryImpl::registerInternalBlobURLForSlice(const URL& url, const URL& srcURL, long long start, long long end, const String& contentType)
+void BlobRegistryImpl::registerInternalBlobURLForSlice(URL url, URL srcURL, long long start, long long end, String contentType)
 {
     ASSERT_WITH_SECURITY_IMPLICATION(isMainThread());
     RefPtr originalData = blobDataFromURL(srcURL);
@@ -426,7 +426,7 @@ void BlobRegistryImpl::writeBlobsToTemporaryFilesForIndexedDB(const Vector<Strin
     });
 }
 
-Vector<Ref<BlobDataFileReference>> BlobRegistryImpl::filesInBlob(const URL& url, const std::optional<SecurityOriginData>& topOrigin) const
+Vector<Ref<BlobDataFileReference>> BlobRegistryImpl::filesInBlob(URL url, std::optional<SecurityOriginData> topOrigin) const
 {
     RefPtr blobData = blobDataFromURL(url, topOrigin);
     if (!blobData)

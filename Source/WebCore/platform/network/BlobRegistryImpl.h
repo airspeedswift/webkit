@@ -63,11 +63,11 @@ public:
 
     void appendStorageItems(BlobData*, const BlobDataItemList&, long long offset, long long length);
 
-    void registerInternalFileBlobURL(const URL&, Ref<BlobDataFileReference>&&, const String& contentType);
+    void registerInternalFileBlobURL(URL, Ref<BlobDataFileReference>, String contentType);
     void registerInternalBlobURL(const URL&, Vector<BlobPart>&&, const String& contentType);
-    void registerBlobURL(const URL&, const URL& srcURL, const PolicyContainer&, const std::optional<SecurityOriginData>& topOrigin);
-    void registerInternalBlobURLOptionallyFileBacked(const URL&, const URL& srcURL, RefPtr<BlobDataFileReference>&&, const String& contentType, const PolicyContainer&);
-    void registerInternalBlobURLForSlice(const URL&, const URL& srcURL, long long start, long long end, const String& contentType);
+    void registerBlobURL(URL, URL srcURL, PolicyContainer, std::optional<SecurityOriginData> topOrigin);
+    void registerInternalBlobURLOptionallyFileBacked(URL, URL srcURL, RefPtr<BlobDataFileReference>, String contentType, PolicyContainer);
+    void registerInternalBlobURLForSlice(URL, URL srcURL, long long start, long long end, String contentType);
     void unregisterBlobURL(const URL&, const std::optional<WebCore::SecurityOriginData>& topOrigin);
 
     void registerBlobURLHandle(const URL&, const std::optional<WebCore::SecurityOriginData>& topOrigin);
@@ -78,7 +78,7 @@ public:
 
     void writeBlobsToTemporaryFilesForIndexedDB(const Vector<String>& blobURLs, CompletionHandler<void(Vector<String>&& filePaths)>&&);
 
-    Vector<Ref<BlobDataFileReference>> filesInBlob(const URL&, const std::optional<WebCore::SecurityOriginData>& topOrigin = std::nullopt) const;
+    Vector<Ref<BlobDataFileReference>> filesInBlob(URL, std::optional<WebCore::SecurityOriginData> topOrigin = std::nullopt) const;
 
     void setFileDirectory(String&&);
 

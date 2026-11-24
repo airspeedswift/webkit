@@ -70,7 +70,7 @@ NetworkBroadcastChannelRegistry::NetworkBroadcastChannelRegistry()
 
 NetworkBroadcastChannelRegistry::~NetworkBroadcastChannelRegistry() = default;
 
-void NetworkBroadcastChannelRegistry::registerChannel(IPC::Connection& connection, const WebCore::ClientOrigin& origin, const String& name)
+void NetworkBroadcastChannelRegistry::registerChannel(IPC::Connection& connection, WebCore::ClientOrigin origin, String name)
 {
     MESSAGE_CHECK(isValidClientOrigin(origin), connection);
     MESSAGE_CHECK(!name.isNull(), connection);
@@ -82,7 +82,7 @@ void NetworkBroadcastChannelRegistry::registerChannel(IPC::Connection& connectio
     connectionIdentifiersForName.append(connection.uniqueID());
 }
 
-void NetworkBroadcastChannelRegistry::unregisterChannel(IPC::Connection& connection, const WebCore::ClientOrigin& origin, const String& name)
+void NetworkBroadcastChannelRegistry::unregisterChannel(IPC::Connection& connection, WebCore::ClientOrigin origin, String name)
 {
     MESSAGE_CHECK(isValidClientOrigin(origin), connection);
     MESSAGE_CHECK(!name.isNull(), connection);

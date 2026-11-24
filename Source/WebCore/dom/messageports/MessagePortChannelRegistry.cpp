@@ -85,7 +85,7 @@ void MessagePortChannelRegistry::messagePortChannelDestroyed(MessagePortChannel&
     LOG_WITH_STREAM(MessagePorts, stream << "Registry: After removing channel "_s << channel.logString() << " there are "_s << m_openChannels.size() << " channels left in the registry:"_s);
 }
 
-void MessagePortChannelRegistry::didEntangleLocalToRemote(const MessagePortIdentifier& local, const MessagePortIdentifier& remote, ProcessIdentifier process)
+void MessagePortChannelRegistry::didEntangleLocalToRemote(MessagePortIdentifier local, MessagePortIdentifier remote, ProcessIdentifier process)
 {
     ASSERT_WITH_SECURITY_IMPLICATION(isMainThread());
 
@@ -99,7 +99,7 @@ void MessagePortChannelRegistry::didEntangleLocalToRemote(const MessagePortIdent
     channel->entanglePortWithProcess(local, process);
 }
 
-void MessagePortChannelRegistry::didDisentangleMessagePort(const MessagePortIdentifier& port)
+void MessagePortChannelRegistry::didDisentangleMessagePort(MessagePortIdentifier port)
 {
     ASSERT_WITH_SECURITY_IMPLICATION(isMainThread());
 
@@ -168,7 +168,7 @@ MessagePortChannel* MessagePortChannelRegistry::existingChannelContainingPort(co
     return m_openChannels.get(port);
 }
 
-void MessagePortChannelRegistry::recordPendingTransferOrigin(const MessagePortIdentifier& port, ProcessIdentifier origin)
+void MessagePortChannelRegistry::recordPendingTransferOrigin(MessagePortIdentifier port, ProcessIdentifier origin)
 {
     ASSERT_WITH_SECURITY_IMPLICATION(isMainThread());
     m_pendingTransferOrigins.set(port, origin);
@@ -184,7 +184,7 @@ bool MessagePortChannelRegistry::claimPendingTransferOrigin(const MessagePortIde
     return true;
 }
 
-void MessagePortChannelRegistry::recordPendingTransferDestination(const MessagePortIdentifier& port, ProcessIdentifier destination)
+void MessagePortChannelRegistry::recordPendingTransferDestination(MessagePortIdentifier port, ProcessIdentifier destination)
 {
     ASSERT_WITH_SECURITY_IMPLICATION(isMainThread());
     m_pendingTransferDestinations.set(port, destination);

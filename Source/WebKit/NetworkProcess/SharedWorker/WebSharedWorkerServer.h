@@ -73,10 +73,10 @@ public:
     WebSharedWorkerServerToContextConnection* contextConnectionForRegistrableDomain(const WebCore::RegistrableDomain&, WebCore::CrossOriginEmbedderPolicyValue) const;
 
     void requestSharedWorker(WebCore::SharedWorkerKey&&, WebCore::SharedWorkerObjectIdentifier, WebCore::TransferredMessagePort&&, WebCore::WorkerOptions&&);
-    void sharedWorkerObjectIsGoingAway(const WebCore::SharedWorkerKey&, WebCore::SharedWorkerObjectIdentifier);
+    void sharedWorkerObjectIsGoingAway(WebCore::SharedWorkerKey, WebCore::SharedWorkerObjectIdentifier);
     void suspendForBackForwardCache(const WebCore::SharedWorkerKey&, WebCore::SharedWorkerObjectIdentifier);
     void resumeForBackForwardCache(const WebCore::SharedWorkerKey&, WebCore::SharedWorkerObjectIdentifier);
-    void postErrorToWorkerObject(WebCore::SharedWorkerIdentifier, const String& errorMessage, int lineNumber, int columnNumber, const String& sourceURL, bool isErrorEvent);
+    void postErrorToWorkerObject(WebCore::SharedWorkerIdentifier, String errorMessage, int lineNumber, int columnNumber, String sourceURL, bool isErrorEvent);
     void sharedWorkerTerminated(WebCore::SharedWorkerIdentifier);
 
     void terminateContextConnectionWhenPossible(const WebCore::RegistrableDomain&, WebCore::ProcessIdentifier);
@@ -94,10 +94,10 @@ private:
 
     void createContextConnection(const WebCore::Site&, std::optional<WebCore::ProcessIdentifier> requestingProcessIdentifier, WebCore::CrossOriginEmbedderPolicyValue);
     void forEachContextConnectionForRegistrableDomain(const WebCore::RegistrableDomain&, NOESCAPE const Function<void(WebSharedWorkerServerToContextConnection&)>&);
-    bool needsContextConnectionForRegistrableDomain(const WebCore::RegistrableDomain&) const;
+    bool needsContextConnectionForRegistrableDomain(WebCore::RegistrableDomain) const;
     void contextConnectionCreated(WebSharedWorkerServerToContextConnection&);
     void didFinishFetchingSharedWorkerScript(WebSharedWorker&, WebCore::WorkerFetchResult&&, WebCore::WorkerInitializationData&&);
-    void shutDownSharedWorker(const WebCore::SharedWorkerKey&);
+    void shutDownSharedWorker(WebCore::SharedWorkerKey);
 
     CheckedRef<NetworkSession> m_session;
     HashMap<WebCore::ProcessIdentifier, Ref<WebSharedWorkerServerConnection>> m_connections;
