@@ -294,6 +294,7 @@ if (ENABLE_WEBCORE)
         Tests/WebCore/CSSTokenizerTests.cpp
         Tests/WebCore/CSSValueAggregates.cpp
         Tests/WebCore/CachedMatchFinder.cpp
+        Tests/WebCore/ChannelsAndBlobsBench.cpp
         Tests/WebCore/ColorTests.cpp
         Tests/WebCore/ComplexTextController.cpp
         Tests/WebCore/ContextMenuAction.cpp

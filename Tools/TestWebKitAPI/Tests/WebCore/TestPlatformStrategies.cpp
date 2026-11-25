@@ -27,6 +27,7 @@
 #include "TestPlatformStrategies.h"
 
 #include <WebCore/BlobRegistry.h>
+#include <WebCore/BlobRegistryImpl.h>
 #include <WebCore/Color.h>
 #include <WebCore/LoaderStrategy.h>
 #include <WebCore/MediaStrategy.h>
@@ -141,6 +142,9 @@ public:
 
 class TestBlobRegistry final : public BlobRegistry {
 public:
+    // The registry the synchronous blob loader reaches (ChannelsAndBlobsBench's FullRead1MiB and the error shapes).
+    BlobRegistryImpl* blobRegistryImpl() final { return m_blobRegistryImpl.ptr(); }
+
     void registerInternalFileBlobURL(const URL&, Ref<BlobDataFileReference>&&, const String&, const String&) final { }
     void registerInternalBlobURL(const URL&, Vector<BlobPart>&&, const String&) final { }
     void registerBlobURL(const URL&, const URL&, const PolicyContainer&, const std::optional<SecurityOriginData>&) final { }
@@ -152,6 +156,9 @@ public:
     String blobType(const URL&) final { return emptyString(); }
     unsigned long long blobSize(const URL&) final { return 0; }
     void writeBlobsToTemporaryFilesForIndexedDB(const Vector<String>&, CompletionHandler<void(Vector<String>&&)>&&) final { }
+
+private:
+    const Ref<BlobRegistryImpl> m_blobRegistryImpl { BlobRegistryImpl::create() };
 };
 
 class TestMediaStrategy final : public MediaStrategy {
