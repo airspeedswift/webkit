@@ -64,6 +64,18 @@ public:
     long long offset() const { return m_offset; }
     WEBCORE_EXPORT long long length() const; // Computes file length if it's not known yet.
 
+    // For Swift, which cannot call switchOn(): the item's data or file, whichever it holds.
+    DataSegment* dataSegment() const
+    {
+        auto* data = std::get_if<Ref<DataSegment>>(&m_data);
+        return data ? data->ptr() : nullptr;
+    }
+    BlobDataFileReference* file() const
+    {
+        auto* file = std::get_if<Ref<BlobDataFileReference>>(&m_data);
+        return file ? file->ptr() : nullptr;
+    }
+
 private:
     friend class BlobData;
 
@@ -95,7 +107,7 @@ private:
 
 typedef Vector<BlobDataItem> BlobDataItemList;
 
-class BlobData : public ThreadSafeRefCounted<BlobData, WTF::DestructionThread::Main> {
+class SWIFT_PRIVATE_FILEID("WebCore/BlobRegistryImpl.swift") BlobData : public ThreadSafeRefCounted<BlobData, WTF::DestructionThread::Main> {
 public:
     static Ref<BlobData> create(const String& contentType)
     {
@@ -105,9 +117,14 @@ public:
     const String& contentType() const LIFETIME_BOUND { return m_contentType; }
 
     const PolicyContainer& policyContainer() const LIFETIME_BOUND { return m_policyContainer; }
+    // For Swift, which would copy the policy container to compare it.
+    bool policyContainerEquals(const PolicyContainer& policyContainer) const { return m_policyContainer == policyContainer; }
     void setPolicyContainer(const PolicyContainer& policyContainer) { m_policyContainer = policyContainer; }
 
     const BlobDataItemList& items() const LIFETIME_BOUND { return m_items; }
+    // For Swift, which imports items() as a pointer; operator[] imports as a subscript.
+    size_t itemCount() const { return m_items.size(); }
+    const BlobDataItem& operator[](size_t index) const LIFETIME_BOUND { return m_items[index]; }
 
     void replaceData(const DataSegment& oldData, Ref<DataSegment>&& newData);
     void appendData(Ref<DataSegment>&&);

@@ -69,6 +69,9 @@ private:
     Markable<WallTime> m_expectedModificationTime;
 };
 
+// For Swift, which cannot call path(): a member returning a reference imports as a pointer.
+inline bool isBlobDataFileReferencePathEmpty(BlobDataFileReference& file) { return file.path().isEmpty(); }
+
 }
 
 #endif // BlobDataFileReference_h

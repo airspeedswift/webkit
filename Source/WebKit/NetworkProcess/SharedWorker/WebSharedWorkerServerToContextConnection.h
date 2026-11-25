@@ -38,6 +38,7 @@
 #include <wtf/CheckedRef.h>
 #include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/text/TextStream.h>
 
 namespace WebKit {
 class WebSharedWorkerServerToContextConnection;
@@ -57,7 +58,7 @@ class WebSharedWorker;
 class WebSharedWorkerServer;
 struct SharedPreferencesForWebProcess;
 
-class WebSharedWorkerServerToContextConnection final : public IPC::MessageSender, public IPC::MessageReceiver, public RefCounted<WebSharedWorkerServerToContextConnection> {
+class SWIFT_PRIVATE_FILEID("WebKit/WebSharedWorkerServerToContextConnection.swift") WebSharedWorkerServerToContextConnection final : public IPC::MessageSender, public IPC::MessageReceiver, public RefCounted<WebSharedWorkerServerToContextConnection> {
     WTF_MAKE_TZONE_ALLOCATED(WebSharedWorkerServerToContextConnection);
 public:
     static Ref<WebSharedWorkerServerToContextConnection> create(NetworkConnectionToWebProcess&, const WebCore::Site&, WebSharedWorkerServer&, WebCore::CrossOriginEmbedderPolicyValue);
@@ -97,6 +98,8 @@ private:
 
     void idleTerminationTimerFired();
     void connectionIsNoLongerNeeded();
+    // For Swift, which cannot take a C++ object's address without unsafe code.
+    String logAddress() const { return (TextStream() << static_cast<const void*>(this)).release(); }
 
     // IPC messages.
     void postErrorToWorkerObject(WebCore::SharedWorkerIdentifier, String errorMessage, int lineNumber, int columnNumber, String sourceURL, bool isErrorEvent);

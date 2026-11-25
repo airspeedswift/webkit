@@ -3774,11 +3774,16 @@ endif ()
 
 if (APPLE)
     target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/dom/messageports/MessagePortChannel.swift
+        ${WEBCORE_DIR}/dom/messageports/MessagePortChannelRegistry.swift
         ${WEBCORE_DIR}/loader/HTTPHeaderField.swift
         ${WEBCORE_DIR}/loader/LinkHeader.swift
         ${WEBCORE_DIR}/loader/ServerTimingParser.swift
         ${WEBCORE_DIR}/platform/ReferrerPolicy.swift
+        ${WEBCORE_DIR}/platform/network/BlobRegistryImpl.swift
+        ${WEBCORE_DIR}/platform/network/BlobResourceHandleBase.swift
         ${WEBCORE_DIR}/platform/network/CacheValidation.swift
+        ${WEBCORE_DIR}/platform/network/DataURLDecoder.swift
         ${WEBCORE_DIR}/platform/network/HTTPParsers.swift
         ${WEBCORE_DIR}/platform/network/ParsedContentRange.swift
         ${WEBCORE_DIR}/platform/network/ParsedContentType.swift
@@ -4534,6 +4539,8 @@ else ()
         set(CMAKE_NINJA_FORCE_RESPONSE_FILE ON)
     endif ()
     target_sources(WebCore PRIVATE
+        ${WEBCORE_DIR}/dom/messageports/MessagePortChannel.swift
+        ${WEBCORE_DIR}/dom/messageports/MessagePortChannelRegistry.swift
         ${WEBCORE_DIR}/html/parser/HTMLMetaCharsetParser.swift
         ${WEBCORE_DIR}/html/parser/HTMLMicrosyntaxCodeUnit.swift
         ${WEBCORE_DIR}/html/parser/HTMLParserIdioms.swift
@@ -4602,7 +4609,10 @@ else ()
         ${WEBCORE_DIR}/platform/media-parsers/ByteCursor.swift
         ${WEBCORE_DIR}/platform/media-parsers/MutableSpanCopy.swift
         ${WEBCORE_DIR}/platform/media-parsers/WTFCompatParsing.swift
+        ${WEBCORE_DIR}/platform/network/BlobRegistryImpl.swift
+        ${WEBCORE_DIR}/platform/network/BlobResourceHandleBase.swift
         ${WEBCORE_DIR}/platform/network/CacheValidation.swift
+        ${WEBCORE_DIR}/platform/network/DataURLDecoder.swift
         ${WEBCORE_DIR}/platform/network/HTTPParsers.swift
         ${WEBCORE_DIR}/platform/network/ParsedContentRange.swift
         ${WEBCORE_DIR}/platform/network/ParsedContentType.swift
@@ -4614,6 +4624,10 @@ else ()
     list(APPEND _webcore_swift_core_submodules
         ${WebCore_DERIVED_SOURCES_DIR}/HTTPHeaderNames.h
         animation/CompositeOperation.h
+
+        dom/messageports/MessagePortChannel.h
+        dom/messageports/MessagePortChannelRegistry.h
+
         html/parser/HTMLMicrosyntaxesSwiftTypes.h
         html/parser/HTMLParserIdioms.h
         html/parser/HTMLSrcsetParser.h
@@ -4674,9 +4688,17 @@ else ()
         platform/graphics/filters/skia/FilterSkiaBridge.h
         platform/graphics/iso/ISOParseResults.h
         platform/graphics/transforms/AffineTransform.h
+
+        platform/network/BlobData.h
+        platform/network/BlobDataFileReference.h
+        platform/network/BlobPart.h
+        platform/network/BlobRegistryImpl.h
+        platform/network/BlobResourceHandleBase.h
         platform/network/CacheValidation.h
+        platform/network/DataURLDecoder.h
         platform/network/HTTPParsers.h
         platform/network/ParsedContentRange.h
+
         rendering/CSSFilterRendererView.h
         svg/graphics/filters/SVGFilterRendererView.h)
     # The security policy checks, which the C++ that includes WebCore-Swift.h calls on every port; the headers they import

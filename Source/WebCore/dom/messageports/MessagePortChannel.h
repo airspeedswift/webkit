@@ -42,16 +42,20 @@ class MessagePortChannelRegistry;
 
 enum class MessagePortStatus : uint8_t { Open, Unclaimed, Closed };
 
-class MessagePortChannel : public RefCountedAndCanMakeWeakPtr<MessagePortChannel> {
+class SWIFT_PRIVATE_FILEID("WebCore/MessagePortChannel.swift") MessagePortChannel : public RefCountedAndCanMakeWeakPtr<MessagePortChannel> {
 public:
     static Ref<MessagePortChannel> create(MessagePortChannelRegistry&, const MessagePortIdentifier& port1, const MessagePortIdentifier& port2);
 
     WEBCORE_EXPORT ~MessagePortChannel();
 
-    const MessagePortIdentifier& port1() const LIFETIME_BOUND { return m_ports[0]; }
-    const MessagePortIdentifier& port2() const LIFETIME_BOUND { return m_ports[1]; }
+    // For Swift, which imports a member returning a reference as a pointer.
+    MessagePortIdentifier port1() const { return m_ports[0]; }
+    MessagePortIdentifier port2() const { return m_ports[1]; }
 
-    NODELETE WEBCORE_EXPORT std::optional<ProcessIdentifier> processForPort(MessagePortIdentifier);
+    // FIXME: rdar://170854276 Swift cannot spell std::optional<ProcessIdentifier> in the member it implements.
+    // Remove this alias once that's fixed.
+    using OptionalProcessIdentifier = std::optional<ProcessIdentifier>;
+    NODELETE WEBCORE_EXPORT OptionalProcessIdentifier processForPort(MessagePortIdentifier);
     NODELETE WEBCORE_EXPORT bool includesPort(MessagePortIdentifier);
     void entanglePortWithProcess(const MessagePortIdentifier&, ProcessIdentifier);
     void disentanglePort(const MessagePortIdentifier&);

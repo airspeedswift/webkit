@@ -1284,6 +1284,10 @@
 		463FD4801EB9459600A2982C /* WKProcessTerminationReason.h in Headers */ = {isa = PBXBuildFile; fileRef = 463FD47F1EB9458400A2982C /* WKProcessTerminationReason.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		463FD4821EB94EC000A2982C /* ProcessTerminationReason.h in Headers */ = {isa = PBXBuildFile; fileRef = 463FD4811EB94EAD00A2982C /* ProcessTerminationReason.h */; };
 		4656F7BD27ACAA8D00CB3D7C /* WebSharedWorker.h in Headers */ = {isa = PBXBuildFile; fileRef = 4656F7BC27ACAA8100CB3D7C /* WebSharedWorker.h */; };
+		8D184AD47BF04D318101D3DE /* NetworkBroadcastChannelRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEA274569D8244C09379DB3A /* NetworkBroadcastChannelRegistry.swift */; };
+		2210A2897F6E41BFBFE36D1F /* WebSharedWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632C25326AE647B788D77AD5 /* WebSharedWorker.swift */; };
+		56AB41766DDF4806976480FF /* WebSharedWorkerServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77E40627768E41309DED9B3B /* WebSharedWorkerServer.swift */; };
+		543547F076A84C33B7E1FEB7 /* WebSharedWorkerServerToContextConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB9816B165B54601B552950F /* WebSharedWorkerServerToContextConnection.swift */; };
 		4659F25F275FF6B200BBB369 /* LockdownModeObserver.h in Headers */ = {isa = PBXBuildFile; fileRef = 4659F25E275FF6B200BBB369 /* LockdownModeObserver.h */; };
 		465F4E06230B2E95003CEDB7 /* StorageNamespaceIdentifier.h in Headers */ = {isa = PBXBuildFile; fileRef = 465F4E05230B2E7C003CEDB7 /* StorageNamespaceIdentifier.h */; };
 		465FA7262757D93D0072362B /* WebLockRegistryProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 465FA7232757D9180072362B /* WebLockRegistryProxy.h */; };
@@ -6138,6 +6142,7 @@
 		4656F7BA27ACAA8000CB3D7C /* WebSharedWorkerServerToContextConnection.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = WebSharedWorkerServerToContextConnection.messages.in; sourceTree = "<group>"; };
 		4656F7BB27ACAA8100CB3D7C /* WebSharedWorker.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebSharedWorker.cpp; sourceTree = "<group>"; };
 		4656F7BC27ACAA8100CB3D7C /* WebSharedWorker.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebSharedWorker.h; sourceTree = "<group>"; };
+		632C25326AE647B788D77AD5 /* WebSharedWorker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSharedWorker.swift; sourceTree = "<group>"; };
 		4659F25E275FF6B200BBB369 /* LockdownModeObserver.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LockdownModeObserver.h; sourceTree = "<group>"; };
 		465F4E032307604E003CEDB7 /* StorageAreaImplIdentifier.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StorageAreaImplIdentifier.h; sourceTree = "<group>"; };
 		465F4E05230B2E7C003CEDB7 /* StorageNamespaceIdentifier.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StorageNamespaceIdentifier.h; sourceTree = "<group>"; };
@@ -6192,6 +6197,7 @@
 		46C71AC82A942E1800E459AF /* GoToBackForwardItemParameters.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = GoToBackForwardItemParameters.serialization.in; sourceTree = "<group>"; };
 		46C916A82799D09D001A4E7C /* WebSharedWorkerServer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebSharedWorkerServer.cpp; sourceTree = "<group>"; };
 		46C916A92799D09D001A4E7C /* WebSharedWorkerServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebSharedWorkerServer.h; sourceTree = "<group>"; };
+		77E40627768E41309DED9B3B /* WebSharedWorkerServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSharedWorkerServer.swift; sourceTree = "<group>"; };
 		46CBA2AF2EAB07AA00D771E2 /* WebLocalFrameLoaderClientCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebLocalFrameLoaderClientCocoa.mm; sourceTree = "<group>"; };
 		46CBA2B12EAB080500D771E2 /* WebChromeClientCocoa.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WebChromeClientCocoa.mm; sourceTree = "<group>"; };
 		46CD8C442B059FF500360248 /* IPCSemaphore.serialization.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = IPCSemaphore.serialization.in; sourceTree = "<group>"; };
@@ -6200,6 +6206,7 @@
 		46D246252AFE954F00F24C94 /* PlatformCAAnimationRemoteProperties.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = PlatformCAAnimationRemoteProperties.serialization.in; sourceTree = "<group>"; };
 		46D48FCC2799D7DD007D2014 /* WebSharedWorkerServerToContextConnection.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebSharedWorkerServerToContextConnection.cpp; sourceTree = "<group>"; };
 		46D48FCD2799D7DE007D2014 /* WebSharedWorkerServerToContextConnection.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = WebSharedWorkerServerToContextConnection.h; sourceTree = "<group>"; };
+		BB9816B165B54601B552950F /* WebSharedWorkerServerToContextConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebSharedWorkerServerToContextConnection.swift; sourceTree = "<group>"; };
 		46DA285727B73E760089D339 /* WebGeolocationManagerProxyCocoa.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = WebGeolocationManagerProxyCocoa.cpp; sourceTree = "<group>"; };
 		46DBC2862AF96B9600E6B63A /* ITPThirdPartyDataForSpecificFirstParty.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; name = ITPThirdPartyDataForSpecificFirstParty.serialization.in; path = Classifier/ITPThirdPartyDataForSpecificFirstParty.serialization.in; sourceTree = "<group>"; };
 		46DBC2872AF96B9600E6B63A /* ITPThirdPartyData.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = ITPThirdPartyData.cpp; path = Classifier/ITPThirdPartyData.cpp; sourceTree = "<group>"; };
@@ -6223,6 +6230,7 @@
 		46EE284A269E051700DD48AB /* NetworkBroadcastChannelRegistry.messages.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = NetworkBroadcastChannelRegistry.messages.in; sourceTree = "<group>"; };
 		46EE284B269E051700DD48AB /* NetworkBroadcastChannelRegistry.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = NetworkBroadcastChannelRegistry.cpp; sourceTree = "<group>"; };
 		46EE284C269E051700DD48AB /* NetworkBroadcastChannelRegistry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = NetworkBroadcastChannelRegistry.h; sourceTree = "<group>"; };
+		CEA274569D8244C09379DB3A /* NetworkBroadcastChannelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkBroadcastChannelRegistry.swift; sourceTree = "<group>"; };
 		46EE3E8A2763FD2A0060C70F /* WebSharedWorkerServerConnection.messages.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = WebSharedWorkerServerConnection.messages.in; sourceTree = "<group>"; };
 		46F38E8B2416E66D0059375A /* RunningBoardServicesSPI.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RunningBoardServicesSPI.h; sourceTree = "<group>"; };
 		46F5DD862AFD7DF100F3B26F /* GPUProcessPreferences.serialization.in */ = {isa = PBXFileReference; lastKnownFileType = text; path = GPUProcessPreferences.serialization.in; sourceTree = "<group>"; };
@@ -14666,14 +14674,17 @@
 			children = (
 				4656F7BB27ACAA8100CB3D7C /* WebSharedWorker.cpp */,
 				4656F7BC27ACAA8100CB3D7C /* WebSharedWorker.h */,
+				632C25326AE647B788D77AD5 /* WebSharedWorker.swift */,
 				46C916A82799D09D001A4E7C /* WebSharedWorkerServer.cpp */,
 				46C916A92799D09D001A4E7C /* WebSharedWorkerServer.h */,
+				77E40627768E41309DED9B3B /* WebSharedWorkerServer.swift */,
 				468386682763FAB100CF9182 /* WebSharedWorkerServerConnection.cpp */,
 				468386672763FAB100CF9182 /* WebSharedWorkerServerConnection.h */,
 				46EE3E8A2763FD2A0060C70F /* WebSharedWorkerServerConnection.messages.in */,
 				46D48FCC2799D7DD007D2014 /* WebSharedWorkerServerToContextConnection.cpp */,
 				46D48FCD2799D7DE007D2014 /* WebSharedWorkerServerToContextConnection.h */,
 				4656F7BA27ACAA8000CB3D7C /* WebSharedWorkerServerToContextConnection.messages.in */,
+				BB9816B165B54601B552950F /* WebSharedWorkerServerToContextConnection.swift */,
 			);
 			path = SharedWorker;
 			sourceTree = "<group>";
@@ -14774,6 +14785,7 @@
 				46EE284B269E051700DD48AB /* NetworkBroadcastChannelRegistry.cpp */,
 				46EE284C269E051700DD48AB /* NetworkBroadcastChannelRegistry.h */,
 				46EE284A269E051700DD48AB /* NetworkBroadcastChannelRegistry.messages.in */,
+				CEA274569D8244C09379DB3A /* NetworkBroadcastChannelRegistry.swift */,
 				513A16491630A9BF005D7D22 /* NetworkConnectionToWebProcess.cpp */,
 				513A164A1630A9BF005D7D22 /* NetworkConnectionToWebProcess.h */,
 				513A164B1630A9BF005D7D22 /* NetworkConnectionToWebProcess.messages.in */,
@@ -22864,6 +22876,7 @@
 				EBA8D3B627A5E33F00CB7900 /* MockPushServiceConnection.mm in Sources */,
 				07D1FE3E79C141B7B597EEBA /* MomentumEventDispatcher.swift in Sources */,
 				57B826452304F14000B72EB0 /* NearFieldSoftLink.mm in Sources */,
+				8D184AD47BF04D318101D3DE /* NetworkBroadcastChannelRegistry.swift in Sources */,
 				C1C1B30F2540F50D00D9100B /* NetworkConnectionToWebProcessMac.mm in Sources */,
 				41E242E026E0C908009A8C64 /* NetworkRTCUtilitiesCocoa.mm in Sources */,
 				FA5AAE9C2E6A217A00FE693D /* NetworkSoftLink.mm in Sources */,
@@ -23362,6 +23375,9 @@
 				517B5F79275E97A1002DC22D /* WebPushDaemonMain.mm in Sources */,
 				51BE6C5B2AA92519001745C1 /* WebPushToolConnection.mm in Sources */,
 				51BE6C572AA92480001745C1 /* WebPushToolMain.mm in Sources */,
+				2210A2897F6E41BFBFE36D1F /* WebSharedWorker.swift in Sources */,
+				56AB41766DDF4806976480FF /* WebSharedWorkerServer.swift in Sources */,
+				543547F076A84C33B7E1FEB7 /* WebSharedWorkerServerToContextConnection.swift in Sources */,
 				41E0A7CB23B645CD00561060 /* WebSocketChannel.cpp in Sources */,
 				41287D4E225D1ECB009A3E26 /* WebSocketTaskCocoa.mm in Sources */,
 				9356F2DF2152B72300E6D5DF /* WebSWOriginStore.cpp in Sources */,

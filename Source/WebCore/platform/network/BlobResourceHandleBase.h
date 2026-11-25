@@ -31,6 +31,7 @@
 #include <WebCore/HTTPParsers.h>
 #include <wtf/Box.h>
 #include <wtf/Forward.h>
+#include <wtf/MemberContainerOperations.h>
 #include <wtf/SwiftBridging.h>
 #include <wtf/Variant.h>
 #include <wtf/Vector.h>
@@ -85,15 +86,21 @@ protected:
     NODELETE static uint64_t clampReadSizeToRemaining(uint64_t requested, uint64_t totalRemaining);
 
 private:
-    void getSizeForNext();
-    NODELETE std::optional<Error> seek();
-    NODELETE std::optional<Error> adjustAndValidateRangeBounds();
-    bool consumeData(std::span<const uint8_t>);
-    bool readDataAsync(const BlobDataItem&, DataSegment&);
     void readFileAsync(const BlobDataItem&, BlobDataFileReference&);
     void dispatchDidReceiveResponse();
     void doStart();
     void didRead(int); // -1 in case of error.
+
+    // Swift cannot call through a pointer to a stream, or a member returning a reference; these make the calls.
+    void closeAsyncStream();
+    void getAsyncFileSize(BlobDataFileReference&);
+    long long getSyncFileSize(BlobDataFileReference&);
+    bool firstRequestIsGET() const;
+    String firstRequestRangeHeader() const;
+
+    // Swift cannot hand didReceiveData() a span; these give it bytes of a data item or of the read buffer, if there are any.
+    bool notifyClientOfSegmentData(const DataSegment&, uint64_t offset, uint64_t size);
+    bool notifyClientOfBufferData(size_t);
 
     virtual void didReceiveResponse(ResourceResponse&&) = 0;
     virtual void didFail(Error) = 0;
@@ -122,6 +129,9 @@ private:
     unsigned m_sizeItemCount { 0 };
     bool m_isFileOpen { false };
     bool m_isRangeRequest { false };
+
+    using RangeOperations = WTF::MemberOptionalOperations<BlobResourceHandleBase, decltype(m_range), &BlobResourceHandleBase::m_range>;
+    using ItemLengthListOperations = WTF::MemberVectorOperations<BlobResourceHandleBase, decltype(m_itemLengthList), &BlobResourceHandleBase::m_itemLengthList>;
 };
 
 } // WebCore

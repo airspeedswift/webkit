@@ -51,7 +51,7 @@ class ThreadSafeDataBuffer;
 struct PolicyContainer;
 
 // BlobRegistryImpl is not thread-safe. It should only be called from main thread.
-class WEBCORE_EXPORT BlobRegistryImpl : public RefCounted<BlobRegistryImpl> {
+class WEBCORE_EXPORT SWIFT_PRIVATE_FILEID("WebCore/BlobRegistryImpl.swift") BlobRegistryImpl : public RefCounted<BlobRegistryImpl> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(BlobRegistryImpl, WEBCORE_EXPORT);
 public:
     static Ref<BlobRegistryImpl> create();
@@ -60,8 +60,6 @@ public:
     BlobData* blobDataFromURL(const URL&, const std::optional<SecurityOriginData>& topOrigin = std::nullopt) const;
 
     Ref<ResourceHandle> createResourceHandle(const ResourceRequest&, ResourceHandleClient*);
-
-    void appendStorageItems(BlobData*, const BlobDataItemList&, long long offset, long long length);
 
     void registerInternalFileBlobURL(URL, Ref<BlobDataFileReference>, String contentType);
     void registerInternalBlobURL(const URL&, Vector<BlobPart>&&, const String& contentType);
@@ -82,6 +80,15 @@ public:
 
     void setFileDirectory(String&&);
 
+    // FIXME: rdar://170854276 Swift cannot spell these template types in the members it implements.
+    // Remove these aliases once that's fixed.
+    using OptionalSecurityOriginData = std::optional<SecurityOriginData>;
+    using BlobDataFileReferenceVector = Vector<Ref<BlobDataFileReference>>;
+    using RefBlobData = Ref<BlobData>;
+    using RefDataSegment = Ref<DataSegment>;
+    using RefBlobDataFileReference = Ref<BlobDataFileReference>;
+    using RefPtrBlobDataFileReference = RefPtr<BlobDataFileReference>;
+
 private:
     BlobRegistryImpl() = default;
 
@@ -90,8 +97,13 @@ private:
         Vector<Variant<String, Ref<DataSegment>>> filePathsOrDataBuffers;
     };
 
-    void registerBlobURLOptionallyFileBacked(const URL&, const URL& srcURL, RefPtr<BlobDataFileReference>&&, const String& contentType, const PolicyContainer&, const std::optional<SecurityOriginData>& topOrigin = std::nullopt);
     void addBlobData(const String& url, Ref<BlobData>&&, const std::optional<WebCore::SecurityOriginData>& topOrigin = std::nullopt);
+    // For Swift, which can read URL::string() only unsafely.
+    void addBlobData(const URL&, Ref<BlobData>&&, const std::optional<WebCore::SecurityOriginData>& topOrigin = std::nullopt);
+    // For Swift, which cannot call BlobURL::isInternalURL(): it exists only when ASSERT_ENABLED.
+    static void assertIsInternalURLOrHasTopOrigin(const URL&, const std::optional<SecurityOriginData>& topOrigin);
+    // For Swift, which cannot call a file-static function.
+    static void registerBlobResourceHandleConstructor();
     Ref<DataSegment> createDataSegment(Vector<uint8_t>&&, BlobData&);
     bool populateBlobsForFileWriting(const Vector<String>& blobURLs, Vector<BlobForFileWriting>&);
 
@@ -105,6 +117,17 @@ private:
 inline void BlobRegistryImpl::setFileDirectory(String&& filePath)
 {
     m_fileDirectory = WTF::move(filePath);
+}
+
+#if !ASSERT_ENABLED
+inline void BlobRegistryImpl::assertIsInternalURLOrHasTopOrigin(const URL&, const std::optional<SecurityOriginData>&)
+{
+}
+#endif
+
+inline void BlobRegistryImpl::addBlobData(const URL& url, Ref<BlobData>&& blobData, const std::optional<WebCore::SecurityOriginData>& topOrigin)
+{
+    addBlobData(url.string(), WTF::move(blobData), topOrigin);
 }
 
 } // namespace WebCore

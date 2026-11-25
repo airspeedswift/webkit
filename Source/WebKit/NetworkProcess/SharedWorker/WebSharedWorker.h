@@ -35,9 +35,11 @@
 #include <wtf/CheckedRef.h>
 #include <wtf/Identified.h>
 #include <wtf/ListHashSet.h>
+#include <wtf/MemberContainerOperations.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
+#include <wtf/text/TextStream.h>
 
 namespace WebKit {
 class WebSharedWorker;
@@ -53,7 +55,7 @@ namespace WebKit {
 class WebSharedWorkerServer;
 class WebSharedWorkerServerToContextConnection;
 
-class WebSharedWorker : public RefCountedAndCanMakeWeakPtr<WebSharedWorker>, public Identified<WebCore::SharedWorkerIdentifier> {
+class SWIFT_PRIVATE_FILEID("WebKit/WebSharedWorker.swift") WebSharedWorker : public RefCountedAndCanMakeWeakPtr<WebSharedWorker>, public Identified<WebCore::SharedWorkerIdentifier> {
     WTF_MAKE_TZONE_ALLOCATED(WebSharedWorker);
 public:
     static Ref<WebSharedWorker> create(WebSharedWorkerServer&, const WebCore::SharedWorkerKey&, const WebCore::WorkerOptions&);
@@ -69,6 +71,11 @@ public:
     WebCore::RegistrableDomain topRegistrableDomain() const;
     WebCore::Site topSite() const;
     WebSharedWorkerServerToContextConnection* contextConnection() const;
+
+    // For Swift, which does not see identifier() through Identified<>.
+    WebCore::SharedWorkerIdentifier sharedWorkerIdentifier() const { return identifier(); }
+    // For Swift, which cannot take a C++ object's address without unsafe code.
+    String logAddress() const { return (TextStream() << static_cast<const void*>(this)).release(); }
 
     void addSharedWorkerObject(WebCore::SharedWorkerObjectIdentifier, const WebCore::TransferredMessagePort&);
     void removeSharedWorkerObject(WebCore::SharedWorkerObjectIdentifier);
@@ -121,6 +128,8 @@ private:
     WebCore::WorkerInitializationData m_initializationData;
     bool m_isRunning { false };
     bool m_isSuspended { false };
+
+    using SharedWorkerObjectsOperations = WTF::MemberHashSetOperations<WebSharedWorker, decltype(m_sharedWorkerObjects), &WebSharedWorker::m_sharedWorkerObjects>;
 };
 
 } // namespace WebKit

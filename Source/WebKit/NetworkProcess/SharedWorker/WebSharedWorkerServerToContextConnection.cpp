@@ -104,20 +104,6 @@ void WebSharedWorkerServerToContextConnection::connectionIsNoLongerNeeded()
         connection->sharedWorkerServerToContextConnectionIsNoLongerNeeded();
 }
 
-void WebSharedWorkerServerToContextConnection::postErrorToWorkerObject(WebCore::SharedWorkerIdentifier sharedWorkerIdentifier, String errorMessage, int lineNumber, int columnNumber, String sourceURL, bool isErrorEvent)
-{
-    CONTEXT_CONNECTION_RELEASE_LOG("postErrorToWorkerObject: sharedWorkerIdentifier=%" PRIu64, sharedWorkerIdentifier.toUInt64());
-    if (CheckedPtr server = m_server.get())
-        server->postErrorToWorkerObject(sharedWorkerIdentifier, errorMessage, lineNumber, columnNumber, sourceURL, isErrorEvent);
-}
-
-void WebSharedWorkerServerToContextConnection::sharedWorkerTerminated(WebCore::SharedWorkerIdentifier sharedWorkerIdentifier)
-{
-    CONTEXT_CONNECTION_RELEASE_LOG("sharedWorkerTerminated: sharedWorkerIdentifier=%" PRIu64, sharedWorkerIdentifier.toUInt64());
-    if (CheckedPtr server = m_server.get())
-        server->sharedWorkerTerminated(sharedWorkerIdentifier);
-}
-
 void WebSharedWorkerServerToContextConnection::launchSharedWorker(WebSharedWorker& sharedWorker)
 {
     RefPtr connection = m_connection.get();

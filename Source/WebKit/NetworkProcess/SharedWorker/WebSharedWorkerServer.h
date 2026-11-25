@@ -34,6 +34,7 @@
 #include <WebCore/SharedWorkerObjectIdentifier.h>
 #include <WebCore/TransferredMessagePort.h>
 #include <wtf/CheckedPtr.h>
+#include <wtf/MemberContainerOperations.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
@@ -61,7 +62,7 @@ class WebSharedWorker;
 class WebSharedWorkerServerConnection;
 class WebSharedWorkerServerToContextConnection;
 
-class WebSharedWorkerServer : public RefCountedAndCanMakeWeakPtr<WebSharedWorkerServer>, public CanMakeCheckedPtr<WebSharedWorkerServer> {
+class SWIFT_PRIVATE_FILEID("WebKit/WebSharedWorkerServer.swift") WebSharedWorkerServer : public RefCountedAndCanMakeWeakPtr<WebSharedWorkerServer>, public CanMakeCheckedPtr<WebSharedWorkerServer> {
     WTF_MAKE_TZONE_ALLOCATED(WebSharedWorkerServer);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(WebSharedWorkerServer);
 public:
@@ -104,6 +105,9 @@ private:
     HashMap<ContextConnectionKey, WeakRef<WebSharedWorkerServerToContextConnection>> m_contextConnections;
     HashSet<ContextConnectionKey> m_pendingContextConnectionDomains;
     HashMap<WebCore::SharedWorkerKey, Ref<WebSharedWorker>> m_sharedWorkers;
+
+    using ConnectionsOperations = WTF::MemberHashMapOperations<WebSharedWorkerServer, decltype(m_connections), &WebSharedWorkerServer::m_connections>;
+    using SharedWorkersOperations = WTF::MemberHashMapOperations<WebSharedWorkerServer, decltype(m_sharedWorkers), &WebSharedWorkerServer::m_sharedWorkers>;
 };
 
 } // namespace WebKit

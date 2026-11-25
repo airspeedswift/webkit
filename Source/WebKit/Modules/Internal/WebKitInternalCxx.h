@@ -37,7 +37,12 @@
 #include "IPCSwiftWorkQueueTesterMessages.h"
 #include "IPCSwiftWorkQueueTesterSupport.h"
 #include "IPCTesterReceiverMessages.h"
+#include "NetworkBroadcastChannelRegistry.h"
 #include "SecurityFlags.h"
+#include "WebSharedWorker.h"
+#include "WebSharedWorkerServer.h"
+#include "WebSharedWorkerServerConnection.h"
+#include "WebSharedWorkerServerToContextConnection.h"
 
 #if ENABLE(GPU_PROCESS) && ENABLE(MEDIA_STREAM) && PLATFORM(COCOA)
 #include "RemoteSampleBufferDisplayLayerManagerMessages.h"

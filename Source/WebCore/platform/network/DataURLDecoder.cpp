@@ -26,42 +26,16 @@
 #include "config.h"
 #include "DataURLDecoder.h"
 
-#include "HTTPParsers.h"
 #include "ParsedContentType.h"
 #include <pal/text/DecodeEscapeSequences.h>
-#include <pal/text/TextEncoding.h>
-#include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RunLoop.h>
-#include <wtf/TZoneMallocInlines.h>
 #include <wtf/URL.h>
 #include <wtf/WorkQueue.h>
 #include <wtf/text/Base64.h>
-#include <wtf/text/MakeString.h>
-
-#if PLATFORM(COCOA)
-#include <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
-#endif
 
 namespace WebCore {
 namespace DataURLDecoder {
-
-static bool shouldRemoveFragmentIdentifier(const String& mediaType)
-{
-#if PLATFORM(COCOA)
-    if (!linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior::DataURLFragmentRemoval))
-        return false;
-
-    // HLS uses # in the middle of the manifests.
-    return !equalLettersIgnoringASCIICase(mediaType, "video/mpegurl"_s)
-        && !equalLettersIgnoringASCIICase(mediaType, "audio/mpegurl"_s)
-        && !equalLettersIgnoringASCIICase(mediaType, "application/x-mpegurl"_s)
-        && !equalLettersIgnoringASCIICase(mediaType, "vnd.apple.mpegurl"_s);
-#else
-    UNUSED_PARAM(mediaType);
-    return true;
-#endif
-}
 
 static WorkQueue& decodeQueueSingleton()
 {
@@ -69,122 +43,44 @@ static WorkQueue& decodeQueueSingleton()
     return queue.get();
 }
 
-static Result parseMediaType(const String& mediaType)
+Result parseMediaType(const String& mediaType)
 {
     if (std::optional<ParsedContentType> parsedContentType = ParsedContentType::create(mediaType))
         return { parsedContentType->mimeType().isolatedCopy(), parsedContentType->charset().isolatedCopy(), parsedContentType->serialize().isolatedCopy(), { } };
     return { "text/plain"_s, "US-ASCII"_s, "text/plain;charset=US-ASCII"_s, { } };
 }
 
-struct DecodeTask {
-    WTF_MAKE_TZONE_ALLOCATED_INLINE(DecodeTask);
-public:
-    DecodeTask(const URL& url, const ScheduleContext& scheduleContext, ShouldValidatePadding shouldValidatePadding, DecodeCompletionHandler&& completionHandler)
-        : url(url.isolatedCopy())
-        , scheduleContext(scheduleContext)
-        , shouldValidatePadding(shouldValidatePadding)
-        , completionHandler(WTF::move(completionHandler))
-    {
-    }
-
-    bool process()
-    {
-        // Syntax:
-        //  url := data:<header>,<encodedData>
-        //  header := [<mediatype>][;base64]
-        //  mediatype := [<mimetype>][;charset=<charsettype>]
-
-        constexpr auto dataString = "data:"_s;
-        ASSERT(url.string().startsWith(dataString));
-
-        size_t headerStart = dataString.length();
-        size_t headerEnd = url.string().find(',', headerStart);
-        if (headerEnd == notFound)
-            return false;
-        if (size_t fragmentInHeader = url.string().reverseFind('#', headerEnd); fragmentInHeader != notFound)
-            return false;
-        size_t encodedDataStart = headerEnd + 1;
-
-        auto header = StringView(url.string()).substring(headerStart, headerEnd - headerStart);
-        
-        // There might one or two semicolons in the header, find the last one.
-        size_t mediaTypeEnd = header.reverseFind(';');
-        mediaTypeEnd = mediaTypeEnd == notFound ? header.length() : mediaTypeEnd;
-
-        // formatTypeStart might be at the begining of "base64" or "charset=...".
-        size_t formatTypeStart = mediaTypeEnd + 1;
-        auto formatType = header.substring(formatTypeStart, header.length() - formatTypeStart);
-        formatType = formatType.trim(isASCIIWhitespaceWithoutFF<char16_t>);
-
-        isBase64 = equalLettersIgnoringASCIICase(formatType, "base64"_s);
-
-        // If header does not end with "base64", mediaType should be the whole header.
-        auto mediaType = (isBase64 ? header.left(mediaTypeEnd) : header).toString();
-        mediaType = mediaType.trim(isASCIIWhitespaceWithoutFF<char16_t>);
-        if (mediaType.startsWith(';'))
-            mediaType = makeString("text/plain"_s, mediaType);
-
-        if (shouldRemoveFragmentIdentifier(mediaType))
-            url.removeFragmentIdentifier();
-
-        encodedData = StringView(url.string()).substring(encodedDataStart);
-
-        result = parseMediaType(mediaType);
-        return true;
-    }
-
-    URL url;
-    StringView encodedData;
-    bool isBase64 { false };
-    const ScheduleContext scheduleContext;
-    ShouldValidatePadding shouldValidatePadding;
-    DecodeCompletionHandler completionHandler;
-
-    Result result;
-};
-
-static std::unique_ptr<DecodeTask> createDecodeTask(const URL& url, const ScheduleContext& scheduleContext, ShouldValidatePadding shouldValidatePadding, DecodeCompletionHandler&& completionHandler)
+bool decodeBase64Data(Result& result, const String& urlString, size_t encodedDataStart, ShouldValidatePadding shouldValidatePadding)
 {
-    return makeUnique<DecodeTask>(
-        url,
-        scheduleContext,
-        shouldValidatePadding,
-        WTF::move(completionHandler)
-    );
+    OptionSet<Base64DecodeOption> options = { Base64DecodeOption::IgnoreWhitespace };
+    if (shouldValidatePadding == ShouldValidatePadding::Yes)
+        options.add(Base64DecodeOption::ValidatePadding);
+    auto decodedData = base64Decode(PAL::decodeURLEscapeSequences(StringView(urlString).substring(encodedDataStart)), options);
+    if (!decodedData)
+        return false;
+    result.data = WTF::move(*decodedData);
+    return true;
 }
 
-static std::optional<Result> decodeSynchronously(DecodeTask& task)
+void decodePercentEncodedData(Result& result, const String& urlString, size_t encodedDataStart)
 {
-    if (!task.process())
-        return std::nullopt;
-
-    if (task.isBase64) {
-        OptionSet<Base64DecodeOption> options = { Base64DecodeOption::IgnoreWhitespace };
-        if (task.shouldValidatePadding == ShouldValidatePadding::Yes)
-            options.add(Base64DecodeOption::ValidatePadding);
-        auto decodedData = base64Decode(PAL::decodeURLEscapeSequences(task.encodedData), options);
-        if (!decodedData)
-            return std::nullopt;
-        task.result.data = WTF::move(*decodedData);
-    } else
-        task.result.data = PAL::decodeURLEscapeSequencesAsData(task.encodedData);
-
-    task.result.data.shrinkToFit();
-    return WTF::move(task.result);
+    result.data = PAL::decodeURLEscapeSequencesAsData(StringView(urlString).substring(encodedDataStart));
 }
 
 void decode(const URL& url, const ScheduleContext& scheduleContext, ShouldValidatePadding shouldValidatePadding, DecodeCompletionHandler&& completionHandler)
 {
     ASSERT(url.protocolIsData());
 
-    decodeQueueSingleton().dispatch([decodeTask = createDecodeTask(url, scheduleContext, shouldValidatePadding, WTF::move(completionHandler))]() mutable {
-        auto result = decodeSynchronously(*decodeTask);
+    decodeQueueSingleton().dispatch([url = url.isolatedCopy(), scheduleContext, shouldValidatePadding, completionHandler = WTF::move(completionHandler)] mutable {
+        auto result = decode(WTF::move(url), shouldValidatePadding);
 
 #if USE(COCOA_EVENT_LOOP)
-        auto scheduledPairs = decodeTask->scheduleContext.scheduledPairs;
+        auto scheduledPairs = scheduleContext.scheduledPairs;
+#else
+        UNUSED_VARIABLE(scheduleContext);
 #endif
 
-        auto callCompletionHandler = [result = WTF::move(result), completionHandler = WTF::move(decodeTask->completionHandler)]() mutable {
+        auto callCompletionHandler = [result = WTF::move(result), completionHandler = WTF::move(completionHandler)] mutable {
             completionHandler(WTF::move(result));
         };
 
@@ -194,14 +90,6 @@ void decode(const URL& url, const ScheduleContext& scheduleContext, ShouldValida
         RunLoop::mainSingleton().dispatch(WTF::move(callCompletionHandler));
 #endif
     });
-}
-
-std::optional<Result> decode(URL url, ShouldValidatePadding shouldValidatePadding)
-{
-    ASSERT(url.protocolIsData());
-
-    auto task = createDecodeTask(url, { }, shouldValidatePadding, nullptr);
-    return decodeSynchronously(*task);
 }
 
 } // namespace DataURLDecoder

@@ -92,21 +92,6 @@ void WebSharedWorker::setFetchResult(WebCore::WorkerFetchResult&& fetchResult)
     m_fetchResult = WTF::move(fetchResult);
 }
 
-void WebSharedWorker::didCreateContextConnection(WebSharedWorkerServerToContextConnection& contextConnection)
-{
-    for (auto& sharedWorkerObject : m_sharedWorkerObjects)
-        contextConnection.addSharedWorkerObject(sharedWorkerObject.identifier);
-    if (didFinishFetching())
-        launch(contextConnection);
-}
-
-void WebSharedWorker::launch(WebSharedWorkerServerToContextConnection& connection)
-{
-    connection.launchSharedWorker(*this);
-    if (m_isSuspended)
-        connection.suspendSharedWorker(identifier());
-}
-
 void WebSharedWorker::addSharedWorkerObject(WebCore::SharedWorkerObjectIdentifier sharedWorkerObjectIdentifier, const WebCore::TransferredMessagePort& port)
 {
     ASSERT(!m_sharedWorkerObjects.contains({ sharedWorkerObjectIdentifier, { false, port } }));
@@ -115,15 +100,6 @@ void WebSharedWorker::addSharedWorkerObject(WebCore::SharedWorkerObjectIdentifie
         connection->addSharedWorkerObject(sharedWorkerObjectIdentifier);
 
     resumeIfNeeded();
-}
-
-void WebSharedWorker::removeSharedWorkerObject(WebCore::SharedWorkerObjectIdentifier sharedWorkerObjectIdentifier)
-{
-    m_sharedWorkerObjects.remove({ sharedWorkerObjectIdentifier, { } });
-    if (RefPtr connection = contextConnection())
-        connection->removeSharedWorkerObject(sharedWorkerObjectIdentifier);
-
-    suspendIfNeeded();
 }
 
 void WebSharedWorker::suspend(WebCore::SharedWorkerObjectIdentifier sharedWorkerObjectIdentifier)
@@ -137,21 +113,6 @@ void WebSharedWorker::suspend(WebCore::SharedWorkerObjectIdentifier sharedWorker
     suspendIfNeeded();
 }
 
-void WebSharedWorker::suspendIfNeeded()
-{
-    if (m_isSuspended)
-        return;
-
-    for (auto& object : m_sharedWorkerObjects) {
-        if (!object.state.isSuspended)
-            return;
-    }
-
-    m_isSuspended = true;
-    if (RefPtr connection = contextConnection())
-        connection->suspendSharedWorker(identifier());
-}
-
 void WebSharedWorker::resume(WebCore::SharedWorkerObjectIdentifier sharedWorkerObjectIdentifier)
 {
     auto iterator = m_sharedWorkerObjects.find({ sharedWorkerObjectIdentifier, { } });
@@ -160,16 +121,6 @@ void WebSharedWorker::resume(WebCore::SharedWorkerObjectIdentifier sharedWorkerO
 
     iterator->state.isSuspended = false;
     resumeIfNeeded();
-}
-
-void WebSharedWorker::resumeIfNeeded()
-{
-    if (!m_isSuspended)
-        return;
-
-    m_isSuspended = false;
-    if (RefPtr connection = contextConnection())
-        connection->resumeSharedWorker(identifier());
 }
 
 void WebSharedWorker::forEachSharedWorkerObject(NOESCAPE const Function<void(WebCore::SharedWorkerObjectIdentifier, const WebCore::TransferredMessagePort&)>& apply) const

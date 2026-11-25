@@ -44,6 +44,9 @@ struct Result {
     Vector<uint8_t> data;
 };
 
+// FIXME: rdar://170854276 Swift cannot spell std::optional<Result>. Remove this alias once that's fixed.
+using OptionalResult = std::optional<Result>;
+
 using DecodeCompletionHandler = Function<void(std::optional<Result>)>;
 struct ScheduleContext {
 #if USE(COCOA_EVENT_LOOP)
@@ -55,6 +58,14 @@ enum class ShouldValidatePadding : bool { No, Yes };
 
 WEBCORE_EXPORT void decode(const URL&, const ScheduleContext&, ShouldValidatePadding, DecodeCompletionHandler&&);
 WEBCORE_EXPORT std::optional<Result> decode(URL, ShouldValidatePadding = ShouldValidatePadding::Yes);
+
+// For Swift, which can read URL::string() only unsafely.
+inline String urlString(const URL& url) { return url.string(); }
+// For Swift, which cannot use ParsedContentType's std::optional of a move-only type or make a StringView. The decoders
+// write into the Result, so its data is moved once.
+Result parseMediaType(const String& mediaType);
+[[nodiscard]] bool decodeBase64Data(Result&, const String& urlString, size_t encodedDataStart, ShouldValidatePadding);
+void decodePercentEncodedData(Result&, const String& urlString, size_t encodedDataStart);
 
 }
 

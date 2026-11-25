@@ -453,6 +453,11 @@
 		0E7A8658B4F64928A9F9A1A1 /* HTTPHeaderField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 914F5BCE704847D6814CBA14 /* HTTPHeaderField.swift */; };
 		276C5875AD7947CBAB50FED9 /* ServerTimingParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A374757C5700487B9BA2DAFC /* ServerTimingParser.swift */; };
 		4D77AF60753E44A6ADD704F7 /* LinkHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D688ADC579D4FE6A08E3FBA /* LinkHeader.swift */; };
+		8E9CBA7C0EFC4634ABB6F31D /* DataURLDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8E9CA8DBCD49C99EE8AFD2 /* DataURLDecoder.swift */; };
+		81FF43301BB84DCF9716A1BE /* BlobResourceHandleBase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CFB509475D549FFA6E3A51A /* BlobResourceHandleBase.swift */; };
+		E4DD2110920645D78C9B77E7 /* BlobRegistryImpl.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52B84D5FFCD41C7A92E1C8A /* BlobRegistryImpl.swift */; };
+		8423A0AB163A41AE899922D2 /* MessagePortChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02460E9C9CA24E7BA7E46029 /* MessagePortChannel.swift */; };
+		5B80CBBD5E2541BEADB57056 /* MessagePortChannelRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE3A617C4A2C4C56B3E49742 /* MessagePortChannelRegistry.swift */; };
 		32F3E81AEAF3467D8F698B2E /* CacheValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA1976F4E8146B58E771CE3 /* CacheValidation.swift */; };
 		DF322B9C422742B1965AD990 /* RFC8941.swift in Sources */ = {isa = PBXBuildFile; fileRef = 041CD30082B142D9A333CFA1 /* RFC8941.swift */; };
 		73FC2C4848AE4B508B0E0CE8 /* SecurityPoliciesSwiftTypes.h in Headers */ = {isa = PBXBuildFile; fileRef = 55494FF478F54036850837C7 /* SecurityPoliciesSwiftTypes.h */; settings = {ATTRIBUTES = (Private, ); }; };
@@ -10992,6 +10997,7 @@
 		2EDEF1EF121B0EFC00726DB2 /* BlobRegistry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BlobRegistry.h; sourceTree = "<group>"; };
 		2EDEF1F0121B0EFC00726DB2 /* BlobRegistryImpl.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = BlobRegistryImpl.cpp; sourceTree = "<group>"; };
 		2EDEF1F1121B0EFC00726DB2 /* BlobRegistryImpl.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BlobRegistryImpl.h; sourceTree = "<group>"; };
+		D52B84D5FFCD41C7A92E1C8A /* BlobRegistryImpl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlobRegistryImpl.swift; sourceTree = "<group>"; };
 		2EDF369A122C94B4002F7D4E /* FileReaderSync.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = FileReaderSync.cpp; sourceTree = "<group>"; };
 		2EDF369B122C94B4002F7D4E /* FileReaderSync.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FileReaderSync.h; sourceTree = "<group>"; };
 		2EE02A1E1F7324280006AF72 /* Pasteboard.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = Pasteboard.cpp; sourceTree = "<group>"; };
@@ -12549,6 +12555,7 @@
 		46E139F623D8B8E70075848E /* HTTPCookieAcceptPolicyCocoa.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = HTTPCookieAcceptPolicyCocoa.h; sourceTree = "<group>"; };
 		46E3E4B22EA71551006D0735 /* BlobResourceHandleBase.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BlobResourceHandleBase.h; sourceTree = "<group>"; };
 		46E3E4B32EA71551006D0735 /* BlobResourceHandleBase.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = BlobResourceHandleBase.cpp; sourceTree = "<group>"; };
+		3CFB509475D549FFA6E3A51A /* BlobResourceHandleBase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlobResourceHandleBase.swift; sourceTree = "<group>"; };
 		46E66ECB2747123400B22A38 /* WebLockManagerSnapshot.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = WebLockManagerSnapshot.idl; sourceTree = "<group>"; };
 		46E6F1922AFAB7EC002807E2 /* SourceBrushLogicalGradient.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SourceBrushLogicalGradient.h; sourceTree = "<group>"; };
 		46E791451F97E01700199739 /* JSVisibilityState.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSVisibilityState.cpp; sourceTree = "<group>"; };
@@ -13392,8 +13399,10 @@
 		51E4CC032BA1132F00A29FB3 /* MIMESniffer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = MIMESniffer.cpp; sourceTree = "<group>"; };
 		51E6820F16387302003BBF3C /* LoaderStrategy.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = LoaderStrategy.h; sourceTree = "<group>"; };
 		51ECC3F1200587B500483EAE /* MessagePortChannelRegistry.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MessagePortChannelRegistry.h; sourceTree = "<group>"; };
+		CE3A617C4A2C4C56B3E49742 /* MessagePortChannelRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagePortChannelRegistry.swift; sourceTree = "<group>"; };
 		51ECC3F3200587B600483EAE /* MessagePortChannel.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MessagePortChannel.cpp; sourceTree = "<group>"; };
 		51ECC3F4200587B700483EAE /* MessagePortChannel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MessagePortChannel.h; sourceTree = "<group>"; };
+		02460E9C9CA24E7BA7E46029 /* MessagePortChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagePortChannel.swift; sourceTree = "<group>"; };
 		51ECC3F5200587B700483EAE /* MessagePortChannelRegistry.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MessagePortChannelRegistry.cpp; sourceTree = "<group>"; };
 		51ECC3FB2005930100483EAE /* MessagePortChannelProvider.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MessagePortChannelProvider.h; sourceTree = "<group>"; };
 		51ECC3FC2005930200483EAE /* MessagePortChannelProvider.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MessagePortChannelProvider.cpp; sourceTree = "<group>"; };
@@ -23598,6 +23607,7 @@
 		E49F85D32E6725AE001C5E06 /* CSSFunctionDescriptors.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CSSFunctionDescriptors.cpp; sourceTree = "<group>"; };
 		E49F85D42E6725E3001C5E06 /* CSSFunctionDeclarations.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = CSSFunctionDeclarations.cpp; sourceTree = "<group>"; };
 		E4A007821B820EC8002C5A6E /* DataURLDecoder.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DataURLDecoder.h; sourceTree = "<group>"; };
+		2B8E9CA8DBCD49C99EE8AFD2 /* DataURLDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataURLDecoder.swift; sourceTree = "<group>"; };
 		E4A007841B820ED3002C5A6E /* DataURLDecoder.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DataURLDecoder.cpp; sourceTree = "<group>"; };
 		E4A1822F1F13BE5800FEF698 /* StyleInvalidationFunctions.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StyleInvalidationFunctions.h; sourceTree = "<group>"; };
 		E4A664C62521B778007081DC /* InlineIteratorBox.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = InlineIteratorBox.h; sourceTree = "<group>"; };
@@ -30013,12 +30023,14 @@
 			children = (
 				51ECC3F3200587B600483EAE /* MessagePortChannel.cpp */,
 				51ECC3F4200587B700483EAE /* MessagePortChannel.h */,
+				02460E9C9CA24E7BA7E46029 /* MessagePortChannel.swift */,
 				51ECC3FC2005930200483EAE /* MessagePortChannelProvider.cpp */,
 				51ECC3FB2005930100483EAE /* MessagePortChannelProvider.h */,
 				51A748E4200600210075BA68 /* MessagePortChannelProviderImpl.cpp */,
 				51A748E5200600210075BA68 /* MessagePortChannelProviderImpl.h */,
 				51ECC3F5200587B700483EAE /* MessagePortChannelRegistry.cpp */,
 				51ECC3F1200587B500483EAE /* MessagePortChannelRegistry.h */,
+				CE3A617C4A2C4C56B3E49742 /* MessagePortChannelRegistry.swift */,
 				51A748E02005D0E00075BA68 /* MessageWithMessagePorts.h */,
 				46DA4A0027AB038D00E375A8 /* TransferredMessagePort.h */,
 				41114A7C2317B39E00B56007 /* WorkerMessagePortChannelProvider.cpp */,
@@ -31685,10 +31697,12 @@
 				2EDEF1EF121B0EFC00726DB2 /* BlobRegistry.h */,
 				2EDEF1F0121B0EFC00726DB2 /* BlobRegistryImpl.cpp */,
 				2EDEF1F1121B0EFC00726DB2 /* BlobRegistryImpl.h */,
+				D52B84D5FFCD41C7A92E1C8A /* BlobRegistryImpl.swift */,
 				2EB4BCD0121F03E300EC4885 /* BlobResourceHandle.cpp */,
 				2EB4BCD1121F03E300EC4885 /* BlobResourceHandle.h */,
 				46E3E4B32EA71551006D0735 /* BlobResourceHandleBase.cpp */,
 				46E3E4B22EA71551006D0735 /* BlobResourceHandleBase.h */,
+				3CFB509475D549FFA6E3A51A /* BlobResourceHandleBase.swift */,
 				E43AF8E41AC5B7DD00CA717E /* CacheValidation.cpp */,
 				E43AF8E51AC5B7DD00CA717E /* CacheValidation.h */,
 				BAA1976F4E8146B58E771CE3 /* CacheValidation.swift */,
@@ -31705,6 +31719,7 @@
 				51A052311058774F00CC9E95 /* CredentialStorage.h */,
 				E4A007841B820ED3002C5A6E /* DataURLDecoder.cpp */,
 				E4A007821B820EC8002C5A6E /* DataURLDecoder.h */,
+				2B8E9CA8DBCD49C99EE8AFD2 /* DataURLDecoder.swift */,
 				1AF8E13212565A4445230FF7 /* DNS.cpp */,
 				B2F34FE50E82F81400F627CD /* DNS.h */,
 				7C60128060078BB70E367A95 /* DNSResolveQueue.cpp */,
@@ -52395,6 +52410,8 @@
 				4996C0F627177488002C125D /* AVVideoCaptureSource.mm in Sources */,
 				F94B12816CDF409E961D0FD8 /* BiquadKernel.swift in Sources */,
 				08473BF78C412A3FCB42B366 /* BitReader.swift in Sources */,
+				E4DD2110920645D78C9B77E7 /* BlobRegistryImpl.swift in Sources */,
+				81FF43301BB84DCF9716A1BE /* BlobResourceHandleBase.swift in Sources */,
 				CA38D08B34C7904DF472CD2E /* ByteCursor.swift in Sources */,
 				4A01C0BFDB37FC20485E98D8 /* CAAudioStreamDescription.swift in Sources */,
 				32F3E81AEAF3467D8F698B2E /* CacheValidation.swift in Sources */,
@@ -52471,6 +52488,7 @@
 				C55A00000000000000000004 /* CSSTokenizerSwift.swift in Sources */,
 				2D22830323A8470700364B7E /* CursorMac.mm in Sources */,
 				5CBD59592280E926002B22AA /* CustomHeaderFields.cpp in Sources */,
+				8E9CBA7C0EFC4634ABB6F31D /* DataURLDecoder.swift in Sources */,
 				5328CAC8C68D4DB28EAACDED /* DateComponents.swift in Sources */,
 				996FDBF81B4945BC960000E5 /* DelayKernel.swift in Sources */,
 				07E4BDBF2A3A5FAB000D5509 /* DictationCaretAnimator.cpp in Sources */,
@@ -52680,6 +52698,8 @@
 				FB50C874F6D94DCA83ABAA3D /* MemoryIDBRecords.swift in Sources */,
 				3890A73A6F24420484C2AB12 /* MemoryIDBTransaction.swift in Sources */,
 				7280E351A0DC459DB09B54A7 /* MemoryIndexValueStore.swift in Sources */,
+				8423A0AB163A41AE899922D2 /* MessagePortChannel.swift in Sources */,
+				5B80CBBD5E2541BEADB57056 /* MessagePortChannelRegistry.swift in Sources */,
 				D0FF33084718472E8CF955A9 /* SwiftIDBStore.swift in Sources */,
 				83BCC7E5BA4E4584AA2E5907 /* SQLiteIDBStore.swift in Sources */,
 				39FF5317DF6C4613A1891E99 /* SQLiteIDBStoreCursor.swift in Sources */,

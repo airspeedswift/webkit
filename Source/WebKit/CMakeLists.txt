@@ -1677,6 +1677,10 @@ list(APPEND WebKit_SOURCES
     ${WEBKIT_DIR}/GPUProcess/media/RemoteAudioHardwareListenerProxy.swift
     ${WEBKIT_DIR}/GPUProcess/media/RemoteVideoFrameObjectHeap.swift
     ${WEBKIT_DIR}/NetworkProcess/Classifier/ResourceLoadStatisticsStore.swift
+    ${WEBKIT_DIR}/NetworkProcess/NetworkBroadcastChannelRegistry.swift
+    ${WEBKIT_DIR}/NetworkProcess/SharedWorker/WebSharedWorker.swift
+    ${WEBKIT_DIR}/NetworkProcess/SharedWorker/WebSharedWorkerServer.swift
+    ${WEBKIT_DIR}/NetworkProcess/SharedWorker/WebSharedWorkerServerToContextConnection.swift
     ${WebKit_DERIVED_SOURCES_DIR}/RemoteVideoFrameObjectHeapMessageReceiver.swift
     ${WebKit_DERIVED_SOURCES_DIR}/WebBackForwardListMessageReceiver.swift
     ${WEBKIT_DIR}/Platform/Logging.swift

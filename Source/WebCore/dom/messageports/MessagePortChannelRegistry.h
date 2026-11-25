@@ -33,12 +33,13 @@
 #include <wtf/CompletionHandler.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
+#include <wtf/MemberContainerOperations.h>
 #include <wtf/RefCountedAndCanMakeWeakPtr.h>
 #include <wtf/TZoneMalloc.h>
 
 namespace WebCore {
 
-class MessagePortChannelRegistry final : public RefCountedAndCanMakeWeakPtr<MessagePortChannelRegistry>, public CanMakeCheckedPtr<MessagePortChannelRegistry> {
+class SWIFT_PRIVATE_FILEID("WebCore/MessagePortChannelRegistry.swift") MessagePortChannelRegistry final : public RefCountedAndCanMakeWeakPtr<MessagePortChannelRegistry>, public CanMakeCheckedPtr<MessagePortChannelRegistry> {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(MessagePortChannelRegistry, WEBCORE_EXPORT);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(MessagePortChannelRegistry);
 public:
@@ -71,6 +72,10 @@ private:
     HashMap<MessagePortIdentifier, WeakRef<MessagePortChannel>> m_openChannels;
     HashMap<MessagePortIdentifier, ProcessIdentifier> m_pendingTransferOrigins;
     HashMap<MessagePortIdentifier, ProcessIdentifier> m_pendingTransferDestinations;
+
+    using OpenChannelsOperations = WTF::MemberHashMapOperations<MessagePortChannelRegistry, decltype(m_openChannels), &MessagePortChannelRegistry::m_openChannels>;
+    // Swift imports specializations that differ only in the member pointer as one, so recordPendingTransferDestination() stays in C++.
+    using PendingTransferOriginsOperations = WTF::MemberHashMapOperations<MessagePortChannelRegistry, decltype(m_pendingTransferOrigins), &MessagePortChannelRegistry::m_pendingTransferOrigins>;
 };
 
 } // namespace WebCore
