@@ -4621,6 +4621,7 @@ else ()
         platform/DateComponents.h
         platform/MediaParsersCxxBridging.h
         platform/ReferrerPolicy.h
+        platform/SharedBuffer.h
         platform/graphics/AV1CodecConfigurationRecord.h
         platform/graphics/AlphaPremultiplication.h
         platform/graphics/AnnexBUtilities.h
